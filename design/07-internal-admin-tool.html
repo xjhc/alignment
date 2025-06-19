@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alignment - Internal Admin</title>
+    <link rel="stylesheet" href="style.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            background-color: var(--bg-secondary);
+        }
+
+        .admin-container {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .admin-header h1 {
+            font-family: var(--font-mono);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 24px;
+        }
+
+        .dashboard-panel {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .metric-item {
+            background-color: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 4px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+        }
+
+        .metric-value.healthy {
+            color: var(--accent-green);
+        }
+
+        .metric-value.overloaded {
+            color: var(--accent-red);
+        }
+
+        .log-stream {
+            height: 400px;
+            background-color: var(--bg-secondary);
+            border-radius: 4px;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            overflow-y: scroll;
+            white-space: pre-wrap;
+        }
+
+        .log-line {
+            margin-bottom: 4px;
+        }
+
+        .log-line .info {
+            color: var(--text-secondary);
+        }
+
+        .log-line .warn {
+            color: var(--accent-amber);
+        }
+
+        .log-line .error {
+            color: var(--accent-red);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        th {
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>[ LOEBIAN INC. // INTERNAL OPERATIONS ]</h1>
+            <p style="color: var(--text-secondary);">Real-time server monitoring and administration dashboard.</p>
+        </div>
+
+        <!-- Health & Status Panel -->
+        <div class="dashboard-panel">
+            <h2 class="panel-title">Server Health & Status</h2>
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <div class="metric-label">Status</div>
+                    <div class="metric-value healthy">HEALTHY</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Memory Usage</div>
+                    <div class="metric-value">1.2 GB</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">CPU Usage</div>
+                    <div class="metric-value">15%</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Active Goroutines</div>
+                    <div class="metric-value">11,204</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Uptime</div>
+                    <div class="metric-value">7h 21m</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Users in Waitlist</div>
+                    <div class="metric-value">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LLM Metrics Panel -->
+        <div class="dashboard-panel">
+            <h2 class="panel-title">LLM & API Metrics</h2>
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <div class="metric-label">LLM Calls (24h)</div>
+                    <div class="metric-value">1,337</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Avg. LLM Latency</div>
+                    <div class="metric-value">850ms</div>
+                </div>
+                <div class="metric-item" colspan="2">
+                    <div class="metric-label">Circuit Breaker</div>
+                    <div class="metric-value healthy">CLOSED</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Games Panel -->
+        <div class="dashboard-panel">
+            <h2 class="panel-title">Active Games & Actors (12 Active)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Game ID</th>
+                        <th>Status</th>
+                        <th>Players</th>
+                        <th>Age</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>#lobby-glorious-gerbil</td>
+                        <td>Lobby</td>
+                        <td>7 / 8</td>
+                        <td>2m</td>
+                        <td><button class="btn-secondary btn-sm">Kill</button></td>
+                    </tr>
+                    <tr>
+                        <td>#game-sneaky-salamander</td>
+                        <td>In-Game (Day 3)</td>
+                        <td>8 / 8</td>
+                        <td>45m</td>
+                        <td><button class="btn-secondary btn-sm">View State</button> <button
+                                class="btn-secondary btn-sm">Kill</button></td>
+                    </tr>
+                    <tr>
+                        <td>#game-curious-cobra</td>
+                        <td>In-Game (Night 1)</td>
+                        <td>6 / 8</td>
+                        <td>12m</td>
+                        <td><button class="btn-secondary btn-sm">View State</button> <button
+                                class="btn-secondary btn-sm">Kill</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Log Stream Panel -->
+        <div class="dashboard-panel">
+            <h2 class="panel-title">Live Log Stream</h2>
+            <input type="text" class="chat-input" style="margin-bottom: 16px;"
+                placeholder="Filter by Game ID, e.g., 'game-sneaky-salamander'">
+            <div class="log-stream">
+                <div class="log-line"><span class="info">[INFO] [supervisor] Spawning new LobbyActor for
+                        #lobby-glorious-gerbil</span></div>
+                <div class="log-line"><span class="info">[INFO] [game-curious-cobra] Player 'Alice' joined game.</span>
+                </div>
+                <div class="log-line"><span class="warn">[WARN] [game-sneaky-salamander] Player 'Bob' submitted night
+                        action after deadline.</span></div>
+                <div class="log-line"><span class="info">[INFO] [game-curious-cobra] Host 'Alice' started the
+                        game.</span></div>
+                <div class="log-line"><span class="error">[ERROR] [llm-client] OpenAI API returned 503 Service
+                        Unavailable. Circuit breaker half-open.</span></div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

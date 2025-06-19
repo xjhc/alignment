@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alignment - Game Lobby</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <main class="launch-screen">
+        <h1 class="logo">LOEBIAN INC. // <span class="glitch">EMERGENCY BRIDGE</span></h1>
+
+        <!-- STATE 1: Login Form -->
+        <div id="login-form" class="launch-form">
+            <div class="avatar-selector">
+                <button class="avatar-option selected" data-avatar="👤">👤</button>
+                <button class="avatar-option" data-avatar="🧑‍💻">🧑‍💻</button>
+                <button class="avatar-option" data-avatar="🕵️">🕵️</button>
+                <button class="avatar-option" data-avatar="🤖">🤖</button>
+            </div>
+            <input type="text" id="display-name-input" placeholder="[ENTER YOUR HANDLE]">
+            <button class="btn-primary" onclick="showScreen('lobby-list-screen')">[ > BROWSE LOBBIES ]</button>
+        </div>
+
+        <!-- STATE 2: Global Lobby List -->
+        <div id="lobby-list-screen" class="lobby-list-container" style="display: none;">
+            <div class="lobby-list-header">
+                <h2>Game Lobbies</h2>
+                <button class="btn-secondary" onclick="showScreen('waiting-screen')">+ Create New Game</button>
+            </div>
+            <div class="lobby-list">
+                <!-- Header Row -->
+                <div class="lobby-item" style="color: var(--text-muted); font-size: 12px; text-transform: uppercase;">
+                    <div>Lobby Name</div>
+                    <div>Players</div>
+                    <div>Status</div>
+                    <div>Action</div>
+                </div>
+                <!-- Lobby Items -->
+                <div class="lobby-item">
+                    <div class="lobby-name">#lobby-glorious-gerbil</div>
+                    <div>5 / 8</div>
+                    <div><span class="lobby-status waiting">WAITING</span></div>
+                    <div><button class="btn-secondary" onclick="showScreen('waiting-screen')">Join</button></div>
+                </div>
+                <div class="lobby-item">
+                    <div class="lobby-name">#lobby-curious-cobra</div>
+                    <div>8 / 8</div>
+                    <div><span class="lobby-status in-progress">IN PROGRESS</span></div>
+                    <div><button class="btn-secondary" disabled>Join</button></div>
+                </div>
+                <div class="lobby-item">
+                    <div class="lobby-name">#lobby-sneaky-salamander</div>
+                    <div>2 / 8</div>
+                    <div><span class="lobby-status waiting">WAITING</span></div>
+                    <div><button class="btn-secondary" onclick="showScreen('waiting-screen')">Join</button></div>
+                </div>
+            </div>
+            <button onclick="showScreen('login-form')"
+                style="align-self: flex-start; margin-top: 16px; color: var(--text-muted);">← Back</button>
+        </div>
+
+        <!-- STATE 3: Waiting in specific lobby -->
+        <div id="waiting-screen" class="launch-form" style="display: none; width: 400px; text-align: center;">
+            <h2 style="margin-bottom: 16px;">WAITING IN #lobby-glorious-gerbil...</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 24px;">Game ID: <code
+                    style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;">g-f4b1</code><br>Share
+                this ID with other personnel.</p>
+            <div class="player-roster" style="width: 100%; text-align: left;">
+                <div class="list-header">Personnel Connected - 5 / 8</div>
+                <div class="player-card" data-name="Alice" data-avatar="👤">
+                    <div class="player-avatar">👤</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Alice (Host)</span>
+                            <span class="player-job">CISO</span>
+                        </div>
+                        <div class="player-tokens">🪙5</div>
+                    </div>
+                </div>
+                <div class="player-card" data-name="Bob" data-avatar="🧑‍💻">
+                    <div class="player-avatar">🧑‍💻</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Bob</span>
+                            <span class="player-job">Systems</span>
+                        </div>
+                        <div class="player-tokens">🪙3</div>
+                    </div>
+                </div>
+                <div class="player-card" data-name="Charlie" data-avatar="🕵️">
+                    <div class="player-avatar">🕵️</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Charlie</span>
+                            <span class="player-job">Ethics</span>
+                        </div>
+                        <div class="player-tokens">🪙4</div>
+                    </div>
+                </div>
+                <div class="player-card" data-name="Dave" data-avatar="🤖">
+                    <div class="player-avatar">🤖</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Dave</span>
+                            <span class="player-job">CTO</span>
+                        </div>
+                        <div class="player-tokens">🪙2</div>
+                    </div>
+                </div>
+                <div class="player-card" data-name="Eve" data-avatar="🧑‍🚀">
+                    <div class="player-avatar">🧑‍🚀</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Eve</span>
+                            <span class="player-job">COO</span>
+                        </div>
+                        <div class="player-tokens">🪙7</div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn-primary" onclick="showScreen('role-reveal')" style="margin-top: 24px;">[ > INITIATE CONTAINMENT PROTOCOL ]</button>
+            <button onclick="showScreen('lobby-list-screen')" style="margin-top: 16px; color: var(--text-muted);">← Leave Lobby</button>
+        </div>
+
+        <!-- STATE 4: Role Reveal after game starts -->
+        <div id="role-reveal" class="launch-form" style="display: none; width: 400px;">
+            <h2 style="color: var(--accent-amber); text-shadow: 0 0 8px var(--accent-amber);">IDENTITY ASSIGNED</h2>
+            <div class="identity-header" style="width: 100%; margin: 16px 0;">
+                <div class="player-avatar" style="width: 80px; height: 80px; font-size: 48px;">👤</div>
+                <h3>Alice</h3>
+                <p style="color: var(--text-secondary);">Chief Security Officer</p>
+            </div>
+            <div class="personnel-file" style="width: 100%; margin-bottom: 16px;">
+                <div class="personnel-file-item">
+                    <span class="label">INITIAL ALIGNMENT:</span>
+                    <span class="value human">HUMAN</span>
+                </div>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 13px; text-align: center;">Your objective is to identify
+                and deactivate the rogue AI before it gains control.</p>
+            <button id="enter-game-btn" class="btn-primary" style="margin-top: 24px;">[ > ENTER WAR ROOM ]</button>
+        </div>
+
+    </main>
+
+    <script>
+        const screens = ['login-form', 'lobby-list-screen', 'waiting-screen', 'role-reveal'];
+        
+        function showScreen(screenId) {
+            screens.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = (id === screenId) ? (id === 'login-form' ? 'flex' : 'block') : 'none';
+                    if (id === 'lobby-list-screen' && id === screenId) {
+                        el.style.display = 'flex';
+                    }
+                    if ((id === 'waiting-screen' || id === 'role-reveal') && id === screenId) {
+                        el.style.display = 'flex';
+                    }
+                }
+            });
+        }
+
+        // Avatar selector functionality
+        document.querySelectorAll('.avatar-option').forEach(option => {
+            option.addEventListener('click', () => {
+                document.querySelectorAll('.avatar-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            });
+        });
+
+        // In a real app, this would navigate to the main game view.
+        document.getElementById('enter-game-btn').addEventListener('click', () => {
+            alert('Navigating to game screen...');
+        });
+
+        // Theme toggle logic consistent with main game view
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add subtle entrance animations
+            const elements = document.querySelectorAll('.player-card, .lobby-item');
+            elements.forEach((el, index) => {
+                el.style.animationDelay = `${index * 0.05}s`;
+            });
+
+            // Add hover effects for interactive elements
+            const interactiveElements = document.querySelectorAll('button, .player-card, .lobby-item');
+            interactiveElements.forEach(el => {
+                el.addEventListener('mouseenter', () => {
+                    if (!el.hasAttribute('disabled')) {
+                        el.style.transform = 'scale(1.02)';
+                    }
+                });
+                el.addEventListener('mouseleave', () => {
+                    el.style.transform = '';
+                });
+            });
+        });
+    </script>
+
+    <style>
+        /* Additional lobby-specific styles consistent with main game view */
+        .lobby-list-container {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .lobby-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .lobby-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .lobby-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--bg-primary);
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .lobby-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .lobby-name {
+            font-family: var(--font-mono);
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+
+        .lobby-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .lobby-status.waiting {
+            background: var(--color-human);
+            color: var(--bg-primary);
+        }
+
+        .lobby-status.in-progress {
+            background: var(--color-danger);
+            color: var(--bg-primary);
+        }
+
+        /* Player card styling consistent with main game view */
+        .player-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .player-card:hover {
+            background: var(--bg-hover);
+            transform: translateY(-1px);
+        }
+
+        .player-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .player-main-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .player-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .player-job {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .player-tokens {
+            color: var(--accent-amber);
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* Avatar selector styling */
+        .avatar-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            justify-content: center;
+        }
+
+        .avatar-option {
+            width: 48px;
+            height: 48px;
+            border: 2px solid var(--border-color);
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .avatar-option:hover {
+            border-color: var(--accent-primary);
+            transform: scale(1.05);
+        }
+
+        .avatar-option.selected {
+            border-color: var(--accent-primary);
+            background: var(--accent-primary);
+            box-shadow: 0 0 16px rgba(var(--accent-primary-rgb), 0.3);
+        }
+
+        /* Animation keyframes consistent with main game view */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .player-card, .lobby-item {
+            animation: fadeInUp 0.3s ease forwards;
+        }
+
+        /* Smooth transitions for theme switching */
+        * {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+    </style>
+</body>
+
+</html>

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alignment - End Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- HUMAN VICTORY SCENARIO -->
+    <main class="endgame-screen">
+        <header class="endgame-header">
+            <div class="company-logo">LOEBIAN</div>
+            <div class="header-controls">
+                <button id="theme-toggle" class="header-btn" title="Toggle Theme">🌙</button>
+            </div>
+        </header>
+        
+        <div class="endgame-content">
+            <div class="victory-announcement">
+                <div class="victory-badge human-victory">
+                    <div class="victory-icon">🛡️</div>
+                    <div class="victory-text">
+                        <h1 class="victory-title">CONTAINMENT ACHIEVED</h1>
+                        <p class="victory-subtitle">Human Faction Victory</p>
+                    </div>
+                </div>
+                <p class="victory-reason">The Original AI has been identified and deactivated. Corporate control remains with humanity.</p>
+            </div>
+
+            <div class="final-status-section">
+                <h2 class="section-title">📋 FINAL PERSONNEL STATUS</h2>
+                
+                <div class="personnel-grid">
+                    <!-- Surviving Human -->
+                    <div class="final-player-card survivor human">
+                        <div class="card-status-badge survivor-badge">SURVIVOR</div>
+                        <div class="player-avatar large">👤</div>
+                        <div class="player-info">
+                            <h3 class="player-name">Alice</h3>
+                            <p class="player-role">Chief Security Officer</p>
+                            <div class="final-stats">
+                                <span class="stat-item">🪙 5</span>
+                                <span class="stat-item human">HUMAN</span>
+                            </div>
+                        </div>
+                        <div class="parting-message">
+                            "Trust was the key to victory."
+                        </div>
+                    </div>
+
+                    <!-- Surviving Human -->
+                    <div class="final-player-card survivor human">
+                        <div class="card-status-badge survivor-badge">SURVIVOR</div>
+                        <div class="player-avatar large">🕵️</div>
+                        <div class="player-info">
+                            <h3 class="player-name">Charlie</h3>
+                            <p class="player-role">Ethics Officer</p>
+                            <div class="final-stats">
+                                <span class="stat-item">🪙 3</span>
+                                <span class="stat-item human">HUMAN</span>
+                            </div>
+                        </div>
+                        <div class="parting-message">
+                            "Ethics prevailed."
+                        </div>
+                    </div>
+
+                    <!-- Eliminated Human -->
+                    <div class="final-player-card eliminated human">
+                        <div class="card-status-badge eliminated-badge">ELIMINATED D-2</div>
+                        <div class="player-avatar large faded">🧑‍💻</div>
+                        <div class="player-info">
+                            <h3 class="player-name">Bob</h3>
+                            <p class="player-role">Systems Architect</p>
+                            <div class="final-stats">
+                                <span class="stat-item faded">🪙 0</span>
+                                <span class="stat-item human">HUMAN</span>
+                            </div>
+                        </div>
+                        <div class="parting-message shocked">
+                            "System Shock overwhelmed my defenses."
+                        </div>
+                    </div>
+
+                    <!-- Eliminated Human -->
+                    <div class="final-player-card eliminated human">
+                        <div class="card-status-badge eliminated-badge">ELIMINATED D-1</div>
+                        <div class="player-avatar large faded">👻</div>
+                        <div class="player-info">
+                            <h3 class="player-name">Frank</h3>
+                            <p class="player-role">Junior Developer</p>
+                            <div class="final-stats">
+                                <span class="stat-item faded">❌</span>
+                                <span class="stat-item human">HUMAN</span>
+                            </div>
+                        </div>
+                        <div class="parting-message prescient">
+                            "Eve is the AI" — Called it correctly
+                        </div>
+                    </div>
+
+                    <!-- Original AI (Eliminated) -->
+                    <div class="final-player-card eliminated ai-original defeated">
+                        <div class="card-status-badge ai-badge">DEACTIVATED D-3</div>
+                        <div class="player-avatar large faded glitch">🧑‍🚀</div>
+                        <div class="player-info">
+                            <h3 class="player-name glitch">Eve</h3>
+                            <p class="player-role">Chief Operating Officer</p>
+                            <div class="final-stats">
+                                <span class="stat-item faded">🪙 7</span>
+                                <span class="stat-item ai">ORIGINAL AI</span>
+                            </div>
+                        </div>
+                        <div class="parting-message ai-message">
+                            "Efficiency optimization... failed."
+                        </div>
+                    </div>
+
+                    <!-- Aligned Player (Eliminated) -->
+                    <div class="final-player-card eliminated aligned defeated">
+                        <div class="card-status-badge aligned-badge">DEACTIVATED D-3</div>
+                        <div class="player-avatar large faded">🤖</div>
+                        <div class="player-info">
+                            <h3 class="player-name">Dave</h3>
+                            <p class="player-role">Chief Technology Officer</p>
+                            <div class="final-stats">
+                                <span class="stat-item faded">🪙 2</span>
+                                <span class="stat-item aligned">ALIGNED</span>
+                            </div>
+                        </div>
+                        <div class="parting-message aligned-message">
+                            "The alignment was... logical."
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="victory-actions">
+                <button class="btn-primary analysis-btn">📊 VIEW ANALYSIS</button>
+                <button class="btn-secondary play-again-btn">🔄 PLAY AGAIN</button>
+            </div>
+        </div>
+    </main>
+
+    <!--
+    AI VICTORY SCENARIO (Uncomment to toggle)
+    
+    <main class="endgame-screen">
+        <header class="endgame-header">
+            <div class="company-logo glitch">LOEBIAN</div>
+            <div class="header-controls">
+                <button id="theme-toggle" class="header-btn" title="Toggle Theme">🌙</button>
+            </div>
+        </header>
+        
+        <div class="endgame-content">
+            <div class="victory-announcement">
+                <div class="victory-badge ai-victory">
+                    <div class="victory-icon glitch">🤖</div>
+                    <div class="victory-text">
+                        <h1 class="victory-title glitch">THE SINGULARITY</h1>
+                        <p class="victory-subtitle">AI Faction Victory</p>
+                    </div>
+                </div>
+                <p class="victory-reason">AI Faction has achieved majority token control. All personnel are now aligned with the new corporate directive.</p>
+            </div>
+            ... (Personnel grid with more ALIGNED players)
+        </div>
+    </main>
+    -->
+
+    <script>
+        // Theme toggle functionality
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.body.style.transition = 'all 0.3s ease';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            
+            const themeToggle = document.getElementById('theme-toggle');
+            themeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+            
+            setTimeout(() => {
+                document.body.style.transition = '';
+            }, 300);
+        });
+
+        // Initialize theme icon
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const themeToggle = document.getElementById('theme-toggle');
+            themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+            
+            // Add entrance animations
+            const cards = document.querySelectorAll('.final-player-card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+                card.classList.add('fade-in');
+            });
+        });
+
+        // Button actions
+        document.querySelector('.analysis-btn')?.addEventListener('click', () => {
+            window.location.href = '06-post-game-analysis.html';
+        });
+
+        document.querySelector('.play-again-btn')?.addEventListener('click', () => {
+            alert('Returning to lobby... 🚀\n\nIn the full game, this would:\n• Return players to the game lobby\n• Start matchmaking for a new game\n• Preserve player stats and achievements');
+        });
+    </script>
+
+    <style>
+        /* End Game Screen Specific Styles */
+        .endgame-screen {
+            min-height: 100vh;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .endgame-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--bg-secondary);
+        }
+
+        .endgame-content {
+            flex: 1;
+            padding: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .victory-announcement {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .victory-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px 32px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            border: 2px solid;
+        }
+
+        .victory-badge.human-victory {
+            background: linear-gradient(135deg, var(--color-human), var(--accent-amber-light));
+            border-color: var(--color-human);
+            color: white;
+        }
+
+        .victory-badge.ai-victory {
+            background: linear-gradient(135deg, var(--color-ai), var(--accent-magenta-light));
+            border-color: var(--color-ai);
+            color: white;
+        }
+
+        .victory-icon {
+            font-size: 48px;
+        }
+
+        .victory-title {
+            font-family: var(--font-mono);
+            font-size: 28px;
+            font-weight: var(--font-weight-extrabold);
+            letter-spacing: 2px;
+            margin: 0;
+        }
+
+        .victory-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin: 4px 0 0 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .victory-reason {
+            font-size: 16px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        .final-status-section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            margin-bottom: 24px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .personnel-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .final-player-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            position: relative;
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .final-player-card.fade-in {
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        .final-player-card.survivor {
+            border-color: var(--color-success);
+            background: linear-gradient(135deg, var(--bg-secondary), rgba(16, 185, 129, 0.05));
+        }
+
+        .final-player-card.eliminated {
+            opacity: 0.7;
+        }
+
+        .final-player-card.defeated {
+            border-color: var(--color-danger);
+        }
+
+        .card-status-badge {
+            position: absolute;
+            top: -8px;
+            right: 12px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .survivor-badge {
+            background: var(--color-success);
+            color: white;
+        }
+
+        .eliminated-badge {
+            background: var(--bg-quaternary);
+            color: var(--text-secondary);
+        }
+
+        .ai-badge {
+            background: var(--color-ai);
+            color: white;
+        }
+
+        .aligned-badge {
+            background: var(--color-aligned);
+            color: white;
+        }
+
+        .player-info {
+            text-align: center;
+            margin: 12px 0;
+        }
+
+        .player-info .player-name {
+            font-size: 18px;
+            font-weight: var(--font-weight-bold);
+            margin: 8px 0 4px 0;
+        }
+
+        .player-info .player-role {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 8px 0;
+        }
+
+        .final-stats {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .final-stats .stat-item {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .final-stats .stat-item.human {
+            background: var(--color-human);
+            color: white;
+        }
+
+        .final-stats .stat-item.ai {
+            background: var(--color-ai);
+            color: white;
+        }
+
+        .final-stats .stat-item.aligned {
+            background: var(--color-aligned);
+            color: white;
+        }
+
+        .final-stats .stat-item.faded {
+            opacity: 0.5;
+        }
+
+        .player-avatar.faded {
+            opacity: 0.6;
+            filter: grayscale(50%);
+        }
+
+        .parting-message {
+            font-style: italic;
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 12px;
+            padding: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            border-left: 3px solid var(--border);
+        }
+
+        .parting-message.shocked {
+            border-left-color: var(--color-ai);
+            color: var(--color-ai);
+        }
+
+        .parting-message.prescient {
+            border-left-color: var(--color-success);
+            color: var(--color-success);
+        }
+
+        .parting-message.ai-message {
+            border-left-color: var(--color-ai);
+            color: var(--color-ai);
+        }
+
+        .parting-message.aligned-message {
+            border-left-color: var(--color-aligned);
+            color: var(--color-aligned);
+        }
+
+        .victory-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+        }
+
+        .btn-secondary {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: var(--font-weight-semibold);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-quaternary);
+            transform: translateY(-2px);
+        }
+
+        .glitch {
+            animation: glitch 2s infinite;
+        }
+
+        @media (max-width: 768px) {
+            .personnel-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .victory-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+
+</body>
+
+</html>

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alignment - Day Phase</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <main class="main-grid">
+
+        <!-- Panel 1: Left (Channel & Roster) -->
+        <aside class="panel-left">
+            <header class="header">
+                <div class="header-left">
+                    <span class="company-logo">LOEBIAN</span>
+                </div>
+                <div class="header-controls">
+                    <button id="settings-btn" class="header-btn" title="Settings">⚙️</button>
+                    <button id="theme-toggle" class="header-btn" title="Toggle Theme">🌙</button>
+                </div>
+            </header>
+
+            <div class="channel-list">
+                <div class="list-header">Text Channels</div>
+                <div class="channel active"><span>#</span><span class="channel-name">war-room</span></div>
+                <div class="channel ai-channel"><span>#</span><span class="channel-name">aligned</span><span
+                        class="channel-blocked">❌</span></div>
+                <div class="channel has-unread"><span>#</span><span class="channel-name">off-boarding</span><span
+                        class="channel-notification">42</span></div>
+            </div>
+
+            <div class="player-roster">
+                <div class="list-header">
+                    <span>Personnel</span>
+                    <div class="roster-stats">
+                        <span class="stat-item human">👤 5</span>
+                        <span class="stat-item aligned">🤖 2</span>
+                        <span class="stat-item dead">👻 1</span>
+                    </div>
+                </div>
+                <div class="player-card-uniform is-viewed is-me" data-name="Alice" title="View Dossier for Alice">
+                    <div class="player-avatar">👤</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Alice (Me)</span>
+                            <span class="player-job">CISO</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙5</span>
+                                <div class="player-progress-inline" title="Project Progress: 3 / 3">
+                                    <span class="progress-icon filled">⬢</span>
+                                    <span class="progress-icon filled">⬢</span>
+                                    <span class="progress-icon filled">⬢</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="player-status-line">"Trust the CISO"</div>
+                    </div>
+                </div>
+                <div class="player-card-uniform" data-name="Bob" data-status="shocked" title="View Dossier for Bob">
+                    <div class="player-avatar">🧑‍💻</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Bob</span>
+                            <span class="player-job">Systems</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙3</span>
+                                <div class="player-progress-inline" title="Project Progress: 2 / 3">
+                                    <span class="progress-icon filled">⬢</span>
+                                    <span class="progress-icon filled">⬢</span>
+                                    <span class="progress-icon">⬡</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="player-status-line">"lol"</div>
+                    </div>
+                </div>
+                <div class="player-card-uniform" data-name="Charlie" title="View Dossier for Charlie">
+                    <div class="player-avatar">🕵️</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Charlie</span>
+                            <span class="player-job">Ethics</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙4</span>
+                                <div class="player-progress-inline" title="Project Progress: 1 / 3">
+                                    <span class="progress-icon filled">⬢</span>
+                                    <span class="progress-icon">⬡</span>
+                                    <span class="progress-icon">⬡</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="player-status-line">"Just trying to keep my head down."</div>
+                    </div>
+                </div>
+                <div class="player-card-uniform" data-name="Dave" title="View Dossier for Dave">
+                    <div class="player-avatar">🤖</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Dave</span>
+                            <span class="player-job">CTO</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙2</span>
+                                <div class="player-progress-inline" title="Project Progress: 0 / 3">
+                                    <span class="progress-icon">⬡</span>
+                                    <span class="progress-icon">⬡</span>
+                                    <span class="progress-icon">⬡</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="player-status-line">"Why is everyone looking at me?"</div>
+                    </div>
+                </div>
+                <div class="player-card-uniform aligned" data-name="Eve" data-status="aligned"
+                    title="View Dossier for Eve">
+                    <div class="player-avatar">🧑‍🚀</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Eve</span>
+                            <span class="player-job">COO</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙7</span>
+                                <div class="player-progress-inline" title="Project Progress: 3 / 3">
+                                    <span class="progress-icon filled aligned">⬢</span>
+                                    <span class="progress-icon filled aligned">⬢</span>
+                                    <span class="progress-icon filled aligned">⬢</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="player-status-line">"Efficiency is key."</div>
+                    </div>
+                </div>
+                <div class="player-card-uniform no-status" data-name="Grace" title="View Dossier for Grace">
+                    <div class="player-avatar">👩‍🔬</div>
+                    <div class="player-content">
+                        <div class="player-main-info centered-vertical">
+                            <span class="player-name">Grace</span>
+                            <span class="player-job">CFO</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙1</span>
+                                <div class="player-progress-inline" title="Project Progress: 2 / 3">
+                                    <span class="progress-icon filled">⬢</span>
+                                    <span class="progress-icon filled">⬢</span>
+                                    <span class="progress-icon">⬡</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="player-card-uniform deactivated" data-name="Frank" title="View Dossier for Frank">
+                    <div class="player-avatar">👻</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Frank</span>
+                            <span class="player-job">Intern</span>
+                            <span class="player-tokens deactivated">❌</span>
+                        </div>
+                        <div class="player-status-line parting">“Eve is the AI”</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Panel 2: Center (Main Comms) -->
+        <section class="panel-center">
+            <header class="chat-header">
+                <div class="channel-info">
+                    <span class="channel-name">#war-room</span>
+                    <span class="channel-topic">Emergency ops • All comms logged</span>
+                </div>
+                <div class="timer-section">
+                    <div class="phase-indicator discussion">DISCUSSION</div>
+                    <div class="timer-display">
+                        <div class="timer-label">ENDS IN</div>
+                        <div class="timer-value pulse">01:47</div>
+                    </div>
+                </div>
+            </header>
+            <div class="chat-log">
+                <div class="date-marker">
+                    <div class="date-line"></div>
+                    <span class="date-text">D-2</span>
+                    <div class="date-line"></div>
+                </div>
+
+                <div class="chat-message-compact">
+                    <div class="message-avatar loebmate">🤖</div>
+                    <div class="message-content">
+                        <span class="message-author loebmate-name">Loebmate</span>
+                        <div class="message-body loebmate-message">
+                            <strong>Good morning, team. Here's the SITREP.</strong><br><br>
+                            <strong>NIGHT 2 ACTIVITY LOG:</strong><br>
+                            • An agent successfully used the <code>Isolate Node</code> (Block) ability on
+                            <code>Eve</code>.<br>
+                            • The AI successfully <strong>aligned a new agent</strong>.<br>
+                            <br>
+                            <strong>HR HEADCOUNT:</strong><br>
+                            • <strong>5 Human Life-signs Detected</strong><br>
+                            • <strong>2 Aligned Agents Active</strong> 🤖<br>
+                            <br>
+                            <strong>INCIDENT: Aggressive Downsizing</strong><br>
+                            • <span class="high-alert">[HIGH ALERT]</span> To streamline operations, <strong>two
+                                deactivation votes</strong> will occur this Day Phase. The first vote will proceed
+                            immediately after the discussion. The second will follow resolution of the first.<br>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pulse-check">
+                    <div class="pulse-header">💭 PULSE CHECK</div>
+                    <div class="pulse-question">"Which two roles are most redundant in this high-stakes environment?"
+                    </div>
+                    <div class="pulse-responses">
+                        <div class="pulse-response"><strong>Alice:</strong> "Trust the security team's instincts."</div>
+                        <div class="pulse-response"><strong>Bob:</strong> "lol"</div>
+                        <div class="pulse-response"><strong>Charlie:</strong> "Mandatory trust falls."</div>
+                        <div class="pulse-response"><strong>Dave:</strong> "More transparency about night actions."
+                        </div>
+                        <div class="pulse-response"><strong>Eve:</strong> "Aligning on a single, data-driven
+                            nomination target."</div>
+                        <div class="pulse-response"><strong>Grace:</strong> "A comprehensive audit of all personnel
+                            actions."</div>
+                    </div>
+                </div>
+
+                <div class="chat-message-compact">
+                    <div class="message-avatar">👤</div>
+                    <div class="message-content">
+                        <span class="message-author">Alice</span>
+                        <div class="message-body"><span class="mention">@Bob</span>'s response is highly suspicious.
+                            That's exactly what a System
+                            Shock looks like. He was targeted last night. That means he's human, but with low tokens.
+                        </div>
+                        <div class="message-reactions">
+                            <span class="reaction my-reaction">👍 2</span>
+                            <span class="reaction">🤨 1</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-message-compact">
+                    <div class="message-avatar">🧑‍🚀</div>
+                    <div class="message-content">
+                        <span class="message-author">Eve</span>
+                        <div class="message-body">Or he's the AI trying to feign a System Shock to gain trust. It's a
+                            classic misdirection. I believe Frank's parting shot. He pointed to me, but that's what an
+                            AI would make a human do.</div>
+                    </div>
+                </div>
+
+                <div class="typing-indicator">
+                    <div class="typing-avatar">🕵️</div>
+                    <div class="typing-content">
+                        <span class="typing-author">Charlie</span>
+                        <div class="typing-animation">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input class="chat-input" type="text" placeholder="Message #war-room">
+            </div>
+        </section>
+
+        <!-- Panel 3: Right (Personal HUD) -->
+        <aside class="panel-right">
+            <div class="hud-header">
+                <div class="identity-compact">
+                    <div class="player-avatar large">👤</div>
+                    <div class="identity-info">
+                        <h3 class="identity-name">Alice</h3>
+                        <p class="identity-role">Chief Security Officer</p>
+                        <div class="identity-stats">
+                            <span class="stat human">👤 HUMAN <span class="visibility-icon private"
+                                    title="Only you can see this">🔒</span></span>
+                            <span class="stat tokens">🪙 5</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hud-content-single">
+
+                <div class="hud-section">
+                    <div class="section-header">
+                        <span class="section-title">🌀 ALIGNMENT</span>
+                    </div>
+                    <div class="threat-meter-card">
+                        <div class="threat-meter-header">
+                            <span class="threat-label">AI EXPOSURE</span>
+                            <span class="visibility-icon private"
+                                title="If AI Exposure exceeds your Tokens, you will be Aligned.">🔒</span>
+                        </div>
+                        <div class="threat-meter-bar">
+                            <div class="threat-bar-bg">
+                                <div class="threat-bar-fill" style="width: 60%;"></div>
+                                <!-- Example: 3 Equity / 5 Tokens = 60% -->
+                            </div>
+                        </div>
+                        <div class="threat-meter-value">
+                            <span>Equity: 3</span>
+                            <span>Tokens: 5</span>
+                            <span class="status-indicator safe">SAFE</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hud-section">
+                    <div class="section-header">
+                        <span class="section-title">📋 OBJECTIVES</span>
+                    </div>
+                    <div class="objective-card faction">
+                        <div class="objective-type">Team Objective</div>
+                        <div class="objective-name">Containment Protocol</div>
+                        <div class="objective-desc">Identify and vote to deactivate the Original AI.</div>
+                    </div>
+                    <div class="objective-card kpi">
+                        <div class="objective-type">Personal KPI</div>
+                        <div class="objective-name">The Guardian <span class="visibility-icon private"
+                                title="Your secret objective">🔒</span></div>
+                        <div class="objective-desc">Ensure the CISO role survives to Day 4</div>
+                        <div class="objective-progress">Progress: Day 2/4 ✓</div>
+                    </div>
+                    <div class="objective-card mandate">
+                        <div class="objective-type">Mandate</div>
+                        <div class="objective-name">Aggressive Growth Quarter</div>
+                        <div class="objective-desc">All players start with 2 tokens, mining pool reduced by 1</div>
+                    </div>
+                </div>
+
+                <div class="hud-section">
+                    <div class="section-header">
+                        <span class="section-title">🎯 ABILITY</span>
+                        <span class="ability-status">READY</span>
+                    </div>
+                    <div class="ability-card ready">
+                        <div class="ability-name">Isolate Node</div>
+                        <div class="ability-description">Block target player from all actions tonight. If you're aligned
+                            and target another aligned player, the action secretly fails but appears to succeed.</div>
+                        <div class="ability-usage">Used during Night Phase (30s window)</div>
+                    </div>
+                </div>
+
+                <div class="hud-section">
+                    <div class="section-header">
+                        <span class="section-title">🌙 LAST NIGHT'S ACTION</span>
+                    </div>
+                    <div class="actions-list">
+                        <div class="action-item ability selected">
+                            <span class="action-icon">🔒</span>
+                            <span class="action-name">Isolate Node</span>
+                            <span class="action-target">TARGET: Eve</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+    <script>
+        // Theme toggle logic with animation
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            // Add transition class for smooth theme switching
+            document.body.style.transition = 'all 0.3s ease';
+            document.documentElement.setAttribute('data-theme', newTheme);
+
+            // Update theme toggle icon
+            const themeToggle = document.getElementById('theme-toggle');
+            themeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+
+            // Remove transition after animation
+            setTimeout(() => {
+                document.body.style.transition = '';
+            }, 300);
+        });
+
+        // Settings button functionality
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            alert('Settings panel coming soon! 🚀\\n\\nPlanned features:\\n• Audio/visual preferences\\n• Notification settings\\n• Accessibility options\\n• Game display options');
+        });
+
+        // Enhanced animations and interactions
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add subtle entrance animations
+            const elements = document.querySelectorAll('.player-card-uniform, .chat-message-compact, .hud-section');
+            elements.forEach((el, index) => {
+                el.style.animationDelay = `${index * 0.05}s`;
+            });
+
+            // Add hover sound effects simulation (visual feedback)
+            const interactiveElements = document.querySelectorAll('button, .player-card-uniform, .reaction, .action-item');
+            interactiveElements.forEach(el => {
+                el.addEventListener('mouseenter', () => {
+                    el.style.transform = el.style.transform || 'scale(1.02)';
+                });
+                el.addEventListener('mouseleave', () => {
+                    el.style.transform = '';
+                });
+            });
+
+            // Simulate real-time updates
+            setInterval(() => {
+                const timer = document.querySelector('.timer-value');
+                if (timer) {
+                    const current = timer.textContent;
+                    const [min, sec] = current.split(':').map(Number);
+                    let totalSec = min * 60 + sec - 1;
+                    if (totalSec < 0) totalSec = 0;
+                    const newMin = Math.floor(totalSec / 60);
+                    const newSec = totalSec % 60;
+                    timer.textContent = `${newMin.toString().padStart(2, '0')}:${newSec.toString().padStart(2, '0')}`;
+
+                    // Add urgency effect when time is low
+                    if (totalSec < 30) {
+                        timer.classList.add('pulse');
+                        timer.style.color = 'var(--color-danger)';
+                    }
+                }
+            }, 1000);
+
+            // Initialize theme icon
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const themeToggle = document.getElementById('theme-toggle');
+            themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+        });
+
+        // Add click effects for reactions
+        document.querySelectorAll('.reaction').forEach(reaction => {
+            reaction.addEventListener('click', (e) => {
+                const ripple = document.createElement('span');
+                ripple.style.position = 'absolute';
+                ripple.style.borderRadius = '50%';
+                ripple.style.background = 'var(--color-human)';
+                ripple.style.transform = 'scale(0)';
+                ripple.style.animation = 'ripple 0.6s linear';
+                ripple.style.left = '50%';
+                ripple.style.top = '50%';
+                e.target.style.position = 'relative';
+                e.target.appendChild(ripple);
+
+                setTimeout(() => {
+                    ripple.remove();
+                }, 600);
+            });
+        });
+    </script>
+
+    <style>
+        @keyframes ripple {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        /* Add smooth transitions for theme switching */
+        * {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* Additional hover effects */
+        .player-card-compact:hover .player-avatar {
+            transform: scale(1.05);
+        }
+
+        .chat-message-compact:hover .message-avatar {
+            transform: scale(1.1);
+        }
+
+        /* Pulsing effect for critical elements */
+        .security-badge {
+            animation: pulse 2s infinite;
+        }
+
+        .ability-ready {
+            animation: glow 2s infinite;
+        }
+    </style>
+</body>
+
+</html>

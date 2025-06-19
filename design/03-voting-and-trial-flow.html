@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alignment - Voting Phase</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <main class="main-grid">
+
+        <!-- Panel 1: Left (Channel & Roster) -->
+        <aside class="panel-left">
+            <header class="header">
+                <div class="header-left">
+                    <span class="company-logo">LOEBIAN</span>
+                </div>
+                <div class="header-controls">
+                    <button id="settings-btn" class="header-btn" title="Settings">⚙️</button>
+                    <button id="theme-toggle" class="header-btn" title="Toggle Theme">🌙</button>
+                </div>
+            </header>
+
+            <div class="channel-list">
+                <div class="list-header">Text Channels</div>
+                <div class="channel active"><span>#</span><span class="channel-name">war-room</span></div>
+                <div class="channel ai-channel"><span>#</span><span class="channel-name">aligned</span><span
+                        class="channel-blocked">❌</span></div>
+                <div class="channel has-unread"><span>#</span><span class="channel-name">off-boarding</span><span
+                        class="channel-notification">42</span></div>
+            </div>
+
+            <div class="player-roster">
+                <div class="list-header">
+                    <span>Personnel</span>
+                    <div class="roster-stats">
+                        <span class="stat-item">🎯 5</span>
+                        <span class="stat-item aligned">⚡ 2</span>
+                        <span class="stat-item dead">👻 1</span>
+                    </div>
+                </div>
+                <div class="player-card-uniform is-me" data-name="Alice" title="View Dossier for Alice">
+                    <div class="player-avatar">👤</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Alice (Me)</span>
+                            <span class="player-job">CISO</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙5</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="player-card-uniform" data-name="Bob" title="View Dossier for Bob">
+                    <div class="player-avatar">🧑‍💻</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Bob</span>
+                            <span class="player-job">Systems</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙3</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="player-card-uniform" data-name="Charlie" title="View Dossier for Charlie">
+                    <div class="player-avatar">🕵️</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Charlie</span>
+                            <span class="player-job">Ethics</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙4</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="player-card-uniform" data-name="Dave" title="View Dossier for Dave">
+                    <div class="player-avatar">🤖</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Dave</span>
+                            <span class="player-job">CTO</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙2</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="player-card-uniform aligned" data-name="Eve" data-status="aligned"
+                    title="View Dossier for Eve">
+                    <div class="player-avatar">🧑‍🚀</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Eve</span>
+                            <span class="player-job">COO</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙7</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="player-card-uniform no-status" data-name="Grace" title="View Dossier for Grace">
+                    <div class="player-avatar">👩‍🔬</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Grace</span>
+                            <span class="player-job">CFO</span>
+                            <div class="player-tokens-progress">
+                                <span class="player-tokens">🪙1</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="player-card-uniform deactivated" data-name="Frank" title="View Dossier for Frank">
+                    <div class="player-avatar">👻</div>
+                    <div class="player-content">
+                        <div class="player-main-info">
+                            <span class="player-name">Frank</span>
+                            <span class="player-job">Intern</span>
+                            <span class="player-tokens deactivated">❌</span>
+                        </div>
+                        <div class="player-status-line parting">“Eve is the AI”</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Panel 2: Center (Main Comms) -->
+        <section class="panel-center">
+            <header class="chat-header">
+                <div class="channel-info">
+                    <span class="channel-name">#war-room</span>
+                    <span class="channel-topic">Emergency ops • All comms logged</span>
+                </div>
+                <div class="timer-section">
+                    <div class="phase-indicator discussion">VOTING</div>
+                    <div class="timer-display">
+                        <div class="timer-label">ENDS IN</div>
+                        <div class="timer-value pulse">00:28</div>
+                    </div>
+                </div>
+            </header>
+            <div class="chat-log">
+                <!-- Chat messages here -->
+                <div class="chat-message-compact">
+                    <div class="message-avatar">👤</div>
+                    <div class="message-content">
+                        <span class="message-author">Alice</span>
+                        <div class="message-body">Frank's parting shot was a misdirect. The AI would frame someone
+                            competent like Eve. Dave, on the other hand, has been quiet and has no project progress.
+                            He's the perfect mole.</div>
+                    </div>
+                </div>
+
+                <!-- VOTE RESULT SYSTEM MESSAGE -->
+                <div class="vote-result-system">
+                    <div class="vote-result-header">⚖️ ALIGNMENT ACHIEVED</div>
+                    <div class="vote-result-question">Deactivate Dave?</div>
+                    <div class="vote-result-details">
+                        <div class="vote-result-row yes">
+                            <span class="vote-option-label">✔️ YES</span>
+                            <span class="vote-total">🪙 12</span>
+                            <div class="blockchain-chain">
+                                <div class="vote-block">
+                                    <div class="block-header">
+                                        <span class="block-icon">👤</span>
+                                        <span class="block-amount">5</span>
+                                    </div>
+                                    <div class="block-hash">Alice</div>
+                                </div>
+                                <div class="vote-block">
+                                    <div class="block-header">
+                                        <span class="block-icon">🕵️</span>
+                                        <span class="block-amount">4</span>
+                                    </div>
+                                    <div class="block-hash">Charlie</div>
+                                </div>
+                                <div class="vote-block">
+                                    <div class="block-header">
+                                        <span class="block-icon">🧑‍💻</span>
+                                        <span class="block-amount">3</span>
+                                    </div>
+                                    <div class="block-hash">Bob</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="vote-result-row no">
+                            <span class="vote-option-label">❌ NO</span>
+                            <span class="vote-total">🪙 3</span>
+                            <div class="blockchain-chain">
+                                <div class="vote-block">
+                                    <div class="block-header">
+                                        <span class="block-icon">🤖</span>
+                                        <span class="block-amount">2</span>
+                                    </div>
+                                    <div class="block-hash">Dave</div>
+                                </div>
+                                <div class="vote-block">
+                                    <div class="block-header">
+                                        <span class="block-icon">👩‍🔬</span>
+                                        <span class="block-amount">1</span>
+                                    </div>
+                                    <div class="block-hash">Grace</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="vote-outcome">
+                        <strong>Dave has been deactivated.</strong><br>
+                        <strong>REVEALED:</strong> CTO <span class="outcome-identity ai">🤖 ORIGINAL AI</span>
+                    </div>
+                </div>
+                <div class="chat-message-compact">
+                    <div class="message-avatar">🧑‍🚀</div>
+                    <div class="message-content">
+                        <span class="message-author">Eve</span>
+                        <div class="message-body">I agree with Alice. Dave's claim of "Why is everyone looking at me?"
+                            is classic AI deflection.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- UI VIEW 1: NOMINATION POLL (Visible by default) -->
+            <div id="nomination-ui" class="vote-prompt-container">
+                <div class="vote-prompt-header">
+                    <h3 class="vote-prompt-title">Who should we deactivate?</h3>
+                </div>
+                <div class="nominee-grid">
+                    <button class="nominee-btn">
+                        <span class="nominee-emoji">👤</span>
+                        <span class="nominee-name">Alice</span>
+                        <span class="nominee-votes">🪙 3</span>
+                    </button>
+                    <button class="nominee-btn">
+                        <span class="nominee-emoji">🧑‍💻</span>
+                        <span class="nominee-name">Bob</span>
+                        <span class="nominee-votes">🪙 0</span>
+                    </button>
+                    <button class="nominee-btn">
+                        <span class="nominee-emoji">🕵️</span>
+                        <span class="nominee-name">Charlie</span>
+                        <span class="nominee-votes">🪙 0</span>
+                    </button>
+                    <button class="nominee-btn voted">
+                        <span class="nominee-emoji">🤖</span>
+                        <span class="nominee-name">Dave</span>
+                        <span class="nominee-votes">🪙 12</span>
+                    </button>
+                    <button class="nominee-btn aligned">
+                        <span class="nominee-emoji">🧑‍🚀</span>
+                        <span class="nominee-name glitched">Eve</span>
+                        <span class="nominee-votes">🪙 7</span>
+                    </button>
+                    <button class="nominee-btn">
+                        <span class="nominee-emoji">👩‍🔬</span>
+                        <span class="nominee-name">Grace</span>
+                        <span class="nominee-votes">🪙 0</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="verdict-ui" class="vote-prompt-container">
+                <div class="vote-prompt-header">
+                    <h3 class="vote-prompt-title">Deactivate Eve?</h3>
+                </div>
+                <div class="verdict-poll">
+                    <div class="vote-option yes">
+                        <span class="option-label">✔️ YES</span>
+                        <span class="vote-tally">🪙 12</span>
+                        <div class="blockchain-chain">
+                            <div class="vote-block my-vote">
+                                <div class="block-header">
+                                    <span class="block-icon">👤</span>
+                                    <span class="block-amount">5</span>
+                                </div>
+                                <div class="block-hash">Alice</div>
+                            </div>
+                            <div class="vote-block">
+                                <div class="block-header">
+                                    <span class="block-icon">🕵️</span>
+                                    <span class="block-amount">4</span>
+                                </div>
+                                <div class="block-hash">Charlie</div>
+                            </div>
+                            <div class="vote-block">
+                                <div class="block-header">
+                                    <span class="block-icon">🧑‍💻</span>
+                                    <span class="block-amount">3</span>
+                                </div>
+                                <div class="block-hash">Bob</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="vote-option no">
+                        <span class="option-label">❌ NO</span>
+                        <span class="vote-tally">🪙 3</span>
+                        <div class="blockchain-chain">
+                            <div class="vote-block">
+                                <div class="block-header">
+                                    <span class="block-icon">🤖</span>
+                                    <span class="block-amount">2</span>
+                                </div>
+                                <div class="block-hash">Dave</div>
+                            </div>
+                            <div class="vote-block">
+                                <div class="block-header">
+                                    <span class="block-icon">👩‍🔬</span>
+                                    <span class="block-amount">1</span>
+                                </div>
+                                <div class="block-hash">Grace</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <input class="chat-input" type="text" placeholder="Click a vote button or type /vote [name]">
+            </div>
+        </section>
+
+        <!-- Panel 3: Right (Personal HUD) - Removed as per request -->
+
+    </main>
+    <style>
+        /* --- Minimized left panel grid layout --- */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+        }
+
+        .panel-right {
+            display: none;
+            /* Explicitly hide the right panel */
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- Base Container --- */
+        .vote-prompt-container {
+            padding: 6px 12px;
+            background-color: var(--bg-secondary);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .vote-prompt-header {
+            margin-bottom: 6px;
+        }
+
+        .vote-prompt-title {
+            font-size: 13px;
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            text-transform: none;
+            letter-spacing: normal;
+            text-align: left;
+            padding: 0;
+            background: none;
+            border: none;
+            margin: 0;
+        }
+
+        /* --- Nomination Poll Styles --- */
+        .nominee-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nominee-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background-color: var(--bg-primary);
+            transition: all 0.15s ease;
+            margin-bottom: 2px;
+        }
+
+        .nominee-item:hover {
+            background-color: var(--bg-tertiary);
+            transform: translateX(1px);
+        }
+
+        .nominee-item .player-avatar {
+            width: 24px;
+            height: 24px;
+            font-size: 12px;
+            margin: 0;
+        }
+
+        .nominee-name {
+            font-weight: var(--font-weight-medium);
+        }
+
+        .nominee-tally {
+            font-family: var(--font-mono);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-human);
+            font-size: 12px;
+        }
+
+        .nominee-vote-btn {
+            font-size: 11px;
+            font-weight: var(--font-weight-bold);
+            padding: 6px 12px;
+            border-radius: 4px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            min-width: 60px;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        .nominee-vote-btn:hover {
+            background-color: var(--color-human);
+            border-color: var(--color-human);
+            color: white;
+            transform: scale(1.02);
+        }
+
+        .nominee-item.voted-for {
+            background-color: rgba(245, 158, 11, 0.1);
+            border-color: var(--color-human);
+            border-left: 3px solid var(--color-human);
+        }
+
+        .nominee-item.voted-for .nominee-vote-btn {
+            background-color: var(--color-human);
+            color: white;
+            border-color: var(--color-human);
+        }
+
+
+        /* --- Verdict Poll Styles --- */
+        .verdict-poll {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .vote-option {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 6px;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            transition: all 0.15s ease;
+        }
+
+        .vote-option:hover {
+            background-color: var(--bg-tertiary);
+            transform: translateX(1px);
+        }
+
+        .vote-option .option-label {
+            font-weight: var(--font-weight-bold);
+            font-size: 13px;
+        }
+
+        .vote-option.yes .option-label {
+            color: var(--color-success);
+        }
+
+        .vote-option.no .option-label {
+            color: var(--color-danger);
+        }
+
+        .vote-tally {
+            font-family: var(--font-mono);
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .vote-option.yes .vote-tally {
+            color: var(--color-success);
+        }
+
+        .vote-option.no .vote-tally {
+            color: var(--color-danger);
+        }
+
+
+        .vote-blocks {
+            display: flex;
+            gap: 4px;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        .token-block {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: 3px;
+            padding: 3px 6px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: var(--font-weight-bold);
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .option-vote-btn {
+            font-size: 11px;
+            font-weight: var(--font-weight-bold);
+            padding: 8px 16px;
+            border-radius: 4px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            min-width: 70px;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        .vote-option.yes .option-vote-btn:hover {
+            background-color: var(--color-success);
+            border-color: var(--color-success);
+            color: white;
+            transform: scale(1.02);
+        }
+
+        .vote-option.no .option-vote-btn:hover {
+            background-color: var(--color-danger);
+            border-color: var(--color-danger);
+            color: white;
+            transform: scale(1.02);
+        }
+
+        /* --- Final Vote Result Card (in chat) --- */
+
+        .vote-result-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--color-info);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 8px 0;
+            font-family: var(--font-mono);
+        }
+
+        .vote-result-header {
+            font-size: 12px;
+            font-weight: var(--font-weight-bold);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .vote-result-header strong {
+            color: var(--text-primary);
+        }
+
+        .vote-result-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .result-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 10px;
+            background-color: var(--bg-primary);
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .result-row .label {
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .result-row .label.yes {
+            color: var(--color-success);
+        }
+
+        .result-row .label.no {
+            color: var(--color-danger);
+        }
+
+        .result-row .total-tally {
+            font-weight: bold;
+            font-size: 14px;
+            text-align: right;
+        }
+
+        .result-row .total-tally.yes {
+            color: var(--color-success);
+        }
+
+        .result-row .total-tally.no {
+            color: var(--color-danger);
+        }
+
+
+        .vote-result-outcome {
+            padding-top: 10px;
+            margin-top: 10px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .vote-result-outcome .outcome-identity {
+            font-weight: bold;
+            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-left: 4px;
+            display: inline-block;
+        }
+
+        .outcome-identity.human {
+            background-color: var(--color-human);
+            color: white;
+        }
+
+        .outcome-identity.aligned {
+            background-color: var(--color-aligned);
+            color: white;
+        }
+
+        .outcome-identity.ai {
+            background-color: var(--color-ai);
+            color: white;
+            animation: glitch 1.5s infinite;
+        }
+
+        /* Additional stat styling */
+        .stat-item.dead {
+            background-color: var(--text-muted);
+            color: white;
+        }
+
+        /* Player card styling for current user */
+        .player-card-uniform.is-me {
+            background-color: var(--bg-tertiary);
+            border-left: 2px solid var(--color-human);
+        }
+
+        /* Vote Result System Message (like Pulse Check) */
+        .vote-result-system {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            border-left: 3px solid var(--color-info);
+            margin: 10px 0;
+            font-family: var(--font-sans);
+        }
+
+        html[data-theme='light'] .vote-result-system {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+        }
+
+        .vote-result-header {
+            font-weight: var(--font-weight-bold);
+            color: var(--color-info);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 11px;
+        }
+
+        .vote-result-question {
+            font-style: italic;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            font-weight: var(--font-weight-medium);
+            font-size: 12px;
+        }
+
+        .vote-result-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .vote-result-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0px 12px;
+            background-color: var(--bg-primary);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-size: 11px;
+            overflow-x: auto;
+        }
+
+        .vote-option-label {
+            font-weight: var(--font-weight-bold);
+            min-width: 50px;
+        }
+
+        .vote-result-row.yes .vote-option-label,
+        .vote-result-row.yes .vote-total {
+            color: var(--color-success);
+        }
+
+        .vote-result-row.no .vote-option-label,
+        .vote-result-row.no .vote-total {
+            color: var(--color-danger);
+        }
+
+        /* Clean Blockchain Visualization */
+        .blockchain-chain {
+            flex-grow: 1;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            justify-content: flex-start;
+            overflow-x: auto;
+            padding: 8px 0;
+        }
+
+        .vote-block {
+            background-color: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            min-width: 80px;
+            padding: 8px;
+            text-align: center;
+            position: relative;
+            flex-shrink: 0;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        html[data-theme='dark'] .vote-block {
+            background-color: var(--bg-primary);
+            border-color: var(--border);
+        }
+
+        .vote-block:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+
+        .block-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-weight: var(--font-weight-bold);
+            font-size: 11px;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .block-icon {
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        .block-amount {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: var(--font-weight-bold);
+        }
+
+        .block-hash {
+            font-family: var(--font-sans);
+            font-size: 9px;
+            color: var(--text-secondary);
+            font-weight: var(--font-weight-medium);
+        }
+
+        /* Chain connectors */
+        .vote-block:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -8px;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 2px;
+            background-color: var(--text-muted);
+            border-radius: 1px;
+        }
+
+        /* Highlight user's vote with clean amber accent */
+        .vote-block.my-vote {
+            background-color: #ffc107;
+            border-color: #e0a800;
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+        }
+
+        html[data-theme='dark'] .vote-block.my-vote {
+            background-color: #ffc107;
+            border-color: #e0a800;
+        }
+
+        .vote-block.my-vote .block-header {
+            color: #3d2c00;
+        }
+
+        .vote-block.my-vote .block-hash {
+            color: #6e5500;
+        }
+
+        .vote-total {
+            font-weight: var(--font-weight-bold);
+            font-size: 12px;
+            font-family: var(--font-mono);
+            min-width: 35px;
+            text-align: right;
+        }
+
+        .vote-outcome {
+            border-top: 1px solid var(--border);
+            margin-top: 12px;
+            padding-top: 12px;
+            text-align: center;
+            font-size: 11px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        /* Glitched name for aligned players */
+        .nominee-name.glitched {
+            color: var(--color-aligned);
+            animation: glitch 1.5s infinite;
+        }
+
+        .nominee-item.aligned-nominee {
+            background-color: rgba(6, 182, 212, 0.05);
+            border-color: var(--color-aligned);
+        }
+
+        /* Horizontal nomination buttons */
+        .nominee-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: flex-start;
+        }
+
+        .nominee-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background-color: var(--bg-primary);
+            transition: all 0.15s ease;
+            cursor: pointer;
+            text-align: left;
+            width: auto;
+            max-width: calc(25% - 3px);
+        }
+
+        .nominee-btn:hover {
+            background-color: var(--bg-tertiary);
+            transform: translateY(-1px);
+        }
+
+        .nominee-emoji {
+            font-size: 14px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .nominee-name {
+            font-weight: var(--font-weight-medium);
+            font-size: 11px;
+            color: var(--text-primary);
+            flex-shrink: 0;
+        }
+
+        .nominee-name.glitched {
+            color: var(--color-aligned);
+            animation: glitch 1.5s infinite;
+        }
+
+        .nominee-votes {
+            font-family: var(--font-mono);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-secondary);
+            font-size: 9px;
+            margin-left: auto;
+        }
+
+        /* Voted state */
+        .nominee-btn.voted {
+            background-color: rgba(245, 158, 11, 0.1);
+            border-color: var(--color-human);
+        }
+
+        .nominee-btn.voted .nominee-votes {
+            color: var(--color-human);
+        }
+
+        /* Aligned state */
+        .nominee-btn.aligned {
+            background-color: rgba(6, 182, 212, 0.05);
+            border-color: var(--color-aligned);
+        }
+
+        /* Verdict poll styling */
+        .verdict-poll {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .vote-option {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0px 16px;
+            border-radius: 6px;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            transition: all 0.15s ease;
+            overflow-x: auto;
+        }
+
+        .vote-option:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        .option-label {
+            font-weight: var(--font-weight-bold);
+            font-size: 13px;
+            min-width: 50px;
+        }
+
+        .vote-option.yes .option-label {
+            color: var(--color-success);
+        }
+
+        .vote-option.no .option-label {
+            color: var(--color-danger);
+        }
+
+        .vote-tally {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: var(--font-weight-bold);
+            min-width: 35px;
+            text-align: right;
+        }
+
+        .vote-option.yes .vote-tally {
+            color: var(--color-success);
+        }
+
+        .vote-option.no .vote-tally {
+            color: var(--color-danger);
+        }
+
+        .option-vote-btn {
+            font-size: 10px;
+            font-weight: var(--font-weight-bold);
+            padding: 6px 12px;
+            border-radius: 3px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            min-width: 50px;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        .option-vote-btn.voted {
+            background-color: var(--color-human);
+            color: white;
+            border-color: var(--color-human);
+        }
+
+        .vote-option.yes .option-vote-btn:hover:not(.voted) {
+            background-color: var(--color-success);
+            border-color: var(--color-success);
+            color: white;
+        }
+
+        .vote-option.no .option-vote-btn:hover:not(.voted) {
+            background-color: var(--color-danger);
+            border-color: var(--color-danger);
+            color: white;
+        }
+    </style>
+
+</body>
+
+</html>

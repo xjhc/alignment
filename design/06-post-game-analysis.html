@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alignment - Post-Game Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Post-Game Analysis Styles */
+        .analysis-container {
+            min-height: 100vh;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .analysis-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--bg-secondary);
+        }
+
+        .analysis-title-section {
+            text-align: center;
+            padding: 24px;
+            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+            border-bottom: 1px solid var(--border);
+        }
+
+        .analysis-main-title {
+            font-family: var(--font-mono);
+            font-size: 28px;
+            font-weight: var(--font-weight-extrabold);
+            color: var(--text-primary);
+            margin: 0 0 8px 0;
+            letter-spacing: 1px;
+        }
+
+        .analysis-subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .analysis-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .hud-tabs {
+            display: flex;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+        }
+
+        .hud-tab {
+            padding: 12px 20px;
+            font-size: 13px;
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .hud-tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .hud-tab.active {
+            color: var(--color-human);
+            border-bottom-color: var(--color-human);
+        }
+
+        .hud-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .hud-pane {
+            display: none;
+            padding: 24px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .hud-pane.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hud-section-title {
+            font-size: 16px;
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mvp-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .mvp-card {
+            background: linear-gradient(135deg, var(--color-human), var(--accent-amber-light));
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .mvp-title {
+            font-size: 12px;
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            opacity: 0.9;
+        }
+
+        .mvp-player {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .mvp-player .player-avatar {
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            border: 2px solid white;
+        }
+
+        .mvp-name {
+            font-size: 20px;
+            font-weight: var(--font-weight-bold);
+        }
+
+        .mvp-reason {
+            font-size: 13px;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
+
+        .key-moment-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--color-info);
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        .moment-title {
+            color: var(--color-info);
+            font-weight: var(--font-weight-bold);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .moment-description {
+            color: var(--text-primary);
+            line-height: 1.4;
+        }
+
+        .parting-shots-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .parting-shot-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .parting-shot-item .player-avatar {
+            width: 32px;
+            height: 32px;
+            font-size: 16px;
+        }
+
+        .parting-shot-content {
+            flex: 1;
+        }
+
+        .parting-shot-name {
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .parting-shot-message {
+            font-style: italic;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        .analysis-timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .analysis-timeline::before {
+            content: '';
+            position: absolute;
+            left: 24px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--border), transparent);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 60px;
+            margin-bottom: 24px;
+        }
+
+        .timeline-icon {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            border: 3px solid var(--border);
+            z-index: 1;
+        }
+
+        .timeline-content {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .timeline-content .day {
+            font-size: 12px;
+            font-weight: var(--font-weight-bold);
+            color: var(--color-human);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .timeline-content .desc {
+            color: var(--text-primary);
+            line-height: 1.4;
+        }
+
+        .timeline-item.elimination .timeline-icon {
+            background: linear-gradient(135deg, var(--color-danger), var(--accent-red-light));
+            border-color: var(--color-danger);
+            color: white;
+        }
+
+        .timeline-item.conversion .timeline-icon {
+            background: linear-gradient(135deg, var(--color-aligned), var(--accent-cyan-light));
+            border-color: var(--color-aligned);
+            color: white;
+        }
+
+        .timeline-item.ability .timeline-icon {
+            background: linear-gradient(135deg, var(--color-info), var(--accent-blue));
+            border-color: var(--color-info);
+            color: white;
+        }
+
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .analytics-card {
+            background-color: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+        }
+
+        .analytics-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .analytics-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .analytics-card-header .player-avatar {
+            width: 48px;
+            height: 48px;
+            font-size: 20px;
+        }
+
+        .analytics-player-info {
+            flex: 1;
+        }
+
+        .analytics-player-name {
+            font-size: 16px;
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .analytics-player-role {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .analytics-player-alignment {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .analytics-player-alignment.human {
+            background: var(--color-human);
+            color: white;
+        }
+
+        .analytics-player-alignment.ai {
+            background: var(--color-ai);
+            color: white;
+        }
+
+        .analytics-player-alignment.aligned {
+            background: var(--color-aligned);
+            color: white;
+        }
+
+        .analytics-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .analytics-stat-item {
+            text-align: center;
+            padding: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+        }
+
+        .analytics-stat-value {
+            font-size: 18px;
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .analytics-stat-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .highlights-section {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .highlight-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .highlight-title {
+            font-size: 14px;
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .message-highlight {
+            background: var(--bg-tertiary);
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid var(--color-info);
+        }
+
+        .message-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .message-meta .player-avatar {
+            width: 24px;
+            height: 24px;
+            font-size: 12px;
+        }
+
+        .message-author-name {
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+            font-size: 12px;
+        }
+
+        .message-timestamp {
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .message-text {
+            color: var(--text-primary);
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+
+        .message-reactions-display {
+            display: flex;
+            gap: 6px;
+        }
+
+        .reaction-display {
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .quote-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .quote-item {
+            background: var(--bg-tertiary);
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid var(--color-success);
+        }
+
+        .bottom-actions {
+            padding: 24px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .mvp-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .analytics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .hud-tabs {
+                flex-wrap: wrap;
+                padding: 0 12px;
+            }
+            
+            .hud-tab {
+                flex: 1;
+                min-width: 120px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="analysis-container">
+        <header class="analysis-header">
+            <div class="company-logo">LOEBIAN</div>
+            <div class="header-controls">
+                <button id="theme-toggle" class="header-btn" title="Toggle Theme">🌙</button>
+            </div>
+        </header>
+        
+        <div class="analysis-title-section">
+            <h1 class="analysis-main-title">📊 POST-GAME ANALYSIS</h1>
+            <p class="analysis-subtitle">Comprehensive review of operational events during the SEV-1 incident</p>
+        </div>
+
+        <div class="analysis-content">
+            <div class="hud-tabs">
+                <button class="hud-tab active" data-target="summary">Summary</button>
+                <button class="hud-tab" data-target="timeline">Event Timeline</button>
+                <button class="hud-tab" data-target="analytics">Personnel Analytics</button>
+                <button class="hud-tab" data-target="highlights">Comms Highlights</button>
+            </div>
+            <div class="hud-content">
+                <!-- Summary Pane -->
+                <div id="summary" class="hud-pane active">
+                    <div class="mvp-section">
+                        <div class="mvp-card">
+                            <div class="mvp-title">🏆 Most Valuable Personnel</div>
+                            <div class="mvp-player">
+                                <div class="player-avatar">👤</div>
+                                <div class="mvp-name">Alice</div>
+                            </div>
+                            <div class="mvp-reason">
+                                Scored 11 points: 4 tokens mined for others (×2) + 2 correct elimination votes (×3) - 1 incorrect vote
+                            </div>
+                        </div>
+                        
+                        <div class="key-moment-card">
+                            <div class="moment-title">🎯 Game-Changing Moment</div>
+                            <div class="moment-description">
+                                On Day 3, Grace used "Run Audit" on Eve, secretly confirming Eve's AI alignment to the human faction, leading to the unified elimination vote that secured victory.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3 class="hud-section-title">💬 Parting Shots</h3>
+                    <div class="parting-shots-grid">
+                        <div class="parting-shot-item">
+                            <div class="player-avatar">👻</div>
+                            <div class="parting-shot-content">
+                                <div class="parting-shot-name">Frank</div>
+                                <div class="parting-shot-message">"Eve is the AI" — Correctly identified the Original AI</div>
+                            </div>
+                        </div>
+                        <div class="parting-shot-item">
+                            <div class="player-avatar">🤖</div>
+                            <div class="parting-shot-content">
+                                <div class="parting-shot-name">Dave</div>
+                                <div class="parting-shot-message">"It wasn't me, check Alice." — Attempted misdirection as Aligned</div>
+                            </div>
+                        </div>
+                        <div class="parting-shot-item">
+                            <div class="player-avatar">🧑‍🚀</div>
+                            <div class="parting-shot-content">
+                                <div class="parting-shot-name">Eve</div>
+                                <div class="parting-shot-message">"Efficiency optimization... failed." — Final AI communication</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline Pane -->
+                <div id="timeline" class="hud-pane">
+                    <h3 class="hud-section-title">📅 Complete Event Timeline</h3>
+                    <div class="analysis-timeline">
+                        <div class="timeline-item elimination">
+                            <div class="timeline-icon">💀</div>
+                            <div class="timeline-content">
+                                <div class="day">Day 1 Elimination</div>
+                                <div class="desc"><strong>Frank</strong> was eliminated by majority vote (4-2). Revealed alignment: <span style="color: var(--color-human); font-weight: bold;">HUMAN</span>. His parting shot correctly identified Eve as the AI.</div>
+                            </div>
+                        </div>
+                        <div class="timeline-item conversion">
+                            <div class="timeline-icon">🔄</div>
+                            <div class="timeline-content">
+                                <div class="day">Night 1 Conversion</div>
+                                <div class="desc"><strong>Dave</strong> was successfully converted to the <span style="color: var(--color-aligned); font-weight: bold;">AI Faction</span> by the Original AI. This brought AI faction to 2 players.</div>
+                            </div>
+                        </div>
+                        <div class="timeline-item ability">
+                            <div class="timeline-icon">🛡️</div>
+                            <div class="timeline-content">
+                                <div class="day">Night 2 Action</div>
+                                <div class="desc"><strong>Alice</strong> used <strong>Isolate Node</strong> on <strong>Eve</strong>, successfully blocking the AI's conversion attempt and preventing a potential game-ending scenario.</div>
+                            </div>
+                        </div>
+                        <div class="timeline-item ability">
+                            <div class="timeline-icon">🔍</div>
+                            <div class="timeline-content">
+                                <div class="day">Night 2 Investigation</div>
+                                <div class="desc"><strong>Grace</strong> used <strong>Run Audit</strong> on <strong>Eve</strong>, secretly learning that Eve was AI-aligned, which informed the human faction's strategy.</div>
+                            </div>
+                        </div>
+                        <div class="timeline-item elimination">
+                            <div class="timeline-icon">🎯</div>
+                            <div class="timeline-content">
+                                <div class="day">Day 3 Double Elimination</div>
+                                <div class="desc">Due to "Aggressive Downsizing" crisis event, two eliminations occurred. <strong>Eve</strong> (Original AI) and <strong>Dave</strong> (Aligned) were both eliminated, securing human victory.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Pane -->
+                <div id="analytics" class="hud-pane">
+                    <h3 class="hud-section-title">📈 Personnel Performance Analytics</h3>
+                    <div class="analytics-grid">
+                        <div class="analytics-card">
+                            <div class="analytics-card-header">
+                                <div class="player-avatar">👤</div>
+                                <div class="analytics-player-info">
+                                    <div class="analytics-player-name">Alice</div>
+                                    <div class="analytics-player-role">Chief Security Officer</div>
+                                </div>
+                                <div class="analytics-player-alignment human">Human</div>
+                            </div>
+                            <div class="analytics-stats">
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">4</div>
+                                    <div class="analytics-stat-label">Tokens Mined</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">2</div>
+                                    <div class="analytics-stat-label">Correct Votes</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">0</div>
+                                    <div class="analytics-stat-label">Nominations</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">3</div>
+                                    <div class="analytics-stat-label">Days Survived</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="analytics-card">
+                            <div class="analytics-card-header">
+                                <div class="player-avatar">🕵️</div>
+                                <div class="analytics-player-info">
+                                    <div class="analytics-player-name">Charlie</div>
+                                    <div class="analytics-player-role">Ethics Officer</div>
+                                </div>
+                                <div class="analytics-player-alignment human">Human</div>
+                            </div>
+                            <div class="analytics-stats">
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">2</div>
+                                    <div class="analytics-stat-label">Tokens Mined</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">2</div>
+                                    <div class="analytics-stat-label">Correct Votes</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">1</div>
+                                    <div class="analytics-stat-label">Nominations</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">3</div>
+                                    <div class="analytics-stat-label">Days Survived</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="analytics-card">
+                            <div class="analytics-card-header">
+                                <div class="player-avatar">🧑‍💻</div>
+                                <div class="analytics-player-info">
+                                    <div class="analytics-player-name">Bob</div>
+                                    <div class="analytics-player-role">Systems Architect</div>
+                                </div>
+                                <div class="analytics-player-alignment human">Human</div>
+                            </div>
+                            <div class="analytics-stats">
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">1</div>
+                                    <div class="analytics-stat-label">Tokens Mined</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">1</div>
+                                    <div class="analytics-stat-label">Correct Votes</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">3</div>
+                                    <div class="analytics-stat-label">Nominations</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">2</div>
+                                    <div class="analytics-stat-label">Days Survived</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="analytics-card">
+                            <div class="analytics-card-header">
+                                <div class="player-avatar">👻</div>
+                                <div class="analytics-player-info">
+                                    <div class="analytics-player-name">Frank</div>
+                                    <div class="analytics-player-role">Junior Developer</div>
+                                </div>
+                                <div class="analytics-player-alignment human">Human</div>
+                            </div>
+                            <div class="analytics-stats">
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">0</div>
+                                    <div class="analytics-stat-label">Tokens Mined</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">0</div>
+                                    <div class="analytics-stat-label">Correct Votes</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">4</div>
+                                    <div class="analytics-stat-label">Nominations</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">1</div>
+                                    <div class="analytics-stat-label">Days Survived</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="analytics-card">
+                            <div class="analytics-card-header">
+                                <div class="player-avatar">🧑‍🚀</div>
+                                <div class="analytics-player-info">
+                                    <div class="analytics-player-name">Eve</div>
+                                    <div class="analytics-player-role">Chief Operating Officer</div>
+                                </div>
+                                <div class="analytics-player-alignment ai">Original AI</div>
+                            </div>
+                            <div class="analytics-stats">
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">3</div>
+                                    <div class="analytics-stat-label">Tokens Mined</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">1</div>
+                                    <div class="analytics-stat-label">Conversion</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">1</div>
+                                    <div class="analytics-stat-label">Nominations</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">3</div>
+                                    <div class="analytics-stat-label">Days Survived</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="analytics-card">
+                            <div class="analytics-card-header">
+                                <div class="player-avatar">🤖</div>
+                                <div class="analytics-player-info">
+                                    <div class="analytics-player-name">Dave</div>
+                                    <div class="analytics-player-role">Chief Technology Officer</div>
+                                </div>
+                                <div class="analytics-player-alignment aligned">Aligned</div>
+                            </div>
+                            <div class="analytics-stats">
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">1</div>
+                                    <div class="analytics-stat-label">Tokens Mined</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">0</div>
+                                    <div class="analytics-stat-label">Correct Votes</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">2</div>
+                                    <div class="analytics-stat-label">Nominations</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">3</div>
+                                    <div class="analytics-stat-label">Days Survived</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Highlights Pane -->
+                <div id="highlights" class="hud-pane">
+                    <div class="highlights-section">
+                        <div class="highlight-card">
+                            <div class="highlight-title">🔥 Most Reacted-To Message</div>
+                            <div class="message-highlight">
+                                <div class="message-meta">
+                                    <div class="player-avatar">🧑‍🚀</div>
+                                    <span class="message-author-name">Eve</span>
+                                    <span class="message-timestamp">Day 2, 10:33 AM</span>
+                                </div>
+                                <div class="message-text">
+                                    "Or he's the AI trying to feign a System Shock to gain trust. It's a classic misdirection."
+                                </div>
+                                <div class="message-reactions-display">
+                                    <span class="reaction-display">🤔 4</span>
+                                    <span class="reaction-display">👍 2</span>
+                                    <span class="reaction-display">😱 3</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="highlight-card">
+                            <div class="highlight-title">💎 Notable Quotes</div>
+                            <div class="quote-grid">
+                                <div class="quote-item">
+                                    <div class="message-meta">
+                                        <div class="player-avatar">👻</div>
+                                        <span class="message-author-name">Frank</span>
+                                        <span class="message-timestamp">Day 1, Final Words</span>
+                                    </div>
+                                    <div class="message-text">"Eve is the AI" — Prophetic final accusation that proved correct</div>
+                                </div>
+                                
+                                <div class="quote-item">
+                                    <div class="message-meta">
+                                        <div class="player-avatar">👤</div>
+                                        <span class="message-author-name">Alice</span>
+                                        <span class="message-timestamp">Day 2, 09:15 AM</span>
+                                    </div>
+                                    <div class="message-text">"Bob's response is highly suspicious. That's exactly what a System Shock looks like."</div>
+                                </div>
+                                
+                                <div class="quote-item">
+                                    <div class="message-meta">
+                                        <div class="player-avatar">🧑‍🚀</div>
+                                        <span class="message-author-name">Eve</span>
+                                        <span class="message-timestamp">Day 3, 11:22 AM</span>
+                                    </div>
+                                    <div class="message-text">"Aligning on a single, data-driven nomination target." — AI attempting coordination</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="highlight-card">
+                            <div class="highlight-title">📊 Communication Stats</div>
+                            <div class="analytics-stats">
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">47</div>
+                                    <div class="analytics-stat-label">Total Messages</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">23</div>
+                                    <div class="analytics-stat-label">Emoji Reactions</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">8</div>
+                                    <div class="analytics-stat-label">Direct Accusations</div>
+                                </div>
+                                <div class="analytics-stat-item">
+                                    <div class="analytics-stat-value">3</div>
+                                    <div class="analytics-stat-label">Correct AI IDs</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bottom-actions">
+            <button class="btn-secondary" onclick="window.location.href='05-end-game-screen.html'">← Back to Results</button>
+            <button class="btn-primary">🔄 Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        function showPane(paneId) {
+            document.querySelectorAll('.hud-pane').forEach(p => p.classList.remove('active'));
+            document.getElementById(paneId).classList.add('active');
+            document.querySelectorAll('.hud-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-target="${paneId}"]`).classList.add('active');
+        }
+        
+        // Theme toggle functionality
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.body.style.transition = 'all 0.3s ease';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            
+            const themeToggle = document.getElementById('theme-toggle');
+            themeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+            
+            setTimeout(() => {
+                document.body.style.transition = '';
+            }, 300);
+        });
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize theme icon
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const themeToggle = document.getElementById('theme-toggle');
+            themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+            
+            // Set up click handlers for tabs
+            document.querySelectorAll('.hud-tab').forEach(tab => {
+                tab.addEventListener('click', () => showPane(tab.dataset.target));
+            });
+            
+            // Add entrance animations
+            const cards = document.querySelectorAll('.analytics-card, .highlight-card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.05}s`;
+                card.classList.add('fade-in');
+            });
+            
+            // Play again button
+            document.querySelector('.btn-primary').addEventListener('click', () => {
+                alert('Starting new game... 🚀\n\nIn the full game, this would:\n• Return to matchmaking\n• Preserve your statistics\n• Find new players for another round');
+            });
+        });
+    </script>
+
+</body>
+
+</html>

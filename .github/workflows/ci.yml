@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    
+    - name: Download dependencies
+      working-directory: ./server
+      run: go mod download
+    
+    - name: Format check
+      working-directory: ./server
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Go code is not formatted. Please run 'go fmt ./...'"
+          gofmt -s -l .
+          exit 1
+        fi
+    
+    - name: Vet
+      working-directory: ./server
+      run: go vet ./...
+    
+    - name: Lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        working-directory: ./server
+    
+    - name: Test with race detection
+      working-directory: ./server
+      run: go test -race -coverprofile=coverage.out ./...
+      env:
+        REDIS_URL: redis://localhost:6379
+    
+    - name: Check test coverage
+      working-directory: ./server
+      run: |
+        go tool cover -func=coverage.out
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Total coverage: ${COVERAGE}%"
+        # Fail if coverage is below 80%
+        if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+          echo "Coverage ${COVERAGE}% is below minimum 80%"
+          exit 1
+        fi
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: './client/package-lock.json'
+    
+    - name: Install dependencies
+      working-directory: ./client
+      run: npm ci
+    
+    - name: Type check
+      working-directory: ./client
+      run: npx tsc --noEmit
+    
+    - name: Lint
+      working-directory: ./client
+      run: npm run lint
+    
+    - name: Test
+      working-directory: ./client
+      run: npm test
+    
+    - name: Build
+      working-directory: ./client
+      run: npm run build
+
+  build-integration:
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: './client/package-lock.json'
+    
+    - name: Build frontend
+      working-directory: ./client
+      run: |
+        npm ci
+        npm run build
+    
+    - name: Build backend
+      working-directory: ./server
+      run: |
+        go mod download
+        go build -o ../alignment-server ./cmd/server
+    
+    - name: Test integration
+      run: |
+        echo "Integration build successful"
+        ls -la alignment-server
+        ls -la client/dist/
