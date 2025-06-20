@@ -1,10 +1,10 @@
 # Feature: Voting & Deactivation Cycle
 
-This document describes the implementation design for the core player elimination loop, as defined in the Game Design Document. This cycle is central to the human faction's gameplay, allowing them to identify and remove suspected AI players.
+This document describes the implementation design for the core player deactivation loop, as defined in the Game Design Document. This cycle is central to the human faction's gameplay, allowing them to identify and remove suspected AI players.
 
 ## 1. Feature Overview
 
-The deactivation cycle is a multi-stage process that occurs during the Day Phase. It involves player nominations, a trial, and a final token-weighted vote to determine if a player is "fired" (eliminated).
+The deactivation cycle is a multi-stage process that occurs during the Day Phase. It involves player nominations, a trial, and a final token-weighted vote to determine if a player is deactivated.
 
 ## 2. User & System Flow
 
@@ -39,8 +39,8 @@ graph TD
 6.  **Resolution:** The timer expires, and the `Game Actor` tallies the verdict.
     *   **Event:** Server broadcasts `VOTE_TALLY_UPDATED` with `type: "VERDICT"` and `results: { "YES": 7, "NO": 2 }`.
     *   **If YES:**
-        1.  The `Game Actor` creates and broadcasts a `PLAYER_ELIMINATED` event, which **reveals the player's role and alignment**.
-        2.  The client UI for the eliminated player now shows the "Exit Interview" options.
+        1.  The `Game Actor` creates and broadcasts a `PLAYER_DEACTIVATED` event, which **reveals the player's role and alignment**.
+        2.  The client UI for the deactivated player now shows the "Exit Interview" options.
     *   **If NO:** The player is safe. The Day Phase ends, and the server transitions to the Night Phase.
 
 ## 3. Key Implementation Details

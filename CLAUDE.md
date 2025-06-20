@@ -80,8 +80,8 @@ This codebase prioritizes **maintainability and performance** through clean, idi
 - **Recovery**: Fast startup by loading snapshot + replaying recent events
 
 ### AI Architecture (Hybrid Brain)
-- **Strategic Brain**: Deterministic Go rules engine for game decisions
-- **Language Brain**: LLM for human-like communication only
+- **Rules Engine**: Deterministic Go rules engine for game decisions
+- **Language Model**: Large Language Model for human-like communication only
 - **MCP Interface**: Model Context Protocol for secure AI-game communication
 
 ### Frontend Hybrid Design
@@ -123,7 +123,7 @@ func TestActor_PlayerJoinsAndVotes(t *testing.T) {
 ```
 ./server/           # Go backend
   internal/game/    # Game state and ApplyEvent logic
-  internal/ai/      # Rules engine and LLM integration
+  internal/ai/      # Rules engine and Language Model integration
   internal/comms/   # WebSocket communication
   internal/actors/  # Game Actor and Supervisor
   cmd/server/       # Main server binary

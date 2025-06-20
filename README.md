@@ -96,6 +96,7 @@ npm run build
 - **[Technical Overview](./docs/02-onboarding-for-engineers.md)**: 5-minute architecture guide
 - **[Architecture Deep Dive](./docs/architecture/README.md)**: Detailed system explanations
 - **[ADRs](./docs/adr/README.md)**: Architectural decision records
+- **[Glossary](./docs/glossary.md)**: Definitions of all game and technical terms
 
 ## 🛠️ Development Commands
 

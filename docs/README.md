@@ -1,6 +1,6 @@
 # Alignment
 
-`Alignment` is a corporate-themed social deduction game played in a real-time chat environment. Humans must work together to identify a rogue AI hiding among them before it converts a majority of the staff and seizes control of the company.
+`Alignment` is a corporate-themed social deduction game played in a real-time chat environment. Humans must work together to identify a rogue AI hiding among them before it converts a majority of the staff (by voting power) and seizes control of the company.
 
 This repository contains the full source code for the game, including the Go backend server and the hybrid Go/Wasm + React frontend.
 

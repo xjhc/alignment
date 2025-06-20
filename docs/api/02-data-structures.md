@@ -39,7 +39,9 @@ type Player struct {
     ProjectMilestones int       `json:"project_milestones"`
     StatusMessage     string    `json:"status_message"`
     // --- Local Player Only ---
-    // These fields are only populated for the viewing client via the ROLES_ASSIGNED event.
+    // These fields are populated for the viewing client via private, targeted events.
+    // The client uses the payload of events like ROLES_ASSIGNED or ALIGNMENT_CHANGED
+    // to update the state of its local player object.
     Role              string    `json:"role,omitempty"`
     Alignment         string    `json:"alignment,omitempty"`
     PersonalKPI       string    `json:"personal_kpi,omitempty"`
@@ -66,7 +68,7 @@ type CrisisEvent struct {
 }
 ```
 
-**`RoleInfo` Object** (For `ROLES_ASSIGNED` event)
+**`RoleInfo` Object** (Payload for the `ROLES_ASSIGNED` event)
 ```go
 type RoleInfo struct {
     Role        string `json:"role"`
@@ -75,9 +77,16 @@ type RoleInfo struct {
 }
 ```
 
+**`AlignmentChangedPayload` Object** (Payload for the `ALIGNMENT_CHANGED` event)
+```go
+type AlignmentChangedPayload struct {
+    NewAlignment string `json:"new_alignment"` // e.g., "ALIGNED"
+}
+```
+
 ---
 
-### 3. `NightResultsObject` (Complex Payload)
+### 3. Event-Specific Payloads
 
 This is the payload for the `NIGHT_ACTIONS_RESOLVED` event, summarizing the night's outcomes.
 

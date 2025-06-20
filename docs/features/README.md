@@ -9,7 +9,7 @@ Each document outlines a feature's purpose, the expected user flow, the necessar
 ## Index of Feature Designs
 
 ### Core Gameplay Loop
-*   **[01: Voting & Deactivation](./01-voting-and-deactivation.md):** The core loop for player elimination.
+*   **[01: Voting & Deactivation](./01-voting-and-deactivation.md):** The core loop for player deactivation.
 *   **[02: Crisis & Agenda System](./02-crisis-and-agenda-system.md):** How daily rule changes and discussion prompts are managed.
 *   **[03: Tokens & Mining](./03-tokens-and-mining.md):** The mechanics of resource generation and influence.
 *   **[04: AI Conversion & System Shock](./04-ai-conversion-and-system-shock.md):** The AI's primary win condition and the human's defense mechanism.

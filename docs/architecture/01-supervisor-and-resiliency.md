@@ -12,7 +12,7 @@ The system will gracefully degrade service by placing new users on a waitlist wh
 1.  **The Supervisor:** A top-level goroutine responsible for launching, monitoring, and restarting child **Game Actor** goroutines. It acts as a crash-proof boundary.
 2.  **The Health Monitor:** A background goroutine that periodically checks system vitals (memory usage, global request rate) and maintains a server-wide `HealthStatus`.
 3.  **The Admission Controller:** A middleware that acts as a gatekeeper for new game creation. It consults the `HealthStatus` to decide whether to accept a new game, or add the user to a waitlist.
-4.  **Circuit Breakers:** A pattern applied within actors to wrap risky external calls (e.g., to the LLM API), preventing repeated calls to a failing service.
+4.  **Circuit Breakers:** A pattern applied within actors to wrap risky external calls (e.g., to the Language Model API), preventing repeated calls to a failing service.
 5.  **The Waitlist:** A simple FIFO queue in Redis for users who tried to create a game when the server was overloaded.
 
 #### **3. Architectural Diagram**
@@ -66,8 +66,9 @@ This runs in a single, dedicated goroutine for the entire server lifetime.
 var currentHealthStatus = "HEALTHY"
 
 func RunHealthMonitor() {
-    rateLimiter := rate.NewLimiter(rate.Limit(5), 10) // 5 new games/sec, burst of 10
-    memThresholdMB := 6000 // e.g., on an 8GB machine
+    // These values should be configured via environment variables based on deployment specs
+    rateLimiter := rate.NewLimiter(rate.Limit(5), 10) // 5 new games/sec, burst of 10 (example values)
+    memThresholdMB := 6000 // Memory threshold in MB (should be configured for deployment, e.g., 6GB on an 8GB machine)
 
     ticker := time.NewTicker(5 * time.Second)
     for range ticker.C {
@@ -111,16 +112,16 @@ func HandleCreateGameRequest(userID string) (gameID string, err error) {
 ```
 *A separate "Waitlist Processor" goroutine would periodically check if the server is `HEALTHY` and pop users from the Redis list to create their games.*
 
-##### **D. Circuit Breaker Integration (Inside the AI Actor)**
+##### D. Circuit Breaker Integration (Inside the AI Component)
 
-This pattern is applied to specific, failure-prone operations within an actor, like calling the LLM. We use a library like `gobreaker`.
+This pattern is applied to the AI component's failure-prone operations, specifically its external call to the Language Model API. The `GameActor` that manages the AI is responsible for this component's lifecycle. We use a library like `gobreaker`.
 
 ```go
-// Inside the AI Actor's initialization
+// Inside the AI component's initialization (managed by the GameActor)
 var llmCircuitBreaker = gobreaker.NewCircuitBreaker(...)
 
-// Inside the AI's Cognitive Core loop
-func (ai *AIActor) callLLMWithBreaker(context string) (string, error) {
+// When the AI's Rules Engine decides to generate chat, it calls the LLM via the breaker.
+func (re *RulesEngine) callLanguageModelWithBreaker(context string) (string, error) {
     result, err := llmCircuitBreaker.Execute(func() (interface{}, error) {
         // This code only runs if the circuit is "CLOSED" or "HALF_OPEN"
         return callAzureOpenAI(context) // The actual blocking API call
@@ -128,7 +129,7 @@ func (ai *AIActor) callLLMWithBreaker(context string) (string, error) {
 
     if err != nil {
         // Error could be the original error, or gobreaker.ErrOpenState
-        // if the circuit is open. The actor should handle this gracefully (e.g., stay silent).
+        // The AI logic should handle this gracefully (e.g., stay silent).
         return "", err
     }
     return result.(string), nil

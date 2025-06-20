@@ -22,8 +22,8 @@ This document describes the implementation of game-wide modifiers (**Mandates**)
     2.  **Private Notification:** The text description of the KPI is included in the private `ROLES_ASSIGNED` event sent to each player.
     3.  **Server-Side Tracking:** The `Game Actor` tracks the progress of each player's KPI. This is the most complex part of the implementation.
         *   The server must listen for the specific game events that trigger KPI progress.
-        *   **Example for "The Inquisitor":** After each `PLAYER_ELIMINATED` event, the server checks if a player's vote matched the eliminated player. If so, it increments a hidden `correct_votes` counter for that player's KPI.
-        *   **Example for "The Scapegoat":** When a player is eliminated, the server checks the `VOTE_TALLY_UPDATED` results. If the `NO` vote count was 0, the Scapegoat's alternate win condition is met.
+        *   **Example for "The Inquisitor":** After each `PLAYER_DEACTIVATED` event, the server checks if a player's vote matched the deactivated player. If so, it increments a hidden `correct_votes` counter for that player's KPI.
+        *   **Example for "The Scapegoat":** When a player is deactivated, the server checks the `VOTE_TALLY_UPDATED` results. If the `NO` vote count was 0, the Scapegoat's alternate win condition is met.
     4.  **Resolution:** When a KPI's condition is met, the `Game Actor` applies its bonus. This could be a one-time event (e.g., sending a `PRIVATE_NOTIFICATION` with secret info) or a flag that modifies their power in the final vote tally. The logic for alternate win-cons is checked alongside the standard faction win conditions at the end of each phase.
 
 ## 3. Key Implementation Details

@@ -101,7 +101,7 @@ const (
 	EventPivot             EventType = "PIVOT"
 	EventDeployHotfix      EventType = "DEPLOY_HOTFIX"
 
-	// Slack Status events
+	// Player Status events
 	EventSlackStatusChanged EventType = "SLACK_STATUS_CHANGED"
 	EventPartingShotSet     EventType = "PARTING_SHOT_SET"
 

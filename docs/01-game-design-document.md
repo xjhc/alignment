@@ -35,14 +35,14 @@ Time is critical. Trust no one. The AI walks among us.
 
 *   **Players:** 8-10
 *   **Factions & Victory:**
-    *   **Human Faction:** Includes all Humans.
-        *   **Victory Condition:** Identify and vote to deactivate the **Original AI** (achieving **Containment**).
-    *   **AI Faction:** Includes the Original AI and any "Aligned" (converted) Humans.
-        *   **Victory Condition:** Control 51% or more of the total **Tokens** in play at the end of a Day Phase (achieving **The Singularity**).
+    *   **[Human Faction](./glossary.md#human-faction):** Includes all Humans.
+        *   **Victory Condition:** Identify and vote to deactivate the **[Original AI](./glossary.md#original-ai)** (achieving **Containment**).
+    *   **[AI Faction](./glossary.md#ai-faction):** Includes the Original AI and any "[Aligned](./glossary.md#aligned)" (converted) Humans.
+        *   **Victory Condition:** Control 51% or more of the total **[Tokens](./glossary.md#tokens)** in play at the end of a Day Phase (achieving **[The Singularity](./glossary.md#the-singularity)**).
 *   **Game Channels:**
     *   `#war-room`: Main channel for all game discussion.
     *   `#aligned`: Secret channel for the AI and Aligned players. Invisible to Humans.
-    *   `#off-boarding`: A spectator channel for deactivated ("fired") players. Can view `#war-room`, but cannot participate.
+    *   `#off-boarding`: A spectator channel for deactivated players. Can view `#war-room`, but cannot participate.
 
 ---
 
@@ -132,7 +132,7 @@ The game alternates between timed Day and Night phases until a faction achieves 
         *   `Message Corruption`: 25% chance for your messages to be replaced with "lol."
         *   `Action Lock`: You cannot use your role-specific ability tonight.
         *   `Forced Silence`: You cannot speak during the next Day Phase (emojis allowed).
-    *   This creates a dilemma: revealing the shock proves you were targeted (and are likely Human), but it also makes you a prime target for elimination or future conversion attempts.
+    *   This creates a dilemma: revealing the shock proves you were targeted (and are likely Human), but it also makes you a prime target for deactivation or future conversion attempts.
 
 #### **Token-Weighted Voting**
 *   **Vote Weight:** Your vote strength is equal to your current Tokens.
@@ -168,7 +168,7 @@ All players have access to universal actions. Unique roles grant powerful abilit
 *   `Private Message`: Send private DMs to other players.
 
 #### **Role-Specific Abilities (Unlocked via `Project Milestones`)**
-*Unlocked abilities can be used *in addition* to a Universal Action. Each has a public effect announced to all and a covert effect visible only to the AI Faction.*
+*Once unlocked, a role's ability becomes an additional **choice** for a player's Night Action, and can be used **instead of** a Universal Action. Each has a public effect announced to all and a covert effect visible only to the AI Faction.*
 
 | Role | Ability | Public Effect (Announced to all) | Covert Effect (For AI/Aligned eyes only) |
 | :--- | :--- | :--- | :--- |
@@ -194,9 +194,9 @@ At the start of the game, one Mandate is revealed, changing a core rule for ever
 Each Human receives a secret objective. Completing it offers a bonus or even an alternate path to victory, creating strategic misdirection.
 *   **The Capitalist:** End the game with more Tokens than any other single player -> Gain 2 extra votes in the final deactivation tally.
 *   **The Guardian:** Ensure the player with the CISO role survives to Day 4 -> You learn the target of one player's night action.
-*   **The Inquisitor:** Correctly vote for the player who is eliminated three times -> Your final vote counts for double.
+*   **The Inquisitor:** Correctly vote for the player who is deactivated three times -> Your final vote counts for double.
 *   **The Succession Planner (Alt Win-Con):** You win only if the game ends with exactly two Humans remaining (including you) and zero Aligned players.
-*   **The Scapegoat (Alt Win-Con):** You win only if you are eliminated by a unanimous vote.
+*   **The Scapegoat (Alt Win-Con):** You win only if you are deactivated by a unanimous vote.
 
 #### **The LIAISON Protocol (Automatic Catch-Up)**
 The **L**oebian **I**nc. **A**utomated **S**ystems **O**versight **N**etwork is a protocol to help the Human faction when they are losing.
@@ -211,7 +211,7 @@ The **L**oebian **I**nc. **A**utomated **S**ystems **O**versight **N**etwork is 
     *   `Handoff`: Give 2 of your remaining Tokens to one player.
     *   `Confidential Feedback`: Privately reveal your last night's action and its target to one player.
     *   `Burn Bridges`: Choose one player. They are blocked from taking any action on their next turn.
-*   **The Whistleblower Protocol:** Each night, players in `#off-boarding` (the Consultants) vote on a selection of three **Leaked Memos**. The winning memo determines the Crisis Event for the *following* day, allowing fired employees to influence the narrative from the outside.
+*   **The Whistleblower Protocol:** Each night, players in `#off-boarding` (the Consultants) vote on a selection of three **Leaked Memos**. The winning memo determines the Crisis Event for the *following* day, allowing deactivated employees to influence the narrative from the outside.
 
 ---
 

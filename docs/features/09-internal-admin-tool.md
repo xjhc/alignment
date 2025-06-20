@@ -9,7 +9,7 @@ The Internal Admin Tool is a **separate, password-protected web interface** serv
 Its primary goals are:
 *   **Operational Visibility:** Provide an at-a-glance view of server health and resource usage.
 *   **Live Debugging:** Allow developers to inspect the state of active games and view live log streams.
-*   **Cost Monitoring:** Track key metrics related to expensive resources, like LLM API calls.
+*   **Cost Monitoring:** Track key metrics related to expensive resources, like Language Model API calls.
 *   **Manual Intervention:** Provide basic controls to manage the server or specific games.
 
 ## 2. Architectural Approach
@@ -42,13 +42,13 @@ The tool will be a dashboard composed of several key panels:
     *   A "View State" button next to each game that allows an admin to dump the current, in-memory `GameState` object as a formatted JSON blob for inspection.
     *   A "Kill Actor" button (a "big red button") that allows an admin to manually terminate a misbehaving or stuck game actor.
 
-#### **Panel 3: LLM & API Metrics**
+#### **Panel 3: Language Model & API Metrics**
 
 *   **Purpose:** Monitor usage and cost of external services.
 *   **Metrics Displayed:**
-    *   **Total LLM Calls (24h):** A counter for API requests to the LLM provider.
-    *   **Average LLM Latency:** A running average of the response time from the LLM API.
-    *   **LLM Circuit Breaker Status:** Shows if the circuit breaker for the LLM API is currently `OPEN`, `HALF_OPEN`, or `CLOSED`.
+    *   **Total Language Model Calls (24h):** A counter for API requests to the Language Model provider.
+    *   **Average Language Model Latency:** A running average of the response time from the Language Model API.
+    *   **Language Model Circuit Breaker Status:** Shows if the circuit breaker for the Language Model API is currently `OPEN`, `HALF_OPEN`, or `CLOSED`.
 
 #### **Panel 4: Live Log Stream**
 

@@ -39,7 +39,7 @@ type PromptTemplate interface {
     ID() string
     Name() string
     Description() string
-    // BuildPrompt uses the dynamic context to construct the final string for the LLM.
+    // BuildPrompt uses the dynamic context to construct the final string for the Language Model.
     BuildPrompt(ctx PromptContext) string
 }
 ```
@@ -136,8 +136,8 @@ The flow for an `AIActor` to generate a response is now clear and type-safe:
 1.  **Spawn:** On `AIActor` creation, it calls `prompts.GetRandom()` to receive a `PromptTemplate` object and stores it for the duration of the game.
 2.  **Trigger:** When the AI needs to act, its `AIActor` gathers the latest dynamic data. This data is provided by the MCP layer, which exposes the `GameState` as a resource.
 3.  **Context Creation:** The actor populates a `prompts.PromptContext` struct with this fresh data.
-4.  **Build Prompt:** It calls the `BuildPrompt(ctx)` method on its stored template object. This method returns the final, fully-rendered string ready to be sent to the LLM.
-5.  **API Call:** The actor sends the prompt string to the LLM and awaits the JSON response.
+4.  **Build Prompt:** It calls the `BuildPrompt(ctx)` method on its stored template object. This method returns the final, fully-rendered string ready to be sent to the Language Model.
+5.  **API Call:** The actor sends the prompt string to the Language Model and awaits the JSON response.
 
 ## 4. Benefits of this Architecture
 

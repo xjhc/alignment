@@ -17,7 +17,7 @@ The lobby system will be built using our existing **Actor Model architecture**. 
     *   Handling the `START_GAME` action from the host.
 *   **State:** The state of a `LobbyActor` is simple, containing a `LobbyID`, a map of `Players`, and the `HostPlayerID`.
 
-When the host starts the game, a "state transition" occurs: the `LobbyActor` can either pass its state to a newly created `GameActor` or "upgrade" itself into a full `GameActor`, loading the complete game logic and beginning Day 1.
+When the host starts the game, a "state transition" occurs: the `LobbyActor` passes its state to a newly created `GameActor`.
 
 ## 3. User & System Flow
 

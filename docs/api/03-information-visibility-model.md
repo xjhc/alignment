@@ -21,7 +21,7 @@ All data in the game falls into one of three visibility tiers.
 
 | Tier | Description | Examples |
 | :--- | :--- | :--- |
-| **Public** | Information visible to all living players at all times. This forms the basis of public knowledge and discussion. | • Player token counts <br> • Which players are alive/eliminated <br> • The current Crisis Event <br> • Aggregate vote totals (but not who voted for whom) <br> • Public Slack Statuses <br> • A deactivated player's final role and alignment |
+| **Public** | Information visible to all living players at all times. This forms the basis of public knowledge and discussion. | • Player token counts <br> • Which players are alive/deactivated <br> • The current Crisis Event <br> • Aggregate vote totals (but not who voted for whom) <br> • Public Player Statuses <br> • A deactivated player's final role and alignment |
 | **Private (Per-Player)** | Information known only to a single player. This is the most sensitive data and must be delivered via private, targeted events. | • Your own Role and Alignment <br> • Your secret Personal KPI <br> • Your hidden `AI Equity` score (if human) <br> • The fact that you have a `System Shock` <br> • The contents of a private message (DM) you sent or received |
 | **Factional (Hidden)** | Information known only to members of a specific faction (typically the AI faction). This is managed via a separate, secret communication channel. | • The identity of the Original AI and all Aligned players <br> • The contents of the `#aligned` chat channel <br> • The true results of covert abilities (e.g., the `Run Audit` ability) |
 

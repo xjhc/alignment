@@ -1,4 +1,3 @@
-
 # Feature: Crisis & Agenda System
 
 This document describes the implementation of the daily **Crisis Events** and **Pulse Check** prompts, which introduce variety and focus to each Day Phase.
@@ -14,9 +13,9 @@ This system is managed entirely by the server and announced to clients via event
 ## 2. System Flow
 
 1.  **Trigger:** The system is triggered when the `Game Actor` transitions from the `NIGHT` phase to the `DAY` phase.
-2.  **Selection:**
-    *   The `Game Actor` maintains a list of potential `CrisisEvent` objects. It randomly selects one that has not been used yet in the current game.
-    *   *Exception:* If the **Whistleblower Protocol** is active, the `CrisisEvent` is not chosen randomly but is instead determined by the vote of eliminated players from the previous night.
+2.  **Selection:** The `Game Actor` determines the day's Crisis Event with the following precedence:
+    *   First, it checks if a Crisis Event has been determined by the **Whistleblower Protocol** from the previous night's vote in `#off-boarding`. If so, that event is selected.
+    *   If the Whistleblower Protocol is not in effect, the `Game Actor` randomly selects a `CrisisEvent` from its internal list of events that have not yet occurred in the current game.
 3.  **Announcement Event:** The chosen `CrisisEventObject` (containing its title, effect description, and the Pulse Check prompt) is included in the payload of the `PHASE_CHANGED` event that signals the start of the Day Phase.
 4.  **Client-Side:**
     *   The client UI receives the `PHASE_CHANGED` event and displays the Crisis title and effect prominently.
@@ -30,5 +29,5 @@ This system is managed entirely by the server and announced to clients via event
 
 ## 3. Implementation Details
 
-*   **Crisis Effects:** The logic for enforcing the Crisis Event's rule change resides entirely on the server. The `Game Actor` will check the `currentCrisis` on its `GameState` before performing certain actions. For example, for the "Hostile Takeover Bid" crisis, the vote-tallying logic will check for a 60% threshold instead of the usual 51%.
-*   **Data Structure:** The `CrisisEvent` objects will be defined as a static list or loaded from a configuration file at server startup.
+*   **Crisis Effects:** The logic for enforcing the Crisis Event's rule change resides entirely on the server. The `Game Actor` will check the `currentCrisis` on its `GameState` before performing certain actions. For example, for the "Press Leak" crisis, the vote-tallying logic will check for a 66% threshold instead of the usual majority.
+*   **Data Structure:** To ensure consistency with our core development philosophy, `CrisisEvent` objects will be defined directly within the Go codebase, not loaded from an external configuration file. This follows the same "in-code registry" pattern used for AI prompts, providing compile-time safety and guaranteeing that game rule data is deployed atomically with the application logic that uses it.

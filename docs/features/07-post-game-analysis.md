@@ -24,15 +24,15 @@ The interface will be broken down into the following tabs, each drawing from the
 
 *   **Purpose:** An at-a-glance overview of the game's highlights.
 *   **Content:**
-    *   **Most Valuable Personnel (MVP):** Highlights a player based on a server-calculated score. The formula can be tuned, but an example is: `Score = (Tokens Mined for others * 2) + (Correct Elimination Votes * 3) - (Incorrect Elimination Votes * 1)`.
-    *   **Key Turning Point:** A server-identified event that significantly shifted the game's outcome. The heuristic could identify events like "The first correct elimination of an AI faction member" or "A successful block by the CISO that prevented a game-winning conversion."
-    *   **Parting Shots:** A display of all eliminated players' final, permanent status messages.
+    *   **Most Valuable Personnel (MVP):** Highlights a player based on a server-calculated score. The formula can be tuned, but an example is: `Score = (Tokens Mined for others * 2) + (Correct Deactivation Votes * 3) - (Incorrect Deactivation Votes * 1)`.
+    *   **Key Turning Point:** A server-identified event that significantly shifted the game's outcome. The heuristic could identify events like "The first correct deactivation of an AI faction member" or "A successful block by the CISO that prevented a game-winning conversion."
+    *   **Parting Shots:** A display of all deactivated players' final, permanent status messages.
 
 #### Tab 2: Event Timeline
 
 *   **Purpose:** A chronological, visual log of the game's most critical moments.
 *   **Content:** A scrollable list of key events, tagged by the day they occurred. The server will filter the full event log to only include:
-    *   Player eliminations (including their revealed alignment).
+    *   Player deactivations (including their revealed alignment).
     *   AI conversions.
     *   Critical ability uses (e.g., a successful CISO block, a pivotal CFO token transfer).
     *   Daily Crisis Event announcements.
@@ -42,7 +42,7 @@ The interface will be broken down into the following tabs, each drawing from the
 *   **Purpose:** A detailed statistical breakdown for every player in the game.
 *   **Content:** A grid of "player cards," each showing:
     *   **Influence Stats:** Tokens Mined, Tokens Received, Final Token Count.
-    *   **Deduction Stats:** Correct Votes for Elimination, Incorrect Votes for Elimination.
+    *   **Deduction Stats:** Correct Votes for Deactivation, Incorrect Votes for Deactivation.
     *   **Social Stats:** Times Nominated by Others, Total Messages Sent.
     *   **Survival:** Days Survived.
 
@@ -51,6 +51,6 @@ The interface will be broken down into the following tabs, each drawing from the
 *   **Purpose:** A showcase of the most memorable social moments from the game's chat log.
 *   **Content:**
     *   **Most Reacted-To Message:** The single chat message that received the highest number of total emoji reactions.
-    *   **Notable Quotes:** A server-selected collection of 2-3 other messages. Heuristics for selection could include high reaction counts, messages that directly mentioned an AI player who was later eliminated, or the first message that accused the correct AI.
+    *   **Notable Quotes:** A server-selected collection of 2-3 other messages. Heuristics for selection could include high reaction counts, messages that directly mentioned an AI player who was later deactivated, or the first message that accused the correct AI.
 
 By providing this rich, data-driven summary, we give players the tools to tell the story of their game, compare strategies, and build a lasting engagement with `Alignment`.

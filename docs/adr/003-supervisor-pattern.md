@@ -28,7 +28,7 @@ We will implement a **Supervisor pattern** to provide fault isolation between Ga
     *   **Enhanced Debugging:** By logging the specific `gameID` associated with a panic, we can more easily trace the state and sequence of events that led to the failure.
 
 *   **Cons:**
-    *   **Terminated Games are Still Lost:** While the server remains stable, the players in the game that crashed are still kicked out. The user experience for *that specific game* is still a hard stop. For our V1, this is an acceptable trade-off.
+    *   **Terminated Games are Still Lost:** While the server remains stable, the players in the game that crashed are still disconnected. The user experience for *that specific game* is still a hard stop. For our V1, this is an acceptable trade-off.
     *   **Adds a Layer of Abstraction:** Developers must be aware that actors are running under a supervisor and what the recovery semantics are.
 
 This pattern is a critical component of our strategy for running a stable, multi-tenant game server on a single machine.

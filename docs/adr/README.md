@@ -15,7 +15,7 @@ The purpose of this collection is not to document every single decision, but to 
 
 You should propose a new ADR when you are considering a change that:
 *   Affects the structure of the entire application (e.g., switching from monolith to microservices).
-*   Introduces a new, significant technology or dependency (e.g., adding a new database, switching our LLM provider).
+*   Introduces a new, significant technology or dependency (e.g., adding a new database, switching our Language Model provider).
 *   Changes a fundamental development or deployment process.
 *   Establishes a new, cross-cutting standard (e.g., a new logging or authentication pattern).
 
@@ -42,5 +42,5 @@ The document should contain the following sections:
 Here is a list of the key architectural decisions made for this project to date.
 
 *   **[ADR-001: Adopt an In-Memory Actor Model](./001-in-memory-actor-model.md):** The decision to use a stateful, in-memory model for the backend instead of a stateless one.
-*   **[ADR-002: Implement a Hybrid AI Brain](./002-hybrid-ai-brain.md):** The decision to split the AI into a deterministic Rules Engine for strategy and an LLM for communication.
-*   **[ADR-003: Isolate Actor Failures with a Supervisor Pattern](./003-supervisor-pattern.md):** The decision to implement a Supervisor to prevent crashes in one game from taking down the entire server.
+*   **[ADR-002: Implement a Hybrid AI Brain](./002-hybrid-ai-brain.md):** The decision to split the AI into a deterministic [Rules Engine](../glossary.md#rules-engine) for strategy and a [Language Model](../glossary.md#language-model) for communication.
+*   **[ADR-003: Isolate Actor Failures with a Supervisor Pattern](./003-supervisor-pattern.md):** The decision to implement a [Supervisor](../glossary.md#supervisor) to prevent crashes in one game from taking down the entire server.

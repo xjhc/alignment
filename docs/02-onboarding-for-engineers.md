@@ -14,11 +14,11 @@ At its heart, the backend is a **stateful, in-memory system** designed for massi
 
 1.  **The Game Actor:** Each active game runs in its own dedicated goroutine (an "Actor"). This actor "owns" the `GameState` struct for its game, holding it entirely in memory. It processes all events and actions for that game serially through a Go channel (`chan`), which guarantees high performance and eliminates data races without locks.
 
-2.  **The Supervisor:** A top-level goroutine launches and monitors all Game Actors. If a single game actor panics due to a bug, the Supervisor catches the panic, logs the error with the `gameID`, and terminates that *single game*. This provides critical fault isolation and prevents the entire server from crashing.
+2.  **The [Supervisor](../adr/003-supervisor-pattern.md):** A top-level goroutine launches and monitors all Game Actors. If a single game actor panics due to a bug, the Supervisor catches the panic, logs the error with the `gameID`, and terminates that *single game*. This provides critical fault isolation and prevents the entire server from crashing.
 
-3.  **The Scheduler:** A single, central goroutine manages all time-based events (like phase timers) for the entire application using a highly efficient **Timing Wheel** algorithm. This avoids the overhead of managing thousands of individual system timers and keeps the Game Actors focused on pure game logic.
+3.  **The [Scheduler](../architecture/README.md#the-lifecycle-of-a-player-action):** A single, central goroutine manages all time-based events (like phase timers) for the entire application using a highly efficient **[Timing Wheel](../glossary.md#timing-wheel)** algorithm. This avoids the overhead of managing thousands of individual system timers and keeps the Game Actors focused on pure game logic.
 
-A central **Dispatcher** routes all incoming WebSocket messages to the correct actor's channel, completing the core processing loop.
+A central **[Dispatcher](../glossary.md#dispatcher)** routes all incoming WebSocket messages to the correct actor's channel, completing the core processing loop.
 
 ---
 
@@ -40,17 +40,54 @@ Our system is "stateless" at the process level, meaning the server process can b
 
 The AI is a core feature with a deliberate, two-part design to balance believability with performance, cost, and strategic reliability.
 
-*   **The "Strategic Brain" (Rules Engine):** A deterministic, pure Go module that makes all concrete game decisions (who to vote for, who to target at night). This logic is fast, predictable, and free to run.
+*   **The Rules Engine:** A deterministic rules engine makes all concrete game decisions (who to vote for, who to target at night). **The `GameActor` runs this logic in a supervised "sidecar" goroutine.** This allows the AI to "think" concurrently without blocking the game's main event loop, while ensuring its logic is fast, predictable, and free to run.
 
-*   **The "Language Brain" (LLM):** A Large Language Model is used **exclusively for communication**: generating human-like chat to maintain its persona and engage socially. This is where we spend our "AI budget."
+*   **The Language Model:** A Large Language Model is used **exclusively for communication**: generating human-like chat to maintain its persona and engage socially. This is where we spend our "AI budget."
 
-*   **The MCP Interface:** We use the **Model Context Protocol (MCP)** as the formal, read-only API between our server and the LLM. Our backend acts as an `McpServer`, exposing the `GameState` as a resource (e.g., `game://alignment/{id}`). The LLM's "language brain" uses an `McpClient` to read this context before generating a chat message. This provides a clean, secure, and future-proof interface for any AI interactions.
+*   **The [MCP Interface](../architecture/03-mcp-interface.md):** We use the **Model Context Protocol (MCP)** as the formal, read-only API between our server and the Language Model. Our backend acts as an `McpServer`, exposing the `GameState` as a resource (e.g., `game://alignment/{id}`). The Language Model uses an `McpClient` to read this context before generating a chat message. This provides a clean, secure, and future-proof interface for any AI interactions.
 
 ---
 
 ## 4. The Frontend: A Hybrid of Go/Wasm and React
 
 The frontend is a modern web application with two distinct parts that work together:
+
+```mermaid
+graph TB
+    subgraph Browser["🌐 Browser Environment"]
+        subgraph ReactApp["React/TypeScript UI Shell"]
+            Components["React Components<br/>• Game Board<br/>• Chat Interface<br/>• Player Status<br/>• Action Buttons"]
+            EventHandlers["Event Handlers<br/>• onClick<br/>• onSubmit<br/>• onChange"]
+        end
+
+        subgraph Bridge["JavaScript Bridge Layer"]
+            JSFunctions["JS Functions<br/>• updateGameState()<br/>• triggerRerender()"]
+            GoExports["Go Exports<br/>• submitAction()<br/>• getState()"]
+        end
+
+        subgraph WasmEngine["Go/Wasm Engine"]
+            GameLogic["Game Logic<br/>• State Management<br/>• Event Processing<br/>• Action Validation"]
+            WebSocket["WebSocket Client<br/>• Server Connection<br/>• Message Handling"]
+            ClientState["Client GameState<br/>• Read Model<br/>• Local Cache"]
+        end
+    end
+
+    Server["🖥️ Go Backend Server"]
+
+    %% User interaction flow
+    Components --> EventHandlers
+    EventHandlers --> GoExports
+    GoExports --> GameLogic
+
+    %% State update flow
+    GameLogic --> JSFunctions
+    JSFunctions --> Components
+
+    %% Server communication
+    WebSocket <--> Server
+    Server --> GameLogic
+    GameLogic --> ClientState
+```
 
 1.  **The "Engine" (Go/Wasm Core):**
     *   The client-side game logic is written in Go and compiled to a WebAssembly (`.wasm`) binary.
