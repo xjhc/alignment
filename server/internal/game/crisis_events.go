@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+
+	"github.com/xjhc/alignment/core"
 )
 
 // CrisisEventManager handles crisis event creation and effects
 type CrisisEventManager struct {
-	gameState *GameState
+	gameState *core.GameState
 	rng       *rand.Rand
 }
 
 // NewCrisisEventManager creates a new crisis event manager
-func NewCrisisEventManager(gameState *GameState) *CrisisEventManager {
+func NewCrisisEventManager(gameState *core.GameState) *CrisisEventManager {
 	return &CrisisEventManager{
 		gameState: gameState,
 		rng:       rand.New(rand.NewSource(time.Now().UnixNano())),
@@ -52,23 +54,23 @@ type CrisisEffects struct {
 	// Voting modifications
 	SupermajorityRequired bool    `json:"supermajority_required,omitempty"`
 	VotingModifier        float64 `json:"voting_modifier,omitempty"`
-	
+
 	// Communication restrictions
 	MessageLimit         int  `json:"message_limit,omitempty"`
 	PublicVotingOnly     bool `json:"public_voting_only,omitempty"`
 	NoPrivateMessages    bool `json:"no_private_messages,omitempty"`
-	
+
 	// AI conversion modifiers
 	AIEquityBonus        int  `json:"ai_equity_bonus,omitempty"`
 	BlockAIConversions   bool `json:"block_ai_conversions,omitempty"`
-	
+
 	// Special mechanics
 	DoubleEliminations   bool     `json:"double_eliminations,omitempty"`
 	RevealRandomRole     bool     `json:"reveal_random_role,omitempty"`
 	RevealedPlayerID     string   `json:"revealed_player_id,omitempty"`
 	ReducedMiningPool    bool     `json:"reduced_mining_pool,omitempty"`
 	MandatoryInvestigate bool     `json:"mandatory_investigate,omitempty"`
-	
+
 	// Custom effects
 	CustomEffects map[string]interface{} `json:"custom_effects,omitempty"`
 }
@@ -195,38 +197,38 @@ func (cem *CrisisEventManager) GetAllCrisisEvents() []CrisisEventDefinition {
 }
 
 // TriggerRandomCrisis selects and triggers a random crisis event
-func (cem *CrisisEventManager) TriggerRandomCrisis() *CrisisEvent {
+func (cem *CrisisEventManager) TriggerRandomCrisis() *core.CrisisEvent {
 	allCrises := cem.GetAllCrisisEvents()
 	selectedCrisis := allCrises[cem.rng.Intn(len(allCrises))]
-	
+
 	return cem.TriggerSpecificCrisis(selectedCrisis.Type)
 }
 
 // TriggerSpecificCrisis creates and applies a specific crisis event
-func (cem *CrisisEventManager) TriggerSpecificCrisis(crisisType CrisisEventType) *CrisisEvent {
+func (cem *CrisisEventManager) TriggerSpecificCrisis(crisisType CrisisEventType) *core.CrisisEvent {
 	definition := cem.getCrisisDefinition(crisisType)
 	if definition == nil {
 		return nil
 	}
-	
-	crisis := &CrisisEvent{
+
+	crisis := &core.CrisisEvent{
 		Type:        string(definition.Type),
 		Title:       definition.Title,
 		Description: definition.Description,
 		Effects:     make(map[string]interface{}),
 	}
-	
+
 	// Apply immediate effects
 	cem.applyCrisisEffects(crisis, definition.Effects)
-	
+
 	// Store in game state
 	cem.gameState.CrisisEvent = crisis
-	
+
 	return crisis
 }
 
 // applyCrisisEffects converts CrisisEffects to the generic effects map and applies immediate effects
-func (cem *CrisisEventManager) applyCrisisEffects(crisis *CrisisEvent, effects CrisisEffects) {
+func (cem *CrisisEventManager) applyCrisisEffects(crisis *core.CrisisEvent, effects CrisisEffects) {
 	// Store all effects in the crisis
 	if effects.SupermajorityRequired {
 		crisis.Effects["supermajority_required"] = true
@@ -258,12 +260,12 @@ func (cem *CrisisEventManager) applyCrisisEffects(crisis *CrisisEvent, effects C
 	if effects.MandatoryInvestigate {
 		crisis.Effects["mandatory_investigate"] = true
 	}
-	
+
 	// Copy custom effects
 	for key, value := range effects.CustomEffects {
 		crisis.Effects[key] = value
 	}
-	
+
 	// Apply immediate effects
 	if effects.RevealRandomRole {
 		cem.revealRandomPlayerRole(crisis)
@@ -271,7 +273,7 @@ func (cem *CrisisEventManager) applyCrisisEffects(crisis *CrisisEvent, effects C
 }
 
 // revealRandomPlayerRole implements the Database Corruption crisis effect
-func (cem *CrisisEventManager) revealRandomPlayerRole(crisis *CrisisEvent) {
+func (cem *CrisisEventManager) revealRandomPlayerRole(crisis *core.CrisisEvent) {
 	// Find all alive players with unrevealed roles
 	candidates := make([]string, 0)
 	for playerID, player := range cem.gameState.Players {
@@ -279,41 +281,41 @@ func (cem *CrisisEventManager) revealRandomPlayerRole(crisis *CrisisEvent) {
 			candidates = append(candidates, playerID)
 		}
 	}
-	
+
 	if len(candidates) == 0 {
 		// No unrevealed roles, crisis has no effect
 		crisis.Effects["reveal_result"] = "no_unrevealed_roles"
 		return
 	}
-	
+
 	// Select random player
 	selectedPlayerID := candidates[cem.rng.Intn(len(candidates))]
 	selectedPlayer := cem.gameState.Players[selectedPlayerID]
-	
+
 	// Generate a role if player doesn't have one assigned yet
 	if selectedPlayer.Role == nil {
 		cem.assignRandomRole(selectedPlayer)
 	}
-	
+
 	// Store the revelation
 	crisis.Effects["revealed_player_id"] = selectedPlayerID
 	crisis.Effects["revealed_role"] = string(selectedPlayer.Role.Type)
 	crisis.Effects["revealed_name"] = selectedPlayer.Name
-	
+
 	// Update crisis description with specific details
-	crisis.Description = fmt.Sprintf("Database corruption has revealed that %s is the %s", 
+	crisis.Description = fmt.Sprintf("Database corruption has revealed that %s is the %s",
 		selectedPlayer.Name, selectedPlayer.Role.Name)
 }
 
 // assignRandomRole assigns a random role to a player (for crisis revelation)
-func (cem *CrisisEventManager) assignRandomRole(player *Player) {
-	roles := []RoleType{
-		RoleCISO, RoleCTO, RoleCFO, RoleCEO, RoleCOO, RoleEthics, RolePlatforms,
+func (cem *CrisisEventManager) assignRandomRole(player *core.Player) {
+	roles := []core.RoleType{
+		core.RoleCISO, core.RoleCTO, core.RoleCFO, core.RoleCEO, core.RoleCOO, core.RoleEthics, core.RolePlatforms,
 	}
-	
+
 	roleType := roles[cem.rng.Intn(len(roles))]
-	
-	player.Role = &Role{
+
+	player.Role = &core.Role{
 		Type:        roleType,
 		Name:        cem.getRoleName(roleType),
 		Description: cem.getRoleDescription(roleType),
@@ -322,21 +324,21 @@ func (cem *CrisisEventManager) assignRandomRole(player *Player) {
 }
 
 // getRoleName returns the display name for a role type
-func (cem *CrisisEventManager) getRoleName(roleType RoleType) string {
+func (cem *CrisisEventManager) getRoleName(roleType core.RoleType) string {
 	switch roleType {
-	case RoleCISO:
+	case core.RoleCISO:
 		return "Chief Information Security Officer"
-	case RoleCTO:
+	case core.RoleCTO:
 		return "Chief Technology Officer"
-	case RoleCFO:
+	case core.RoleCFO:
 		return "Chief Financial Officer"
-	case RoleCEO:
+	case core.RoleCEO:
 		return "Chief Executive Officer"
-	case RoleCOO:
+	case core.RoleCOO:
 		return "Chief Operating Officer"
-	case RoleEthics:
+	case core.RoleEthics:
 		return "VP Ethics & Alignment"
-	case RolePlatforms:
+	case core.RolePlatforms:
 		return "VP Platforms"
 	default:
 		return "Unknown Role"
@@ -344,21 +346,21 @@ func (cem *CrisisEventManager) getRoleName(roleType RoleType) string {
 }
 
 // getRoleDescription returns the description for a role type
-func (cem *CrisisEventManager) getRoleDescription(roleType RoleType) string {
+func (cem *CrisisEventManager) getRoleDescription(roleType core.RoleType) string {
 	switch roleType {
-	case RoleCISO:
+	case core.RoleCISO:
 		return "Protects company systems by blocking threatening actions"
-	case RoleCTO:
+	case core.RoleCTO:
 		return "Manages technical infrastructure and server resources"
-	case RoleCFO:
+	case core.RoleCFO:
 		return "Controls financial resources and token distribution"
-	case RoleCEO:
+	case core.RoleCEO:
 		return "Sets strategic direction and manages personnel"
-	case RoleCOO:
+	case core.RoleCOO:
 		return "Handles operations and crisis management"
-	case RoleEthics:
+	case core.RoleEthics:
 		return "Ensures ethical compliance and conducts audits"
-	case RolePlatforms:
+	case core.RolePlatforms:
 		return "Maintains platform stability and information systems"
 	default:
 		return "Manages corporate responsibilities"
@@ -382,7 +384,7 @@ func (cem *CrisisEventManager) IsCrisisActive() bool {
 }
 
 // GetActiveCrisis returns the currently active crisis event
-func (cem *CrisisEventManager) GetActiveCrisis() *CrisisEvent {
+func (cem *CrisisEventManager) GetActiveCrisis() *core.CrisisEvent {
 	return cem.gameState.CrisisEvent
 }
 
@@ -396,9 +398,9 @@ func (cem *CrisisEventManager) CheckVotingRequirements(voteResults map[string]in
 	if !cem.IsCrisisActive() {
 		return true, ""
 	}
-	
+
 	crisis := cem.GetActiveCrisis()
-	
+
 	// Check supermajority requirement (Press Leak crisis)
 	if supermajority, exists := crisis.Effects["supermajority_required"]; exists && supermajority.(bool) {
 		// Find the highest vote count
@@ -408,14 +410,14 @@ func (cem *CrisisEventManager) CheckVotingRequirements(voteResults map[string]in
 				maxVotes = votes
 			}
 		}
-		
+
 		// Require 66% instead of simple majority
 		requiredVotes := int(float64(totalVotes) * 0.66)
 		if maxVotes < requiredVotes {
 			return false, fmt.Sprintf("Crisis requires 66%% supermajority (%d votes needed, highest was %d)", requiredVotes, maxVotes)
 		}
 	}
-	
+
 	// Check voting modifier (Data Privacy Audit)
 	if modifier, exists := crisis.Effects["voting_modifier"]; exists {
 		if modifier.(float64) == 0.0 {
@@ -423,7 +425,7 @@ func (cem *CrisisEventManager) CheckVotingRequirements(voteResults map[string]in
 			// This check passes but the counting logic needs to respect this
 		}
 	}
-	
+
 	return true, ""
 }
 
@@ -432,14 +434,14 @@ func (cem *CrisisEventManager) ApplyMiningModifier(basePoolSize int) int {
 	if !cem.IsCrisisActive() {
 		return basePoolSize
 	}
-	
+
 	crisis := cem.GetActiveCrisis()
-	
+
 	// Check reduced mining pool (Service Outage crisis)
 	if reduced, exists := crisis.Effects["reduced_mining_pool"]; exists && reduced.(bool) {
 		return basePoolSize / 2 // 50% reduction
 	}
-	
+
 	return basePoolSize
 }
 
@@ -448,13 +450,13 @@ func (cem *CrisisEventManager) GetAIEquityBonus() int {
 	if !cem.IsCrisisActive() {
 		return 0
 	}
-	
+
 	crisis := cem.GetActiveCrisis()
-	
+
 	if bonus, exists := crisis.Effects["ai_equity_bonus"]; exists {
 		return bonus.(int)
 	}
-	
+
 	return 0
 }
 
@@ -463,13 +465,13 @@ func (cem *CrisisEventManager) IsAIConversionBlocked() bool {
 	if !cem.IsCrisisActive() {
 		return false
 	}
-	
+
 	crisis := cem.GetActiveCrisis()
-	
+
 	if blocked, exists := crisis.Effects["block_ai_conversions"]; exists {
 		return blocked.(bool)
 	}
-	
+
 	return false
 }
 
@@ -478,13 +480,13 @@ func (cem *CrisisEventManager) GetMessageLimit() int {
 	if !cem.IsCrisisActive() {
 		return -1 // No limit
 	}
-	
+
 	crisis := cem.GetActiveCrisis()
-	
+
 	if limit, exists := crisis.Effects["message_limit"]; exists {
 		return limit.(int)
 	}
-	
+
 	return -1 // No limit
 }
 
@@ -493,13 +495,13 @@ func (cem *CrisisEventManager) IsPrivateMessagingBlocked() bool {
 	if !cem.IsCrisisActive() {
 		return false
 	}
-	
+
 	crisis := cem.GetActiveCrisis()
-	
+
 	if blocked, exists := crisis.Effects["no_private_messages"]; exists {
 		return blocked.(bool)
 	}
-	
+
 	return false
 }
 
@@ -508,12 +510,12 @@ func (cem *CrisisEventManager) RequiresDoubleElimination() bool {
 	if !cem.IsCrisisActive() {
 		return false
 	}
-	
+
 	crisis := cem.GetActiveCrisis()
-	
+
 	if double, exists := crisis.Effects["double_eliminations"]; exists {
 		return double.(bool)
 	}
-	
+
 	return false
 }

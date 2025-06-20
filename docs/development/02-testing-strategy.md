@@ -10,9 +10,9 @@ The best way to prevent bugs is to make them impossible to write. We enforce bes
     *   **Example:** The `GameActor` does not know about Redis. It talks to a `DataStore` interface (`type DataStore interface { AppendEvent(...) }`). In production, we inject a `RedisStore`. In tests, we inject a `MockStore`.
     *   **Enforcement:** This design *forces* a developer to decouple the actor's logic from its dependencies. You cannot write a Redis-specific command inside the actor because the interface doesn't allow it.
 
-2.  **Package Structure by Domain:** Our code is organized by business domain, not by type.
-    *   **Example:** All game-state logic is in `internal/game`. All AI logic is in `internal/ai`.
-    *   **Enforcement:** This creates clear ownership and boundaries. A developer working on WebSockets in `internal/comms` has no business importing `internal/game` to manipulate state directly. Code review should strictly enforce these import boundaries.
+2.  **Package Structure by Domain:** Our code is organized by its logical boundary, not by type.
+    *   **Example:** Universal game rules are in `/core`. Server-side logic (Actors, AI) is in `/server`. Client-side logic (UI, Wasm) is in `/client`.
+    *   **Enforcement:** This creates clear, compiler-enforced boundaries. For example, the `/core` package cannot import `/server`, preventing universal rules from depending on server infrastructure. Code review should strictly enforce these import boundaries.
 
 3.  **Encapsulation via Unexported Fields:**
     *   **Example:** The `GameState` struct may have internal fields for tracking vote counts (`voteTally map[string]int`). By making this field unexported (lowercase `v`), only methods within the same package can modify it, preventing accidental manipulation from other parts of the codebase.

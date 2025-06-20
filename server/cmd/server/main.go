@@ -9,10 +9,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/alignment/server/internal/actors"
-	"github.com/alignment/server/internal/comms"
-	"github.com/alignment/server/internal/game"
-	"github.com/alignment/server/internal/store"
+	"github.com/xjhc/alignment/core"
+	"github.com/xjhc/alignment/server/internal/actors"
+	"github.com/xjhc/alignment/server/internal/comms"
+	"github.com/xjhc/alignment/server/internal/game"
+	"github.com/xjhc/alignment/server/internal/store"
 	"github.com/google/uuid"
 )
 
@@ -99,13 +100,13 @@ type ActionHandler struct {
 }
 
 // HandleAction processes game actions from WebSocket clients
-func (ah *ActionHandler) HandleAction(action game.Action) error {
+func (ah *ActionHandler) HandleAction(action core.Action) error {
 	log.Printf("Handling action: %s from player %s for game %s", action.Type, action.PlayerID, action.GameID)
 
 	switch action.Type {
-	case game.ActionJoinGame:
+	case core.ActionJoinGame:
 		return ah.handleJoinGame(action)
-	case game.ActionStartGame:
+	case core.ActionStartGame:
 		return ah.handleStartGame(action)
 	default:
 		// Forward to game actor
@@ -117,7 +118,7 @@ func (ah *ActionHandler) HandleAction(action game.Action) error {
 	}
 }
 
-func (ah *ActionHandler) handleJoinGame(action game.Action) error {
+func (ah *ActionHandler) handleJoinGame(action core.Action) error {
 	gameID := action.GameID
 
 	// Create game if it doesn't exist
@@ -137,7 +138,7 @@ func (ah *ActionHandler) handleJoinGame(action game.Action) error {
 	return fmt.Errorf("failed to get game actor after creation")
 }
 
-func (ah *ActionHandler) handleStartGame(action game.Action) error {
+func (ah *ActionHandler) handleStartGame(action core.Action) error {
 	if actor, exists := ah.supervisor.GetActor(action.GameID); exists {
 		actor.SendAction(action)
 		return nil
@@ -223,8 +224,8 @@ func handleTimerExpired(supervisor *actors.Supervisor, timer game.Timer) {
 	log.Printf("Timer expired: %s for game %s", timer.ID, timer.GameID)
 
 	// Convert timer action to game action
-	action := game.Action{
-		Type:     timer.Action.Type,
+	action := core.Action{
+		Type:     core.ActionType(timer.Action.Type),
 		GameID:   timer.GameID,
 		PlayerID: "SYSTEM",
 		Payload:  timer.Action.Payload,

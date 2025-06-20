@@ -2,23 +2,25 @@ package game
 
 import (
 	"fmt"
+
+	"github.com/xjhc/alignment/core"
 )
 
 // VotingManager handles voting logic and calculations
 type VotingManager struct {
-	gameState *GameState
+	gameState *core.GameState
 }
 
 // NewVotingManager creates a new voting manager
-func NewVotingManager(gameState *GameState) *VotingManager {
+func NewVotingManager(gameState *core.GameState) *VotingManager {
 	return &VotingManager{
 		gameState: gameState,
 	}
 }
 
 // StartVote initializes a new voting session
-func (vm *VotingManager) StartVote(voteType VoteType) *VoteState {
-	voteState := &VoteState{
+func (vm *VotingManager) StartVote(voteType core.VoteType) *core.VoteState {
+	voteState := &core.VoteState{
 		Type:         voteType,
 		Votes:        make(map[string]string),
 		TokenWeights: make(map[string]int),
@@ -141,18 +143,18 @@ func (vm *VotingManager) ClearVote() {
 
 // EliminationManager handles player elimination logic
 type EliminationManager struct {
-	gameState *GameState
+	gameState *core.GameState
 }
 
 // NewEliminationManager creates a new elimination manager
-func NewEliminationManager(gameState *GameState) *EliminationManager {
+func NewEliminationManager(gameState *core.GameState) *EliminationManager {
 	return &EliminationManager{
 		gameState: gameState,
 	}
 }
 
 // EliminatePlayer removes a player from the game
-func (em *EliminationManager) EliminatePlayer(playerID string) (*Player, error) {
+func (em *EliminationManager) EliminatePlayer(playerID string) (*core.Player, error) {
 	player, exists := em.gameState.Players[playerID]
 	if !exists {
 		return nil, fmt.Errorf("player %s not found", playerID)
@@ -170,7 +172,7 @@ func (em *EliminationManager) EliminatePlayer(playerID string) (*Player, error) 
 }
 
 // CheckWinCondition evaluates if either faction has won
-func (em *EliminationManager) CheckWinCondition() *WinCondition {
+func (em *EliminationManager) CheckWinCondition() *core.WinCondition {
 	aliveHumans := 0
 	aliveAligned := 0
 	totalTokens := 0
@@ -193,7 +195,7 @@ func (em *EliminationManager) CheckWinCondition() *WinCondition {
 
 	// AI wins if no humans remain
 	if aliveHumans == 0 && aliveAligned > 0 {
-		return &WinCondition{
+		return &core.WinCondition{
 			Winner:      "AI",
 			Condition:   "ELIMINATION",
 			Description: "All human players have been eliminated or converted",
@@ -202,7 +204,7 @@ func (em *EliminationManager) CheckWinCondition() *WinCondition {
 
 	// Humans win if no aligned players remain (Containment)
 	if aliveAligned == 0 && aliveHumans > 0 {
-		return &WinCondition{
+		return &core.WinCondition{
 			Winner:      "HUMANS",
 			Condition:   "CONTAINMENT",
 			Description: "All AI-aligned players have been eliminated",
@@ -211,7 +213,7 @@ func (em *EliminationManager) CheckWinCondition() *WinCondition {
 
 	// AI wins if they control 51% of tokens (Singularity)
 	if totalTokens > 0 && float64(alignedTokens)/float64(totalTokens) > 0.51 {
-		return &WinCondition{
+		return &core.WinCondition{
 			Winner:      "AI",
 			Condition:   "SINGULARITY",
 			Description: "AI has achieved token majority control",
@@ -234,8 +236,8 @@ func (em *EliminationManager) GetAlivePlayerCount() int {
 }
 
 // GetAlivePlayers returns all living players
-func (em *EliminationManager) GetAlivePlayers() map[string]*Player {
-	alive := make(map[string]*Player)
+func (em *EliminationManager) GetAlivePlayers() map[string]*core.Player {
+	alive := make(map[string]*core.Player)
 	for id, player := range em.gameState.Players {
 		if player.IsAlive {
 			alive[id] = player
@@ -254,11 +256,11 @@ func (em *EliminationManager) IsPlayerAlive(playerID string) bool {
 
 // VoteValidator provides voting validation logic
 type VoteValidator struct {
-	gameState *GameState
+	gameState *core.GameState
 }
 
 // NewVoteValidator creates a new vote validator
-func NewVoteValidator(gameState *GameState) *VoteValidator {
+func NewVoteValidator(gameState *core.GameState) *VoteValidator {
 	return &VoteValidator{
 		gameState: gameState,
 	}
@@ -279,13 +281,13 @@ func (vv *VoteValidator) CanPlayerVote(playerID string) error {
 }
 
 // CanPlayerBeVoted checks if a player can be voted for
-func (vv *VoteValidator) CanPlayerBeVoted(targetID string, voteType VoteType) error {
+func (vv *VoteValidator) CanPlayerBeVoted(targetID string, voteType core.VoteType) error {
 	target, exists := vv.gameState.Players[targetID]
 	if !exists {
 		return fmt.Errorf("target player %s not found", targetID)
 	}
 
-	if !target.IsAlive && voteType != VoteExtension {
+	if !target.IsAlive && voteType != core.VoteExtension {
 		return fmt.Errorf("cannot vote for eliminated player")
 	}
 
@@ -293,18 +295,18 @@ func (vv *VoteValidator) CanPlayerBeVoted(targetID string, voteType VoteType) er
 }
 
 // IsValidVotePhase checks if voting is allowed in current phase
-func (vv *VoteValidator) IsValidVotePhase(voteType VoteType) error {
+func (vv *VoteValidator) IsValidVotePhase(voteType core.VoteType) error {
 	switch voteType {
-	case VoteExtension:
-		if vv.gameState.Phase.Type != PhaseExtension {
+	case core.VoteExtension:
+		if vv.gameState.Phase.Type != core.PhaseExtension {
 			return fmt.Errorf("extension votes only allowed during extension phase")
 		}
-	case VoteNomination:
-		if vv.gameState.Phase.Type != PhaseNomination {
+	case core.VoteNomination:
+		if vv.gameState.Phase.Type != core.PhaseNomination {
 			return fmt.Errorf("nomination votes only allowed during nomination phase")
 		}
-	case VoteVerdict:
-		if vv.gameState.Phase.Type != PhaseVerdict {
+	case core.VoteVerdict:
+		if vv.gameState.Phase.Type != core.PhaseVerdict {
 			return fmt.Errorf("verdict votes only allowed during verdict phase")
 		}
 	default:

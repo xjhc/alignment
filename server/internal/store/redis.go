@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alignment/server/internal/game"
+	"github.com/xjhc/alignment/core"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -43,7 +43,7 @@ func NewRedisDataStore(addr, password string, db int) (*RedisDataStore, error) {
 }
 
 // AppendEvent appends an event to the game's Redis Stream (WAL)
-func (rds *RedisDataStore) AppendEvent(gameID string, event game.Event) error {
+func (rds *RedisDataStore) AppendEvent(gameID string, event core.Event) error {
 	streamKey := fmt.Sprintf("game:%s:events", gameID)
 
 	// Serialize event payload
@@ -79,7 +79,7 @@ func (rds *RedisDataStore) AppendEvent(gameID string, event game.Event) error {
 }
 
 // SaveSnapshot saves a complete game state snapshot
-func (rds *RedisDataStore) SaveSnapshot(gameID string, state *game.GameState) error {
+func (rds *RedisDataStore) SaveSnapshot(gameID string, state *core.GameState) error {
 	snapshotKey := fmt.Sprintf("game:%s:snapshot", gameID)
 
 	// Serialize game state
@@ -117,7 +117,7 @@ func (rds *RedisDataStore) SaveSnapshot(gameID string, state *game.GameState) er
 }
 
 // LoadEvents loads events from Redis Stream after a specific sequence
-func (rds *RedisDataStore) LoadEvents(gameID string, afterSequence int) ([]game.Event, error) {
+func (rds *RedisDataStore) LoadEvents(gameID string, afterSequence int) ([]core.Event, error) {
 	streamKey := fmt.Sprintf("game:%s:events", gameID)
 
 	// Determine start position
@@ -134,12 +134,12 @@ func (rds *RedisDataStore) LoadEvents(gameID string, afterSequence int) ([]game.
 
 	if err != nil {
 		if err == redis.Nil {
-			return []game.Event{}, nil // No events found
+			return []core.Event{}, nil // No events found
 		}
 		return nil, fmt.Errorf("failed to read events from stream: %w", err)
 	}
 
-	var events []game.Event
+	var events []core.Event
 
 	for _, stream := range streams {
 		for _, message := range stream.Messages {
@@ -156,7 +156,7 @@ func (rds *RedisDataStore) LoadEvents(gameID string, afterSequence int) ([]game.
 }
 
 // LoadSnapshot loads the latest game state snapshot
-func (rds *RedisDataStore) LoadSnapshot(gameID string) (*game.GameState, error) {
+func (rds *RedisDataStore) LoadSnapshot(gameID string) (*core.GameState, error) {
 	snapshotKey := fmt.Sprintf("game:%s:snapshot", gameID)
 
 	// Get snapshot data
@@ -169,7 +169,7 @@ func (rds *RedisDataStore) LoadSnapshot(gameID string) (*game.GameState, error) 
 	}
 
 	// Deserialize game state
-	var state game.GameState
+	var state core.GameState
 	err = json.Unmarshal([]byte(stateJSON), &state)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal game state: %w", err)
@@ -247,8 +247,8 @@ func (rds *RedisDataStore) Close() error {
 }
 
 // parseEventFromMessage converts a Redis stream message to a game Event
-func (rds *RedisDataStore) parseEventFromMessage(message redis.XMessage) (game.Event, error) {
-	var event game.Event
+func (rds *RedisDataStore) parseEventFromMessage(message redis.XMessage) (core.Event, error) {
+	var event core.Event
 
 	// Extract fields from message
 	eventID, ok := message.Values["event_id"].(string)
@@ -292,9 +292,9 @@ func (rds *RedisDataStore) parseEventFromMessage(message redis.XMessage) (game.E
 	}
 
 	// Construct event
-	event = game.Event{
+	event = core.Event{
 		ID:        eventID,
-		Type:      game.EventType(eventType),
+		Type:      core.EventType(eventType),
 		GameID:    gameID,
 		PlayerID:  playerID,
 		Timestamp: time.Unix(timestampUnix, 0),

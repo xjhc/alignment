@@ -6,16 +6,18 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xjhc/alignment/core"
 )
 
 // SitrepGenerator handles the creation of daily situation reports
 type SitrepGenerator struct {
-	gameState *GameState
+	gameState *core.GameState
 	rng       *rand.Rand
 }
 
 // NewSitrepGenerator creates a new SITREP generator
-func NewSitrepGenerator(gameState *GameState) *SitrepGenerator {
+func NewSitrepGenerator(gameState *core.GameState) *SitrepGenerator {
 	return &SitrepGenerator{
 		gameState: gameState,
 		rng:       rand.New(rand.NewSource(time.Now().UnixNano())),
@@ -167,7 +169,7 @@ func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
 	content.WriteString("**Personnel Status Report**\n\n")
 	
 	// Sort players by status and role
-	activePersonnel := make([]*Player, 0)
+	activePersonnel := make([]*core.Player, 0)
 	for _, player := range sg.gameState.Players {
 		if player.IsAlive {
 			activePersonnel = append(activePersonnel, player)
@@ -195,7 +197,7 @@ func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
 	}
 	
 	// Recent departures
-	recentDepartures := make([]*Player, 0)
+	recentDepartures := make([]*core.Player, 0)
 	for _, player := range sg.gameState.Players {
 		if !player.IsAlive {
 			recentDepartures = append(recentDepartures, player)
@@ -438,7 +440,7 @@ func (sg *SitrepGenerator) generateRecommendations() SitrepSection {
 	content.WriteString("• Maintain secure communication protocols\n")
 	content.WriteString("• Report any suspicious activity immediately\n")
 	
-	if sg.gameState.Phase.Type == PhaseNight {
+	if sg.gameState.Phase.Type == core.PhaseNight {
 		content.WriteString("• Night shift protocols in effect - limit unnecessary movement\n")
 	}
 	
@@ -589,7 +591,7 @@ func (sg *SitrepGenerator) generateStrategicRecommendations() []string {
 	recommendations = append(recommendations, "Maintain vigilant observation of all personnel interactions")
 	recommendations = append(recommendations, "Continue verification of personnel alignment and loyalty")
 	
-	if sg.gameState.Phase.Type == PhaseNight {
+	if sg.gameState.Phase.Type == core.PhaseNight {
 		recommendations = append(recommendations, "Coordinate night operations for maximum security and efficiency")
 	}
 	
@@ -619,17 +621,17 @@ func (sg *SitrepGenerator) generateFooterNote() string {
 }
 
 // getRoleWeight returns a weight for sorting roles by importance
-func (sg *SitrepGenerator) getRoleWeight(player *Player) int {
+func (sg *SitrepGenerator) getRoleWeight(player *core.Player) int {
 	if player.Role == nil {
 		return 0
 	}
 	
 	switch player.Role.Type {
-	case RoleCEO:
+	case core.RoleCEO:
 		return 10
-	case RoleCTO, RoleCFO, RoleCISO, RoleCOO:
+	case core.RoleCTO, core.RoleCFO, core.RoleCISO, core.RoleCOO:
 		return 8
-	case RoleEthics, RolePlatforms:
+	case core.RoleEthics, core.RolePlatforms:
 		return 6
 	default:
 		return 1

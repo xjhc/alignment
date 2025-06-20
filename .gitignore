@@ -38,6 +38,7 @@ Thumbs.db
 # Test coverage
 coverage/
 *.cover
+coverage.html
 
 # Temporary files
 *.tmp

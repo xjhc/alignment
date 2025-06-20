@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+
+	"github.com/xjhc/alignment/core"
 )
 
 // RoleAbilityManager handles role-specific abilities and their effects
 type RoleAbilityManager struct {
-	gameState *GameState
+	gameState *core.GameState
 	rng       *rand.Rand
 }
 
 // NewRoleAbilityManager creates a new role ability manager
-func NewRoleAbilityManager(gameState *GameState) *RoleAbilityManager {
+func NewRoleAbilityManager(gameState *core.GameState) *RoleAbilityManager {
 	return &RoleAbilityManager{
 		gameState: gameState,
 		rng:       rand.New(rand.NewSource(time.Now().UnixNano())),
@@ -31,8 +33,8 @@ type RoleAbilityAction struct {
 
 // RoleAbilityResult contains the results of using a role ability
 type RoleAbilityResult struct {
-	PublicEvents  []Event `json:"public_events"`  // Visible to all players
-	PrivateEvents []Event `json:"private_events"` // Only visible to AI faction
+	PublicEvents  []core.Event `json:"public_events"`  // Visible to all players
+	PrivateEvents []core.Event `json:"private_events"` // Only visible to AI faction
 }
 
 // UseRoleAbility executes a role-specific ability
@@ -52,7 +54,7 @@ func (ram *RoleAbilityManager) UseRoleAbility(action RoleAbilityAction) (*RoleAb
 
 	// Check for system shock that prevents ability use
 	for _, shock := range player.SystemShocks {
-		if shock.Type == ShockActionLock && shock.IsActive && time.Now().Before(shock.ExpiresAt) {
+		if shock.Type == core.ShockActionLock && shock.IsActive && time.Now().Before(shock.ExpiresAt) {
 			return nil, fmt.Errorf("system shock prevents ability use")
 		}
 	}
@@ -61,19 +63,19 @@ func (ram *RoleAbilityManager) UseRoleAbility(action RoleAbilityAction) (*RoleAb
 	var err error
 
 	switch player.Role.Type {
-	case RoleEthics:
+	case core.RoleEthics:
 		result, err = ram.useRunAudit(action)
-	case RoleCTO:
+	case core.RoleCTO:
 		result, err = ram.useOverclockServers(action)
-	case RoleCISO:
+	case core.RoleCISO:
 		result, err = ram.useIsolateNode(action)
-	case RoleCEO:
+	case core.RoleCEO:
 		result, err = ram.usePerformanceReview(action)
-	case RoleCFO:
+	case core.RoleCFO:
 		result, err = ram.useReallocateBudget(action)
-	case RoleCOO:
+	case core.RoleCOO:
 		result, err = ram.usePivot(action)
-	case RolePlatforms:
+	case core.RolePlatforms:
 		result, err = ram.useDeployHotfix(action)
 	default:
 		return nil, fmt.Errorf("no ability defined for role %s", player.Role.Type)
@@ -97,9 +99,9 @@ func (ram *RoleAbilityManager) useRunAudit(action RoleAbilityAction) (*RoleAbili
 	}
 
 	// Public event - always shows "not corrupt"
-	publicEvent := Event{
+	publicEvent := core.Event{
 		ID:        fmt.Sprintf("audit_%s_%s", action.PlayerID, action.TargetID),
-		Type:      EventRunAudit,
+		Type:      core.EventRunAudit,
 		GameID:    ram.gameState.ID,
 		PlayerID:  action.PlayerID,
 		Timestamp: getCurrentTime(),
@@ -111,9 +113,9 @@ func (ram *RoleAbilityManager) useRunAudit(action RoleAbilityAction) (*RoleAbili
 	}
 
 	// Private event for AI faction - reveals true alignment
-	privateEvent := Event{
+	privateEvent := core.Event{
 		ID:        fmt.Sprintf("audit_private_%s_%s", action.PlayerID, action.TargetID),
-		Type:      EventRunAudit,
+		Type:      core.EventRunAudit,
 		GameID:    ram.gameState.ID,
 		PlayerID:  action.PlayerID,
 		Timestamp: getCurrentTime(),
@@ -125,8 +127,8 @@ func (ram *RoleAbilityManager) useRunAudit(action RoleAbilityAction) (*RoleAbili
 	}
 
 	return &RoleAbilityResult{
-		PublicEvents:  []Event{publicEvent},
-		PrivateEvents: []Event{privateEvent},
+		PublicEvents:  []core.Event{publicEvent},
+		PrivateEvents: []core.Event{privateEvent},
 	}, nil
 }
 
@@ -140,9 +142,9 @@ func (ram *RoleAbilityManager) useOverclockServers(action RoleAbilityAction) (*R
 	cto := ram.gameState.Players[action.PlayerID]
 
 	// Public event - CTO mines for self and target with 100% success
-	publicEvent := Event{
+	publicEvent := core.Event{
 		ID:        fmt.Sprintf("overclock_%s_%s", action.PlayerID, action.TargetID),
-		Type:      EventOverclockServers,
+		Type:      core.EventOverclockServers,
 		GameID:    ram.gameState.ID,
 		PlayerID:  action.PlayerID,
 		Timestamp: getCurrentTime(),
@@ -156,13 +158,13 @@ func (ram *RoleAbilityManager) useOverclockServers(action RoleAbilityAction) (*R
 	cto.Tokens++
 	target.Tokens++
 
-	var privateEvents []Event
+	var privateEvents []core.Event
 
 	// Private effect - target gains AI Equity if CTO is aligned
 	if cto.Alignment == "ALIGNED" {
 		target.AIEquity += 2
 
-		privateEvent := Event{
+		privateEvent := core.Event{
 			ID:        fmt.Sprintf("overclock_equity_%s_%s", action.PlayerID, action.TargetID),
 			Type:      EventAIEquityChanged,
 			GameID:    ram.gameState.ID,
@@ -179,7 +181,7 @@ func (ram *RoleAbilityManager) useOverclockServers(action RoleAbilityAction) (*R
 	}
 
 	return &RoleAbilityResult{
-		PublicEvents:  []Event{publicEvent},
+		PublicEvents:  []core.Event{publicEvent},
 		PrivateEvents: privateEvents,
 	}, nil
 }
@@ -194,7 +196,7 @@ func (ram *RoleAbilityManager) useIsolateNode(action RoleAbilityAction) (*RoleAb
 	ciso := ram.gameState.Players[action.PlayerID]
 
 	// Public event - player is blocked
-	publicEvent := Event{
+	publicEvent := core.Event{
 		ID:        fmt.Sprintf("isolate_%s_%s", action.PlayerID, action.TargetID),
 		Type:      EventIsolateNode,
 		GameID:    ram.gameState.ID,
@@ -214,7 +216,7 @@ func (ram *RoleAbilityManager) useIsolateNode(action RoleAbilityAction) (*RoleAb
 	// Special case: If CISO is aligned and targets another aligned player, the action fizzles
 	if ciso.Alignment == "ALIGNED" && target.Alignment == "ALIGNED" {
 		// Public message appears but target is not actually blocked
-		privateEvent := Event{
+		privateEvent := core.Event{
 			ID:        fmt.Sprintf("isolate_fizzle_%s_%s", action.PlayerID, action.TargetID),
 			Type:      EventIsolateNode,
 			GameID:    ram.gameState.ID,
@@ -229,8 +231,8 @@ func (ram *RoleAbilityManager) useIsolateNode(action RoleAbilityAction) (*RoleAb
 		}
 
 		return &RoleAbilityResult{
-			PublicEvents:  []Event{publicEvent},
-			PrivateEvents: []Event{privateEvent},
+			PublicEvents:  []core.Event{publicEvent},
+			PrivateEvents: []core.Event{privateEvent},
 		}, nil
 	} else {
 		// Normal case - actually block the target
@@ -250,7 +252,7 @@ func (ram *RoleAbilityManager) usePerformanceReview(action RoleAbilityAction) (*
 	}
 
 	// Public event - target is forced to use Project Milestones
-	publicEvent := Event{
+	publicEvent := core.Event{
 		ID:        fmt.Sprintf("review_%s_%s", action.PlayerID, action.TargetID),
 		Type:      EventPerformanceReview,
 		GameID:    ram.gameState.ID,
@@ -298,7 +300,7 @@ func (ram *RoleAbilityManager) useReallocateBudget(action RoleAbilityAction) (*R
 	targetPlayer.Tokens++
 
 	// Public event
-	publicEvent := Event{
+	publicEvent := core.Event{
 		ID:        fmt.Sprintf("reallocate_%s_%s_%s", action.PlayerID, action.TargetID, action.SecondTargetID),
 		Type:      EventReallocateBudget,
 		GameID:    ram.gameState.ID,
@@ -334,7 +336,7 @@ func (ram *RoleAbilityManager) usePivot(action RoleAbilityAction) (*RoleAbilityR
 	}
 
 	// Public event
-	publicEvent := Event{
+	publicEvent := core.Event{
 		ID:        fmt.Sprintf("pivot_%s", action.PlayerID),
 		Type:      EventPivot,
 		GameID:    ram.gameState.ID,
@@ -367,7 +369,7 @@ func (ram *RoleAbilityManager) useDeployHotfix(action RoleAbilityAction) (*RoleA
 	}
 
 	// Public event
-	publicEvent := Event{
+	publicEvent := core.Event{
 		ID:        fmt.Sprintf("hotfix_%s", action.PlayerID),
 		Type:      EventDeployHotfix,
 		GameID:    ram.gameState.ID,
@@ -409,7 +411,7 @@ func (ram *RoleAbilityManager) CanUseAbility(playerID string) (bool, string) {
 
 	// Check for system shock
 	for _, shock := range player.SystemShocks {
-		if shock.Type == ShockActionLock && shock.IsActive && time.Now().Before(shock.ExpiresAt) {
+		if shock.Type == core.ShockActionLock && shock.IsActive && time.Now().Before(shock.ExpiresAt) {
 			return false, "system shock prevents ability use"
 		}
 	}

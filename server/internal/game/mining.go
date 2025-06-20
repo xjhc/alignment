@@ -3,15 +3,17 @@ package game
 import (
 	"fmt"
 	"sort"
+
+	"github.com/xjhc/alignment/core"
 )
 
 // MiningManager handles the liquidity pool system for token mining
 type MiningManager struct {
-	gameState *GameState
+	gameState *core.GameState
 }
 
 // NewMiningManager creates a new mining manager
-func NewMiningManager(gameState *GameState) *MiningManager {
+func NewMiningManager(gameState *core.GameState) *MiningManager {
 	return &MiningManager{
 		gameState: gameState,
 	}
@@ -185,14 +187,14 @@ func (mm *MiningManager) hasFailedMiningHistory(playerID string) bool {
 }
 
 // UpdatePlayerTokens applies the mining results to player token counts
-func (mm *MiningManager) UpdatePlayerTokens(result *MiningResult) []Event {
-	var events []Event
+func (mm *MiningManager) UpdatePlayerTokens(result *MiningResult) []core.Event {
+	var events []core.Event
 
 	// Award tokens to successful mining targets
 	for minerID, targetID := range result.SuccessfulMines {
-		event := Event{
+		event := core.Event{
 			ID:        fmt.Sprintf("mining_success_%s_%s", minerID, targetID),
-			Type:      EventMiningSuccessful,
+			Type:      core.EventMiningSuccessful,
 			GameID:    mm.gameState.ID,
 			PlayerID:  targetID, // Token goes to target
 			Timestamp: getCurrentTime(),
@@ -237,7 +239,7 @@ func (mm *MiningManager) ValidateMiningRequest(minerID, targetID string) error {
 	}
 
 	// Check if it's night phase
-	if mm.gameState.Phase.Type != PhaseNight {
+	if mm.gameState.Phase.Type != core.PhaseNight {
 		return fmt.Errorf("mining actions can only be submitted during night phase")
 	}
 

@@ -5,6 +5,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/xjhc/alignment/core"
 )
 
 // Timer represents a scheduled event
@@ -27,7 +29,7 @@ const (
 
 // TimerAction represents an action to execute when timer expires
 type TimerAction struct {
-	Type    ActionType             `json:"type"`
+	Type    core.ActionType             `json:"type"`
 	Payload map[string]interface{} `json:"payload"`
 }
 
@@ -171,11 +173,11 @@ func (s *Scheduler) GetActiveTimers() map[string]*Timer {
 type PhaseManager struct {
 	scheduler *Scheduler
 	gameID    string
-	settings  GameSettings
+	settings  core.GameSettings
 }
 
 // NewPhaseManager creates a new phase manager
-func NewPhaseManager(scheduler *Scheduler, gameID string, settings GameSettings) *PhaseManager {
+func NewPhaseManager(scheduler *Scheduler, gameID string, settings core.GameSettings) *PhaseManager {
 	return &PhaseManager{
 		scheduler: scheduler,
 		gameID:    gameID,
@@ -184,11 +186,11 @@ func NewPhaseManager(scheduler *Scheduler, gameID string, settings GameSettings)
 }
 
 // SchedulePhaseTransition schedules the next phase transition
-func (pm *PhaseManager) SchedulePhaseTransition(currentPhase PhaseType, phaseStartTime time.Time) {
+func (pm *PhaseManager) SchedulePhaseTransition(currentPhase core.PhaseType, phaseStartTime time.Time) {
 	duration := getPhaseDuration(currentPhase, pm.settings)
 	nextPhase := getNextPhase(currentPhase)
 
-	if duration == 0 || nextPhase == PhaseGameOver {
+	if duration == 0 || nextPhase == core.PhaseGameOver {
 		return // Unknown phase or end of game, don't schedule
 	}
 
@@ -201,7 +203,7 @@ func (pm *PhaseManager) SchedulePhaseTransition(currentPhase PhaseType, phaseSta
 		Type:      TimerPhaseEnd,
 		ExpiresAt: expiresAt,
 		Action: TimerAction{
-			Type: ActionType("PHASE_TRANSITION"),
+			Type: core.ActionType("PHASE_TRANSITION"),
 			Payload: map[string]interface{}{
 				"next_phase": string(nextPhase),
 				"duration":   getPhaseDuration(nextPhase, pm.settings).Seconds(),
@@ -218,23 +220,23 @@ func (pm *PhaseManager) CancelPhaseTransitions() {
 }
 
 // getPhaseDuration returns the duration for a specific phase
-func getPhaseDuration(phase PhaseType, settings GameSettings) time.Duration {
+func getPhaseDuration(phase core.PhaseType, settings core.GameSettings) time.Duration {
 	switch phase {
-	case PhaseSitrep:
+	case core.PhaseSitrep:
 		return settings.SitrepDuration
-	case PhasePulseCheck:
+	case core.PhasePulseCheck:
 		return settings.PulseCheckDuration
-	case PhaseDiscussion:
+	case core.PhaseDiscussion:
 		return settings.DiscussionDuration
-	case PhaseExtension:
+	case core.PhaseExtension:
 		return settings.ExtensionDuration
-	case PhaseNomination:
+	case core.PhaseNomination:
 		return settings.NominationDuration
-	case PhaseTrial:
+	case core.PhaseTrial:
 		return settings.TrialDuration
-	case PhaseVerdict:
+	case core.PhaseVerdict:
 		return settings.VerdictDuration
-	case PhaseNight:
+	case core.PhaseNight:
 		return settings.NightDuration
 	default:
 		return 0
@@ -242,25 +244,25 @@ func getPhaseDuration(phase PhaseType, settings GameSettings) time.Duration {
 }
 
 // getNextPhase returns the next phase after the current one
-func getNextPhase(currentPhase PhaseType) PhaseType {
+func getNextPhase(currentPhase core.PhaseType) core.PhaseType {
 	switch currentPhase {
-	case PhaseSitrep:
-		return PhasePulseCheck
-	case PhasePulseCheck:
-		return PhaseDiscussion
-	case PhaseDiscussion:
-		return PhaseExtension
-	case PhaseExtension:
-		return PhaseNomination
-	case PhaseNomination:
-		return PhaseTrial
-	case PhaseTrial:
-		return PhaseVerdict
-	case PhaseVerdict:
-		return PhaseNight
-	case PhaseNight:
-		return PhaseSitrep
+	case core.PhaseSitrep:
+		return core.PhasePulseCheck
+	case core.PhasePulseCheck:
+		return core.PhaseDiscussion
+	case core.PhaseDiscussion:
+		return core.PhaseExtension
+	case core.PhaseExtension:
+		return core.PhaseNomination
+	case core.PhaseNomination:
+		return core.PhaseTrial
+	case core.PhaseTrial:
+		return core.PhaseVerdict
+	case core.PhaseVerdict:
+		return core.PhaseNight
+	case core.PhaseNight:
+		return core.PhaseSitrep
 	default:
-		return PhaseGameOver
+		return core.PhaseGameOver
 	}
 }
