@@ -1,6 +1,7 @@
 package actors
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -8,10 +9,10 @@ import (
 
 // Supervisor manages all game actors and provides fault isolation
 type Supervisor struct {
-	actors    map[string]*GameActor
-	mutex     sync.RWMutex
-	shutdown  chan struct{}
-	
+	actors   map[string]*GameActor
+	mutex    sync.RWMutex
+	shutdown chan struct{}
+
 	// Dependencies
 	datastore   DataStore
 	broadcaster Broadcaster
@@ -36,18 +37,18 @@ func (s *Supervisor) Start() {
 func (s *Supervisor) Stop() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	log.Println("Supervisor: Shutting down all actors")
-	
+
 	// Stop all actors
 	for gameID, actor := range s.actors {
 		log.Printf("Supervisor: Stopping actor %s", gameID)
 		actor.Stop()
 	}
-	
+
 	// Clear actors map
 	s.actors = make(map[string]*GameActor)
-	
+
 	// Signal shutdown
 	close(s.shutdown)
 }
@@ -56,20 +57,20 @@ func (s *Supervisor) Stop() {
 func (s *Supervisor) CreateGame(gameID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	// Check if game already exists
 	if _, exists := s.actors[gameID]; exists {
 		log.Printf("Supervisor: Game %s already exists", gameID)
 		return ErrGameAlreadyExists
 	}
-	
+
 	// Create new actor
 	actor := NewGameActor(gameID, s.datastore, s.broadcaster)
 	s.actors[gameID] = actor
-	
+
 	// Start the actor
 	actor.Start()
-	
+
 	log.Printf("Supervisor: Created and started game actor %s", gameID)
 	return nil
 }
@@ -78,7 +79,7 @@ func (s *Supervisor) CreateGame(gameID string) error {
 func (s *Supervisor) GetActor(gameID string) (*GameActor, bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	
+
 	actor, exists := s.actors[gameID]
 	return actor, exists
 }
@@ -87,7 +88,7 @@ func (s *Supervisor) GetActor(gameID string) (*GameActor, bool) {
 func (s *Supervisor) RemoveGame(gameID string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	if actor, exists := s.actors[gameID]; exists {
 		log.Printf("Supervisor: Removing game actor %s", gameID)
 		actor.Stop()
@@ -99,7 +100,7 @@ func (s *Supervisor) RemoveGame(gameID string) {
 func (s *Supervisor) monitoringLoop() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -114,7 +115,7 @@ func (s *Supervisor) monitoringLoop() {
 func (s *Supervisor) checkActorHealth() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	for gameID, actor := range s.actors {
 		// Check if actor is still running (simplified check)
 		select {
@@ -132,16 +133,16 @@ func (s *Supervisor) checkActorHealth() {
 func (s *Supervisor) restartActor(gameID string) {
 	// Remove the failed actor
 	delete(s.actors, gameID)
-	
+
 	// Create new actor
 	actor := NewGameActor(gameID, s.datastore, s.broadcaster)
-	
+
 	// TODO: Restore state from persistence layer
 	// This would involve loading the latest snapshot and replaying events
-	
+
 	s.actors[gameID] = actor
 	actor.Start()
-	
+
 	log.Printf("Supervisor: Restarted actor %s", gameID)
 }
 
@@ -149,7 +150,7 @@ func (s *Supervisor) restartActor(gameID string) {
 func (s *Supervisor) GetStats() SupervisorStats {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	
+
 	return SupervisorStats{
 		ActiveGames: len(s.actors),
 		Uptime:      time.Since(time.Now()), // Simplified

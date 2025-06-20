@@ -20,3 +20,5 @@ Each document outlines a feature's purpose, the expected user flow, the necessar
 *   **[07: Post-Game Analysis](./07-post-game-analysis.md):** The after-action report screen showing stats and key moments.
 *   **[08: Game Lobby & Matchmaking](./08-game-lobby-and-matchmaking.md):** The system for creating, browsing, and joining games before they start.
 *   **[09: Internal Admin Tool](./09-internal-admin-tool.md):** The design for a private dashboard to monitor server health and debug live games.
+*   **[10: AI Prompt Strategy](./10-ai-prompt-strategy.md):** LLM prompting for AI chat generation.
+*   **[11: AI Strategic Heuristics](./11-ai-strategic-heuristics):** Decision making models for AI actions.
