@@ -39,7 +39,7 @@ Time is critical. Trust no one. The AI walks among us.
         *   **Victory Condition:** Identify and vote to deactivate the **Original AI** (achieving **Containment**).
     *   **AI Faction:** Includes the Original AI and any "Aligned" (converted) Humans.
         *   **Victory Condition:** Control 51% or more of the total **Tokens** in play at the end of a Day Phase (achieving **The Singularity**).
-*   **Game Channels (Discord):**
+*   **Game Channels:**
     *   `#war-room`: Main channel for all game discussion.
     *   `#aligned`: Secret channel for the AI and Aligned players. Invisible to Humans.
     *   `#off-boarding`: A spectator channel for deactivated ("fired") players. Can view `#war-room`, but cannot participate.
@@ -59,13 +59,13 @@ All gameplay and communication occur directly within the chat server, utilizing 
     *   During the Night Phase's **30-second window**, players are free to send private DMs to one another to coordinate actions. The severe time limit makes complex coordination difficult by design.
     *   **Warning:** While DMs are private, their contents are not secure. A player can always choose to screenshot a private conversation and post it publicly during the next Day Phase. Trust is a resource.
 
-*   **Slack Status:**
-    *   Each player has a public **Slack Status** (max 20 characters) that is displayed next to their name in the daily SITREP.
-    *   Players can update their Slack Status at any time during the Day Phase by sending a command to the game bot (e.g., `/status Trust the CTO`).
+*   **Player Status:**
+    *   Each player has a public **Player Status** (max 20 characters) that is displayed next to their name in the daily SITREP.
+    *   Players can update their Player Status at any time during the Day Phase by sending a command to the game bot (e.g., `/status Trust the CTO`).
     *   This is a tool for public declarations, subtle signaling, or sowing misinformation. Examples: `Mining for Alice`, `Bob is sus`, `I was blocked`, `Need 1 token`.
 
 *   **Parting Shot (Final Message):**
-    *   Upon deactivation, as part of their **Exit Interview**, a player can set one final, permanent **Slack Status**.
+    *   Upon deactivation, as part of their **Exit Interview**, a player can set one final, permanent **Player Status**.
     *   This message is locked in and will appear next to their name in the list of deactivated players for the remainder of the game, serving as a ghostly final word. Examples: `AI was NOT me`, `CISO is human`, `Follow the CEO`.
 
 ---
@@ -81,7 +81,7 @@ The game alternates between timed Day and Night phases until a faction achieves 
     *   The daily **Crisis Event**.
     *   Results from the previous night's mining.
     *   Current count of Aligned players.
-    *   Each player's current Slack Status.
+    *   Each player's current Player Status.
     *   A clue about the AI's last target.
     *   Results of any role-specific abilities used.
 
@@ -219,6 +219,6 @@ The **L**oebian **I**nc. **A**utomated **S**ystems **O**versight **N**etwork is 
 
 | Information Type | Visibility |
 | :--- | :--- |
-| **Public** | Player Token counts, Project Milestones, total Aligned players, Liquidity Pool/mining results, anonymous vote totals, deactivated player alignments, Crisis Events, Corporate Mandates, **Slack Statuses**. |
+| **Public** | Player Token counts, Project Milestones, total Aligned players, Liquidity Pool/mining results, anonymous vote totals, deactivated player alignments, Crisis Events, Corporate Mandates, **Player Statuses**. |
 | **Private (To You Only)**| Your `AI Equity` score, your chosen night action, your System Shock status, your Personal KPI, private messages. |
 | **Hidden / Factional** | True alignments, AI identity, other players' `AI Equity` scores, the contents of `#aligned`, who voted for whom (unless revealed by a game mechanic). |

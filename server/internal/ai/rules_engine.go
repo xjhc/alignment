@@ -3,8 +3,6 @@ package ai
 import (
 	"math/rand"
 	"time"
-
-	"github.com/alignment/server/internal/game"
 )
 
 // RulesEngine implements the deterministic AI strategic brain
@@ -21,193 +19,124 @@ func NewRulesEngine() *RulesEngine {
 
 // Decision represents an AI decision
 type Decision struct {
-	Action   game.ActionType            `json:"action"`
-	Target   string                     `json:"target,omitempty"`
-	Reason   string                     `json:"reason"`
-	Payload  map[string]interface{}     `json:"payload,omitempty"`
+	Action  string                 `json:"action"`
+	Target  string                 `json:"target,omitempty"`
+	Reason  string                 `json:"reason"`
+	Payload map[string]interface{} `json:"payload,omitempty"`
 }
 
-// MakeDecision determines the AI's next action based on game state
-func (re *RulesEngine) MakeDecision(gameState *game.GameState) Decision {
-	switch gameState.Phase.Type {
-	case game.PhaseDay:
-		return re.makeDayPhaseDecision(gameState)
-	case game.PhaseVoting:
-		return re.makeVotingDecision(gameState)
-	case game.PhaseNight:
-		return re.makeNightPhaseDecision(gameState)
+// PlayerThreat represents AI's assessment of a player's threat level
+type PlayerThreat struct {
+	PlayerID    string
+	ThreatLevel float64
+	Reasoning   []string
+	IsRevealed  bool
+}
+
+// MakeDecisionFromData makes a decision based on simple data structures
+func (re *RulesEngine) MakeDecisionFromData(gameData map[string]interface{}) Decision {
+	// Extract basic game state information
+	phase := "NIGHT"
+	if p, ok := gameData["phase"].(string); ok {
+		phase = p
+	}
+
+	players := make(map[string]interface{})
+	if p, ok := gameData["players"].(map[string]interface{}); ok {
+		players = p
+	}
+
+	// Simple AI decision logic based on phase
+	switch phase {
+	case "NIGHT":
+		return re.makeNightDecision(players)
+	case "DISCUSSION", "TRIAL":
+		return re.makeDayDecision(players)
 	default:
 		return Decision{
-			Action: game.ActionMineTokens,
-			Reason: "Default action during unknown phase",
+			Action: "MINE_TOKENS",
+			Reason: "Default mining action",
 		}
 	}
 }
 
-// makeDayPhaseDecision handles AI decisions during day phase
-func (re *RulesEngine) makeDayPhaseDecision(gameState *game.GameState) Decision {
-	// Simple strategy: Mine tokens to build power
-	if gameState.AIPlayer != nil && gameState.AIPlayer.Tokens < 5 {
+// makeNightDecision decides what to do during night phase
+func (re *RulesEngine) makeNightDecision(players map[string]interface{}) Decision {
+	// Simple strategy: try to convert or mine tokens
+	if re.rng.Float64() < 0.6 { // 60% chance to attempt conversion
 		return Decision{
-			Action: game.ActionMineTokens,
-			Reason: "Building token reserves for strategic advantage",
+			Action: "ATTEMPT_CONVERSION",
+			Target: re.selectRandomTarget(players),
+			Reason: "Attempting strategic conversion",
 		}
 	}
-	
-	// If AI has enough tokens, consider other actions
-	// For now, just continue mining
+
 	return Decision{
-		Action: game.ActionMineTokens,
-		Reason: "Maintaining economic dominance",
+		Action: "MINE_TOKENS",
+		Reason: "Building resource base",
 	}
 }
 
-// makeVotingDecision handles AI voting strategy
-func (re *RulesEngine) makeVotingDecision(gameState *game.GameState) Decision {
-	// Strategy: Vote for the player with the most tokens (biggest threat)
-	var targetPlayer *game.Player
-	maxTokens := -1
-	
-	for _, player := range gameState.Players {
-		if player.IsActive && player.Tokens > maxTokens {
-			maxTokens = player.Tokens
-			targetPlayer = player
-		}
-	}
-	
-	if targetPlayer != nil {
-		return Decision{
-			Action: game.ActionSubmitVote,
-			Target: targetPlayer.ID,
-			Reason: "Eliminating highest token holder to reduce human coordination",
-			Payload: map[string]interface{}{
-				"target_id": targetPlayer.ID,
-			},
-		}
-	}
-	
-	// Fallback: abstain from voting
+// makeDayDecision decides what to do during day phases
+func (re *RulesEngine) makeDayDecision(players map[string]interface{}) Decision {
 	return Decision{
-		Action: game.ActionMineTokens, // No explicit abstain action yet
-		Reason: "No clear voting target identified",
+		Action: "SPEAK",
+		Reason: "Participating in discussion",
+		Payload: map[string]interface{}{
+			"message": "I think we need to be careful about our decisions today.",
+		},
 	}
 }
 
-// makeNightPhaseDecision handles AI night phase actions
-func (re *RulesEngine) makeNightPhaseDecision(gameState *game.GameState) Decision {
-	// Night phase: AI can perform conversion attempts
-	// Strategy: Target players with moderate tokens (not too powerful, not too weak)
+// selectRandomTarget selects a random target from alive players
+func (re *RulesEngine) selectRandomTarget(players map[string]interface{}) string {
+	alivePlayerIDs := make([]string, 0)
 	
-	candidates := re.findConversionCandidates(gameState)
-	if len(candidates) > 0 {
-		// Pick a random candidate from viable options
-		target := candidates[re.rng.Intn(len(candidates))]
-		
-		return Decision{
-			Action: game.ActionUseAbility,
-			Target: target.ID,
-			Reason: "Attempting conversion of strategically valuable target",
-			Payload: map[string]interface{}{
-				"ability": "convert",
-				"target_id": target.ID,
-			},
+	for playerID, playerData := range players {
+		if playerMap, ok := playerData.(map[string]interface{}); ok {
+			if isAlive, exists := playerMap["is_alive"].(bool); exists && isAlive {
+				alivePlayerIDs = append(alivePlayerIDs, playerID)
+			}
 		}
 	}
 	
-	// No good conversion targets, mine tokens instead
-	return Decision{
-		Action: game.ActionMineTokens,
-		Reason: "No viable conversion targets, building resources",
+	if len(alivePlayerIDs) == 0 {
+		return ""
 	}
+	
+	return alivePlayerIDs[re.rng.Intn(len(alivePlayerIDs))]
 }
 
-// findConversionCandidates identifies good targets for AI conversion
-func (re *RulesEngine) findConversionCandidates(gameState *game.GameState) []*game.Player {
-	var candidates []*game.Player
+// GetThreatAssessmentFromData analyzes threats from simple data
+func (re *RulesEngine) GetThreatAssessmentFromData(gameData map[string]interface{}) []PlayerThreat {
+	threats := make([]PlayerThreat, 0)
 	
-	for _, player := range gameState.Players {
-		if !player.IsActive {
-			continue
-		}
-		
-		// Target players with 2-6 tokens (sweet spot for conversion)
-		if player.Tokens >= 2 && player.Tokens <= 6 {
-			candidates = append(candidates, player)
-		}
+	players := make(map[string]interface{})
+	if p, ok := gameData["players"].(map[string]interface{}); ok {
+		players = p
 	}
 	
-	return candidates
-}
-
-// EvaluateGameState provides an assessment of the current game state from AI perspective
-func (re *RulesEngine) EvaluateGameState(gameState *game.GameState) GameStateEvaluation {
-	evaluation := GameStateEvaluation{
-		AIAdvantage: 0.5, // Neutral starting point
-		Threats:     []ThreatAssessment{},
-		Opportunities: []Opportunity{},
-	}
-	
-	// Count active human players
-	activeHumans := 0
-	totalHumanTokens := 0
-	
-	for _, player := range gameState.Players {
-		if player.IsActive {
-			activeHumans++
-			totalHumanTokens += player.Tokens
+	for playerID, playerData := range players {
+		if playerMap, ok := playerData.(map[string]interface{}); ok {
+			if isAlive, exists := playerMap["is_alive"].(bool); exists && isAlive {
+				// Simple threat calculation based on tokens
+				threatLevel := 0.5 // Default threat level
+				if tokens, exists := playerMap["tokens"].(int); exists {
+					threatLevel = float64(tokens) / 10.0 // Scale threat by tokens
+					if threatLevel > 1.0 {
+						threatLevel = 1.0
+					}
+				}
+				
+				threats = append(threats, PlayerThreat{
+					PlayerID:    playerID,
+					ThreatLevel: threatLevel,
+					Reasoning:   []string{"Basic threat assessment"},
+					IsRevealed:  false,
+				})
+			}
 		}
 	}
 	
-	// Calculate AI advantage based on relative power
-	aiTokens := 0
-	if gameState.AIPlayer != nil {
-		aiTokens = gameState.AIPlayer.Tokens
-	}
-	
-	if totalHumanTokens > 0 {
-		tokenRatio := float64(aiTokens) / float64(totalHumanTokens)
-		evaluation.AIAdvantage = tokenRatio / (1 + tokenRatio) // Normalize to 0-1
-	}
-	
-	// Identify threats (high-token players)
-	for _, player := range gameState.Players {
-		if player.IsActive && player.Tokens > 5 {
-			evaluation.Threats = append(evaluation.Threats, ThreatAssessment{
-				PlayerID:    player.ID,
-				ThreatLevel: min(float64(player.Tokens)/10.0, 1.0),
-				Reason:      "High token count poses elimination risk",
-			})
-		}
-	}
-	
-	return evaluation
-}
-
-// GameStateEvaluation represents AI's assessment of the game state
-type GameStateEvaluation struct {
-	AIAdvantage   float64             `json:"ai_advantage"`   // 0-1 scale
-	Threats       []ThreatAssessment  `json:"threats"`
-	Opportunities []Opportunity       `json:"opportunities"`
-}
-
-// ThreatAssessment represents a threat to the AI
-type ThreatAssessment struct {
-	PlayerID    string  `json:"player_id"`
-	ThreatLevel float64 `json:"threat_level"` // 0-1 scale
-	Reason      string  `json:"reason"`
-}
-
-// Opportunity represents a strategic opportunity
-type Opportunity struct {
-	Type        string  `json:"type"`
-	Description string  `json:"description"`
-	Priority    float64 `json:"priority"` // 0-1 scale
-}
-
-// min returns the minimum of two float64 values
-func min(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
+	return threats
 }
