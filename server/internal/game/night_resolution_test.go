@@ -26,7 +26,7 @@ func TestNightResolutionManager_ResolveNightActions(t *testing.T) {
 		ProjectMilestones: 3,
 		Alignment:         "HUMAN",
 	}
-	gameState.Players["charlie"] = &Player{
+	gameState.Players["charlie"] = &core.Player{
 		ID:                "charlie",
 		IsAlive:           true,
 		Tokens:            3,
@@ -36,13 +36,13 @@ func TestNightResolutionManager_ResolveNightActions(t *testing.T) {
 	}
 
 	// Add humans for mining liquidity pool
-	gameState.Players["human1"] = &Player{IsAlive: true, Alignment: "HUMAN"}
-	gameState.Players["human2"] = &Player{IsAlive: true, Alignment: "HUMAN"}
-	gameState.Players["human3"] = &Player{IsAlive: true, Alignment: "HUMAN"}
-	gameState.Players["human4"] = &Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human1"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human2"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human3"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human4"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
 
 	// Set up night actions
-	gameState.NightActions = map[string]*SubmittedNightAction{
+	gameState.NightActions = map[string]*core.SubmittedNightAction{
 		"alice": {
 			PlayerID:  "alice",
 			Type:      "MINE",
@@ -80,15 +80,15 @@ func TestNightResolutionManager_ResolveNightActions(t *testing.T) {
 	}
 
 	// Verify event types
-	eventTypes := make(map[EventType]bool)
+	eventTypes := make(map[core.EventType]bool)
 	for _, event := range events {
 		eventTypes[event.Type] = true
 	}
 
-	expectedTypes := []EventType{
-		EventPlayerBlocked,
-		EventMiningSuccessful,
-		EventNightActionsResolved,
+	expectedTypes := []core.EventType{
+		core.EventPlayerBlocked,
+		core.EventMiningSuccessful,
+		core.EventNightActionsResolved,
 	}
 
 	for _, expectedType := range expectedTypes {
@@ -99,7 +99,7 @@ func TestNightResolutionManager_ResolveNightActions(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveBlockActions(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Add test players
 	gameState.Players["alice"] = &core.Player{
@@ -114,7 +114,7 @@ func TestNightResolutionManager_ResolveBlockActions(t *testing.T) {
 	}
 
 	// Set up block action
-	gameState.NightActions = map[string]*SubmittedNightAction{
+	gameState.NightActions = map[string]*core.SubmittedNightAction{
 		"alice": {
 			PlayerID: "alice",
 			Type:     "BLOCK",
@@ -130,8 +130,8 @@ func TestNightResolutionManager_ResolveBlockActions(t *testing.T) {
 	}
 
 	event := events[0]
-	if event.Type != EventPlayerBlocked {
-		t.Errorf("Expected EventPlayerBlocked, got %s", event.Type)
+	if event.Type != core.EventPlayerBlocked {
+		t.Errorf("Expected core.EventPlayerBlocked, got %s", event.Type)
 	}
 
 	if event.PlayerID != "bob" {
@@ -149,7 +149,7 @@ func TestNightResolutionManager_ResolveBlockActions(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveMiningActions(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Add test players
 	gameState.Players["alice"] = &core.Player{
@@ -166,7 +166,7 @@ func TestNightResolutionManager_ResolveMiningActions(t *testing.T) {
 		ProjectMilestones: 3,
 		Alignment:         "HUMAN",
 	}
-	gameState.Players["charlie"] = &Player{
+	gameState.Players["charlie"] = &core.Player{
 		ID:                "charlie",
 		IsAlive:           true,
 		Tokens:            3,
@@ -175,13 +175,13 @@ func TestNightResolutionManager_ResolveMiningActions(t *testing.T) {
 	}
 
 	// Add more humans for liquidity pool
-	gameState.Players["human1"] = &Player{IsAlive: true, Alignment: "HUMAN"}
-	gameState.Players["human2"] = &Player{IsAlive: true, Alignment: "HUMAN"}
-	gameState.Players["human3"] = &Player{IsAlive: true, Alignment: "HUMAN"}
-	gameState.Players["human4"] = &Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human1"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human2"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human3"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human4"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
 
 	// Set up mining actions
-	gameState.NightActions = map[string]*SubmittedNightAction{
+	gameState.NightActions = map[string]*core.SubmittedNightAction{
 		"alice": {
 			PlayerID: "alice",
 			Type:     "MINE",
@@ -205,7 +205,7 @@ func TestNightResolutionManager_ResolveMiningActions(t *testing.T) {
 	// Should have one successful mining event (alice's), charlie blocked
 	successfulMines := 0
 	for _, event := range events {
-		if event.Type == EventMiningSuccessful {
+		if event.Type == core.EventMiningSuccessful {
 			successfulMines++
 		}
 	}
@@ -216,24 +216,24 @@ func TestNightResolutionManager_ResolveMiningActions(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Add test players
-	gameState.Players["ai"] = &Player{
+	gameState.Players["ai"] = &core.Player{
 		ID:                "ai",
 		IsAlive:           true,
 		Alignment:         "ALIGNED",
 		AIEquity:          3,
 		ProjectMilestones: 3,
 	}
-	gameState.Players["human"] = &Player{
+	gameState.Players["human"] = &core.Player{
 		ID:                "human",
 		IsAlive:           true,
 		Alignment:         "HUMAN",
 		Tokens:            2, // Less than AI equity
 		ProjectMilestones: 3,
 	}
-	gameState.Players["strong_human"] = &Player{
+	gameState.Players["strong_human"] = &core.Player{
 		ID:                "strong_human",
 		IsAlive:           true,
 		Alignment:         "HUMAN",
@@ -244,7 +244,7 @@ func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
 	resolver := NewNightResolutionManager(gameState)
 
 	// Test successful conversion (AI equity > human tokens)
-	action := &SubmittedNightAction{
+	action := &core.SubmittedNightAction{
 		PlayerID: "ai",
 		Type:     "CONVERT",
 		TargetID: "human",
@@ -290,15 +290,15 @@ func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveProtectAction(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Add test players
-	gameState.Players["protector"] = &Player{
+	gameState.Players["protector"] = &core.Player{
 		ID:                "protector",
 		IsAlive:           true,
 		ProjectMilestones: 3,
 	}
-	gameState.Players["target"] = &Player{
+	gameState.Players["target"] = &core.Player{
 		ID:                "target",
 		IsAlive:           true,
 		ProjectMilestones: 3,
@@ -306,7 +306,7 @@ func TestNightResolutionManager_ResolveProtectAction(t *testing.T) {
 
 	resolver := NewNightResolutionManager(gameState)
 
-	action := &SubmittedNightAction{
+	action := &core.SubmittedNightAction{
 		PlayerID: "protector",
 		Type:     "PROTECT",
 		TargetID: "target",
@@ -329,15 +329,15 @@ func TestNightResolutionManager_ResolveProtectAction(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveInvestigateAction(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Add test players
-	gameState.Players["investigator"] = &Player{
+	gameState.Players["investigator"] = &core.Player{
 		ID:                "investigator",
 		IsAlive:           true,
 		ProjectMilestones: 3,
 	}
-	gameState.Players["target"] = &Player{
+	gameState.Players["target"] = &core.Player{
 		ID:                "target",
 		Name:              "Target Player",
 		IsAlive:           true,
@@ -348,7 +348,7 @@ func TestNightResolutionManager_ResolveInvestigateAction(t *testing.T) {
 
 	resolver := NewNightResolutionManager(gameState)
 
-	action := &SubmittedNightAction{
+	action := &core.SubmittedNightAction{
 		PlayerID: "investigator",
 		Type:     "INVESTIGATE",
 		TargetID: "target",
