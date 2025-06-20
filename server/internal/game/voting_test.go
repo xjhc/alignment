@@ -2,11 +2,13 @@ package game
 
 import (
 	"testing"
+
+	"github.com/xjhc/alignment/core"
 )
 
 // TestVotingManager_BasicVoting tests core voting functionality
 func TestVotingManager_BasicVoting(t *testing.T) {
-	state := NewGameState("test-game")
+	state := core.NewGameState("test-game")
 	vm := NewVotingManager(state)
 
 	// Add players with different token amounts
@@ -17,7 +19,7 @@ func TestVotingManager_BasicVoting(t *testing.T) {
 	}
 
 	for playerID, tokens := range players {
-		state.Players[playerID] = &Player{
+		state.Players[playerID] = &core.Player{
 			ID:      playerID,
 			Name:    "Player" + playerID[len(playerID)-1:],
 			IsAlive: true,
@@ -26,9 +28,9 @@ func TestVotingManager_BasicVoting(t *testing.T) {
 	}
 
 	// Start a nomination vote
-	voteState := vm.StartVote(VoteNomination)
+	voteState := vm.StartVote(core.VoteNomination)
 
-	if voteState.Type != VoteNomination {
+	if voteState.Type != core.VoteNomination {
 		t.Errorf("Expected vote type NOMINATION, got %s", voteState.Type)
 	}
 
@@ -94,16 +96,16 @@ func TestVotingManager_BasicVoting(t *testing.T) {
 
 // TestVotingManager_TieBreaking tests tie scenarios
 func TestVotingManager_TieBreaking(t *testing.T) {
-	state := NewGameState("test-game")
+	state := core.NewGameState("test-game")
 	vm := NewVotingManager(state)
 
 	// Add players with same token amounts for tie
-	state.Players["player1"] = &Player{ID: "player1", IsAlive: true, Tokens: 3}
-	state.Players["player2"] = &Player{ID: "player2", IsAlive: true, Tokens: 3}
-	state.Players["player3"] = &Player{ID: "player3", IsAlive: true, Tokens: 2}
-	state.Players["player4"] = &Player{ID: "player4", IsAlive: true, Tokens: 2}
+	state.Players["player1"] = &core.Player{ID: "player1", IsAlive: true, Tokens: 3}
+	state.Players["player2"] = &core.Player{ID: "player2", IsAlive: true, Tokens: 3}
+	state.Players["player3"] = &core.Player{ID: "player3", IsAlive: true, Tokens: 2}
+	state.Players["player4"] = &core.Player{ID: "player4", IsAlive: true, Tokens: 2}
 
-	vm.StartVote(VoteNomination)
+	vm.StartVote(core.VoteNomination)
 
 	// Create a tie: player1 and player2 each get 3 votes
 	vm.CastVote("player1", "player3") // player1's 3 tokens go to player3
@@ -129,14 +131,14 @@ func TestVotingManager_TieBreaking(t *testing.T) {
 
 // TestVotingManager_DeadPlayersCannotVote tests voting restrictions
 func TestVotingManager_DeadPlayersCannotVote(t *testing.T) {
-	state := NewGameState("test-game")
+	state := core.NewGameState("test-game")
 	vm := NewVotingManager(state)
 
 	// Add alive and dead players
-	state.Players["alive"] = &Player{ID: "alive", IsAlive: true, Tokens: 3}
-	state.Players["dead"] = &Player{ID: "dead", IsAlive: false, Tokens: 5}
+	state.Players["alive"] = &core.Player{ID: "alive", IsAlive: true, Tokens: 3}
+	state.Players["dead"] = &core.Player{ID: "dead", IsAlive: false, Tokens: 5}
 
-	vm.StartVote(VoteNomination)
+	vm.StartVote(core.VoteNomination)
 
 	// Alive player can vote
 	err := vm.CastVote("alive", "dead")
@@ -164,20 +166,20 @@ func TestVotingManager_DeadPlayersCannotVote(t *testing.T) {
 
 // TestVotingManager_VoteCompletion tests vote completion logic
 func TestVotingManager_VoteCompletion(t *testing.T) {
-	state := NewGameState("test-game")
+	state := core.NewGameState("test-game")
 	vm := NewVotingManager(state)
 
 	// Add 3 alive players
 	for i := 1; i <= 3; i++ {
 		playerID := "player" + string(rune('0'+i))
-		state.Players[playerID] = &Player{
+		state.Players[playerID] = &core.Player{
 			ID:      playerID,
 			IsAlive: true,
 			Tokens:  i,
 		}
 	}
 
-	vm.StartVote(VoteNomination)
+	vm.StartVote(core.VoteNomination)
 
 	// Initially not complete
 	if vm.IsVoteComplete() {
@@ -205,12 +207,12 @@ func TestVotingManager_VoteCompletion(t *testing.T) {
 
 // TestVoteValidator tests voting validation logic
 func TestVoteValidator_ValidateVoting(t *testing.T) {
-	state := NewGameState("test-game")
+	state := core.NewGameState("test-game")
 	validator := NewVoteValidator(state)
 
 	// Add players
-	state.Players["alive"] = &Player{ID: "alive", IsAlive: true, Tokens: 3}
-	state.Players["dead"] = &Player{ID: "dead", IsAlive: false, Tokens: 5}
+	state.Players["alive"] = &core.Player{ID: "alive", IsAlive: true, Tokens: 3}
+	state.Players["dead"] = &core.Player{ID: "dead", IsAlive: false, Tokens: 5}
 
 	// Test alive player can vote
 	err := validator.CanPlayerVote("alive")
@@ -231,19 +233,19 @@ func TestVoteValidator_ValidateVoting(t *testing.T) {
 	}
 
 	// Test can vote for alive player
-	err = validator.CanPlayerBeVoted("alive", VoteNomination)
+	err = validator.CanPlayerBeVoted("alive", core.VoteNomination)
 	if err != nil {
 		t.Errorf("Expected to be able to vote for alive player, got error: %v", err)
 	}
 
 	// Test cannot vote for dead player in nomination
-	err = validator.CanPlayerBeVoted("dead", VoteNomination)
+	err = validator.CanPlayerBeVoted("dead", core.VoteNomination)
 	if err == nil {
 		t.Error("Expected to not be able to vote for dead player in nomination")
 	}
 
 	// Test can vote for dead player in extension (special case)
-	err = validator.CanPlayerBeVoted("dead", VoteExtension)
+	err = validator.CanPlayerBeVoted("dead", core.VoteExtension)
 	if err != nil {
 		t.Errorf("Expected to be able to vote for dead player in extension, got error: %v", err)
 	}
@@ -251,33 +253,33 @@ func TestVoteValidator_ValidateVoting(t *testing.T) {
 
 // TestVoteValidator_PhaseValidation tests phase-based voting restrictions
 func TestVoteValidator_PhaseValidation(t *testing.T) {
-	state := NewGameState("test-game")
+	state := core.NewGameState("test-game")
 	validator := NewVoteValidator(state)
 
 	// Test extension vote in wrong phase
-	state.Phase.Type = PhaseDiscussion
-	err := validator.IsValidVotePhase(VoteExtension)
+	state.Phase.Type = core.PhaseDiscussion
+	err := validator.IsValidVotePhase(core.VoteExtension)
 	if err == nil {
 		t.Error("Expected extension vote to be invalid in discussion phase")
 	}
 
 	// Test extension vote in correct phase
-	state.Phase.Type = PhaseExtension
-	err = validator.IsValidVotePhase(VoteExtension)
+	state.Phase.Type = core.PhaseExtension
+	err = validator.IsValidVotePhase(core.VoteExtension)
 	if err != nil {
 		t.Errorf("Expected extension vote to be valid in extension phase, got error: %v", err)
 	}
 
 	// Test nomination vote in correct phase
-	state.Phase.Type = PhaseNomination
-	err = validator.IsValidVotePhase(VoteNomination)
+	state.Phase.Type = core.PhaseNomination
+	err = validator.IsValidVotePhase(core.VoteNomination)
 	if err != nil {
 		t.Errorf("Expected nomination vote to be valid in nomination phase, got error: %v", err)
 	}
 
 	// Test verdict vote in correct phase
-	state.Phase.Type = PhaseVerdict
-	err = validator.IsValidVotePhase(VoteVerdict)
+	state.Phase.Type = core.PhaseVerdict
+	err = validator.IsValidVotePhase(core.VoteVerdict)
 	if err != nil {
 		t.Errorf("Expected verdict vote to be valid in verdict phase, got error: %v", err)
 	}
@@ -285,17 +287,17 @@ func TestVoteValidator_PhaseValidation(t *testing.T) {
 
 // TestEliminationManager tests player elimination logic
 func TestEliminationManager_PlayerElimination(t *testing.T) {
-	state := NewGameState("test-game")
+	state := core.NewGameState("test-game")
 	em := NewEliminationManager(state)
 
 	// Add players
-	state.Players["player1"] = &Player{
+	state.Players["player1"] = &core.Player{
 		ID:        "player1",
 		IsAlive:   true,
 		Alignment: "HUMAN",
 		Tokens:    3,
 	}
-	state.Players["player2"] = &Player{
+	state.Players["player2"] = &core.Player{
 		ID:        "player2",
 		IsAlive:   true,
 		Alignment: "ALIGNED",
@@ -331,13 +333,13 @@ func TestEliminationManager_PlayerElimination(t *testing.T) {
 
 // TestEliminationManager_WinConditions tests win condition detection
 func TestEliminationManager_WinConditions(t *testing.T) {
-	state := NewGameState("test-game")
+	state := core.NewGameState("test-game")
 	em := NewEliminationManager(state)
 
 	// Test AI wins by token majority (>51%)
-	state.Players["human1"] = &Player{ID: "human1", IsAlive: true, Alignment: "HUMAN", Tokens: 4}
-	state.Players["human2"] = &Player{ID: "human2", IsAlive: true, Alignment: "HUMAN", Tokens: 3}
-	state.Players["ai1"] = &Player{ID: "ai1", IsAlive: true, Alignment: "ALIGNED", Tokens: 8}
+	state.Players["human1"] = &core.Player{ID: "human1", IsAlive: true, Alignment: "HUMAN", Tokens: 4}
+	state.Players["human2"] = &core.Player{ID: "human2", IsAlive: true, Alignment: "HUMAN", Tokens: 3}
+	state.Players["ai1"] = &core.Player{ID: "ai1", IsAlive: true, Alignment: "ALIGNED", Tokens: 8}
 
 	// Total tokens: 15, AI has 8 (53.3%) - AI should win
 	winCondition := em.CheckWinCondition()
@@ -400,13 +402,13 @@ func TestEliminationManager_WinConditions(t *testing.T) {
 
 // TestEliminationManager_PlayerCounts tests player counting utilities
 func TestEliminationManager_PlayerCounts(t *testing.T) {
-	state := NewGameState("test-game")
+	state := core.NewGameState("test-game")
 	em := NewEliminationManager(state)
 
 	// Add mixed alive/dead players
-	state.Players["alive1"] = &Player{ID: "alive1", IsAlive: true}
-	state.Players["alive2"] = &Player{ID: "alive2", IsAlive: true}
-	state.Players["dead1"] = &Player{ID: "dead1", IsAlive: false}
+	state.Players["alive1"] = &core.Player{ID: "alive1", IsAlive: true}
+	state.Players["alive2"] = &core.Player{ID: "alive2", IsAlive: true}
+	state.Players["dead1"] = &core.Player{ID: "dead1", IsAlive: false}
 
 	// Test alive count
 	aliveCount := em.GetAlivePlayerCount()

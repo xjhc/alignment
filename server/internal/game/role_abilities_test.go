@@ -3,25 +3,27 @@ package game
 import (
 	"testing"
 	"time"
+
+	"github.com/xjhc/alignment/core"
 )
 
 func TestRoleAbilityManager_UseRunAudit(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Create VP Ethics with unlocked ability
-	gameState.Players["auditor"] = &Player{
+	gameState.Players["auditor"] = &core.Player{
 		ID:                "auditor",
 		Name:              "VP Ethics",
 		IsAlive:           true,
 		ProjectMilestones: 3,
-		Role: &Role{
+		Role: &core.Role{
 			Type:       RoleEthics,
 			IsUnlocked: true,
 		},
 	}
 
 	// Create target player
-	gameState.Players["target"] = &Player{
+	gameState.Players["target"] = &core.Player{
 		ID:        "target",
 		Name:      "Target",
 		IsAlive:   true,
@@ -73,24 +75,24 @@ func TestRoleAbilityManager_UseRunAudit(t *testing.T) {
 }
 
 func TestRoleAbilityManager_UseOverclockServers(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Create CTO with unlocked ability
-	gameState.Players["cto"] = &Player{
+	gameState.Players["cto"] = &core.Player{
 		ID:                "cto",
 		Name:              "CTO",
 		IsAlive:           true,
 		Tokens:            2,
 		ProjectMilestones: 3,
 		Alignment:         "ALIGNED", // AI-aligned CTO
-		Role: &Role{
+		Role: &core.Role{
 			Type:       RoleCTO,
 			IsUnlocked: true,
 		},
 	}
 
 	// Create target player
-	gameState.Players["target"] = &Player{
+	gameState.Players["target"] = &core.Player{
 		ID:       "target",
 		Name:     "Target",
 		IsAlive:  true,
@@ -132,23 +134,23 @@ func TestRoleAbilityManager_UseOverclockServers(t *testing.T) {
 }
 
 func TestRoleAbilityManager_UseIsolateNode(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Create CISO with unlocked ability
-	gameState.Players["ciso"] = &Player{
+	gameState.Players["ciso"] = &core.Player{
 		ID:                "ciso",
 		Name:              "CISO",
 		IsAlive:           true,
 		ProjectMilestones: 3,
 		Alignment:         "HUMAN",
-		Role: &Role{
+		Role: &core.Role{
 			Type:       RoleCISO,
 			IsUnlocked: true,
 		},
 	}
 
 	// Create target player
-	gameState.Players["target"] = &Player{
+	gameState.Players["target"] = &core.Player{
 		ID:        "target",
 		Name:      "Target",
 		IsAlive:   true,
@@ -180,23 +182,23 @@ func TestRoleAbilityManager_UseIsolateNode(t *testing.T) {
 }
 
 func TestRoleAbilityManager_UseIsolateNode_AlignedCISO(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Create ALIGNED CISO with unlocked ability
-	gameState.Players["ciso"] = &Player{
+	gameState.Players["ciso"] = &core.Player{
 		ID:                "ciso",
 		Name:              "CISO",
 		IsAlive:           true,
 		ProjectMilestones: 3,
 		Alignment:         "ALIGNED",
-		Role: &Role{
+		Role: &core.Role{
 			Type:       RoleCISO,
 			IsUnlocked: true,
 		},
 	}
 
 	// Create ALIGNED target player
-	gameState.Players["target"] = &Player{
+	gameState.Players["target"] = &core.Player{
 		ID:        "target",
 		Name:      "Target",
 		IsAlive:   true,
@@ -232,29 +234,29 @@ func TestRoleAbilityManager_UseIsolateNode_AlignedCISO(t *testing.T) {
 }
 
 func TestRoleAbilityManager_UseReallocateBudget(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Create CFO with unlocked ability
-	gameState.Players["cfo"] = &Player{
+	gameState.Players["cfo"] = &core.Player{
 		ID:                "cfo",
 		Name:              "CFO",
 		IsAlive:           true,
 		ProjectMilestones: 3,
-		Role: &Role{
+		Role: &core.Role{
 			Type:       RoleCFO,
 			IsUnlocked: true,
 		},
 	}
 
 	// Create source and target players
-	gameState.Players["rich_player"] = &Player{
+	gameState.Players["rich_player"] = &core.Player{
 		ID:      "rich_player",
 		Name:    "Rich Player",
 		IsAlive: true,
 		Tokens:  5,
 	}
 
-	gameState.Players["poor_player"] = &Player{
+	gameState.Players["poor_player"] = &core.Player{
 		ID:      "poor_player",
 		Name:    "Poor Player",
 		IsAlive: true,
@@ -292,37 +294,37 @@ func TestRoleAbilityManager_UseReallocateBudget(t *testing.T) {
 }
 
 func TestRoleAbilityManager_CanUseAbility(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Player with unlocked ability
-	gameState.Players["ready"] = &Player{
+	gameState.Players["ready"] = &core.Player{
 		ID:                "ready",
 		IsAlive:           true,
 		ProjectMilestones: 3,
 		HasUsedAbility:    false,
-		Role: &Role{
+		Role: &core.Role{
 			Type:       RoleEthics,
 			IsUnlocked: true,
 		},
 	}
 
 	// Player with locked ability
-	gameState.Players["locked"] = &Player{
+	gameState.Players["locked"] = &core.Player{
 		ID:                "locked",
 		IsAlive:           true,
 		ProjectMilestones: 2, // Not enough milestones
-		Role: &Role{
+		Role: &core.Role{
 			Type:       RoleEthics,
 			IsUnlocked: false,
 		},
 	}
 
 	// Player with system shock
-	gameState.Players["shocked"] = &Player{
+	gameState.Players["shocked"] = &core.Player{
 		ID:                "shocked",
 		IsAlive:           true,
 		ProjectMilestones: 3,
-		Role: &Role{
+		Role: &core.Role{
 			Type:       RoleEthics,
 			IsUnlocked: true,
 		},
@@ -363,14 +365,14 @@ func TestRoleAbilityManager_CanUseAbility(t *testing.T) {
 }
 
 func TestRoleAbilityManager_SystemShockPrevention(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Player with action lock shock
-	gameState.Players["shocked"] = &Player{
+	gameState.Players["shocked"] = &core.Player{
 		ID:                "shocked",
 		IsAlive:           true,
 		ProjectMilestones: 3,
-		Role: &Role{
+		Role: &core.Role{
 			Type:       RoleEthics,
 			IsUnlocked: true,
 		},
@@ -383,7 +385,7 @@ func TestRoleAbilityManager_SystemShockPrevention(t *testing.T) {
 		},
 	}
 
-	gameState.Players["target"] = &Player{
+	gameState.Players["target"] = &core.Player{
 		ID:      "target",
 		IsAlive: true,
 	}

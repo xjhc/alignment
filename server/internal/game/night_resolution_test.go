@@ -3,21 +3,23 @@ package game
 import (
 	"testing"
 	"time"
+
+	"github.com/xjhc/alignment/core"
 )
 
 func TestNightResolutionManager_ResolveNightActions(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 	gameState.DayNumber = 1
 
 	// Add test players
-	gameState.Players["alice"] = &Player{
+	gameState.Players["alice"] = &core.Player{
 		ID:                "alice",
 		IsAlive:           true,
 		Tokens:            2,
 		ProjectMilestones: 3, // Can use abilities
 		Alignment:         "HUMAN",
 	}
-	gameState.Players["bob"] = &Player{
+	gameState.Players["bob"] = &core.Player{
 		ID:                "bob",
 		IsAlive:           true,
 		Tokens:            1,
@@ -100,12 +102,12 @@ func TestNightResolutionManager_ResolveBlockActions(t *testing.T) {
 	gameState := NewGameState("test-game")
 
 	// Add test players
-	gameState.Players["alice"] = &Player{
+	gameState.Players["alice"] = &core.Player{
 		ID:                "alice",
 		IsAlive:           true,
 		ProjectMilestones: 3, // Can use abilities
 	}
-	gameState.Players["bob"] = &Player{
+	gameState.Players["bob"] = &core.Player{
 		ID:                "bob",
 		IsAlive:           true,
 		ProjectMilestones: 3,
@@ -150,14 +152,14 @@ func TestNightResolutionManager_ResolveMiningActions(t *testing.T) {
 	gameState := NewGameState("test-game")
 
 	// Add test players
-	gameState.Players["alice"] = &Player{
+	gameState.Players["alice"] = &core.Player{
 		ID:                "alice",
 		IsAlive:           true,
 		Tokens:            2,
 		ProjectMilestones: 3,
 		Alignment:         "HUMAN",
 	}
-	gameState.Players["bob"] = &Player{
+	gameState.Players["bob"] = &core.Player{
 		ID:                "bob",
 		IsAlive:           true,
 		Tokens:            1,

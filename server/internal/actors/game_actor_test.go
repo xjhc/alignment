@@ -5,49 +5,50 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alignment/server/internal/game"
+	"github.com/xjhc/alignment/core"
+	"github.com/xjhc/alignment/server/internal/game"
 )
 
 // MockDataStore implements DataStore interface for testing
 type MockDataStore struct {
-	events    []game.Event
-	snapshots map[string]*game.GameState
+	events    []core.Event
+	snapshots map[string]*core.GameState
 	mutex     sync.RWMutex
 }
 
 func NewMockDataStore() *MockDataStore {
 	return &MockDataStore{
-		events:    make([]game.Event, 0),
-		snapshots: make(map[string]*game.GameState),
+		events:    make([]core.Event, 0),
+		snapshots: make(map[string]*core.GameState),
 	}
 }
 
-func (m *MockDataStore) AppendEvent(gameID string, event game.Event) error {
+func (m *MockDataStore) AppendEvent(gameID string, event core.Event) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.events = append(m.events, event)
 	return nil
 }
 
-func (m *MockDataStore) SaveSnapshot(gameID string, state *game.GameState) error {
+func (m *MockDataStore) SaveSnapshot(gameID string, state *core.GameState) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.snapshots[gameID] = state
 	return nil
 }
 
-func (m *MockDataStore) LoadEvents(gameID string, afterSequence int) ([]game.Event, error) {
+func (m *MockDataStore) LoadEvents(gameID string, afterSequence int) ([]core.Event, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
 	// Return events after the specified sequence
 	if afterSequence >= len(m.events) {
-		return []game.Event{}, nil
+		return []core.Event{}, nil
 	}
 	return m.events[afterSequence:], nil
 }
 
-func (m *MockDataStore) LoadSnapshot(gameID string) (*game.GameState, error) {
+func (m *MockDataStore) LoadSnapshot(gameID string) (*core.GameState, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
@@ -63,64 +64,64 @@ func (m *MockDataStore) GetEventCount() int {
 	return len(m.events)
 }
 
-func (m *MockDataStore) GetEvents() []game.Event {
+func (m *MockDataStore) GetEvents() []core.Event {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	result := make([]game.Event, len(m.events))
+	result := make([]core.Event, len(m.events))
 	copy(result, m.events)
 	return result
 }
 
 // MockBroadcaster implements Broadcaster interface for testing
 type MockBroadcaster struct {
-	gameEvents   []game.Event
-	playerEvents map[string][]game.Event
+	gameEvents   []core.Event
+	playerEvents map[string][]core.Event
 	mutex        sync.RWMutex
 }
 
 func NewMockBroadcaster() *MockBroadcaster {
 	return &MockBroadcaster{
-		gameEvents:   make([]game.Event, 0),
-		playerEvents: make(map[string][]game.Event),
+		gameEvents:   make([]core.Event, 0),
+		playerEvents: make(map[string][]core.Event),
 	}
 }
 
-func (m *MockBroadcaster) BroadcastToGame(gameID string, event game.Event) error {
+func (m *MockBroadcaster) BroadcastToGame(gameID string, event core.Event) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.gameEvents = append(m.gameEvents, event)
 	return nil
 }
 
-func (m *MockBroadcaster) SendToPlayer(gameID, playerID string, event game.Event) error {
+func (m *MockBroadcaster) SendToPlayer(gameID, playerID string, event core.Event) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	if m.playerEvents[playerID] == nil {
-		m.playerEvents[playerID] = make([]game.Event, 0)
+		m.playerEvents[playerID] = make([]core.Event, 0)
 	}
 	m.playerEvents[playerID] = append(m.playerEvents[playerID], event)
 	return nil
 }
 
-func (m *MockBroadcaster) GetGameEvents() []game.Event {
+func (m *MockBroadcaster) GetGameEvents() []core.Event {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	result := make([]game.Event, len(m.gameEvents))
+	result := make([]core.Event, len(m.gameEvents))
 	copy(result, m.gameEvents)
 	return result
 }
 
-func (m *MockBroadcaster) GetPlayerEvents(playerID string) []game.Event {
+func (m *MockBroadcaster) GetPlayerEvents(playerID string) []core.Event {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
 	if events, exists := m.playerEvents[playerID]; exists {
-		result := make([]game.Event, len(events))
+		result := make([]core.Event, len(events))
 		copy(result, events)
 		return result
 	}
-	return []game.Event{}
+	return []core.Event{}
 }
 
 // TestGameActor_PlayerJoin tests basic player joining functionality
@@ -133,8 +134,8 @@ func TestGameActor_PlayerJoin(t *testing.T) {
 	defer actor.Stop()
 
 	// Send join action
-	joinAction := game.Action{
-		Type:      game.ActionJoinGame,
+	joinAction := core.Action{
+		Type:      core.ActionJoinGame,
 		PlayerID:  "player-123",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -156,7 +157,7 @@ func TestGameActor_PlayerJoin(t *testing.T) {
 	}
 
 	event := events[0]
-	if event.Type != game.EventPlayerJoined {
+	if event.Type != core.EventPlayerJoined {
 		t.Errorf("Expected PlayerJoined event, got %s", event.Type)
 	}
 
@@ -170,7 +171,7 @@ func TestGameActor_PlayerJoin(t *testing.T) {
 		t.Fatalf("Expected 1 event to be broadcasted, got %d", len(gameEvents))
 	}
 
-	if gameEvents[0].Type != game.EventPlayerJoined {
+	if gameEvents[0].Type != core.EventPlayerJoined {
 		t.Errorf("Expected broadcasted PlayerJoined event, got %s", gameEvents[0].Type)
 	}
 
@@ -214,8 +215,8 @@ func TestGameActor_MultiplePlayerJoins(t *testing.T) {
 	}
 
 	for _, player := range players {
-		joinAction := game.Action{
-			Type:      game.ActionJoinGame,
+		joinAction := core.Action{
+			Type:      core.ActionJoinGame,
 			PlayerID:  player.id,
 			GameID:    "test-game",
 			Timestamp: time.Now(),
@@ -272,8 +273,8 @@ func TestGameActor_GameCapacity(t *testing.T) {
 	maxPlayers := actor.state.Settings.MaxPlayers
 
 	for i := 0; i < maxPlayers; i++ {
-		joinAction := game.Action{
-			Type:      game.ActionJoinGame,
+		joinAction := core.Action{
+			Type:      core.ActionJoinGame,
 			PlayerID:  "player-" + string(rune('0'+i)),
 			GameID:    "test-game",
 			Timestamp: time.Now(),
@@ -289,8 +290,8 @@ func TestGameActor_GameCapacity(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Try to add one more player (should be rejected)
-	joinAction := game.Action{
-		Type:      game.ActionJoinGame,
+	joinAction := core.Action{
+		Type:      core.ActionJoinGame,
 		PlayerID:  "excess-player",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -331,8 +332,8 @@ func TestGameActor_DuplicatePlayerJoin(t *testing.T) {
 	defer actor.Stop()
 
 	// First join
-	joinAction := game.Action{
-		Type:      game.ActionJoinGame,
+	joinAction := core.Action{
+		Type:      core.ActionJoinGame,
 		PlayerID:  "player-123",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -347,8 +348,8 @@ func TestGameActor_DuplicatePlayerJoin(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Second join (duplicate)
-	duplicateJoinAction := game.Action{
-		Type:      game.ActionJoinGame,
+	duplicateJoinAction := core.Action{
+		Type:      core.ActionJoinGame,
 		PlayerID:  "player-123", // Same player ID
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -395,8 +396,8 @@ func TestGameActor_VotingFlow(t *testing.T) {
 
 	// Add players first
 	for i := 1; i <= 3; i++ {
-		joinAction := game.Action{
-			Type:      game.ActionJoinGame,
+		joinAction := core.Action{
+			Type:      core.ActionJoinGame,
 			PlayerID:  "player-" + string(rune('0'+i)),
 			GameID:    "test-game",
 			Timestamp: time.Now(),
@@ -409,14 +410,14 @@ func TestGameActor_VotingFlow(t *testing.T) {
 	}
 
 	// Change phase to voting phase
-	actor.state.Phase.Type = game.PhaseNomination
+	actor.state.Phase.Type = core.PhaseNomination
 
 	// Wait for join processing
 	time.Sleep(100 * time.Millisecond)
 
 	// Cast votes
-	voteAction := game.Action{
-		Type:      game.ActionSubmitVote,
+	voteAction := core.Action{
+		Type:      core.ActionSubmitVote,
 		PlayerID:  "player-1",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -433,7 +434,7 @@ func TestGameActor_VotingFlow(t *testing.T) {
 	events := datastore.GetEvents()
 	voteEvents := 0
 	for _, event := range events {
-		if event.Type == game.EventVoteCast {
+		if event.Type == core.EventVoteCast {
 			voteEvents++
 		}
 	}
@@ -462,8 +463,8 @@ func TestGameActor_InvalidVotePhase(t *testing.T) {
 	defer actor.Stop()
 
 	// Add a player
-	joinAction := game.Action{
-		Type:      game.ActionJoinGame,
+	joinAction := core.Action{
+		Type:      core.ActionJoinGame,
 		PlayerID:  "player-1",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -475,7 +476,7 @@ func TestGameActor_InvalidVotePhase(t *testing.T) {
 	actor.SendAction(joinAction)
 
 	// Ensure we're NOT in a voting phase
-	actor.state.Phase.Type = game.PhaseDiscussion
+	actor.state.Phase.Type = core.PhaseDiscussion
 
 	// Wait for join processing
 	time.Sleep(100 * time.Millisecond)
@@ -483,8 +484,8 @@ func TestGameActor_InvalidVotePhase(t *testing.T) {
 	initialEventCount := len(datastore.GetEvents())
 
 	// Try to vote in wrong phase
-	voteAction := game.Action{
-		Type:      game.ActionSubmitVote,
+	voteAction := core.Action{
+		Type:      core.ActionSubmitVote,
 		PlayerID:  "player-1",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -519,8 +520,8 @@ func TestGameActor_MiningTokens(t *testing.T) {
 	defer actor.Stop()
 
 	// Add two players (need target for selfless mining)
-	joinAction1 := game.Action{
-		Type:      game.ActionJoinGame,
+	joinAction1 := core.Action{
+		Type:      core.ActionJoinGame,
 		PlayerID:  "player-1",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -531,8 +532,8 @@ func TestGameActor_MiningTokens(t *testing.T) {
 	}
 	actor.SendAction(joinAction1)
 
-	joinAction2 := game.Action{
-		Type:      game.ActionJoinGame,
+	joinAction2 := core.Action{
+		Type:      core.ActionJoinGame,
 		PlayerID:  "player-2",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -547,19 +548,19 @@ func TestGameActor_MiningTokens(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Set phase to night for mining
-	actor.state.Phase.Type = game.PhaseNight
+	actor.state.Phase.Type = core.PhaseNight
 
 	// Add enough humans for liquidity pool
-	actor.state.Players["human1"] = &game.Player{IsAlive: true, Alignment: "HUMAN"}
-	actor.state.Players["human2"] = &game.Player{IsAlive: true, Alignment: "HUMAN"}
-	actor.state.Players["human3"] = &game.Player{IsAlive: true, Alignment: "HUMAN"}
-	actor.state.Players["human4"] = &game.Player{IsAlive: true, Alignment: "HUMAN"}
+	actor.state.Players["human1"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	actor.state.Players["human2"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	actor.state.Players["human3"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	actor.state.Players["human4"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
 
 	initialTokens := actor.state.Players["player-2"].Tokens // Target gets tokens
 
 	// Perform mining action (player-1 mines for player-2)
-	mineAction := game.Action{
-		Type:      game.ActionMineTokens,
+	mineAction := core.Action{
+		Type:      core.ActionMineTokens,
 		PlayerID:  "player-1",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -576,7 +577,7 @@ func TestGameActor_MiningTokens(t *testing.T) {
 	events := datastore.GetEvents()
 	miningEvents := 0
 	for _, event := range events {
-		if event.Type == game.EventMiningSuccessful {
+		if event.Type == core.EventMiningSuccessful {
 			miningEvents++
 		}
 	}
@@ -605,8 +606,8 @@ func TestGameActor_ActorPanicRecovery(t *testing.T) {
 	// For now, we'll just verify the actor starts and stops cleanly
 
 	// Add a player to verify normal operation
-	joinAction := game.Action{
-		Type:      game.ActionJoinGame,
+	joinAction := core.Action{
+		Type:      core.ActionJoinGame,
 		PlayerID:  "player-1",
 		GameID:    "test-game",
 		Timestamp: time.Now(),
@@ -646,8 +647,8 @@ func TestGameActor_ConcurrentActions(t *testing.T) {
 		go func(playerNum int) {
 			defer wg.Done()
 
-			joinAction := game.Action{
-				Type:      game.ActionJoinGame,
+			joinAction := core.Action{
+				Type:      core.ActionJoinGame,
 				PlayerID:  "player-" + string(rune('0'+playerNum)),
 				GameID:    "test-game",
 				Timestamp: time.Now(),

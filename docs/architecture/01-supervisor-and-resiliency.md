@@ -57,7 +57,31 @@ func (s *Supervisor) StartNewGame(gameID string) {
 }
 ```
 
-##### **B. The Health Monitor**
+##### **B. Nested Supervision (Actor-Level)**
+
+The `GameActor` is not just a worker; it is also a supervisor for its own internal, concurrent tasks, most notably the AI "sidecar" goroutine. The same `defer/recover` pattern used by the top-level Supervisor is used *within* the GameActor to provide a second layer of resiliency.
+
+This ensures that a panic within the AI's logic (e.g., in the Rules Engine or during an LLM API call) will not crash the entire `GameActor`. The actor can catch the panic, log it, and continue running the game, albeit with a non-functional AI for that round.
+
+```go
+// Inside the GameActor...
+func (a *GameActor) launchAIBehavior() {
+    go func() {
+        // The panic-proof boundary for the AI sidecar
+        defer func() {
+            if r := recover(); r != nil {
+                log.Error("AIActor panicked, game continues without AI", "gameID", a.id, "error", r)
+                // The AI is now dead for this game, but the GameActor survives.
+            }
+        }()
+
+        // Launch the actual AI brain loop
+        a.aiBrain.Run()
+    }()
+}
+```
+
+##### **C. The Health Monitor**
 
 This runs in a single, dedicated goroutine for the entire server lifetime.
 
@@ -90,7 +114,7 @@ func RunHealthMonitor() {
 }
 ```
 
-##### **C. The Admission Controller**
+##### **D. The Admission Controller**
 
 This is a simple function that wraps the creation of a new game.
 
@@ -112,7 +136,7 @@ func HandleCreateGameRequest(userID string) (gameID string, err error) {
 ```
 *A separate "Waitlist Processor" goroutine would periodically check if the server is `HEALTHY` and pop users from the Redis list to create their games.*
 
-##### D. Circuit Breaker Integration (Inside the AI Component)
+##### E. Circuit Breaker Integration (Inside the AI Component)
 
 This pattern is applied to the AI component's failure-prone operations, specifically its external call to the Language Model API. The `GameActor` that manages the AI is responsible for this component's lifecycle. We use a library like `gobreaker`.
 

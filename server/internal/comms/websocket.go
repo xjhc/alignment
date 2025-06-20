@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/alignment/server/internal/game"
+	"github.com/xjhc/alignment/core"
 	"github.com/gorilla/websocket"
 )
 
@@ -33,7 +33,7 @@ type Client struct {
 
 // ActionHandler processes game actions from clients
 type ActionHandler interface {
-	HandleAction(action game.Action) error
+	HandleAction(action core.Action) error
 }
 
 // Message represents a WebSocket message
@@ -95,7 +95,7 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 }
 
 // BroadcastToGame sends a message to all clients in a specific game
-func (wsm *WebSocketManager) BroadcastToGame(gameID string, event game.Event) error {
+func (wsm *WebSocketManager) BroadcastToGame(gameID string, event core.Event) error {
 	message := Message{
 		Type:    string(event.Type),
 		GameID:  gameID,
@@ -123,7 +123,7 @@ func (wsm *WebSocketManager) BroadcastToGame(gameID string, event game.Event) er
 }
 
 // SendToPlayer sends a message to a specific player
-func (wsm *WebSocketManager) SendToPlayer(gameID, playerID string, event game.Event) error {
+func (wsm *WebSocketManager) SendToPlayer(gameID, playerID string, event core.Event) error {
 	message := Message{
 		Type:    string(event.Type),
 		GameID:  gameID,
@@ -209,8 +209,8 @@ func (c *Client) readPump() {
 		}
 
 		// Convert message to action and handle
-		action := game.Action{
-			Type:      game.ActionType(message.Type),
+		action := core.Action{
+			Type:      core.ActionType(message.Type),
 			PlayerID:  c.ID,
 			GameID:    message.GameID,
 			Timestamp: time.Now(),
@@ -218,7 +218,7 @@ func (c *Client) readPump() {
 		}
 
 		// Update client's game ID if joining a game
-		if action.Type == game.ActionJoinGame {
+		if action.Type == core.ActionJoinGame {
 			c.GameID = action.GameID
 		}
 

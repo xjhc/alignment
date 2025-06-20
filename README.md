@@ -27,7 +27,7 @@ A corporate-themed social deduction game where humans must identify a rogue AI h
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/alignment.git
+   git clone https://github.com/xjhc/alignment.git
    cd alignment
    ```
 

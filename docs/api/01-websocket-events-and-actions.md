@@ -35,11 +35,10 @@ These are the immutable facts the server broadcasts. The client uses these event
 | **`ALIGNMENT_CHANGED`** | `{ "new_alignment": string }` | **Sent privately** to a player when they have been converted by the AI faction. Signals the client to update its state and reveal AI-faction UI elements. |
 | **`PHASE_CHANGED`** | `{ "new_phase": string, "duration_sec": int, "day_number": int, "crisis_event"?: CrisisEventObject }` | Signals a new game phase (`LOBBY`, `DAY`, `NIGHT`, `END`). The daily crisis event is announced with the `DAY` phase change. |
 | **`CHAT_MESSAGE_POSTED`**| `{ "message": ChatMessageObject }` | A new chat message to be displayed. |
+| **`PULSE_CHECK_SUBMITTED`**| `{ "player_id": string, "player_name": string, "response": string }` | A player's response to the daily Pulse Check. The client should display this publicly with attribution. |
 | **`NIGHT_ACTIONS_RESOLVED`**| `{ "results": NightResultsObject }` | Summarizes the outcomes of the Night Phase. The full `NightResultsObject` is defined in the [Core Data Structures](./02-data-structures.md) document. This event triggers the start of the next Day Phase. |
 ... (no change to other events) ...
 | **`GAME_ENDED`** | `{ "winning_faction": string, "reason": string, "player_states": Player[] }` | Announces the end of the game, the winner, and the final state of all players. |
 | **`SYNC_COMPLETE`** | `{}` | **Sent privately** to a reconnecting client after its batch of catch-up events has been delivered, signaling it's now up-to-date. |
 | **`PRIVATE_NOTIFICATION`**| `{ "message": string, "type": string }` | **Sent privately** to a single player to deliver sensitive information that only they should see. The `type` field allows the client to handle different kinds of notifications. <br> **Examples:** <br> • `"type": "SYSTEM_SHOCK_AFFLICTED"` <br> • `"type": "KPI_OBJECTIVE_COMPLETED"`|
 ---
-
-### `docs/api/02-data-structures.md`

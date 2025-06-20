@@ -1,35 +1,175 @@
-package game
+package core
 
 import (
 	"time"
 )
 
-// GameState represents the complete state of a game
-type GameState struct {
-	ID              string                           `json:"id"`
-	Phase           Phase                            `json:"phase"`
-	DayNumber       int                              `json:"day_number"`
-	Players         map[string]*Player               `json:"players"`
-	CreatedAt       time.Time                        `json:"created_at"`
-	UpdatedAt       time.Time                        `json:"updated_at"`
-	Settings        GameSettings                     `json:"settings"`
-	CrisisEvent     *CrisisEvent                     `json:"crisis_event,omitempty"`
-	ChatMessages    []ChatMessage                    `json:"chat_messages"`
-	VoteState       *VoteState                       `json:"vote_state,omitempty"`
-	NominatedPlayer string                           `json:"nominated_player,omitempty"`
-	WinCondition    *WinCondition                    `json:"win_condition,omitempty"`
-	NightActions    map[string]*SubmittedNightAction `json:"night_actions,omitempty"`
-
-	// Game-wide modifiers
-	CorporateMandate *CorporateMandate `json:"corporate_mandate,omitempty"`
-
-	// Daily tracking
-	PulseCheckResponses map[string]string `json:"pulse_check_responses,omitempty"`
-
-	// Temporary fields for night resolution (cleared each night)
-	BlockedPlayersTonight   map[string]bool `json:"-"` // Not serialized
-	ProtectedPlayersTonight map[string]bool `json:"-"` // Not serialized
+// Event represents a game event that changes state
+type Event struct {
+	ID        string                 `json:"id"`
+	Type      EventType              `json:"type"`
+	GameID    string                 `json:"game_id"`
+	PlayerID  string                 `json:"player_id,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+	Payload   map[string]interface{} `json:"payload"`
 }
+
+// EventType represents different types of game events
+type EventType string
+
+const (
+	// Game lifecycle events
+	EventGameCreated  EventType = "GAME_CREATED"
+	EventGameStarted  EventType = "GAME_STARTED"
+	EventGameEnded    EventType = "GAME_ENDED"
+	EventPhaseChanged EventType = "PHASE_CHANGED"
+
+	// Player events
+	EventPlayerJoined       EventType = "PLAYER_JOINED"
+	EventPlayerLeft         EventType = "PLAYER_LEFT"
+	EventPlayerEliminated   EventType = "PLAYER_ELIMINATED"
+	EventPlayerRoleRevealed EventType = "PLAYER_ROLE_REVEALED"
+	EventPlayerAligned      EventType = "PLAYER_ALIGNED"
+	EventPlayerShocked      EventType = "PLAYER_SHOCKED"
+
+	// Voting events
+	EventVoteStarted      EventType = "VOTE_STARTED"
+	EventVoteCast         EventType = "VOTE_CAST"
+	EventVoteTallyUpdated EventType = "VOTE_TALLY_UPDATED"
+	EventVoteCompleted    EventType = "VOTE_COMPLETED"
+	EventPlayerNominated  EventType = "PLAYER_NOMINATED"
+
+	// Token and Mining events
+	EventTokensAwarded    EventType = "TOKENS_AWARDED"
+	EventTokensSpent      EventType = "TOKENS_SPENT"
+	EventMiningAttempted  EventType = "MINING_ATTEMPTED"
+	EventMiningSuccessful EventType = "MINING_SUCCESSFUL"
+	EventMiningFailed     EventType = "MINING_FAILED"
+
+	// Night Action events
+	EventNightActionsResolved EventType = "NIGHT_ACTIONS_RESOLVED"
+	EventPlayerBlocked        EventType = "PLAYER_BLOCKED"
+	EventPlayerProtected      EventType = "PLAYER_PROTECTED"
+	EventPlayerInvestigated   EventType = "PLAYER_INVESTIGATED"
+
+	// AI and Conversion events
+	EventAIConversionAttempt EventType = "AI_CONVERSION_ATTEMPT"
+	EventAIConversionSuccess EventType = "AI_CONVERSION_SUCCESS"
+	EventAIConversionFailed  EventType = "AI_CONVERSION_FAILED"
+	EventAIRevealed          EventType = "AI_REVEALED"
+
+	// Communication events
+	EventChatMessage         EventType = "CHAT_MESSAGE"
+	EventSystemMessage       EventType = "SYSTEM_MESSAGE"
+	EventPrivateNotification EventType = "PRIVATE_NOTIFICATION"
+
+	// Crisis and Special events
+	EventCrisisTriggered     EventType = "CRISIS_TRIGGERED"
+	EventPulseCheckStarted   EventType = "PULSE_CHECK_STARTED"
+	EventPulseCheckSubmitted EventType = "PULSE_CHECK_SUBMITTED"
+	EventPulseCheckRevealed  EventType = "PULSE_CHECK_REVEALED"
+	EventRoleAbilityUnlocked EventType = "ROLE_ABILITY_UNLOCKED"
+	EventProjectMilestone    EventType = "PROJECT_MILESTONE"
+	EventRoleAssigned        EventType = "ROLE_ASSIGNED"
+
+	// Mining and Economy events
+	EventMiningPoolUpdated EventType = "MINING_POOL_UPDATED"
+	EventTokensDistributed EventType = "TOKENS_DISTRIBUTED"
+	EventTokensLost        EventType = "TOKENS_LOST"
+
+	// Day/Night transition events
+	EventDayStarted           EventType = "DAY_STARTED"
+	EventNightStarted         EventType = "NIGHT_STARTED"
+	EventNightActionSubmitted EventType = "NIGHT_ACTION_SUBMITTED"
+	EventAllPlayersReady      EventType = "ALL_PLAYERS_READY"
+
+	// Status and State events
+	EventPlayerStatusChanged EventType = "PLAYER_STATUS_CHANGED"
+	EventGameStateSnapshot   EventType = "GAME_STATE_SNAPSHOT"
+	EventPlayerReconnected   EventType = "PLAYER_RECONNECTED"
+	EventPlayerDisconnected  EventType = "PLAYER_DISCONNECTED"
+
+	// Win Condition events
+	EventVictoryCondition EventType = "VICTORY_CONDITION"
+
+	// Role Ability events
+	EventRunAudit          EventType = "RUN_AUDIT"
+	EventOverclockServers  EventType = "OVERCLOCK_SERVERS"
+	EventIsolateNode       EventType = "ISOLATE_NODE"
+	EventPerformanceReview EventType = "PERFORMANCE_REVIEW"
+	EventReallocateBudget  EventType = "REALLOCATE_BUDGET"
+	EventPivot             EventType = "PIVOT"
+	EventDeployHotfix      EventType = "DEPLOY_HOTFIX"
+
+	// Player Status events
+	EventSlackStatusChanged EventType = "SLACK_STATUS_CHANGED"
+	EventPartingShotSet     EventType = "PARTING_SHOT_SET"
+
+	// Personal KPI events
+	EventKPIProgress  EventType = "KPI_PROGRESS"
+	EventKPICompleted EventType = "KPI_COMPLETED"
+
+	// Corporate Mandate events
+	EventMandateActivated EventType = "MANDATE_ACTIVATED"
+	EventMandateEffect    EventType = "MANDATE_EFFECT"
+
+	// System Shock events
+	EventSystemShockApplied   EventType = "SYSTEM_SHOCK_APPLIED"
+	EventShockEffectTriggered EventType = "SHOCK_EFFECT_TRIGGERED"
+
+	// AI Equity events
+	EventAIEquityChanged EventType = "AI_EQUITY_CHANGED"
+	EventEquityThreshold EventType = "EQUITY_THRESHOLD"
+)
+
+// Action represents a player action that can generate events
+type Action struct {
+	Type      ActionType             `json:"type"`
+	PlayerID  string                 `json:"player_id"`
+	GameID    string                 `json:"game_id"`
+	Timestamp time.Time              `json:"timestamp"`
+	Payload   map[string]interface{} `json:"payload"`
+}
+
+// ActionType represents different types of player actions
+type ActionType string
+
+const (
+	// Lobby actions
+	ActionJoinGame  ActionType = "JOIN_GAME"
+	ActionLeaveGame ActionType = "LEAVE_GAME"
+	ActionStartGame ActionType = "START_GAME"
+
+	// Communication actions
+	ActionSendMessage      ActionType = "SEND_MESSAGE"
+	ActionSubmitPulseCheck ActionType = "SUBMIT_PULSE_CHECK"
+
+	// Voting actions
+	ActionSubmitVote       ActionType = "SUBMIT_VOTE"
+	ActionExtendDiscussion ActionType = "EXTEND_DISCUSSION"
+
+	// Night actions
+	ActionSubmitNightAction ActionType = "SUBMIT_NIGHT_ACTION"
+	ActionMineTokens        ActionType = "MINE_TOKENS"
+	ActionUseAbility        ActionType = "USE_ABILITY"
+	ActionAttemptConversion ActionType = "ATTEMPT_CONVERSION"
+	ActionProjectMilestones ActionType = "PROJECT_MILESTONES"
+
+	// Role-specific abilities
+	ActionRunAudit          ActionType = "RUN_AUDIT"
+	ActionOverclockServers  ActionType = "OVERCLOCK_SERVERS"
+	ActionIsolateNode       ActionType = "ISOLATE_NODE"
+	ActionPerformanceReview ActionType = "PERFORMANCE_REVIEW"
+	ActionReallocateBudget  ActionType = "REALLOCATE_BUDGET"
+	ActionPivot             ActionType = "PIVOT"
+	ActionDeployHotfix      ActionType = "DEPLOY_HOTFIX"
+
+	// Status actions
+	ActionSetSlackStatus ActionType = "SET_SLACK_STATUS"
+
+	// Meta actions
+	ActionReconnect ActionType = "RECONNECT"
+)
 
 // Phase represents the current game phase
 type Phase struct {
@@ -248,38 +388,4 @@ type SubmittedNightAction struct {
 	TargetID  string                 `json:"target_id"`
 	Payload   map[string]interface{} `json:"payload,omitempty"`
 	Timestamp time.Time              `json:"timestamp"`
-}
-
-// NewGameState creates a new game state
-func NewGameState(id string) *GameState {
-	now := time.Now()
-	return &GameState{
-		ID:           id,
-		Phase:        Phase{Type: PhaseLobby, StartTime: now, Duration: 0},
-		DayNumber:    0,
-		Players:      make(map[string]*Player),
-		CreatedAt:    now,
-		UpdatedAt:    now,
-		ChatMessages: make([]ChatMessage, 0),
-		NightActions: make(map[string]*SubmittedNightAction),
-		Settings: GameSettings{
-			MaxPlayers:         10,
-			MinPlayers:         6,
-			SitrepDuration:     15 * time.Second,
-			PulseCheckDuration: 30 * time.Second,
-			DiscussionDuration: 2 * time.Minute,
-			ExtensionDuration:  15 * time.Second,
-			NominationDuration: 30 * time.Second,
-			TrialDuration:      30 * time.Second,
-			VerdictDuration:    30 * time.Second,
-			NightDuration:      30 * time.Second,
-			StartingTokens:     1,
-			VotingThreshold:    0.5,
-		},
-	}
-}
-
-// getCurrentTime returns the current time (helper function)
-func getCurrentTime() time.Time {
-	return time.Now()
 }

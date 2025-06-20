@@ -3,26 +3,28 @@ package game
 import (
 	"fmt"
 	"testing"
+
+	"github.com/xjhc/alignment/core"
 )
 
 func TestMiningManager_ValidateMiningRequest(t *testing.T) {
-	gameState := NewGameState("test-game")
-	gameState.Phase.Type = PhaseNight
+	gameState := core.NewGameState("test-game")
+	gameState.Phase.Type = core.PhaseNight
 
 	// Add test players
-	gameState.Players["alice"] = &Player{
+	gameState.Players["alice"] = &core.Player{
 		ID:      "alice",
 		Name:    "Alice",
 		IsAlive: true,
 		Tokens:  2,
 	}
-	gameState.Players["bob"] = &Player{
+	gameState.Players["bob"] = &core.Player{
 		ID:      "bob",
 		Name:    "Bob",
 		IsAlive: true,
 		Tokens:  1,
 	}
-	gameState.Players["charlie"] = &Player{
+	gameState.Players["charlie"] = &core.Player{
 		ID:      "charlie",
 		Name:    "Charlie",
 		IsAlive: false,

@@ -3,28 +3,30 @@ package game
 import (
 	"fmt"
 	"log"
+
+	"github.com/xjhc/alignment/core"
 )
 
 // NightResolutionManager handles the resolution of all night actions
 type NightResolutionManager struct {
-	gameState *GameState
+	gameState *core.GameState
 }
 
 // NewNightResolutionManager creates a new night resolution manager
-func NewNightResolutionManager(gameState *GameState) *NightResolutionManager {
+func NewNightResolutionManager(gameState *core.GameState) *NightResolutionManager {
 	return &NightResolutionManager{
 		gameState: gameState,
 	}
 }
 
 // ResolveNightActions processes all submitted night actions in precedence order
-func (nrm *NightResolutionManager) ResolveNightActions() []Event {
+func (nrm *NightResolutionManager) ResolveNightActions() []core.Event {
 	if nrm.gameState.NightActions == nil || len(nrm.gameState.NightActions) == 0 {
 		log.Printf("No night actions to resolve")
-		return []Event{}
+		return []core.Event{}
 	}
 
-	var allEvents []Event
+	var allEvents []core.Event
 
 	// Phase 1: Resolve blocking actions (highest precedence)
 	blockEvents := nrm.resolveBlockActions()
@@ -47,14 +49,14 @@ func (nrm *NightResolutionManager) ResolveNightActions() []Event {
 	allEvents = append(allEvents, summaryEvent)
 
 	// Clear night actions for next night
-	nrm.gameState.NightActions = make(map[string]*SubmittedNightAction)
+	nrm.gameState.NightActions = make(map[string]*core.SubmittedNightAction)
 
 	return allEvents
 }
 
 // resolveBlockActions handles all blocking actions first
-func (nrm *NightResolutionManager) resolveBlockActions() []Event {
-	var events []Event
+func (nrm *NightResolutionManager) resolveBlockActions() []core.Event {
+	var events []core.Event
 	blockedPlayers := make(map[string]bool)
 
 	for playerID, action := range nrm.gameState.NightActions {
@@ -65,9 +67,9 @@ func (nrm *NightResolutionManager) resolveBlockActions() []Event {
 			if nrm.canPlayerUseAbility(playerID, "BLOCK") && targetID != "" {
 				blockedPlayers[targetID] = true
 
-				event := Event{
+				event := core.Event{
 					ID:        fmt.Sprintf("night_block_%s_%s", playerID, targetID),
-					Type:      EventPlayerBlocked,
+					Type:      core.EventPlayerBlocked,
 					GameID:    nrm.gameState.ID,
 					PlayerID:  targetID, // The blocked player
 					Timestamp: getCurrentTime(),
@@ -90,7 +92,7 @@ func (nrm *NightResolutionManager) resolveBlockActions() []Event {
 }
 
 // resolveMiningActions handles mining with liquidity pool logic
-func (nrm *NightResolutionManager) resolveMiningActions() []Event {
+func (nrm *NightResolutionManager) resolveMiningActions() []core.Event {
 	var miningRequests []MiningRequest
 
 	// Collect all mining requests from non-blocked players
@@ -119,8 +121,8 @@ func (nrm *NightResolutionManager) resolveMiningActions() []Event {
 }
 
 // resolveRoleAbilities handles role-specific abilities (audit, overclock, etc.)
-func (nrm *NightResolutionManager) resolveRoleAbilities() []Event {
-	var events []Event
+func (nrm *NightResolutionManager) resolveRoleAbilities() []core.Event {
+	var events []core.Event
 
 	roleAbilityManager := NewRoleAbilityManager(nrm.gameState)
 
@@ -200,8 +202,8 @@ func (nrm *NightResolutionManager) resolveRoleAbilities() []Event {
 }
 
 // resolveOtherNightActions handles investigate, protect, and convert actions
-func (nrm *NightResolutionManager) resolveOtherNightActions() []Event {
-	var events []Event
+func (nrm *NightResolutionManager) resolveOtherNightActions() []core.Event {
+	var events []core.Event
 
 	for playerID, action := range nrm.gameState.NightActions {
 		// Skip if player is blocked
@@ -229,7 +231,7 @@ func (nrm *NightResolutionManager) resolveOtherNightActions() []Event {
 }
 
 // resolveInvestigateAction handles investigation abilities
-func (nrm *NightResolutionManager) resolveInvestigateAction(playerID string, action *SubmittedNightAction) Event {
+func (nrm *NightResolutionManager) resolveInvestigateAction(playerID string, action *core.SubmittedNightAction) core.Event {
 	targetID := action.TargetID
 	target := nrm.gameState.Players[targetID]
 
@@ -241,9 +243,9 @@ func (nrm *NightResolutionManager) resolveInvestigateAction(playerID string, act
 	}
 
 	// Reveal target's alignment to investigator
-	event := Event{
+	event := core.Event{
 		ID:        fmt.Sprintf("night_investigate_%s_%s", playerID, targetID),
-		Type:      EventPlayerInvestigated,
+		Type:      core.EventPlayerInvestigated,
 		GameID:    nrm.gameState.ID,
 		PlayerID:  playerID, // Information goes to investigator
 		Timestamp: getCurrentTime(),
@@ -260,7 +262,7 @@ func (nrm *NightResolutionManager) resolveInvestigateAction(playerID string, act
 }
 
 // resolveProtectAction handles protection abilities
-func (nrm *NightResolutionManager) resolveProtectAction(playerID string, action *SubmittedNightAction) Event {
+func (nrm *NightResolutionManager) resolveProtectAction(playerID string, action *core.SubmittedNightAction) core.Event {
 	targetID := action.TargetID
 
 	// Mark player as protected for tonight
@@ -269,9 +271,9 @@ func (nrm *NightResolutionManager) resolveProtectAction(playerID string, action 
 	}
 	nrm.gameState.ProtectedPlayersTonight[targetID] = true
 
-	event := Event{
+	event := core.Event{
 		ID:        fmt.Sprintf("night_protect_%s_%s", playerID, targetID),
-		Type:      EventPlayerProtected,
+		Type:      core.EventPlayerProtected,
 		GameID:    nrm.gameState.ID,
 		PlayerID:  targetID, // Protected player
 		Timestamp: getCurrentTime(),
@@ -285,16 +287,16 @@ func (nrm *NightResolutionManager) resolveProtectAction(playerID string, action 
 }
 
 // resolveConvertAction handles AI conversion attempts
-func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action *SubmittedNightAction) []Event {
+func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action *core.SubmittedNightAction) []core.Event {
 	targetID := action.TargetID
 	target := nrm.gameState.Players[targetID]
 
 	// Check if target is protected
 	if nrm.isPlayerProtected(targetID) {
 		// Conversion blocked by protection
-		return []Event{{
+		return []core.Event{{
 			ID:        fmt.Sprintf("night_convert_blocked_%s_%s", playerID, targetID),
-			Type:      EventSystemMessage,
+			Type:      core.EventSystemMessage,
 			GameID:    nrm.gameState.ID,
 			PlayerID:  playerID,
 			Timestamp: getCurrentTime(),
@@ -308,9 +310,9 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 	player := nrm.gameState.Players[playerID]
 	if player.AIEquity > target.Tokens {
 		// Successful conversion
-		return []Event{{
+		return []core.Event{{
 			ID:        fmt.Sprintf("night_convert_success_%s_%s", playerID, targetID),
-			Type:      EventAIConversionSuccess,
+			Type:      core.EventAIConversionSuccess,
 			GameID:    nrm.gameState.ID,
 			PlayerID:  targetID,
 			Timestamp: getCurrentTime(),
@@ -321,9 +323,9 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 		}}
 	} else {
 		// System shock - proves target is human
-		return []Event{{
+		return []core.Event{{
 			ID:        fmt.Sprintf("night_convert_shock_%s_%s", playerID, targetID),
-			Type:      EventPlayerShocked,
+			Type:      core.EventPlayerShocked,
 			GameID:    nrm.gameState.ID,
 			PlayerID:  targetID,
 			Timestamp: getCurrentTime(),
@@ -337,7 +339,7 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 }
 
 // createNightResolutionSummary creates a summary event of all night actions
-func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents []Event) Event {
+func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents []core.Event) core.Event {
 	// Count different types of actions
 	summary := map[string]interface{}{
 		"total_actions":   len(nrm.gameState.NightActions),
@@ -345,9 +347,9 @@ func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents [
 		"phase_end":       true,
 	}
 
-	return Event{
+	return core.Event{
 		ID:        fmt.Sprintf("night_resolution_summary_%d", nrm.gameState.DayNumber),
-		Type:      EventNightActionsResolved,
+		Type:      core.EventNightActionsResolved,
 		GameID:    nrm.gameState.ID,
 		PlayerID:  "",
 		Timestamp: getCurrentTime(),
