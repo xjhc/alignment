@@ -91,7 +91,7 @@ func (re *RulesEngine) makeDayDecision(players map[string]interface{}) Decision 
 // selectRandomTarget selects a random target from alive players
 func (re *RulesEngine) selectRandomTarget(players map[string]interface{}) string {
 	alivePlayerIDs := make([]string, 0)
-	
+
 	for playerID, playerData := range players {
 		if playerMap, ok := playerData.(map[string]interface{}); ok {
 			if isAlive, exists := playerMap["is_alive"].(bool); exists && isAlive {
@@ -99,23 +99,23 @@ func (re *RulesEngine) selectRandomTarget(players map[string]interface{}) string
 			}
 		}
 	}
-	
+
 	if len(alivePlayerIDs) == 0 {
 		return ""
 	}
-	
+
 	return alivePlayerIDs[re.rng.Intn(len(alivePlayerIDs))]
 }
 
 // GetThreatAssessmentFromData analyzes threats from simple data
 func (re *RulesEngine) GetThreatAssessmentFromData(gameData map[string]interface{}) []PlayerThreat {
 	threats := make([]PlayerThreat, 0)
-	
+
 	players := make(map[string]interface{})
 	if p, ok := gameData["players"].(map[string]interface{}); ok {
 		players = p
 	}
-	
+
 	for playerID, playerData := range players {
 		if playerMap, ok := playerData.(map[string]interface{}); ok {
 			if isAlive, exists := playerMap["is_alive"].(bool); exists && isAlive {
@@ -127,7 +127,7 @@ func (re *RulesEngine) GetThreatAssessmentFromData(gameData map[string]interface
 						threatLevel = 1.0
 					}
 				}
-				
+
 				threats = append(threats, PlayerThreat{
 					PlayerID:    playerID,
 					ThreatLevel: threatLevel,
@@ -137,6 +137,6 @@ func (re *RulesEngine) GetThreatAssessmentFromData(gameData map[string]interface
 			}
 		}
 	}
-	
+
 	return threats
 }

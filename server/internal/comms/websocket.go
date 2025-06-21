@@ -7,19 +7,18 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/xjhc/alignment/core"
 	"github.com/gorilla/websocket"
+	"github.com/xjhc/alignment/core"
+	"github.com/xjhc/alignment/server/internal/lobby"
 )
 
 // WebSocketManager handles WebSocket connections and message routing
 type WebSocketManager struct {
-	clients    map[string]*Client
-	register   chan *Client
-	unregister chan *Client
-	broadcast  chan []byte
-
-	// Message handler
-	actionHandler ActionHandler
+	clients        map[string]*Client
+	register       chan *Client
+	unregister     chan *Client
+	actionHandler  ActionHandler
+	tokenValidator TokenValidator
 }
 
 // Client represents a WebSocket client connection
@@ -34,6 +33,12 @@ type Client struct {
 // ActionHandler processes game actions from clients
 type ActionHandler interface {
 	HandleAction(action core.Action) error
+}
+
+// TokenValidator validates sessions and provides lobby access
+type TokenValidator interface {
+	ValidateSession(gameId, playerId, sessionToken string) bool
+	GetLobbyActor(gameID string) (*lobby.LobbyActor, bool)
 }
 
 // Message represents a WebSocket message
@@ -51,14 +56,19 @@ var upgrader = websocket.Upgrader{
 }
 
 // NewWebSocketManager creates a new WebSocket manager
-func NewWebSocketManager(actionHandler ActionHandler) *WebSocketManager {
+func NewWebSocketManager(actionHandler ActionHandler, tokenValidator TokenValidator) *WebSocketManager {
 	return &WebSocketManager{
-		clients:       make(map[string]*Client),
-		register:      make(chan *Client),
-		unregister:    make(chan *Client),
-		broadcast:     make(chan []byte),
-		actionHandler: actionHandler,
+		clients:        make(map[string]*Client),
+		register:       make(chan *Client),
+		unregister:     make(chan *Client),
+		actionHandler:  actionHandler,
+		tokenValidator: tokenValidator,
 	}
+}
+
+// SetTokenValidator sets the token validator (for dependency injection)
+func (wsm *WebSocketManager) SetTokenValidator(tokenValidator TokenValidator) {
+	wsm.tokenValidator = tokenValidator
 }
 
 // Start begins the WebSocket manager's processing loop
@@ -68,28 +78,36 @@ func (wsm *WebSocketManager) Start() {
 
 // HandleWebSocket handles WebSocket connection upgrades
 func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	gameID := r.URL.Query().Get("gameId")
+	playerID := r.URL.Query().Get("playerId")
+	sessionToken := r.URL.Query().Get("sessionToken")
+
+	if gameID == "" || playerID == "" || sessionToken == "" {
+		http.Error(w, "Missing required parameters: gameId, playerId, sessionToken", http.StatusBadRequest)
+		return
+	}
+
+	if !wsm.tokenValidator.ValidateSession(gameID, playerID, sessionToken) {
+		http.Error(w, "Invalid session", http.StatusUnauthorized)
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
 
-	// Extract client ID from query params or generate one
-	clientID := r.URL.Query().Get("client_id")
-	if clientID == "" {
-		clientID = generateClientID()
-	}
-
 	client := &Client{
-		ID:   clientID,
-		Conn: conn,
-		Send: make(chan []byte, 256),
-		Hub:  wsm,
+		ID:     playerID,
+		GameID: gameID,
+		Conn:   conn,
+		Send:   make(chan []byte, 256),
+		Hub:    wsm,
 	}
 
 	wsm.register <- client
 
-	// Start client goroutines
 	go client.writePump()
 	go client.readPump()
 }
@@ -152,27 +170,34 @@ func (wsm *WebSocketManager) SendToPlayer(gameID, playerID string, event core.Ev
 	return ErrPlayerNotFound
 }
 
-// run handles client registration/unregistration and broadcasting
+// run is the main processing loop for the WebSocketManager
 func (wsm *WebSocketManager) run() {
 	for {
 		select {
 		case client := <-wsm.register:
 			wsm.clients[client.ID] = client
-			log.Printf("Client %s connected", client.ID)
+			log.Printf("Client %s connected to game %s", client.ID, client.GameID)
+
+			// The player is already "in" the lobby on the backend.
+			// Just tell the LobbyActor to send the current state to the new connection.
+			if lobbyActor, exists := wsm.tokenValidator.GetLobbyActor(client.GameID); exists {
+				lobbyActor.SendCurrentStateToPlayer(client.ID)
+			} else {
+				// TODO: Handle reconnecting to a game in progress
+				log.Printf("No lobby actor found for game %s during connection", client.GameID)
+			}
 
 		case client := <-wsm.unregister:
 			if _, ok := wsm.clients[client.ID]; ok {
 				delete(wsm.clients, client.ID)
 				close(client.Send)
-				log.Printf("Client %s disconnected", client.ID)
-			}
+				log.Printf("Client %s disconnected from game %s", client.ID, client.GameID)
 
-		case message := <-wsm.broadcast:
-			for _, client := range wsm.clients {
-				select {
-				case client.Send <- message:
-				default:
-					wsm.unregister <- client
+				if wsm.actionHandler != nil && client.GameID != "" {
+					leaveAction := core.Action{Type: core.ActionLeaveGame, PlayerID: client.ID, GameID: client.GameID, Timestamp: time.Now()}
+					if err := wsm.actionHandler.HandleAction(leaveAction); err != nil {
+						log.Printf("Failed to handle leave action for client %s: %v", client.ID, err)
+					}
 				}
 			}
 		}
@@ -202,17 +227,38 @@ func (c *Client) readPump() {
 			break
 		}
 
+		// Handle ping messages separately
+		if string(messageData) == `{"type":"ping"}` {
+			// This is a heartbeat, just reset the deadline
+			c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			continue
+		}
+
 		var message Message
 		if err := json.Unmarshal(messageData, &message); err != nil {
 			log.Printf("Failed to unmarshal message: %v", err)
 			continue
 		}
 
+		// Extract game_id from payload if present
+		var gameID string
+		if message.Payload != nil {
+			if id, ok := message.Payload["game_id"].(string); ok {
+				gameID = id
+			}
+		}
+
+		// If game_id wasn't in the payload, use the client's associated GameID
+		// This handles subsequent messages after joining
+		if gameID == "" {
+			gameID = c.GameID
+		}
+
 		// Convert message to action and handle
 		action := core.Action{
 			Type:      core.ActionType(message.Type),
 			PlayerID:  c.ID,
-			GameID:    message.GameID,
+			GameID:    gameID,
 			Timestamp: time.Now(),
 			Payload:   message.Payload,
 		}

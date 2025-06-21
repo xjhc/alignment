@@ -1,0 +1,17 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+client/node_modules
+client/dist
+
+# Go build artifacts
+alignment-server
+server/tmp
+
+# IDE / OS specific
+.vscode
+.idea
+*.DS_Store

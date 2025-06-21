@@ -319,10 +319,10 @@ func (vv *VoteValidator) IsValidVotePhase(voteType core.VoteType) error {
 // HandleVoteAction processes a vote action and returns events
 func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, error) {
 	targetID, _ := action.Payload["target_id"].(string)
-	
+
 	// Create validator to check if vote is valid
 	validator := NewVoteValidator(vm.gameState)
-	
+
 	// Determine vote type based on current phase
 	var voteType core.VoteType
 	switch vm.gameState.Phase.Type {
@@ -335,22 +335,22 @@ func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, err
 	default:
 		return nil, fmt.Errorf("voting not allowed in phase %s", vm.gameState.Phase.Type)
 	}
-	
+
 	// Validate the vote
 	if err := validator.IsValidVotePhase(voteType); err != nil {
 		return nil, err
 	}
-	
+
 	if err := validator.CanPlayerVote(action.PlayerID); err != nil {
 		return nil, err
 	}
-	
+
 	if targetID != "" {
 		if err := validator.CanPlayerBeVoted(targetID, voteType); err != nil {
 			return nil, err
 		}
 	}
-	
+
 	// Create the vote event
 	event := core.Event{
 		ID:        fmt.Sprintf("vote_%s_%s_%d", action.PlayerID, targetID, getCurrentTime().UnixNano()),
@@ -363,6 +363,6 @@ func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, err
 			"vote_type": string(voteType),
 		},
 	}
-	
+
 	return []core.Event{event}, nil
 }

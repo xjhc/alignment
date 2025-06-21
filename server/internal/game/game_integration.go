@@ -10,14 +10,14 @@ import (
 
 // GameManager integrates all the game systems together
 type GameManager struct {
-	GameState             *core.GameState
-	AIEngine              *ai.RulesEngine
-	CrisisManager         *CrisisEventManager
-	MandateManager        *CorporateMandateManager
-	SitrepGenerator       *SitrepGenerator
-	NightResolutionMgr    *NightResolutionManager
-	MiningManager         *MiningManager
-	RoleAbilityManager    *RoleAbilityManager
+	GameState          *core.GameState
+	AIEngine           *ai.RulesEngine
+	CrisisManager      *CrisisEventManager
+	MandateManager     *CorporateMandateManager
+	SitrepGenerator    *SitrepGenerator
+	NightResolutionMgr *NightResolutionManager
+	MiningManager      *MiningManager
+	RoleAbilityManager *RoleAbilityManager
 }
 
 // NewGameManager creates a fully integrated game manager
@@ -25,14 +25,14 @@ func NewGameManager(gameID string) *GameManager {
 	gameState := core.NewGameState(gameID)
 
 	return &GameManager{
-		GameState:             gameState,
-		AIEngine:              ai.NewRulesEngine(),
-		CrisisManager:         NewCrisisEventManager(gameState),
-		MandateManager:        NewCorporateMandateManager(gameState),
-		SitrepGenerator:       NewSitrepGenerator(gameState),
-		NightResolutionMgr:    NewNightResolutionManager(gameState),
-		MiningManager:         NewMiningManager(gameState),
-		RoleAbilityManager:    NewRoleAbilityManager(gameState),
+		GameState:          gameState,
+		AIEngine:           ai.NewRulesEngine(),
+		CrisisManager:      NewCrisisEventManager(gameState),
+		MandateManager:     NewCorporateMandateManager(gameState),
+		SitrepGenerator:    NewSitrepGenerator(gameState),
+		NightResolutionMgr: NewNightResolutionManager(gameState),
+		MiningManager:      NewMiningManager(gameState),
+		RoleAbilityManager: NewRoleAbilityManager(gameState),
 	}
 }
 
@@ -162,9 +162,9 @@ func (gm *GameManager) GetAIThreatAssessment() []ai.PlayerThreat {
 // GetGameStatus returns a summary of the current game state
 func (gm *GameManager) GetGameStatus() map[string]interface{} {
 	status := map[string]interface{}{
-		"game_id":     gm.GameState.ID,
-		"day_number":  gm.GameState.DayNumber,
-		"phase":       gm.GameState.Phase.Type,
+		"game_id":      gm.GameState.ID,
+		"day_number":   gm.GameState.DayNumber,
+		"phase":        gm.GameState.Phase.Type,
 		"player_count": len(gm.GameState.Players),
 	}
 
@@ -353,13 +353,13 @@ func (gm *GameManager) serializePlayersForAI() map[string]interface{} {
 
 	for playerID, player := range gm.GameState.Players {
 		aiPlayers[playerID] = map[string]interface{}{
-			"id":                  player.ID,
-			"name":                player.Name,
-			"is_alive":            player.IsAlive,
-			"tokens":              player.Tokens,
-			"project_milestones":  player.ProjectMilestones,
-			"alignment":           player.Alignment,
-			"ai_equity":           player.AIEquity,
+			"id":                 player.ID,
+			"name":               player.Name,
+			"is_alive":           player.IsAlive,
+			"tokens":             player.Tokens,
+			"project_milestones": player.ProjectMilestones,
+			"alignment":          player.Alignment,
+			"ai_equity":          player.AIEquity,
 		}
 	}
 

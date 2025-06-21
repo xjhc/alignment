@@ -1,0 +1,23 @@
+# Config file for air: https://github.com/cosmtrek/air
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "cd server && go build -mod=vendor -o ../tmp/server ./cmd/server/"
+  full_bin = "APP_ENV=dev ./tmp/server"
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  exclude_dir = ["assets", "tmp", "vendor"]
+  # The include_dir paths are relative to the `root`, which is `/app`
+  include_dir = ["server", "core"]
+  log = "air-build.log"
+  delay = 1000 # ms
+  stop_on_error = true
+
+[log]
+  time = true
+
+[color]
+  main = "yellow"
+  watcher = "cyan"
+  build = "blue"
+  runner = "green"

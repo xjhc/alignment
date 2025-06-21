@@ -1,6 +1,7 @@
 package actors
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -24,11 +25,13 @@ type RoleAbilityManager interface {
 
 // GameActor represents a single game instance running in its own goroutine
 type GameActor struct {
-	gameID   string
-	state    *core.GameState
-	mailbox  chan core.Action
-	events   chan core.Event
-	shutdown chan struct{}
+	gameID  string
+	state   *core.GameState
+	mailbox chan core.Action
+
+	// Context for graceful shutdown
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// Dependencies (interfaces for testing)
 	datastore   DataStore
@@ -56,14 +59,14 @@ type Broadcaster interface {
 }
 
 // NewGameActor creates a new game actor
-func NewGameActor(gameID string, datastore DataStore, broadcaster Broadcaster) *GameActor {
+func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string, datastore DataStore, broadcaster Broadcaster) *GameActor {
 	state := core.NewGameState(gameID)
 	return &GameActor{
 		gameID:      gameID,
 		state:       state,
 		mailbox:     make(chan core.Action, 100), // Buffered channel
-		events:      make(chan core.Event, 100),
-		shutdown:    make(chan struct{}),
+		ctx:         ctx,
+		cancel:      cancel,
 		datastore:   datastore,
 		broadcaster: broadcaster,
 
@@ -81,15 +84,12 @@ func (ga *GameActor) Start() {
 
 	// Start the main processing loop in a goroutine
 	go ga.processLoop()
-
-	// Start the event persistence loop
-	go ga.eventLoop()
 }
 
 // Stop gracefully shuts down the actor
 func (ga *GameActor) Stop() {
 	log.Printf("GameActor %s: Stopping", ga.gameID)
-	close(ga.shutdown)
+	ga.cancel()
 }
 
 // SendAction sends an action to the actor's mailbox
@@ -97,6 +97,8 @@ func (ga *GameActor) SendAction(action core.Action) {
 	select {
 	case ga.mailbox <- action:
 		// Action queued successfully
+	case <-ga.ctx.Done():
+		log.Printf("GameActor %s: Context canceled, dropping action %s", ga.gameID, action.Type)
 	default:
 		log.Printf("GameActor %s: Mailbox full, dropping action %s", ga.gameID, action.Type)
 	}
@@ -128,91 +130,82 @@ func (ga *GameActor) processLoop() {
 	for {
 		select {
 		case action := <-ga.mailbox:
+			// Check if context is canceled before processing action
+			if ga.ctx.Err() != nil {
+				log.Printf("GameActor %s: Context canceled, stopping processing", ga.gameID)
+				return
+			}
 			ga.handleAction(action)
-		case <-ga.shutdown:
-			log.Printf("GameActor %s: Shutting down", ga.gameID)
+		case <-ga.ctx.Done():
+			log.Printf("GameActor %s: Context done, shutting down", ga.gameID)
 			return
 		}
 	}
 }
 
-// eventLoop handles event persistence and broadcasting
-func (ga *GameActor) eventLoop() {
-	for {
-		select {
-		case event := <-ga.events:
-			// Persist the event
-			if err := ga.datastore.AppendEvent(ga.gameID, event); err != nil {
-				log.Printf("GameActor %s: Failed to persist event: %v", ga.gameID, err)
-			}
-
-			// Broadcast to clients
-			if err := ga.broadcaster.BroadcastToGame(ga.gameID, event); err != nil {
-				log.Printf("GameActor %s: Failed to broadcast event: %v", ga.gameID, err)
-			}
-
-		case <-ga.shutdown:
-			return
-		}
-	}
-}
-
-// handleAction processes a single action and generates events
+// handleAction processes a single action following Validate -> Persist -> Apply order
 func (ga *GameActor) handleAction(action core.Action) {
 	log.Printf("GameActor %s: Processing action %s from player %s", ga.gameID, action.Type, action.PlayerID)
 
-	var events []core.Event
-
-	switch action.Type {
-	case core.ActionJoinGame:
-		events = ga.handleJoinGame(action)
-	case core.ActionLeaveGame:
-		events = ga.handleLeaveGame(action)
-	case core.ActionSubmitVote:
-		events = ga.handleSubmitVote(action)
-	case core.ActionSubmitNightAction:
-		events = ga.handleSubmitNightAction(action)
-	case core.ActionMineTokens:
-		events = ga.handleMineTokens(action)
-	case core.ActionType("PHASE_TRANSITION"):
-		events = ga.handlePhaseTransition(action)
-	default:
-		log.Printf("GameActor %s: Unknown action type: %s", ga.gameID, action.Type)
+	// 1. VALIDATE (using ga.state for read-only checks)
+	events, err := ga.generateEventsForAction(action)
+	if err != nil {
+		log.Printf("GameActor %s: Invalid action %s: %v", ga.gameID, action.Type, err)
 		return
 	}
 
-	// Apply events to state and send to event loop
-	ga.applyAndBroadcast(events)
-}
-
-// applyAndBroadcast applies events to state and queues them for persistence/broadcast
-func (ga *GameActor) applyAndBroadcast(events []core.Event) {
+	// 2. PERSIST
 	for _, event := range events {
+		err := ga.datastore.AppendEvent(ga.gameID, event)
+		if err != nil {
+			log.Printf("GameActor %s: CRITICAL - FAILED TO PERSIST EVENT %s: %v", ga.gameID, event.ID, err)
+			// TODO: Implement a retry or shutdown mechanism here. A failed persist is a fatal error for this game.
+			return
+		}
+
+		// 3. APPLY (now that it's safely persisted)
 		newState := core.ApplyEvent(*ga.state, event)
 		ga.state = &newState
 
-		// Send to event loop for persistence and broadcasting
-		select {
-		case ga.events <- event:
-			// Event queued successfully
-		default:
-			log.Printf("GameActor %s: Event queue full, dropping event", ga.gameID)
+		// 4. BROADCAST
+		if err := ga.broadcaster.BroadcastToGame(ga.gameID, event); err != nil {
+			log.Printf("GameActor %s: Failed to broadcast event: %v", ga.gameID, err)
 		}
 	}
 }
 
-func (ga *GameActor) handleJoinGame(action core.Action) []core.Event {
+// generateEventsForAction validates an action and generates events without modifying state
+func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, error) {
+	switch action.Type {
+	case core.ActionJoinGame:
+		return ga.validateAndGenerateJoinGame(action)
+	case core.ActionLeaveGame:
+		return ga.validateAndGenerateLeaveGame(action)
+	case core.ActionSubmitVote:
+		return ga.validateAndGenerateSubmitVote(action)
+	case core.ActionSubmitNightAction:
+		return ga.validateAndGenerateSubmitNightAction(action)
+	case core.ActionMineTokens:
+		return ga.validateAndGenerateMineTokens(action)
+	case core.ActionType("PHASE_TRANSITION"):
+		return ga.validateAndGeneratePhaseTransition(action)
+	default:
+		return nil, fmt.Errorf("unknown action type: %s", action.Type)
+	}
+}
+
+func (ga *GameActor) validateAndGenerateJoinGame(action core.Action) ([]core.Event, error) {
 	playerName, _ := action.Payload["name"].(string)
 	jobTitle, _ := action.Payload["job_title"].(string)
 
 	// Check if game is full
 	if len(ga.state.Players) >= ga.state.Settings.MaxPlayers {
-		return nil // Game full, ignore join request
+		return nil, fmt.Errorf("game is full (max %d players)", ga.state.Settings.MaxPlayers)
 	}
 
 	// Check if player already joined
 	if _, exists := ga.state.Players[action.PlayerID]; exists {
-		return nil // Player already in game
+		return nil, fmt.Errorf("player %s already in game", action.PlayerID)
 	}
 
 	// Auto-assign job title if not provided
@@ -237,13 +230,13 @@ func (ga *GameActor) handleJoinGame(action core.Action) []core.Event {
 		},
 	}
 
-	return []core.Event{event}
+	return []core.Event{event}, nil
 }
 
-func (ga *GameActor) handleLeaveGame(action core.Action) []core.Event {
+func (ga *GameActor) validateAndGenerateLeaveGame(action core.Action) ([]core.Event, error) {
 	// Check if player is in game
 	if _, exists := ga.state.Players[action.PlayerID]; !exists {
-		return nil // Player not in game
+		return nil, fmt.Errorf("player %s not in game", action.PlayerID)
 	}
 
 	event := core.Event{
@@ -255,55 +248,52 @@ func (ga *GameActor) handleLeaveGame(action core.Action) []core.Event {
 		Payload:   make(map[string]interface{}),
 	}
 
-	return []core.Event{event}
+	return []core.Event{event}, nil
 }
 
-func (ga *GameActor) handleSubmitVote(action core.Action) []core.Event {
+func (ga *GameActor) validateAndGenerateSubmitVote(action core.Action) ([]core.Event, error) {
 	// Delegate to VotingManager for complex business logic
 	events, err := ga.votingManager.HandleVoteAction(action)
 	if err != nil {
-		log.Printf("GameActor %s: Invalid vote action from player %s: %v", ga.gameID, action.PlayerID, err)
-		// Could send a private error event back to the player here
-		return nil
+		return nil, fmt.Errorf("invalid vote action: %w", err)
 	}
-	
-	return events
+
+	return events, nil
 }
 
-func (ga *GameActor) handleSubmitNightAction(action core.Action) []core.Event {
+func (ga *GameActor) validateAndGenerateSubmitNightAction(action core.Action) ([]core.Event, error) {
 	// Delegate to RoleAbilityManager for complex business logic
 	events, err := ga.roleAbilityManager.HandleNightAction(action)
 	if err != nil {
-		log.Printf("GameActor %s: Invalid night action from player %s: %v", ga.gameID, action.PlayerID, err)
-		// Could send a private error event back to the player here
-		return nil
+		return nil, fmt.Errorf("invalid night action: %w", err)
 	}
-	
-	return events
+
+	return events, nil
 }
 
-func (ga *GameActor) handleMineTokens(action core.Action) []core.Event {
+func (ga *GameActor) validateAndGenerateMineTokens(action core.Action) ([]core.Event, error) {
 	// Delegate to MiningManager for complex business logic
 	events, err := ga.miningManager.HandleMineAction(action)
 	if err != nil {
-		log.Printf("GameActor %s: Mining action error from player %s: %v", ga.gameID, action.PlayerID, err)
-		return nil
+		return nil, fmt.Errorf("mining action error: %w", err)
 	}
-	
-	return events
+
+	return events, nil
 }
 
-func (ga *GameActor) handlePhaseTransition(action core.Action) []core.Event {
-	nextPhase, _ := action.Payload["next_phase"].(string)
+func (ga *GameActor) validateAndGeneratePhaseTransition(action core.Action) ([]core.Event, error) {
+	nextPhase, ok := action.Payload["next_phase"].(string)
+	if !ok || nextPhase == "" {
+		return nil, fmt.Errorf("missing or invalid next_phase in payload")
+	}
 
 	var events []core.Event
 
 	// If we're transitioning FROM night phase, resolve night actions first
 	if ga.state.Phase.Type == core.PhaseNight {
-		// Simplified night resolution - in full implementation would use game package
-		// Clear temporary night resolution state
-		ga.state.BlockedPlayersTonight = nil
-		ga.state.ProtectedPlayersTonight = nil
+		// Note: In the validation phase we don't modify state,
+		// the actual state clearing will happen in ApplyEvent
+		// This is just for generating the appropriate events
 	}
 
 	// Create phase transition event
@@ -321,5 +311,5 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) []core.Event {
 	}
 	events = append(events, phaseEvent)
 
-	return events
+	return events, nil
 }

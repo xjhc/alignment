@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/xjhc/alignment/core"
 	"github.com/redis/go-redis/v9"
+	"github.com/xjhc/alignment/core"
 )
 
 // RedisDataStore implements DataStore interface using Redis

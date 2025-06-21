@@ -249,7 +249,7 @@ func (mm *MiningManager) ValidateMiningRequest(minerID, targetID string) error {
 // HandleMineAction processes a single mining action and returns events
 func (mm *MiningManager) HandleMineAction(action core.Action) ([]core.Event, error) {
 	targetID, _ := action.Payload["target_id"].(string)
-	
+
 	// Validate the mining request
 	if err := mm.ValidateMiningRequest(action.PlayerID, targetID); err != nil {
 		// Create a failed mining event
@@ -266,7 +266,7 @@ func (mm *MiningManager) HandleMineAction(action core.Action) ([]core.Event, err
 		}
 		return []core.Event{event}, nil
 	}
-	
+
 	// For single mining actions, we create a successful mining event
 	// (The actual mining resolution happens at the end of night phase)
 	event := core.Event{
@@ -280,6 +280,6 @@ func (mm *MiningManager) HandleMineAction(action core.Action) ([]core.Event, err
 			"miner_id":  action.PlayerID,
 		},
 	}
-	
+
 	return []core.Event{event}, nil
 }
