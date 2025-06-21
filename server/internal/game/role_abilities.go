@@ -166,7 +166,7 @@ func (ram *RoleAbilityManager) useOverclockServers(action RoleAbilityAction) (*R
 
 		privateEvent := core.Event{
 			ID:        fmt.Sprintf("overclock_equity_%s_%s", action.PlayerID, action.TargetID),
-			Type:      EventAIEquityChanged,
+			Type:      core.EventAIEquityChanged,
 			GameID:    ram.gameState.ID,
 			PlayerID:  action.TargetID,
 			Timestamp: getCurrentTime(),
@@ -198,7 +198,7 @@ func (ram *RoleAbilityManager) useIsolateNode(action RoleAbilityAction) (*RoleAb
 	// Public event - player is blocked
 	publicEvent := core.Event{
 		ID:        fmt.Sprintf("isolate_%s_%s", action.PlayerID, action.TargetID),
-		Type:      EventIsolateNode,
+		Type:      core.EventIsolateNode,
 		GameID:    ram.gameState.ID,
 		PlayerID:  action.PlayerID,
 		Timestamp: getCurrentTime(),
@@ -218,7 +218,7 @@ func (ram *RoleAbilityManager) useIsolateNode(action RoleAbilityAction) (*RoleAb
 		// Public message appears but target is not actually blocked
 		privateEvent := core.Event{
 			ID:        fmt.Sprintf("isolate_fizzle_%s_%s", action.PlayerID, action.TargetID),
-			Type:      EventIsolateNode,
+			Type:      core.EventIsolateNode,
 			GameID:    ram.gameState.ID,
 			PlayerID:  action.PlayerID,
 			Timestamp: getCurrentTime(),
@@ -240,7 +240,7 @@ func (ram *RoleAbilityManager) useIsolateNode(action RoleAbilityAction) (*RoleAb
 	}
 
 	return &RoleAbilityResult{
-		PublicEvents: []Event{publicEvent},
+		PublicEvents: []core.Event{publicEvent},
 	}, nil
 }
 
@@ -254,7 +254,7 @@ func (ram *RoleAbilityManager) usePerformanceReview(action RoleAbilityAction) (*
 	// Public event - target is forced to use Project Milestones
 	publicEvent := core.Event{
 		ID:        fmt.Sprintf("review_%s_%s", action.PlayerID, action.TargetID),
-		Type:      EventPerformanceReview,
+		Type:      core.EventPerformanceReview,
 		GameID:    ram.gameState.ID,
 		PlayerID:  action.PlayerID,
 		Timestamp: getCurrentTime(),
@@ -267,10 +267,10 @@ func (ram *RoleAbilityManager) usePerformanceReview(action RoleAbilityAction) (*
 
 	// Force the target's night action
 	if ram.gameState.NightActions == nil {
-		ram.gameState.NightActions = make(map[string]*SubmittedNightAction)
+		ram.gameState.NightActions = make(map[string]*core.SubmittedNightAction)
 	}
 
-	ram.gameState.NightActions[action.TargetID] = &SubmittedNightAction{
+	ram.gameState.NightActions[action.TargetID] = &core.SubmittedNightAction{
 		PlayerID:  action.TargetID,
 		Type:      "PROJECT_MILESTONES",
 		Timestamp: getCurrentTime(),
@@ -278,7 +278,7 @@ func (ram *RoleAbilityManager) usePerformanceReview(action RoleAbilityAction) (*
 	}
 
 	return &RoleAbilityResult{
-		PublicEvents: []Event{publicEvent},
+		PublicEvents: []core.Event{publicEvent},
 	}, nil
 }
 
@@ -302,7 +302,7 @@ func (ram *RoleAbilityManager) useReallocateBudget(action RoleAbilityAction) (*R
 	// Public event
 	publicEvent := core.Event{
 		ID:        fmt.Sprintf("reallocate_%s_%s_%s", action.PlayerID, action.TargetID, action.SecondTargetID),
-		Type:      EventReallocateBudget,
+		Type:      core.EventReallocateBudget,
 		GameID:    ram.gameState.ID,
 		PlayerID:  action.PlayerID,
 		Timestamp: getCurrentTime(),
@@ -314,7 +314,7 @@ func (ram *RoleAbilityManager) useReallocateBudget(action RoleAbilityAction) (*R
 	}
 
 	return &RoleAbilityResult{
-		PublicEvents: []Event{publicEvent},
+		PublicEvents: []core.Event{publicEvent},
 	}, nil
 }
 
@@ -338,7 +338,7 @@ func (ram *RoleAbilityManager) usePivot(action RoleAbilityAction) (*RoleAbilityR
 	// Public event
 	publicEvent := core.Event{
 		ID:        fmt.Sprintf("pivot_%s", action.PlayerID),
-		Type:      EventPivot,
+		Type:      core.EventPivot,
 		GameID:    ram.gameState.ID,
 		PlayerID:  action.PlayerID,
 		Timestamp: getCurrentTime(),
@@ -349,7 +349,7 @@ func (ram *RoleAbilityManager) usePivot(action RoleAbilityAction) (*RoleAbilityR
 	}
 
 	// Set the next crisis event
-	ram.gameState.CrisisEvent = &CrisisEvent{
+	ram.gameState.CrisisEvent = &core.CrisisEvent{
 		Type:        chosenCrisis,
 		Title:       chosenCrisis,
 		Description: fmt.Sprintf("COO has selected: %s", chosenCrisis),
@@ -357,7 +357,7 @@ func (ram *RoleAbilityManager) usePivot(action RoleAbilityAction) (*RoleAbilityR
 	}
 
 	return &RoleAbilityResult{
-		PublicEvents: []Event{publicEvent},
+		PublicEvents: []core.Event{publicEvent},
 	}, nil
 }
 
@@ -371,7 +371,7 @@ func (ram *RoleAbilityManager) useDeployHotfix(action RoleAbilityAction) (*RoleA
 	// Public event
 	publicEvent := core.Event{
 		ID:        fmt.Sprintf("hotfix_%s", action.PlayerID),
-		Type:      EventDeployHotfix,
+		Type:      core.EventDeployHotfix,
 		GameID:    ram.gameState.ID,
 		PlayerID:  action.PlayerID,
 		Timestamp: getCurrentTime(),
@@ -382,7 +382,7 @@ func (ram *RoleAbilityManager) useDeployHotfix(action RoleAbilityAction) (*RoleA
 	}
 
 	return &RoleAbilityResult{
-		PublicEvents: []Event{publicEvent},
+		PublicEvents: []core.Event{publicEvent},
 	}, nil
 }
 
@@ -433,4 +433,71 @@ func (ram *RoleAbilityManager) ResetNightAbilities() {
 	for _, player := range ram.gameState.Players {
 		player.HasUsedAbility = false
 	}
+}
+
+// HandleNightAction processes a general night action and returns events
+func (ram *RoleAbilityManager) HandleNightAction(action core.Action) ([]core.Event, error) {
+	actionType, _ := action.Payload["type"].(string)
+	targetID, _ := action.Payload["target_id"].(string)
+
+	// Validate night phase
+	if ram.gameState.Phase.Type != core.PhaseNight {
+		return nil, fmt.Errorf("night actions can only be submitted during night phase")
+	}
+
+	// Validate player exists and is alive
+	player, exists := ram.gameState.Players[action.PlayerID]
+	if !exists {
+		return nil, fmt.Errorf("player not found")
+	}
+	if !player.IsAlive {
+		return nil, fmt.Errorf("dead players cannot submit night actions")
+	}
+
+	// Check if this is a role ability action
+	if actionType != "" && player.Role != nil && player.Role.IsUnlocked {
+		roleAction := RoleAbilityAction{
+			PlayerID:   action.PlayerID,
+			AbilityType: actionType,
+			TargetID:   targetID,
+			Parameters: action.Payload,
+		}
+		
+		result, err := ram.UseRoleAbility(roleAction)
+		if err != nil {
+			return nil, err
+		}
+		
+		// Combine public and private events (for now, just return public)
+		// In a full implementation, private events would be handled separately
+		return result.PublicEvents, nil
+	}
+
+	// Create night action submission event
+	event := core.Event{
+		ID:        fmt.Sprintf("night_action_%s_%d", action.PlayerID, getCurrentTime().UnixNano()),
+		Type:      core.EventNightActionSubmitted,
+		GameID:    ram.gameState.ID,
+		PlayerID:  action.PlayerID,
+		Timestamp: getCurrentTime(),
+		Payload: map[string]interface{}{
+			"action_type": actionType,
+			"target_id":   targetID,
+		},
+	}
+
+	// Store night action in game state for resolution at phase end
+	if ram.gameState.NightActions == nil {
+		ram.gameState.NightActions = make(map[string]*core.SubmittedNightAction)
+	}
+	
+	ram.gameState.NightActions[action.PlayerID] = &core.SubmittedNightAction{
+		PlayerID:  action.PlayerID,
+		Type:      actionType,
+		TargetID:  targetID,
+		Payload:   action.Payload,
+		Timestamp: getCurrentTime(),
+	}
+
+	return []core.Event{event}, nil
 }

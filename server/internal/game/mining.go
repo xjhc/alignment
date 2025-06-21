@@ -245,3 +245,41 @@ func (mm *MiningManager) ValidateMiningRequest(minerID, targetID string) error {
 
 	return nil
 }
+
+// HandleMineAction processes a single mining action and returns events
+func (mm *MiningManager) HandleMineAction(action core.Action) ([]core.Event, error) {
+	targetID, _ := action.Payload["target_id"].(string)
+	
+	// Validate the mining request
+	if err := mm.ValidateMiningRequest(action.PlayerID, targetID); err != nil {
+		// Create a failed mining event
+		event := core.Event{
+			ID:        fmt.Sprintf("mining_failed_%s_%d", action.PlayerID, getCurrentTime().UnixNano()),
+			Type:      core.EventMiningFailed,
+			GameID:    mm.gameState.ID,
+			PlayerID:  action.PlayerID,
+			Timestamp: getCurrentTime(),
+			Payload: map[string]interface{}{
+				"target_id": targetID,
+				"reason":    err.Error(),
+			},
+		}
+		return []core.Event{event}, nil
+	}
+	
+	// For single mining actions, we create a successful mining event
+	// (The actual mining resolution happens at the end of night phase)
+	event := core.Event{
+		ID:        fmt.Sprintf("mining_attempted_%s_%s_%d", action.PlayerID, targetID, getCurrentTime().UnixNano()),
+		Type:      core.EventMiningAttempted,
+		GameID:    mm.gameState.ID,
+		PlayerID:  action.PlayerID,
+		Timestamp: getCurrentTime(),
+		Payload: map[string]interface{}{
+			"target_id": targetID,
+			"miner_id":  action.PlayerID,
+		},
+	}
+	
+	return []core.Event{event}, nil
+}

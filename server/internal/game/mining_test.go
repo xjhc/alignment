@@ -102,7 +102,7 @@ func TestMiningManager_ValidateMiningRequest(t *testing.T) {
 	}
 
 	// Test wrong phase
-	gameState.Phase.Type = PhaseDiscussion
+	gameState.Phase.Type = core.PhaseDiscussion
 	err := miningManager.ValidateMiningRequest("alice", "bob")
 	if err == nil || err.Error() != "mining actions can only be submitted during night phase" {
 		t.Errorf("Expected phase error, got: %v", err)
@@ -140,19 +140,19 @@ func TestMiningManager_CalculateLiquidityPool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gameState := NewGameState("test-game")
+			gameState := core.NewGameState("test-game")
 
 			// Add the specified number of living humans
 			for i := 0; i < tt.livingHumans; i++ {
-				gameState.Players[fmt.Sprintf("human%d", i)] = &Player{
+				gameState.Players[fmt.Sprintf("human%d", i)] = &core.Player{
 					IsAlive:   true,
 					Alignment: "HUMAN",
 				}
 			}
 
 			// Add some other players to ensure the calculation is correct
-			gameState.Players["ai1"] = &Player{IsAlive: true, Alignment: "ALIGNED"}
-			gameState.Players["dead1"] = &Player{IsAlive: false, Alignment: "HUMAN"}
+			gameState.Players["ai1"] = &core.Player{IsAlive: true, Alignment: "ALIGNED"}
+			gameState.Players["dead1"] = &core.Player{IsAlive: false, Alignment: "HUMAN"}
 
 			miningManager := NewMiningManager(gameState)
 			slots := miningManager.calculateLiquidityPool()
@@ -164,17 +164,17 @@ func TestMiningManager_CalculateLiquidityPool(t *testing.T) {
 
 	// Test with crisis event modifier
 	t.Run("crisis modifier", func(t *testing.T) {
-		gameState := NewGameState("test-game")
+		gameState := core.NewGameState("test-game")
 
 		// Add 4 living humans
 		for i := 0; i < 4; i++ {
-			gameState.Players[fmt.Sprintf("human%d", i)] = &Player{
+			gameState.Players[fmt.Sprintf("human%d", i)] = &core.Player{
 				IsAlive:   true,
 				Alignment: "HUMAN",
 			}
 		}
 
-		gameState.CrisisEvent = &CrisisEvent{
+		gameState.CrisisEvent = &core.CrisisEvent{
 			Effects: map[string]interface{}{
 				"mining_slots_modifier": 1, // +1 slot
 			},
@@ -190,28 +190,28 @@ func TestMiningManager_CalculateLiquidityPool(t *testing.T) {
 }
 
 func TestMiningManager_ResolveMining(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Add test players
-	gameState.Players["alice"] = &Player{
+	gameState.Players["alice"] = &core.Player{
 		ID:            "alice",
 		IsAlive:       true,
 		Tokens:        3,
 		StatusMessage: "",
 	}
-	gameState.Players["bob"] = &Player{
+	gameState.Players["bob"] = &core.Player{
 		ID:            "bob",
 		IsAlive:       true,
 		Tokens:        1,
 		StatusMessage: "",
 	}
-	gameState.Players["charlie"] = &Player{
+	gameState.Players["charlie"] = &core.Player{
 		ID:            "charlie",
 		IsAlive:       true,
 		Tokens:        2,
 		StatusMessage: "Mining failed - no slots available", // Had previous failure
 	}
-	gameState.Players["dave"] = &Player{
+	gameState.Players["dave"] = &core.Player{
 		ID:            "dave",
 		IsAlive:       true,
 		Tokens:        1,
@@ -219,10 +219,10 @@ func TestMiningManager_ResolveMining(t *testing.T) {
 	}
 
 	// Add humans for liquidity pool calculation
-	gameState.Players["human1"] = &Player{IsAlive: true, Alignment: "HUMAN"}
-	gameState.Players["human2"] = &Player{IsAlive: true, Alignment: "HUMAN"}
-	gameState.Players["human3"] = &Player{IsAlive: true, Alignment: "HUMAN"}
-	gameState.Players["human4"] = &Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human1"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human2"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human3"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
+	gameState.Players["human4"] = &core.Player{IsAlive: true, Alignment: "HUMAN"}
 
 	miningManager := NewMiningManager(gameState)
 
@@ -288,15 +288,15 @@ func TestMiningManager_ResolveMining(t *testing.T) {
 }
 
 func TestMiningManager_UpdatePlayerTokens(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := core.NewGameState("test-game")
 
 	// Add test players
-	gameState.Players["alice"] = &Player{
+	gameState.Players["alice"] = &core.Player{
 		ID:      "alice",
 		IsAlive: true,
 		Tokens:  2,
 	}
-	gameState.Players["bob"] = &Player{
+	gameState.Players["bob"] = &core.Player{
 		ID:      "bob",
 		IsAlive: true,
 		Tokens:  1,
@@ -321,8 +321,8 @@ func TestMiningManager_UpdatePlayerTokens(t *testing.T) {
 	}
 
 	event := events[0]
-	if event.Type != EventMiningSuccessful {
-		t.Errorf("Expected EventMiningSuccessful, got %s", event.Type)
+	if event.Type != core.EventMiningSuccessful {
+		t.Errorf("Expected core.EventMiningSuccessful, got %s", event.Type)
 	}
 
 	if event.PlayerID != "bob" {

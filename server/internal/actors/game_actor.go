@@ -9,6 +9,19 @@ import (
 	"github.com/xjhc/alignment/server/internal/game"
 )
 
+// Manager interfaces for better testability
+type VotingManager interface {
+	HandleVoteAction(action core.Action) ([]core.Event, error)
+}
+
+type MiningManager interface {
+	HandleMineAction(action core.Action) ([]core.Event, error)
+}
+
+type RoleAbilityManager interface {
+	HandleNightAction(action core.Action) ([]core.Event, error)
+}
+
 // GameActor represents a single game instance running in its own goroutine
 type GameActor struct {
 	gameID   string
@@ -20,6 +33,12 @@ type GameActor struct {
 	// Dependencies (interfaces for testing)
 	datastore   DataStore
 	broadcaster Broadcaster
+
+	// Game managers (domain experts)
+	votingManager      VotingManager
+	miningManager      MiningManager
+	roleAbilityManager RoleAbilityManager
+	eliminationManager *game.EliminationManager
 }
 
 // DataStore interface for persistence
@@ -38,14 +57,21 @@ type Broadcaster interface {
 
 // NewGameActor creates a new game actor
 func NewGameActor(gameID string, datastore DataStore, broadcaster Broadcaster) *GameActor {
+	state := core.NewGameState(gameID)
 	return &GameActor{
 		gameID:      gameID,
-		state:       core.NewGameState(gameID),
+		state:       state,
 		mailbox:     make(chan core.Action, 100), // Buffered channel
 		events:      make(chan core.Event, 100),
 		shutdown:    make(chan struct{}),
 		datastore:   datastore,
 		broadcaster: broadcaster,
+
+		// Initialize managers with shared state
+		votingManager:      game.NewVotingManager(state),
+		miningManager:      game.NewMiningManager(state),
+		roleAbilityManager: game.NewRoleAbilityManager(state),
+		eliminationManager: game.NewEliminationManager(state),
 	}
 }
 
@@ -156,6 +182,11 @@ func (ga *GameActor) handleAction(action core.Action) {
 	}
 
 	// Apply events to state and send to event loop
+	ga.applyAndBroadcast(events)
+}
+
+// applyAndBroadcast applies events to state and queues them for persistence/broadcast
+func (ga *GameActor) applyAndBroadcast(events []core.Event) {
 	for _, event := range events {
 		newState := core.ApplyEvent(*ga.state, event)
 		ga.state = &newState
@@ -228,110 +259,38 @@ func (ga *GameActor) handleLeaveGame(action core.Action) []core.Event {
 }
 
 func (ga *GameActor) handleSubmitVote(action core.Action) []core.Event {
-	targetID, _ := action.Payload["target_id"].(string)
-
-	// Validate vote (game phase, player active, etc.)
-	if ga.state.Phase.Type != core.PhaseNomination && ga.state.Phase.Type != core.PhaseVerdict {
-		return nil // Not in voting phase
+	// Delegate to VotingManager for complex business logic
+	events, err := ga.votingManager.HandleVoteAction(action)
+	if err != nil {
+		log.Printf("GameActor %s: Invalid vote action from player %s: %v", ga.gameID, action.PlayerID, err)
+		// Could send a private error event back to the player here
+		return nil
 	}
-
-	if _, exists := ga.state.Players[action.PlayerID]; !exists {
-		return nil // Player not in game
-	}
-
-	event := core.Event{
-		ID:        fmt.Sprintf("event_%d", time.Now().UnixNano()),
-		Type:      core.EventVoteCast,
-		GameID:    ga.gameID,
-		PlayerID:  action.PlayerID,
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"target_id": targetID,
-			"vote_type": "NOMINATION", // Default vote type
-		},
-	}
-
-	return []core.Event{event}
+	
+	return events
 }
 
 func (ga *GameActor) handleSubmitNightAction(action core.Action) []core.Event {
-	actionType, _ := action.Payload["type"].(string)
-	targetID, _ := action.Payload["target_id"].(string)
-
-	// Validate night phase
-	if ga.state.Phase.Type != core.PhaseNight {
-		return nil // Not in night phase
+	// Delegate to RoleAbilityManager for complex business logic
+	events, err := ga.roleAbilityManager.HandleNightAction(action)
+	if err != nil {
+		log.Printf("GameActor %s: Invalid night action from player %s: %v", ga.gameID, action.PlayerID, err)
+		// Could send a private error event back to the player here
+		return nil
 	}
-
-	// Validate player exists and is alive
-	player, exists := ga.state.Players[action.PlayerID]
-	if !exists || !player.IsAlive {
-		return nil // Invalid player
-	}
-
-	// Create night action record
-	nightAction := &core.SubmittedNightAction{
-		PlayerID:  action.PlayerID,
-		Type:      actionType,
-		TargetID:  targetID,
-		Payload:   action.Payload,
-		Timestamp: time.Now(),
-	}
-
-	// Store night action in game state (will be processed at phase end)
-	if ga.state.NightActions == nil {
-		ga.state.NightActions = make(map[string]*core.SubmittedNightAction)
-	}
-	ga.state.NightActions[action.PlayerID] = nightAction
-
-	// Generate event for night action submission
-	event := core.Event{
-		ID:        fmt.Sprintf("event_%d", time.Now().UnixNano()),
-		Type:      core.EventNightActionSubmitted,
-		GameID:    ga.gameID,
-		PlayerID:  action.PlayerID,
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"action_type": actionType,
-			"target_id":   targetID,
-		},
-	}
-
-	return []core.Event{event}
+	
+	return events
 }
 
 func (ga *GameActor) handleMineTokens(action core.Action) []core.Event {
-	// Simplified mining implementation
-	// In full implementation, this would use the game package's mining manager
-
-	// Basic validation - player must be alive
-	player, exists := ga.state.Players[action.PlayerID]
-	if !exists || !player.IsAlive {
-		event := core.Event{
-			ID:        fmt.Sprintf("event_%d", time.Now().UnixNano()),
-			Type:      core.EventMiningFailed,
-			GameID:    ga.gameID,
-			PlayerID:  action.PlayerID,
-			Timestamp: time.Now(),
-			Payload: map[string]interface{}{
-				"reason": "Player not found or not alive",
-			},
-		}
-		return []core.Event{event}
+	// Delegate to MiningManager for complex business logic
+	events, err := ga.miningManager.HandleMineAction(action)
+	if err != nil {
+		log.Printf("GameActor %s: Mining action error from player %s: %v", ga.gameID, action.PlayerID, err)
+		return nil
 	}
-
-	// Simple mining success event
-	event := core.Event{
-		ID:        fmt.Sprintf("event_%d", time.Now().UnixNano()),
-		Type:      core.EventMiningSuccessful,
-		GameID:    ga.gameID,
-		PlayerID:  action.PlayerID,
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"amount": 1,
-		},
-	}
-	return []core.Event{event}
+	
+	return events
 }
 
 func (ga *GameActor) handlePhaseTransition(action core.Action) []core.Event {

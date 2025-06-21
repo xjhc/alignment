@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/xjhc/alignment/core"
-	"github.com/xjhc/alignment/server/internal/game"
 )
 
 // MockDataStore implements DataStore interface for testing
