@@ -457,17 +457,17 @@ func (ram *RoleAbilityManager) HandleNightAction(action core.Action) ([]core.Eve
 	// Check if this is a role ability action
 	if actionType != "" && player.Role != nil && player.Role.IsUnlocked {
 		roleAction := RoleAbilityAction{
-			PlayerID:   action.PlayerID,
+			PlayerID:    action.PlayerID,
 			AbilityType: actionType,
-			TargetID:   targetID,
-			Parameters: action.Payload,
+			TargetID:    targetID,
+			Parameters:  action.Payload,
 		}
-		
+
 		result, err := ram.UseRoleAbility(roleAction)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Combine public and private events (for now, just return public)
 		// In a full implementation, private events would be handled separately
 		return result.PublicEvents, nil
@@ -490,7 +490,7 @@ func (ram *RoleAbilityManager) HandleNightAction(action core.Action) ([]core.Eve
 	if ram.gameState.NightActions == nil {
 		ram.gameState.NightActions = make(map[string]*core.SubmittedNightAction)
 	}
-	
+
 	ram.gameState.NightActions[action.PlayerID] = &core.SubmittedNightAction{
 		PlayerID:  action.PlayerID,
 		Type:      actionType,

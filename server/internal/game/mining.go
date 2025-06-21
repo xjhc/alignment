@@ -118,9 +118,27 @@ func (mm *MiningManager) calculateLiquidityPool() int {
 
 	// Apply crisis event modifiers if any
 	if mm.gameState.CrisisEvent != nil && mm.gameState.CrisisEvent.Effects != nil {
+		// Check for reduced mining pool
+		if reduced, exists := mm.gameState.CrisisEvent.Effects["reduced_mining_pool"]; exists {
+			if isReduced, ok := reduced.(bool); ok && isReduced {
+				baseSlots = baseSlots / 2 // 50% reduction
+			}
+		}
+
+		// Check for mining slots modifier
 		if modifier, exists := mm.gameState.CrisisEvent.Effects["mining_slots_modifier"]; exists {
 			if modValue, ok := modifier.(int); ok {
 				baseSlots += modValue
+			}
+		}
+	}
+
+	// Apply corporate mandate modifiers
+	if mm.gameState.CorporateMandate != nil && mm.gameState.CorporateMandate.IsActive {
+		// Check for reduced mining slots from mandate
+		if reducedVal, exists := mm.gameState.CorporateMandate.Effects["reduced_mining_slots"]; exists {
+			if reduced, ok := reducedVal.(bool); ok && reduced {
+				baseSlots-- // Aggressive Growth Quarter reduces by 1
 			}
 		}
 	}
@@ -249,7 +267,7 @@ func (mm *MiningManager) ValidateMiningRequest(minerID, targetID string) error {
 // HandleMineAction processes a single mining action and returns events
 func (mm *MiningManager) HandleMineAction(action core.Action) ([]core.Event, error) {
 	targetID, _ := action.Payload["target_id"].(string)
-	
+
 	// Validate the mining request
 	if err := mm.ValidateMiningRequest(action.PlayerID, targetID); err != nil {
 		// Create a failed mining event
@@ -266,7 +284,7 @@ func (mm *MiningManager) HandleMineAction(action core.Action) ([]core.Event, err
 		}
 		return []core.Event{event}, nil
 	}
-	
+
 	// For single mining actions, we create a successful mining event
 	// (The actual mining resolution happens at the end of night phase)
 	event := core.Event{
@@ -280,6 +298,6 @@ func (mm *MiningManager) HandleMineAction(action core.Action) ([]core.Event, err
 			"miner_id":  action.PlayerID,
 		},
 	}
-	
+
 	return []core.Event{event}, nil
 }

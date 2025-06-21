@@ -33,12 +33,12 @@ type SitrepSection struct {
 
 // DailySitrep represents the complete daily situation report
 type DailySitrep struct {
-	DayNumber    int             `json:"day_number"`
-	Date         time.Time       `json:"date"`
-	Sections     []SitrepSection `json:"sections"`
-	AlertLevel   string          `json:"alert_level"`
-	Summary      string          `json:"summary"`
-	FooterNote   string          `json:"footer_note"`
+	DayNumber  int             `json:"day_number"`
+	Date       time.Time       `json:"date"`
+	Sections   []SitrepSection `json:"sections"`
+	AlertLevel string          `json:"alert_level"`
+	Summary    string          `json:"summary"`
+	FooterNote string          `json:"footer_note"`
 }
 
 // GenerateDailySitrep creates the complete SITREP for the current day
@@ -49,7 +49,7 @@ func (sg *SitrepGenerator) GenerateDailySitrep() DailySitrep {
 		Sections:   make([]SitrepSection, 0),
 		AlertLevel: sg.determineAlertLevel(),
 	}
-	
+
 	// Standard sections in order
 	sitrep.Sections = append(sitrep.Sections, sg.generateExecutiveSummary())
 	sitrep.Sections = append(sitrep.Sections, sg.generatePersonnelStatus())
@@ -58,14 +58,14 @@ func (sg *SitrepGenerator) GenerateDailySitrep() DailySitrep {
 	sitrep.Sections = append(sitrep.Sections, sg.generateProjectStatus())
 	sitrep.Sections = append(sitrep.Sections, sg.generateThreatAssessment())
 	sitrep.Sections = append(sitrep.Sections, sg.generateRecommendations())
-	
+
 	// Apply hotfix redaction if active
 	sg.applyHotfixRedaction(&sitrep)
-	
+
 	// Generate summary and footer
 	sitrep.Summary = sg.generateSummary()
 	sitrep.FooterNote = sg.generateFooterNote()
-	
+
 	return sitrep
 }
 
@@ -73,17 +73,17 @@ func (sg *SitrepGenerator) GenerateDailySitrep() DailySitrep {
 func (sg *SitrepGenerator) determineAlertLevel() string {
 	// Base alert level on various factors
 	alertScore := 0
-	
+
 	// Check for recent eliminations
 	if sg.gameState.DayNumber > 1 {
 		alertScore += 1
 	}
-	
+
 	// Check for crisis events
 	if sg.gameState.CrisisEvent != nil {
 		alertScore += 2
 	}
-	
+
 	// Check player count (fewer players = higher alert)
 	aliveCount := 0
 	for _, player := range sg.gameState.Players {
@@ -96,7 +96,7 @@ func (sg *SitrepGenerator) determineAlertLevel() string {
 	} else if aliveCount <= 6 {
 		alertScore += 1
 	}
-	
+
 	// Check for high AI equity
 	maxAIEquity := 0
 	for _, player := range sg.gameState.Players {
@@ -109,7 +109,7 @@ func (sg *SitrepGenerator) determineAlertLevel() string {
 	} else if maxAIEquity >= 2 {
 		alertScore += 1
 	}
-	
+
 	// Determine alert level
 	switch {
 	case alertScore >= 5:
@@ -126,9 +126,9 @@ func (sg *SitrepGenerator) determineAlertLevel() string {
 // generateExecutiveSummary creates the executive summary section
 func (sg *SitrepGenerator) generateExecutiveSummary() SitrepSection {
 	var content strings.Builder
-	
+
 	content.WriteString(fmt.Sprintf("**Day %d Operations Summary**\n\n", sg.gameState.DayNumber))
-	
+
 	// Count personnel
 	aliveCount := 0
 	eliminatedCount := 0
@@ -139,22 +139,22 @@ func (sg *SitrepGenerator) generateExecutiveSummary() SitrepSection {
 			eliminatedCount++
 		}
 	}
-	
+
 	content.WriteString(fmt.Sprintf("• Active personnel: %d\n", aliveCount))
 	if eliminatedCount > 0 {
 		content.WriteString(fmt.Sprintf("• Personnel no longer with company: %d\n", eliminatedCount))
 	}
-	
+
 	// Current phase
 	content.WriteString(fmt.Sprintf("• Current phase: %s\n", strings.Title(strings.ToLower(string(sg.gameState.Phase.Type)))))
-	
+
 	// Crisis status
 	if sg.gameState.CrisisEvent != nil {
 		content.WriteString(fmt.Sprintf("• **Active Crisis**: %s\n", sg.gameState.CrisisEvent.Title))
 	} else {
 		content.WriteString("• No active crisis events\n")
 	}
-	
+
 	return SitrepSection{
 		Title:   "Executive Summary",
 		Content: content.String(),
@@ -165,9 +165,9 @@ func (sg *SitrepGenerator) generateExecutiveSummary() SitrepSection {
 // generatePersonnelStatus creates personnel status overview
 func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
 	var content strings.Builder
-	
+
 	content.WriteString("**Personnel Status Report**\n\n")
-	
+
 	// Sort players by status and role
 	activePersonnel := make([]*core.Player, 0)
 	for _, player := range sg.gameState.Players {
@@ -175,27 +175,27 @@ func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
 			activePersonnel = append(activePersonnel, player)
 		}
 	}
-	
+
 	// Sort by role prominence (CEO, C-level, VP)
 	sort.Slice(activePersonnel, func(i, j int) bool {
 		return sg.getRoleWeight(activePersonnel[i]) > sg.getRoleWeight(activePersonnel[j])
 	})
-	
+
 	content.WriteString("**Active Personnel:**\n")
 	for _, player := range activePersonnel {
 		status := "Operational"
 		if len(player.SystemShocks) > 0 {
 			status = "Affected by system issues"
 		}
-		
+
 		roleInfo := player.JobTitle
 		if player.Role != nil && player.Role.Type != "" {
 			roleInfo = player.Role.Name
 		}
-		
+
 		content.WriteString(fmt.Sprintf("• %s (%s) - %s\n", player.Name, roleInfo, status))
 	}
-	
+
 	// Recent departures
 	recentDepartures := make([]*core.Player, 0)
 	for _, player := range sg.gameState.Players {
@@ -203,7 +203,7 @@ func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
 			recentDepartures = append(recentDepartures, player)
 		}
 	}
-	
+
 	if len(recentDepartures) > 0 {
 		content.WriteString("\n**Recent Departures:**\n")
 		for _, player := range recentDepartures {
@@ -214,7 +214,7 @@ func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
 			content.WriteString(fmt.Sprintf("• %s (%s) - No longer with company\n", player.Name, roleInfo))
 		}
 	}
-	
+
 	return SitrepSection{
 		Title:   "Personnel Status",
 		Content: content.String(),
@@ -225,9 +225,9 @@ func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
 // generateOperationalMetrics creates operational metrics section
 func (sg *SitrepGenerator) generateOperationalMetrics() SitrepSection {
 	var content strings.Builder
-	
+
 	content.WriteString("**Operational Metrics**\n\n")
-	
+
 	// Token distribution analysis
 	totalTokens := 0
 	tokenHolders := make(map[string]int)
@@ -237,15 +237,15 @@ func (sg *SitrepGenerator) generateOperationalMetrics() SitrepSection {
 			tokenHolders[playerID] = player.Tokens
 		}
 	}
-	
+
 	content.WriteString(fmt.Sprintf("• Total operational tokens in circulation: %d\n", totalTokens))
-	
+
 	// Average tokens
 	if len(tokenHolders) > 0 {
 		avgTokens := float64(totalTokens) / float64(len(tokenHolders))
 		content.WriteString(fmt.Sprintf("• Average tokens per active personnel: %.1f\n", avgTokens))
 	}
-	
+
 	// Project milestone progress
 	totalMilestones := 0
 	completedProjects := 0
@@ -257,10 +257,10 @@ func (sg *SitrepGenerator) generateOperationalMetrics() SitrepSection {
 			}
 		}
 	}
-	
+
 	content.WriteString(fmt.Sprintf("• Total project milestones achieved: %d\n", totalMilestones))
 	content.WriteString(fmt.Sprintf("• Personnel with completed projects: %d\n", completedProjects))
-	
+
 	// Mining activity (if night actions were resolved)
 	if len(sg.gameState.Players) > 0 {
 		content.WriteString("• Resource allocation efficiency: ")
@@ -272,7 +272,7 @@ func (sg *SitrepGenerator) generateOperationalMetrics() SitrepSection {
 			content.WriteString("Low\n")
 		}
 	}
-	
+
 	return SitrepSection{
 		Title:   "Operational Metrics",
 		Content: content.String(),
@@ -283,12 +283,12 @@ func (sg *SitrepGenerator) generateOperationalMetrics() SitrepSection {
 // generateSecurityAlerts creates security alerts section
 func (sg *SitrepGenerator) generateSecurityAlerts() SitrepSection {
 	var content strings.Builder
-	
+
 	content.WriteString("**Security Status**\n\n")
-	
+
 	// Check for anomalies and threats
 	anomalies := sg.detectSecurityAnomalies()
-	
+
 	if len(anomalies) == 0 {
 		content.WriteString("• No significant security anomalies detected\n")
 		content.WriteString("• All personnel access patterns within normal parameters\n")
@@ -299,7 +299,7 @@ func (sg *SitrepGenerator) generateSecurityAlerts() SitrepSection {
 			content.WriteString(fmt.Sprintf("• %s\n", anomaly))
 		}
 	}
-	
+
 	// System shock reports
 	affectedPersonnel := 0
 	for _, player := range sg.gameState.Players {
@@ -307,12 +307,12 @@ func (sg *SitrepGenerator) generateSecurityAlerts() SitrepSection {
 			affectedPersonnel++
 		}
 	}
-	
+
 	if affectedPersonnel > 0 {
 		content.WriteString(fmt.Sprintf("\n• Personnel affected by system issues: %d\n", affectedPersonnel))
 		content.WriteString("• Recommend system diagnostics and recovery protocols\n")
 	}
-	
+
 	return SitrepSection{
 		Title:   "Security Alerts",
 		Content: content.String(),
@@ -323,13 +323,13 @@ func (sg *SitrepGenerator) generateSecurityAlerts() SitrepSection {
 // generateProjectStatus creates project status section
 func (sg *SitrepGenerator) generateProjectStatus() SitrepSection {
 	var content strings.Builder
-	
+
 	content.WriteString("**Project Status Dashboard**\n\n")
-	
+
 	// Milestone distribution
 	milestoneDistribution := map[int]int{0: 0, 1: 0, 2: 0, 3: 0}
 	roleAbilitiesUnlocked := 0
-	
+
 	for _, player := range sg.gameState.Players {
 		if player.IsAlive {
 			milestones := player.ProjectMilestones
@@ -337,13 +337,13 @@ func (sg *SitrepGenerator) generateProjectStatus() SitrepSection {
 				milestones = 3
 			}
 			milestoneDistribution[milestones]++
-			
+
 			if player.Role != nil && player.Role.IsUnlocked {
 				roleAbilitiesUnlocked++
 			}
 		}
 	}
-	
+
 	content.WriteString("**Milestone Progress Distribution:**\n")
 	for milestones := 0; milestones <= 3; milestones++ {
 		count := milestoneDistribution[milestones]
@@ -357,9 +357,9 @@ func (sg *SitrepGenerator) generateProjectStatus() SitrepSection {
 			content.WriteString(fmt.Sprintf("• %d milestones (%s): %d personnel\n", milestones, status, count))
 		}
 	}
-	
+
 	content.WriteString(fmt.Sprintf("\n• Personnel with unlocked role capabilities: %d\n", roleAbilitiesUnlocked))
-	
+
 	// KPI progress (if any players have KPIs)
 	kpiProgress := 0
 	kpiCompleted := 0
@@ -373,12 +373,12 @@ func (sg *SitrepGenerator) generateProjectStatus() SitrepSection {
 			}
 		}
 	}
-	
+
 	if kpiProgress > 0 || kpiCompleted > 0 {
 		content.WriteString(fmt.Sprintf("• Personnel making personal KPI progress: %d\n", kpiProgress))
 		content.WriteString(fmt.Sprintf("• Completed personal KPIs: %d\n", kpiCompleted))
 	}
-	
+
 	return SitrepSection{
 		Title:   "Project Status",
 		Content: content.String(),
@@ -386,15 +386,15 @@ func (sg *SitrepGenerator) generateProjectStatus() SitrepSection {
 	}
 }
 
-// generateThreatAssessment creates threat assessment section  
+// generateThreatAssessment creates threat assessment section
 func (sg *SitrepGenerator) generateThreatAssessment() SitrepSection {
 	var content strings.Builder
-	
+
 	content.WriteString("**Threat Assessment**\n\n")
-	
+
 	// Analyze potential AI infiltration indicators
 	suspiciousActivity := sg.analyzeSuspiciousActivity()
-	
+
 	if len(suspiciousActivity) == 0 {
 		content.WriteString("• No indicators of AI infiltration detected\n")
 		content.WriteString("• All personnel behavior within expected parameters\n")
@@ -406,14 +406,14 @@ func (sg *SitrepGenerator) generateThreatAssessment() SitrepSection {
 		}
 		content.WriteString("\n• Recommendation: Enhanced monitoring and verification protocols\n")
 	}
-	
+
 	// Crisis threat level
 	if sg.gameState.CrisisEvent != nil {
 		content.WriteString(fmt.Sprintf("\n**Active Crisis Threat**: %s\n", sg.gameState.CrisisEvent.Title))
 		content.WriteString("• Enhanced security protocols in effect\n")
 		content.WriteString("• Recommend immediate response coordination\n")
 	}
-	
+
 	return SitrepSection{
 		Title:   "Threat Assessment",
 		Content: content.String(),
@@ -424,26 +424,26 @@ func (sg *SitrepGenerator) generateThreatAssessment() SitrepSection {
 // generateRecommendations creates recommendations section
 func (sg *SitrepGenerator) generateRecommendations() SitrepSection {
 	var content strings.Builder
-	
+
 	content.WriteString("**Strategic Recommendations**\n\n")
-	
+
 	recommendations := sg.generateStrategicRecommendations()
-	
+
 	content.WriteString("**Priority Actions:**\n")
 	for i, rec := range recommendations {
 		content.WriteString(fmt.Sprintf("%d. %s\n", i+1, rec))
 	}
-	
+
 	// Add operational guidance
 	content.WriteString("\n**Operational Guidance:**\n")
 	content.WriteString("• Continue monitoring all personnel for anomalous behavior\n")
 	content.WriteString("• Maintain secure communication protocols\n")
 	content.WriteString("• Report any suspicious activity immediately\n")
-	
+
 	if sg.gameState.Phase.Type == core.PhaseNight {
 		content.WriteString("• Night shift protocols in effect - limit unnecessary movement\n")
 	}
-	
+
 	return SitrepSection{
 		Title:   "Recommendations",
 		Content: content.String(),
@@ -457,7 +457,7 @@ func (sg *SitrepGenerator) applyHotfixRedaction(sitrep *DailySitrep) {
 	if sg.gameState.CrisisEvent != nil {
 		if section, exists := sg.gameState.CrisisEvent.Effects["redacted_section"]; exists {
 			sectionName := section.(string)
-			
+
 			// Find and redact the specified section
 			for i := range sitrep.Sections {
 				if sg.matchesSectionType(sitrep.Sections[i].Title, sectionName) {
@@ -474,11 +474,11 @@ func (sg *SitrepGenerator) applyHotfixRedaction(sitrep *DailySitrep) {
 func (sg *SitrepGenerator) matchesSectionType(sectionTitle, redactionTarget string) bool {
 	switch redactionTarget {
 	case "security_alerts", "investigation_results":
-		return strings.Contains(strings.ToLower(sectionTitle), "security") || 
-		       strings.Contains(strings.ToLower(sectionTitle), "threat")
+		return strings.Contains(strings.ToLower(sectionTitle), "security") ||
+			strings.Contains(strings.ToLower(sectionTitle), "threat")
 	case "operational_metrics", "mining_results":
 		return strings.Contains(strings.ToLower(sectionTitle), "operational") ||
-		       strings.Contains(strings.ToLower(sectionTitle), "metrics")
+			strings.Contains(strings.ToLower(sectionTitle), "metrics")
 	case "personnel_status":
 		return strings.Contains(strings.ToLower(sectionTitle), "personnel")
 	case "project_status":
@@ -493,7 +493,7 @@ func (sg *SitrepGenerator) matchesSectionType(sectionTitle, redactionTarget stri
 // detectSecurityAnomalies identifies potential security issues
 func (sg *SitrepGenerator) detectSecurityAnomalies() []string {
 	anomalies := make([]string, 0)
-	
+
 	// Check for high AI equity accumulation
 	for _, player := range sg.gameState.Players {
 		if player.IsAlive && player.AIEquity >= 3 {
@@ -501,7 +501,7 @@ func (sg *SitrepGenerator) detectSecurityAnomalies() []string {
 			break
 		}
 	}
-	
+
 	// Check for rapid token accumulation
 	maxTokens := 0
 	for _, player := range sg.gameState.Players {
@@ -512,26 +512,26 @@ func (sg *SitrepGenerator) detectSecurityAnomalies() []string {
 	if maxTokens >= 7 {
 		anomalies = append(anomalies, "Unusual resource concentration detected")
 	}
-	
+
 	// Check for role ability usage patterns (this would need historical data)
 	if sg.gameState.DayNumber > 2 {
 		anomalies = append(anomalies, "Analyzing behavioral patterns for deviations")
 	}
-	
+
 	return anomalies
 }
 
 // analyzeSuspiciousActivity looks for AI infiltration indicators
 func (sg *SitrepGenerator) analyzeSuspiciousActivity() []string {
 	indicators := make([]string, 0)
-	
+
 	// This would be more sophisticated with historical data
 	// For now, provide generic indicators based on game state
-	
+
 	if sg.gameState.DayNumber >= 3 {
 		indicators = append(indicators, "Multiple nights of activity - pattern analysis ongoing")
 	}
-	
+
 	// Check elimination patterns
 	eliminatedCount := 0
 	for _, player := range sg.gameState.Players {
@@ -539,27 +539,27 @@ func (sg *SitrepGenerator) analyzeSuspiciousActivity() []string {
 			eliminatedCount++
 		}
 	}
-	
+
 	if eliminatedCount >= 2 {
 		indicators = append(indicators, "Personnel reduction rate exceeds baseline expectations")
 	}
-	
+
 	// Add some randomized realistic indicators
 	if sg.rng.Float64() < 0.3 { // 30% chance
 		indicators = append(indicators, "Irregular access patterns detected in secure systems")
 	}
-	
+
 	if sg.rng.Float64() < 0.2 { // 20% chance
 		indicators = append(indicators, "Communication metadata analysis shows anomalous patterns")
 	}
-	
+
 	return indicators
 }
 
 // generateStrategicRecommendations creates context-aware recommendations
 func (sg *SitrepGenerator) generateStrategicRecommendations() []string {
 	recommendations := make([]string, 0)
-	
+
 	// Based on game state
 	aliveCount := 0
 	for _, player := range sg.gameState.Players {
@@ -567,15 +567,15 @@ func (sg *SitrepGenerator) generateStrategicRecommendations() []string {
 			aliveCount++
 		}
 	}
-	
+
 	if aliveCount <= 4 {
 		recommendations = append(recommendations, "Critical personnel threshold reached - implement emergency protocols")
 	}
-	
+
 	if sg.gameState.CrisisEvent != nil {
 		recommendations = append(recommendations, "Address active crisis event with coordinated response")
 	}
-	
+
 	// Check for low project milestone progress
 	lowProgress := 0
 	for _, player := range sg.gameState.Players {
@@ -586,22 +586,22 @@ func (sg *SitrepGenerator) generateStrategicRecommendations() []string {
 	if lowProgress > aliveCount/2 {
 		recommendations = append(recommendations, "Accelerate project milestone completion to unlock personnel capabilities")
 	}
-	
+
 	// Generic strategic recommendations
 	recommendations = append(recommendations, "Maintain vigilant observation of all personnel interactions")
 	recommendations = append(recommendations, "Continue verification of personnel alignment and loyalty")
-	
+
 	if sg.gameState.Phase.Type == core.PhaseNight {
 		recommendations = append(recommendations, "Coordinate night operations for maximum security and efficiency")
 	}
-	
+
 	return recommendations
 }
 
 // generateSummary creates an overall summary for the SITREP
 func (sg *SitrepGenerator) generateSummary() string {
 	alertLevel := sg.determineAlertLevel()
-	
+
 	switch alertLevel {
 	case "CRITICAL":
 		return "Company security at critical risk. Immediate executive action required."
@@ -616,7 +616,7 @@ func (sg *SitrepGenerator) generateSummary() string {
 
 // generateFooterNote creates the footer disclaimer
 func (sg *SitrepGenerator) generateFooterNote() string {
-	return fmt.Sprintf("SITREP generated at %s | Classification: INTERNAL USE ONLY | Report Day %d", 
+	return fmt.Sprintf("SITREP generated at %s | Classification: INTERNAL USE ONLY | Report Day %d",
 		getCurrentTime().Format("15:04 MST"), sg.gameState.DayNumber)
 }
 
@@ -625,7 +625,7 @@ func (sg *SitrepGenerator) getRoleWeight(player *core.Player) int {
 	if player.Role == nil {
 		return 0
 	}
-	
+
 	switch player.Role.Type {
 	case core.RoleCEO:
 		return 10

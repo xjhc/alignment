@@ -97,27 +97,74 @@ func (nrm *NightResolutionManager) resolveMiningActions() []core.Event {
 
 	// Collect all mining requests from non-blocked players
 	for playerID, action := range nrm.gameState.NightActions {
-		if action.Type == "MINE" {
+		if action.Type == "MINE_TOKENS" || action.Type == "MINE" {
 			// Check if player is blocked
 			if nrm.isPlayerBlocked(playerID) {
 				continue // Blocked players cannot mine
 			}
 
-			if action.TargetID != "" {
-				miningRequests = append(miningRequests, MiningRequest{
-					MinerID:  playerID,
-					TargetID: action.TargetID,
-				})
+			// For mining actions, the target is who gets the tokens
+			targetID := action.TargetID
+			if targetID == "" {
+				// If no target specified, they're mining for themselves (not allowed by rules)
+				continue
+			}
+
+			miningRequests = append(miningRequests, MiningRequest{
+				MinerID:  playerID,
+				TargetID: targetID,
+			})
+		}
+	}
+
+	// Use mining manager to resolve requests with corporate mandate and crisis effects
+	miningManager := NewMiningManager(nrm.gameState)
+	result := miningManager.ResolveMining(miningRequests)
+
+	// Apply results to players and generate events
+	var events []core.Event
+
+	// Award tokens to successful mining targets
+	for minerID, targetID := range result.SuccessfulMines {
+		target := nrm.gameState.Players[targetID]
+		miner := nrm.gameState.Players[minerID]
+		
+		if target != nil && miner != nil {
+			// Award the token
+			target.Tokens++
+			
+			// Create success event
+			event := core.Event{
+				ID:        fmt.Sprintf("mining_success_%s_%s", minerID, targetID),
+				Type:      core.EventMiningSuccessful,
+				GameID:    nrm.gameState.ID,
+				PlayerID:  targetID, // Token goes to target
+				Timestamp: getCurrentTime(),
+				Payload: map[string]interface{}{
+					"miner_id":    minerID,
+					"miner_name":  miner.Name,
+					"target_id":   targetID,
+					"target_name": target.Name,
+					"amount":      1,
+				},
+			}
+			events = append(events, event)
+		}
+	}
+
+	// Update failed miners' status messages for priority next round
+	for playerID := range nrm.gameState.NightActions {
+		if nrm.gameState.NightActions[playerID].Type == "MINE_TOKENS" || nrm.gameState.NightActions[playerID].Type == "MINE" {
+			// Check if this player failed
+			if _, succeeded := result.SuccessfulMines[playerID]; !succeeded {
+				if player := nrm.gameState.Players[playerID]; player != nil {
+					player.StatusMessage = "Mining failed - no slots available"
+				}
 			}
 		}
 	}
 
-	// Use mining manager to resolve requests
-	miningManager := NewMiningManager(nrm.gameState)
-	result := miningManager.ResolveMining(miningRequests)
-
-	// Generate events for mining results
-	return miningManager.UpdatePlayerTokens(result)
+	return events
 }
 
 // resolveRoleAbilities handles role-specific abilities (audit, overclock, etc.)
@@ -220,7 +267,7 @@ func (nrm *NightResolutionManager) resolveOtherNightActions() []core.Event {
 			if nrm.canPlayerUseAbility(playerID, "PROTECT") {
 				events = append(events, nrm.resolveProtectAction(playerID, action))
 			}
-		case "CONVERT":
+		case "ATTEMPT_CONVERSION":
 			if nrm.canPlayerUseAbility(playerID, "CONVERT") {
 				events = append(events, nrm.resolveConvertAction(playerID, action)...)
 			}
@@ -290,6 +337,49 @@ func (nrm *NightResolutionManager) resolveProtectAction(playerID string, action 
 func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action *core.SubmittedNightAction) []core.Event {
 	targetID := action.TargetID
 	target := nrm.gameState.Players[targetID]
+	player := nrm.gameState.Players[playerID]
+
+	// Check if AI conversions are blocked by crisis event
+	if nrm.gameState.CrisisEvent != nil {
+		if blocked, exists := nrm.gameState.CrisisEvent.Effects["block_ai_conversions"]; exists {
+			if isBlocked, ok := blocked.(bool); ok && isBlocked {
+				return []core.Event{{
+					ID:        fmt.Sprintf("night_convert_crisis_blocked_%s_%s", playerID, targetID),
+					Type:      core.EventSystemMessage,
+					GameID:    nrm.gameState.ID,
+					PlayerID:  playerID,
+					Timestamp: getCurrentTime(),
+					Payload: map[string]interface{}{
+						"message": "AI conversion blocked by active crisis protocols",
+						"crisis":  nrm.gameState.CrisisEvent.Title,
+					},
+				}}
+			}
+		}
+	}
+
+	// Check corporate mandate restrictions
+	if nrm.gameState.CorporateMandate != nil && nrm.gameState.CorporateMandate.IsActive {
+		if blockVal, exists := nrm.gameState.CorporateMandate.Effects["block_ai_odd_nights"]; exists {
+			if blockOdd, ok := blockVal.(bool); ok && blockOdd {
+				// Check if this is an odd night
+				nightNumber := nrm.gameState.DayNumber
+				if nightNumber%2 == 1 {
+					return []core.Event{{
+						ID:        fmt.Sprintf("night_convert_mandate_blocked_%s_%s", playerID, targetID),
+						Type:      core.EventSystemMessage,
+						GameID:    nrm.gameState.ID,
+						PlayerID:  playerID,
+						Timestamp: getCurrentTime(),
+						Payload: map[string]interface{}{
+							"message": "AI conversion blocked by Security Lockdown Protocol on odd nights",
+							"mandate": nrm.gameState.CorporateMandate.Name,
+						},
+					}}
+				}
+			}
+		}
+	}
 
 	// Check if target is protected
 	if nrm.isPlayerProtected(targetID) {
@@ -307,9 +397,32 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 	}
 
 	// Calculate conversion success based on AI Equity vs Player Tokens
-	player := nrm.gameState.Players[playerID]
-	if player.AIEquity > target.Tokens {
-		// Successful conversion
+	conversionThreshold := player.AIEquity
+	
+	// Check for crisis AI equity bonus
+	if nrm.gameState.CrisisEvent != nil {
+		if bonus, exists := nrm.gameState.CrisisEvent.Effects["ai_equity_bonus"]; exists {
+			if bonusVal, ok := bonus.(int); ok {
+				conversionThreshold += bonusVal
+			}
+		}
+	}
+
+	if conversionThreshold > target.Tokens {
+		// Successful conversion - target becomes AI aligned
+		target.Alignment = "ALIGNED"
+		
+		// Apply AI equity bonus from crisis if applicable
+		equityGained := 1
+		if nrm.gameState.CrisisEvent != nil {
+			if bonus, exists := nrm.gameState.CrisisEvent.Effects["ai_equity_bonus"]; exists {
+				if bonusVal, ok := bonus.(int); ok {
+					equityGained += bonusVal
+				}
+			}
+		}
+		target.AIEquity += equityGained
+
 		return []core.Event{{
 			ID:        fmt.Sprintf("night_convert_success_%s_%s", playerID, targetID),
 			Type:      core.EventAIConversionSuccess,
@@ -317,12 +430,23 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 			PlayerID:  targetID,
 			Timestamp: getCurrentTime(),
 			Payload: map[string]interface{}{
-				"converter_id": playerID,
-				"target_id":    targetID,
+				"converter_id":       playerID,
+				"target_id":          targetID,
+				"target_name":        target.Name,
+				"ai_equity_gained":   equityGained,
+				"new_ai_equity":      target.AIEquity,
 			},
 		}}
 	} else {
-		// System shock - proves target is human
+		// System shock - proves target is human and applies shock effects
+		shock := &core.SystemShock{
+			Type:        core.ShockActionLock,
+			Description: "System integrity compromised - conversion attempt detected",
+			ExpiresAt:   getCurrentTime().Add(24 * 3600 * 1000000000), // 24 hours
+			IsActive:    true,
+		}
+		target.SystemShocks = append(target.SystemShocks, *shock)
+
 		return []core.Event{{
 			ID:        fmt.Sprintf("night_convert_shock_%s_%s", playerID, targetID),
 			Type:      core.EventPlayerShocked,
@@ -330,9 +454,12 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 			PlayerID:  targetID,
 			Timestamp: getCurrentTime(),
 			Payload: map[string]interface{}{
-				"converter_id": playerID,
-				"target_id":    targetID,
-				"reason":       "System shock from failed conversion",
+				"converter_id":   playerID,
+				"target_id":      targetID,
+				"target_name":    target.Name,
+				"reason":         "System shock from failed conversion",
+				"shock_type":     string(shock.Type),
+				"shock_duration": "24 hours",
 			},
 		}}
 	}
@@ -365,8 +492,19 @@ func (nrm *NightResolutionManager) canPlayerUseAbility(playerID, abilityType str
 		return false
 	}
 
-	// Check if player has required milestones (simplified)
-	return player.ProjectMilestones >= 3
+	// Check milestone requirements (may be modified by corporate mandate)
+	requiredMilestones := 3 // Default requirement
+	
+	// Check if corporate mandate modifies milestone requirements
+	if nrm.gameState.CorporateMandate != nil && nrm.gameState.CorporateMandate.IsActive {
+		if milestonesVal, exists := nrm.gameState.CorporateMandate.Effects["milestones_for_abilities"]; exists {
+			if milestones, ok := milestonesVal.(int); ok {
+				requiredMilestones = milestones
+			}
+		}
+	}
+
+	return player.ProjectMilestones >= requiredMilestones
 }
 
 func (nrm *NightResolutionManager) isPlayerBlocked(playerID string) bool {

@@ -88,6 +88,7 @@ const (
 	EventGameStateSnapshot   EventType = "GAME_STATE_SNAPSHOT"
 	EventPlayerReconnected   EventType = "PLAYER_RECONNECTED"
 	EventPlayerDisconnected  EventType = "PLAYER_DISCONNECTED"
+	EventSyncComplete        EventType = "SYNC_COMPLETE"
 
 	// Win Condition events
 	EventVictoryCondition EventType = "VICTORY_CONDITION"

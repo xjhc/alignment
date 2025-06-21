@@ -305,16 +305,18 @@ func TestEliminationManager_PlayerElimination(t *testing.T) {
 	}
 
 	// Test elimination
-	eliminatedPlayer, err := em.EliminatePlayer("player1")
+	events, err := em.EliminatePlayer("player1")
 	if err != nil {
 		t.Fatalf("Failed to eliminate player: %v", err)
 	}
 
-	if eliminatedPlayer.ID != "player1" {
-		t.Errorf("Expected eliminated player to be player1, got %s", eliminatedPlayer.ID)
+	if len(events) == 0 {
+		t.Error("Expected at least one event from elimination")
 	}
 
-	if eliminatedPlayer.IsAlive {
+	// Check that player is actually eliminated
+	player := state.Players["player1"]
+	if player.IsAlive {
 		t.Error("Expected eliminated player to be dead")
 	}
 
@@ -336,12 +338,13 @@ func TestEliminationManager_WinConditions(t *testing.T) {
 	state := core.NewGameState("test-game")
 	em := NewEliminationManager(state)
 
-	// Test AI wins by token majority (>51%)
+	// Test AI wins by player majority (equal or more AI than humans)
 	state.Players["human1"] = &core.Player{ID: "human1", IsAlive: true, Alignment: "HUMAN", Tokens: 4}
-	state.Players["human2"] = &core.Player{ID: "human2", IsAlive: true, Alignment: "HUMAN", Tokens: 3}
+	state.Players["human2"] = &core.Player{ID: "human2", IsAlive: true, Alignment: "HUMAN", Tokens: 2}
 	state.Players["ai1"] = &core.Player{ID: "ai1", IsAlive: true, Alignment: "ALIGNED", Tokens: 8}
+	state.Players["ai2"] = &core.Player{ID: "ai2", IsAlive: true, Alignment: "ALIGNED", Tokens: 3}
 
-	// Total tokens: 15, AI has 8 (53.3%) - AI should win
+	// 2 AI vs 2 Humans - AI should win (tie goes to AI)
 	winCondition := em.CheckWinCondition()
 	if winCondition == nil {
 		t.Fatal("Expected win condition to be detected")
@@ -357,6 +360,7 @@ func TestEliminationManager_WinConditions(t *testing.T) {
 
 	// Test humans win by eliminating all AI
 	state.Players["ai1"].IsAlive = false
+	state.Players["ai2"].IsAlive = false
 
 	winCondition = em.CheckWinCondition()
 	if winCondition == nil {
@@ -373,6 +377,7 @@ func TestEliminationManager_WinConditions(t *testing.T) {
 
 	// Test AI wins by eliminating all humans
 	state.Players["ai1"].IsAlive = true
+	state.Players["ai2"].IsAlive = true
 	state.Players["human1"].IsAlive = false
 	state.Players["human2"].IsAlive = false
 
@@ -385,14 +390,14 @@ func TestEliminationManager_WinConditions(t *testing.T) {
 		t.Errorf("Expected AI to win, got %s", winCondition.Winner)
 	}
 
-	if winCondition.Condition != "ELIMINATION" {
-		t.Errorf("Expected ELIMINATION condition, got %s", winCondition.Condition)
+	if winCondition.Condition != "SINGULARITY" {
+		t.Errorf("Expected SINGULARITY condition, got %s", winCondition.Condition)
 	}
 
 	// Test game continues when no win condition is met
 	state.Players["human1"].IsAlive = true
 	state.Players["human2"].IsAlive = true
-	state.Players["ai1"].Tokens = 3 // Reset tokens so AI doesn't have majority
+	state.Players["ai2"].IsAlive = false // Only 1 AI vs 2 humans - no win condition
 
 	winCondition = em.CheckWinCondition()
 	if winCondition != nil {

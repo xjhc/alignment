@@ -16,7 +16,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-### Backend (Go)
+### Primary Workflow (using `Makefile`)
+
+The project is managed via a `Makefile` at the root. This is the preferred way to run all common tasks. To see the full list of commands and their descriptions, run `make help`.
+
+**1. One-Time Setup**
+```bash
+# Install all Node.js dependencies
+npm install
+
+# Create the Go vendor directory for the backend
+make vendor
+
+# Ensure Redis is running in a separate terminal
+redis-server &
+```
+
+**2. Daily Development**
+```bash
+# Run both servers with hot-reloading for interactive development
+make dev
+```
+
+**3. Testing**
+```bash
+# Run all backend and frontend tests
+make test
+```
+
+**4. Background Services (for E2E tests)**
+```bash
+# Start services in the background
+make bg-start
+
+# Stop and clean up services
+make bg-stop
+```
+
+### Individual Commands
+
+#### Backend (Go)
 
 ```bash
 # Navigate to the server directory
@@ -36,7 +75,7 @@ golangci-lint run
 go tool cover -html=coverage.out
 ```
 
-### Frontend (React + Go/Wasm)
+#### Frontend (React + Go/Wasm)
 
 ```bash
 # Navigate to the client directory
@@ -141,8 +180,13 @@ func TestActor_PlayerJoinsAndVotes(t *testing.T) {
 
 This repository is in **active development**. The project has moved past the pure design phase into implementation.
 
--   **DONE**: The foundational architecture is implemented. This includes the Go server, the Supervisor/Actor model, WebSocket communication, the Redis WAL store, and the shared `/core` package structure.
+-   **DONE**:
+    -   The foundational architecture is implemented. This includes the Go server, the Supervisor/Actor model, WebSocket communication, the Redis WAL store, and the shared `/core` package structure.
+    -   Development tooling has been streamlined with `concurrently` for unified dev server management.
+    -   React/TypeScript frontend foundation is established with Vite build system.
+
 -   **IN PROGRESS**: The detailed game logic is being built out.
     -   The `core.ApplyEvent` function has a complete structure, but many individual `apply...` handlers are stubs.
     -   The `server.GameActor` is implemented but does not yet fully delegate logic to the specialized managers in `/server/internal/game`.
     -   The AI `RulesEngine` is a placeholder and needs its strategic heuristics implemented.
+    -   Frontend React components and game UI are being developed alongside the backend logic.

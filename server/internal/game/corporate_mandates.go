@@ -26,12 +26,12 @@ func NewCorporateMandateManager(gameState *core.GameState) *CorporateMandateMana
 
 // LocalCorporateMandate represents a corporate mandate with typed effects (different from state.go version)
 type LocalCorporateMandate struct {
-	Type        core.MandateType    `json:"type"`
-	Title       string         `json:"title"`
-	Description string         `json:"description"`
-	Effects     MandateEffects `json:"effects"`
-	IsActive    bool           `json:"is_active"`
-	StartDay    int            `json:"start_day"`
+	Type        core.MandateType `json:"type"`
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Effects     MandateEffects   `json:"effects"`
+	IsActive    bool             `json:"is_active"`
+	StartDay    int              `json:"start_day"`
 }
 
 // MandateEffects defines the mechanical effects of a corporate mandate
@@ -40,18 +40,18 @@ type MandateEffects struct {
 	StartingTokensModifier int `json:"starting_tokens_modifier,omitempty"`
 
 	// Mining modifications
-	MiningSuccessModifier  float64 `json:"mining_success_modifier,omitempty"`
-	ReducedMiningSlots     bool    `json:"reduced_mining_slots,omitempty"`
+	MiningSuccessModifier float64 `json:"mining_success_modifier,omitempty"`
+	ReducedMiningSlots    bool    `json:"reduced_mining_slots,omitempty"`
 
 	// Communication restrictions
-	PublicVotingOnly       bool `json:"public_voting_only,omitempty"`
-	NoDirectMessages       bool `json:"no_direct_messages,omitempty"`
+	PublicVotingOnly bool `json:"public_voting_only,omitempty"`
+	NoDirectMessages bool `json:"no_direct_messages,omitempty"`
 
 	// Milestone requirements
-	MilestonesForAbilities int  `json:"milestones_for_abilities,omitempty"`
+	MilestonesForAbilities int `json:"milestones_for_abilities,omitempty"`
 
 	// AI restrictions
-	BlockAIOddNights       bool `json:"block_ai_odd_nights,omitempty"`
+	BlockAIOddNights bool `json:"block_ai_odd_nights,omitempty"`
 
 	// Custom effects
 	CustomEffects map[string]interface{} `json:"custom_effects,omitempty"`
@@ -65,9 +65,9 @@ func (cmm *CorporateMandateManager) GetAllCorporateMandates() []LocalCorporateMa
 			Title:       "Aggressive Growth Quarter",
 			Description: "The board has declared an aggressive growth period. All personnel start with enhanced resources, but infrastructure capacity is strained.",
 			Effects: MandateEffects{
-				StartingTokensModifier: 1,                   // +1 starting token (total 3)
-				MiningSuccessModifier:  0.75,                // 25% reduced mining success
-				ReducedMiningSlots:     true,                // Fewer mining slots available
+				StartingTokensModifier: 1,    // +1 starting token (total 3)
+				MiningSuccessModifier:  0.75, // 25% reduced mining success
+				ReducedMiningSlots:     true, // Fewer mining slots available
 			},
 			IsActive: false,
 		},
@@ -76,8 +76,8 @@ func (cmm *CorporateMandateManager) GetAllCorporateMandates() []LocalCorporateMa
 			Title:       "Total Transparency Initiative",
 			Description: "In response to recent concerns, all company decisions must be made transparently. Private communications and secret voting are suspended.",
 			Effects: MandateEffects{
-				PublicVotingOnly:  true, // All votes must be public
-				NoDirectMessages:  true, // No private communications allowed
+				PublicVotingOnly: true, // All votes must be public
+				NoDirectMessages: true, // No private communications allowed
 			},
 			IsActive: false,
 		},
@@ -87,7 +87,7 @@ func (cmm *CorporateMandateManager) GetAllCorporateMandates() []LocalCorporateMa
 			Description: "Enhanced security measures are in effect. Higher security clearance required for all operations, and AI systems are restricted on odd nights.",
 			Effects: MandateEffects{
 				MilestonesForAbilities: 4,    // Need 4 milestones instead of 3
-				BlockAIOddNights:      true,  // AI cannot convert on nights 1, 3, 5, etc.
+				BlockAIOddNights:       true, // AI cannot convert on nights 1, 3, 5, etc.
 			},
 			IsActive: false,
 		},

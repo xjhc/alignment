@@ -26,18 +26,18 @@ func NewCrisisEventManager(gameState *core.GameState) *CrisisEventManager {
 type CrisisEventType string
 
 const (
-	CrisisDBCorruption        CrisisEventType = "Database Index Corruption"
-	CrisisServerFailure       CrisisEventType = "Cascading Server Failure"
-	CrisisEmergencyBoard      CrisisEventType = "Emergency Board Meeting"
-	CrisisTaintedData         CrisisEventType = "Tainted Training Data"
-	CrisisNightmareScenario   CrisisEventType = "Nightmare Scenario"
-	CrisisPressLeak           CrisisEventType = "Press Leak"
-	CrisisIncidentResponse    CrisisEventType = "Incident Response Drill"
-	CrisisServiceOutage       CrisisEventType = "Major Service Outage"
-	CrisisPhishingAttack      CrisisEventType = "Phishing Attack"
-	CrisisDataPrivacyAudit    CrisisEventType = "Data Privacy Audit"
-	CrisisVendorSecBreach     CrisisEventType = "Vendor Security Breach"
-	CrisisRegulatoryReview    CrisisEventType = "Regulatory Review"
+	CrisisDBCorruption      CrisisEventType = "Database Index Corruption"
+	CrisisServerFailure     CrisisEventType = "Cascading Server Failure"
+	CrisisEmergencyBoard    CrisisEventType = "Emergency Board Meeting"
+	CrisisTaintedData       CrisisEventType = "Tainted Training Data"
+	CrisisNightmareScenario CrisisEventType = "Nightmare Scenario"
+	CrisisPressLeak         CrisisEventType = "Press Leak"
+	CrisisIncidentResponse  CrisisEventType = "Incident Response Drill"
+	CrisisServiceOutage     CrisisEventType = "Major Service Outage"
+	CrisisPhishingAttack    CrisisEventType = "Phishing Attack"
+	CrisisDataPrivacyAudit  CrisisEventType = "Data Privacy Audit"
+	CrisisVendorSecBreach   CrisisEventType = "Vendor Security Breach"
+	CrisisRegulatoryReview  CrisisEventType = "Regulatory Review"
 )
 
 // CrisisEventDefinition defines a crisis event's properties and effects
@@ -56,20 +56,20 @@ type CrisisEffects struct {
 	VotingModifier        float64 `json:"voting_modifier,omitempty"`
 
 	// Communication restrictions
-	MessageLimit         int  `json:"message_limit,omitempty"`
-	PublicVotingOnly     bool `json:"public_voting_only,omitempty"`
-	NoPrivateMessages    bool `json:"no_private_messages,omitempty"`
+	MessageLimit      int  `json:"message_limit,omitempty"`
+	PublicVotingOnly  bool `json:"public_voting_only,omitempty"`
+	NoPrivateMessages bool `json:"no_private_messages,omitempty"`
 
 	// AI conversion modifiers
-	AIEquityBonus        int  `json:"ai_equity_bonus,omitempty"`
-	BlockAIConversions   bool `json:"block_ai_conversions,omitempty"`
+	AIEquityBonus      int  `json:"ai_equity_bonus,omitempty"`
+	BlockAIConversions bool `json:"block_ai_conversions,omitempty"`
 
 	// Special mechanics
-	DoubleEliminations   bool     `json:"double_eliminations,omitempty"`
-	RevealRandomRole     bool     `json:"reveal_random_role,omitempty"`
-	RevealedPlayerID     string   `json:"revealed_player_id,omitempty"`
-	ReducedMiningPool    bool     `json:"reduced_mining_pool,omitempty"`
-	MandatoryInvestigate bool     `json:"mandatory_investigate,omitempty"`
+	DoubleEliminations   bool   `json:"double_eliminations,omitempty"`
+	RevealRandomRole     bool   `json:"reveal_random_role,omitempty"`
+	RevealedPlayerID     string `json:"revealed_player_id,omitempty"`
+	ReducedMiningPool    bool   `json:"reduced_mining_pool,omitempty"`
+	MandatoryInvestigate bool   `json:"mandatory_investigate,omitempty"`
 
 	// Custom effects
 	CustomEffects map[string]interface{} `json:"custom_effects,omitempty"`
@@ -187,8 +187,8 @@ func (cem *CrisisEventManager) GetAllCrisisEvents() []CrisisEventDefinition {
 			Description: "Government regulators are conducting an emergency review. All decisions require enhanced justification.",
 			Effects: CrisisEffects{
 				CustomEffects: map[string]interface{}{
-					"extended_discussion": true,  // Longer discussion phases
-					"vote_explanations":   true,  // Players must explain votes
+					"extended_discussion": true, // Longer discussion phases
+					"vote_explanations":   true, // Players must explain votes
 				},
 			},
 			Duration: 3,

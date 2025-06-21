@@ -153,8 +153,8 @@ func NewEliminationManager(gameState *core.GameState) *EliminationManager {
 	}
 }
 
-// EliminatePlayer removes a player from the game
-func (em *EliminationManager) EliminatePlayer(playerID string) (*core.Player, error) {
+// EliminatePlayer removes a player from the game and handles special cases
+func (em *EliminationManager) EliminatePlayer(playerID string) ([]core.Event, error) {
 	player, exists := em.gameState.Players[playerID]
 	if !exists {
 		return nil, fmt.Errorf("player %s not found", playerID)
@@ -164,64 +164,71 @@ func (em *EliminationManager) EliminatePlayer(playerID string) (*core.Player, er
 		return nil, fmt.Errorf("player %s is already eliminated", playerID)
 	}
 
-	// Mark player as eliminated
+	var events []core.Event
+
+	// Check for Scapegoat KPI achievement before elimination
+	if em.gameState.VoteState != nil && core.CheckScapegoatKPI(*player, *em.gameState.VoteState) {
+		kpiEvent := core.Event{
+			ID:        fmt.Sprintf("kpi_completed_%s_%d", playerID, getCurrentTime().UnixNano()),
+			Type:      core.EventKPICompleted,
+			GameID:    em.gameState.ID,
+			PlayerID:  playerID,
+			Timestamp: getCurrentTime(),
+			Payload: map[string]interface{}{
+				"kpi_type": string(core.KPIScapegoat),
+				"achievement": "Eliminated by unanimous vote",
+			},
+		}
+		events = append(events, kpiEvent)
+		
+		// Award tokens for KPI completion
+		tokenReward := core.CalculateTokenReward(core.EventKPICompleted, *player, *em.gameState)
+		if tokenReward > 0 {
+			tokenEvent := core.Event{
+				ID:        fmt.Sprintf("tokens_awarded_%s_%d", playerID, getCurrentTime().UnixNano()),
+				Type:      core.EventTokensAwarded,
+				GameID:    em.gameState.ID,
+				PlayerID:  playerID,
+				Timestamp: getCurrentTime(),
+				Payload: map[string]interface{}{
+					"amount": tokenReward,
+					"reason": "KPI completion reward",
+				},
+			}
+			events = append(events, tokenEvent)
+		}
+	}
+
+	// Create elimination event
+	roleType := ""
+	if player.Role != nil {
+		roleType = string(player.Role.Type)
+	}
+
+	eliminationEvent := core.Event{
+		ID:        fmt.Sprintf("player_eliminated_%s_%d", playerID, getCurrentTime().UnixNano()),
+		Type:      core.EventPlayerEliminated,
+		GameID:    em.gameState.ID,
+		PlayerID:  playerID,
+		Timestamp: getCurrentTime(),
+		Payload: map[string]interface{}{
+			"role_type":    roleType,
+			"alignment":    player.Alignment,
+			"parting_shot": player.PartingShot,
+			"tokens":       player.Tokens,
+		},
+	}
+	events = append(events, eliminationEvent)
+
+	// Actually eliminate the player
 	player.IsAlive = false
 
-	// Return the eliminated player for role/alignment reveal
-	return player, nil
+	return events, nil
 }
 
 // CheckWinCondition evaluates if either faction has won
 func (em *EliminationManager) CheckWinCondition() *core.WinCondition {
-	aliveHumans := 0
-	aliveAligned := 0
-	totalTokens := 0
-	alignedTokens := 0
-
-	for _, player := range em.gameState.Players {
-		if player.IsAlive {
-			totalTokens += player.Tokens
-
-			if player.Alignment == "ALIGNED" {
-				aliveAligned++
-				alignedTokens += player.Tokens
-			} else if player.Alignment == "HUMAN" {
-				aliveHumans++
-			}
-		}
-	}
-
-	// Check elimination conditions first (higher priority)
-
-	// AI wins if no humans remain
-	if aliveHumans == 0 && aliveAligned > 0 {
-		return &core.WinCondition{
-			Winner:      "AI",
-			Condition:   "ELIMINATION",
-			Description: "All human players have been eliminated or converted",
-		}
-	}
-
-	// Humans win if no aligned players remain (Containment)
-	if aliveAligned == 0 && aliveHumans > 0 {
-		return &core.WinCondition{
-			Winner:      "HUMANS",
-			Condition:   "CONTAINMENT",
-			Description: "All AI-aligned players have been eliminated",
-		}
-	}
-
-	// AI wins if they control 51% of tokens (Singularity)
-	if totalTokens > 0 && float64(alignedTokens)/float64(totalTokens) > 0.51 {
-		return &core.WinCondition{
-			Winner:      "AI",
-			Condition:   "SINGULARITY",
-			Description: "AI has achieved token majority control",
-		}
-	}
-
-	// Game continues
-	return nil
+	return core.CheckWinCondition(*em.gameState)
 }
 
 // GetAlivePlayerCount returns the number of living players
@@ -319,10 +326,10 @@ func (vv *VoteValidator) IsValidVotePhase(voteType core.VoteType) error {
 // HandleVoteAction processes a vote action and returns events
 func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, error) {
 	targetID, _ := action.Payload["target_id"].(string)
-	
+
 	// Create validator to check if vote is valid
 	validator := NewVoteValidator(vm.gameState)
-	
+
 	// Determine vote type based on current phase
 	var voteType core.VoteType
 	switch vm.gameState.Phase.Type {
@@ -335,24 +342,47 @@ func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, err
 	default:
 		return nil, fmt.Errorf("voting not allowed in phase %s", vm.gameState.Phase.Type)
 	}
-	
+
+	// Initialize vote state if needed
+	if vm.gameState.VoteState == nil {
+		vm.StartVote(voteType)
+	}
+
 	// Validate the vote
 	if err := validator.IsValidVotePhase(voteType); err != nil {
 		return nil, err
 	}
-	
+
 	if err := validator.CanPlayerVote(action.PlayerID); err != nil {
 		return nil, err
 	}
-	
+
 	if targetID != "" {
 		if err := validator.CanPlayerBeVoted(targetID, voteType); err != nil {
 			return nil, err
 		}
 	}
-	
-	// Create the vote event
-	event := core.Event{
+
+	var events []core.Event
+
+	// Create vote started event if this is the first vote of this type
+	if len(vm.gameState.VoteState.Votes) == 0 {
+		voteStartedEvent := core.Event{
+			ID:        fmt.Sprintf("vote_started_%s_%d", voteType, getCurrentTime().UnixNano()),
+			Type:      core.EventVoteStarted,
+			GameID:    vm.gameState.ID,
+			PlayerID:  "",
+			Timestamp: getCurrentTime(),
+			Payload: map[string]interface{}{
+				"vote_type": string(voteType),
+				"phase":     string(vm.gameState.Phase.Type),
+			},
+		}
+		events = append(events, voteStartedEvent)
+	}
+
+	// Create the vote cast event
+	voteCastEvent := core.Event{
 		ID:        fmt.Sprintf("vote_%s_%s_%d", action.PlayerID, targetID, getCurrentTime().UnixNano()),
 		Type:      core.EventVoteCast,
 		GameID:    vm.gameState.ID,
@@ -363,6 +393,7 @@ func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, err
 			"vote_type": string(voteType),
 		},
 	}
-	
-	return []core.Event{event}, nil
+	events = append(events, voteCastEvent)
+
+	return events, nil
 }

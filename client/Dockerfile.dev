@@ -1,0 +1,16 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache su-exec netcat-openbsd
+
+# Copy the entrypoint script from the project root
+COPY scripts/entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+WORKDIR /app/client
+
+# Copy package files and install dependencies first to leverage caching
+COPY client/package.json client/package-lock.json ./
+RUN npm install
+
+ENTRYPOINT ["entrypoint.sh"]
+CMD ["npm", "run", "dev"]

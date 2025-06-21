@@ -29,7 +29,7 @@ const (
 
 // TimerAction represents an action to execute when timer expires
 type TimerAction struct {
-	Type    core.ActionType             `json:"type"`
+	Type    core.ActionType        `json:"type"`
 	Payload map[string]interface{} `json:"payload"`
 }
 

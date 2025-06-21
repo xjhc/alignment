@@ -256,7 +256,7 @@ func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
 		t.Errorf("Expected 1 event, got %d", len(events))
 	}
 
-	if events[0].Type != EventAIConversionSuccess {
+	if events[0].Type != core.EventAIConversionSuccess {
 		t.Errorf("Expected EventAIConversionSuccess, got %s", events[0].Type)
 	}
 
@@ -268,7 +268,7 @@ func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
 		t.Errorf("Expected 1 event, got %d", len(events))
 	}
 
-	if events[0].Type != EventPlayerShocked {
+	if events[0].Type != core.EventPlayerShocked {
 		t.Errorf("Expected EventPlayerShocked, got %s", events[0].Type)
 	}
 
@@ -284,7 +284,7 @@ func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
 		t.Errorf("Expected 1 event, got %d", len(events))
 	}
 
-	if events[0].Type != EventSystemMessage {
+	if events[0].Type != core.EventSystemMessage {
 		t.Errorf("Expected EventSystemMessage (blocked), got %s", events[0].Type)
 	}
 }
@@ -314,7 +314,7 @@ func TestNightResolutionManager_ResolveProtectAction(t *testing.T) {
 
 	event := resolver.resolveProtectAction("protector", action)
 
-	if event.Type != EventPlayerProtected {
+	if event.Type != core.EventPlayerProtected {
 		t.Errorf("Expected EventPlayerProtected, got %s", event.Type)
 	}
 
@@ -342,7 +342,7 @@ func TestNightResolutionManager_ResolveInvestigateAction(t *testing.T) {
 		Name:              "Target Player",
 		IsAlive:           true,
 		Alignment:         "ALIGNED",
-		Role:              &Role{Type: RoleCTO, Name: "CTO"},
+		Role:              &core.Role{Type: core.RoleCTO, Name: "CTO"},
 		ProjectMilestones: 3,
 	}
 
@@ -356,7 +356,7 @@ func TestNightResolutionManager_ResolveInvestigateAction(t *testing.T) {
 
 	event := resolver.resolveInvestigateAction("investigator", action)
 
-	if event.Type != EventPlayerInvestigated {
+	if event.Type != core.EventPlayerInvestigated {
 		t.Errorf("Expected EventPlayerInvestigated, got %s", event.Type)
 	}
 

@@ -4,6 +4,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/xjhc/alignment/core"
 )
 
 // TestScheduler_BasicTimerScheduling tests basic timer functionality
@@ -246,7 +248,7 @@ func TestPhaseManager_PhaseTransitions(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	settings := GameSettings{
+	settings := core.GameSettings{
 		SitrepDuration:     15 * time.Second,
 		PulseCheckDuration: 30 * time.Second,
 		DiscussionDuration: 2 * time.Minute,
@@ -261,7 +263,7 @@ func TestPhaseManager_PhaseTransitions(t *testing.T) {
 
 	// Test SITREP phase transition
 	phaseStartTime := time.Now()
-	pm.SchedulePhaseTransition(PhaseSitrep, phaseStartTime)
+	pm.SchedulePhaseTransition(core.PhaseSitrep, phaseStartTime)
 
 	// Wait a short time for scheduling
 	time.Sleep(10 * time.Millisecond)
@@ -294,7 +296,7 @@ func TestPhaseManager_PhaseTransitions(t *testing.T) {
 
 	// Check timer action payload
 	nextPhase, exists := sitrepTimer.Action.Payload["next_phase"].(string)
-	if !exists || nextPhase != string(PhasePulseCheck) {
+	if !exists || nextPhase != string(core.PhasePulseCheck) {
 		t.Errorf("Expected next phase to be PULSE_CHECK, got %v", nextPhase)
 	}
 }
@@ -305,7 +307,7 @@ func TestPhaseManager_AllPhaseTransitions(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	settings := GameSettings{
+	settings := core.GameSettings{
 		SitrepDuration:     100 * time.Millisecond,
 		PulseCheckDuration: 100 * time.Millisecond,
 		DiscussionDuration: 100 * time.Millisecond,
@@ -319,26 +321,26 @@ func TestPhaseManager_AllPhaseTransitions(t *testing.T) {
 	pm := NewPhaseManager(scheduler, "test-game", settings)
 
 	// Test all phase transitions
-	phases := []PhaseType{
-		PhaseSitrep,
-		PhasePulseCheck,
-		PhaseDiscussion,
-		PhaseExtension,
-		PhaseNomination,
-		PhaseTrial,
-		PhaseVerdict,
-		PhaseNight,
+	phases := []core.PhaseType{
+		core.PhaseSitrep,
+		core.PhasePulseCheck,
+		core.PhaseDiscussion,
+		core.PhaseExtension,
+		core.PhaseNomination,
+		core.PhaseTrial,
+		core.PhaseVerdict,
+		core.PhaseNight,
 	}
 
-	expectedNextPhases := []PhaseType{
-		PhasePulseCheck,
-		PhaseDiscussion,
-		PhaseExtension,
-		PhaseNomination,
-		PhaseTrial,
-		PhaseVerdict,
-		PhaseNight,
-		PhaseSitrep, // Night wraps back to SITREP
+	expectedNextPhases := []core.PhaseType{
+		core.PhasePulseCheck,
+		core.PhaseDiscussion,
+		core.PhaseExtension,
+		core.PhaseNomination,
+		core.PhaseTrial,
+		core.PhaseVerdict,
+		core.PhaseNight,
+		core.PhaseSitrep, // Night wraps back to SITREP
 	}
 
 	for i, phase := range phases {
@@ -382,14 +384,14 @@ func TestPhaseManager_CancelTransitions(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	settings := GameSettings{
+	settings := core.GameSettings{
 		SitrepDuration: 1 * time.Second,
 	}
 
 	pm := NewPhaseManager(scheduler, "test-game", settings)
 
 	// Schedule a transition
-	pm.SchedulePhaseTransition(PhaseSitrep, time.Now())
+	pm.SchedulePhaseTransition(core.PhaseSitrep, time.Now())
 
 	// Verify timer was scheduled
 	activeTimers := scheduler.GetActiveTimers()
@@ -409,7 +411,7 @@ func TestPhaseManager_CancelTransitions(t *testing.T) {
 
 // TestPhaseDurationHelpers tests phase duration helper functions
 func TestPhaseDurationHelpers(t *testing.T) {
-	settings := GameSettings{
+	settings := core.GameSettings{
 		SitrepDuration:     15 * time.Second,
 		PulseCheckDuration: 30 * time.Second,
 		DiscussionDuration: 2 * time.Minute,
@@ -422,18 +424,18 @@ func TestPhaseDurationHelpers(t *testing.T) {
 
 	// Test getPhaseDuration
 	testCases := []struct {
-		phase    PhaseType
+		phase    core.PhaseType
 		expected time.Duration
 	}{
-		{PhaseSitrep, 15 * time.Second},
-		{PhasePulseCheck, 30 * time.Second},
-		{PhaseDiscussion, 2 * time.Minute},
-		{PhaseExtension, 15 * time.Second},
-		{PhaseNomination, 30 * time.Second},
-		{PhaseTrial, 30 * time.Second},
-		{PhaseVerdict, 30 * time.Second},
-		{PhaseNight, 30 * time.Second},
-		{PhaseLobby, 0}, // Unknown phase
+		{core.PhaseSitrep, 15 * time.Second},
+		{core.PhasePulseCheck, 30 * time.Second},
+		{core.PhaseDiscussion, 2 * time.Minute},
+		{core.PhaseExtension, 15 * time.Second},
+		{core.PhaseNomination, 30 * time.Second},
+		{core.PhaseTrial, 30 * time.Second},
+		{core.PhaseVerdict, 30 * time.Second},
+		{core.PhaseNight, 30 * time.Second},
+		{core.PhaseLobby, 0}, // Unknown phase
 	}
 
 	for _, tc := range testCases {
@@ -445,18 +447,18 @@ func TestPhaseDurationHelpers(t *testing.T) {
 
 	// Test getNextPhase
 	transitionCases := []struct {
-		current PhaseType
-		next    PhaseType
+		current core.PhaseType
+		next    core.PhaseType
 	}{
-		{PhaseSitrep, PhasePulseCheck},
-		{PhasePulseCheck, PhaseDiscussion},
-		{PhaseDiscussion, PhaseExtension},
-		{PhaseExtension, PhaseNomination},
-		{PhaseNomination, PhaseTrial},
-		{PhaseTrial, PhaseVerdict},
-		{PhaseVerdict, PhaseNight},
-		{PhaseNight, PhaseSitrep},
-		{PhaseLobby, PhaseGameOver}, // Unknown phase
+		{core.PhaseSitrep, core.PhasePulseCheck},
+		{core.PhasePulseCheck, core.PhaseDiscussion},
+		{core.PhaseDiscussion, core.PhaseExtension},
+		{core.PhaseExtension, core.PhaseNomination},
+		{core.PhaseNomination, core.PhaseTrial},
+		{core.PhaseTrial, core.PhaseVerdict},
+		{core.PhaseVerdict, core.PhaseNight},
+		{core.PhaseNight, core.PhaseSitrep},
+		{core.PhaseLobby, core.PhaseGameOver}, // Unknown phase
 	}
 
 	for _, tc := range transitionCases {

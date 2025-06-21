@@ -17,7 +17,7 @@ func TestRoleAbilityManager_UseRunAudit(t *testing.T) {
 		IsAlive:           true,
 		ProjectMilestones: 3,
 		Role: &core.Role{
-			Type:       RoleEthics,
+			Type:       core.RoleEthics,
 			IsUnlocked: true,
 		},
 	}
@@ -54,7 +54,7 @@ func TestRoleAbilityManager_UseRunAudit(t *testing.T) {
 
 	// Public event should always show "not corrupt"
 	publicEvent := result.PublicEvents[0]
-	if publicEvent.Type != EventRunAudit {
+	if publicEvent.Type != core.EventRunAudit {
 		t.Errorf("Expected EventRunAudit, got %s", publicEvent.Type)
 	}
 
@@ -86,7 +86,7 @@ func TestRoleAbilityManager_UseOverclockServers(t *testing.T) {
 		ProjectMilestones: 3,
 		Alignment:         "ALIGNED", // AI-aligned CTO
 		Role: &core.Role{
-			Type:       RoleCTO,
+			Type:       core.RoleCTO,
 			IsUnlocked: true,
 		},
 	}
@@ -144,7 +144,7 @@ func TestRoleAbilityManager_UseIsolateNode(t *testing.T) {
 		ProjectMilestones: 3,
 		Alignment:         "HUMAN",
 		Role: &core.Role{
-			Type:       RoleCISO,
+			Type:       core.RoleCISO,
 			IsUnlocked: true,
 		},
 	}
@@ -192,7 +192,7 @@ func TestRoleAbilityManager_UseIsolateNode_AlignedCISO(t *testing.T) {
 		ProjectMilestones: 3,
 		Alignment:         "ALIGNED",
 		Role: &core.Role{
-			Type:       RoleCISO,
+			Type:       core.RoleCISO,
 			IsUnlocked: true,
 		},
 	}
@@ -243,7 +243,7 @@ func TestRoleAbilityManager_UseReallocateBudget(t *testing.T) {
 		IsAlive:           true,
 		ProjectMilestones: 3,
 		Role: &core.Role{
-			Type:       RoleCFO,
+			Type:       core.RoleCFO,
 			IsUnlocked: true,
 		},
 	}
@@ -303,7 +303,7 @@ func TestRoleAbilityManager_CanUseAbility(t *testing.T) {
 		ProjectMilestones: 3,
 		HasUsedAbility:    false,
 		Role: &core.Role{
-			Type:       RoleEthics,
+			Type:       core.RoleEthics,
 			IsUnlocked: true,
 		},
 	}
@@ -314,7 +314,7 @@ func TestRoleAbilityManager_CanUseAbility(t *testing.T) {
 		IsAlive:           true,
 		ProjectMilestones: 2, // Not enough milestones
 		Role: &core.Role{
-			Type:       RoleEthics,
+			Type:       core.RoleEthics,
 			IsUnlocked: false,
 		},
 	}
@@ -325,12 +325,12 @@ func TestRoleAbilityManager_CanUseAbility(t *testing.T) {
 		IsAlive:           true,
 		ProjectMilestones: 3,
 		Role: &core.Role{
-			Type:       RoleEthics,
+			Type:       core.RoleEthics,
 			IsUnlocked: true,
 		},
-		SystemShocks: []SystemShock{
+		SystemShocks: []core.SystemShock{
 			{
-				Type:      ShockActionLock,
+				Type:      core.ShockActionLock,
 				IsActive:  true,
 				ExpiresAt: time.Now().Add(1 * time.Hour),
 			},
@@ -373,12 +373,12 @@ func TestRoleAbilityManager_SystemShockPrevention(t *testing.T) {
 		IsAlive:           true,
 		ProjectMilestones: 3,
 		Role: &core.Role{
-			Type:       RoleEthics,
+			Type:       core.RoleEthics,
 			IsUnlocked: true,
 		},
-		SystemShocks: []SystemShock{
+		SystemShocks: []core.SystemShock{
 			{
-				Type:      ShockActionLock,
+				Type:      core.ShockActionLock,
 				IsActive:  true,
 				ExpiresAt: time.Now().Add(1 * time.Hour),
 			},

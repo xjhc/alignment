@@ -1,6 +1,7 @@
 package actors
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -128,7 +129,10 @@ func TestGameActor_PlayerJoin(t *testing.T) {
 	datastore := NewMockDataStore()
 	broadcaster := NewMockBroadcaster()
 
-	actor := NewGameActor("test-game", datastore, broadcaster)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actor := NewGameActor(ctx, cancel, "test-game", datastore, broadcaster)
 	actor.Start()
 	defer actor.Stop()
 
@@ -198,7 +202,10 @@ func TestGameActor_MultiplePlayerJoins(t *testing.T) {
 	datastore := NewMockDataStore()
 	broadcaster := NewMockBroadcaster()
 
-	actor := NewGameActor("test-game", datastore, broadcaster)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actor := NewGameActor(ctx, cancel, "test-game", datastore, broadcaster)
 	actor.Start()
 	defer actor.Stop()
 
@@ -264,7 +271,10 @@ func TestGameActor_GameCapacity(t *testing.T) {
 	datastore := NewMockDataStore()
 	broadcaster := NewMockBroadcaster()
 
-	actor := NewGameActor("test-game", datastore, broadcaster)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actor := NewGameActor(ctx, cancel, "test-game", datastore, broadcaster)
 	actor.Start()
 	defer actor.Stop()
 
@@ -326,7 +336,10 @@ func TestGameActor_DuplicatePlayerJoin(t *testing.T) {
 	datastore := NewMockDataStore()
 	broadcaster := NewMockBroadcaster()
 
-	actor := NewGameActor("test-game", datastore, broadcaster)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actor := NewGameActor(ctx, cancel, "test-game", datastore, broadcaster)
 	actor.Start()
 	defer actor.Stop()
 
@@ -389,7 +402,10 @@ func TestGameActor_VotingFlow(t *testing.T) {
 	datastore := NewMockDataStore()
 	broadcaster := NewMockBroadcaster()
 
-	actor := NewGameActor("test-game", datastore, broadcaster)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actor := NewGameActor(ctx, cancel, "test-game", datastore, broadcaster)
 	actor.Start()
 	defer actor.Stop()
 
@@ -457,7 +473,10 @@ func TestGameActor_InvalidVotePhase(t *testing.T) {
 	datastore := NewMockDataStore()
 	broadcaster := NewMockBroadcaster()
 
-	actor := NewGameActor("test-game", datastore, broadcaster)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actor := NewGameActor(ctx, cancel, "test-game", datastore, broadcaster)
 	actor.Start()
 	defer actor.Stop()
 
@@ -514,7 +533,10 @@ func TestGameActor_MiningTokens(t *testing.T) {
 	datastore := NewMockDataStore()
 	broadcaster := NewMockBroadcaster()
 
-	actor := NewGameActor("test-game", datastore, broadcaster)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actor := NewGameActor(ctx, cancel, "test-game", datastore, broadcaster)
 	actor.Start()
 	defer actor.Stop()
 
@@ -597,7 +619,10 @@ func TestGameActor_ActorPanicRecovery(t *testing.T) {
 	datastore := NewMockDataStore()
 	broadcaster := NewMockBroadcaster()
 
-	actor := NewGameActor("test-game", datastore, broadcaster)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actor := NewGameActor(ctx, cancel, "test-game", datastore, broadcaster)
 	actor.Start()
 	defer actor.Stop()
 
@@ -633,7 +658,10 @@ func TestGameActor_ConcurrentActions(t *testing.T) {
 	datastore := NewMockDataStore()
 	broadcaster := NewMockBroadcaster()
 
-	actor := NewGameActor("test-game", datastore, broadcaster)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actor := NewGameActor(ctx, cancel, "test-game", datastore, broadcaster)
 	actor.Start()
 	defer actor.Stop()
 

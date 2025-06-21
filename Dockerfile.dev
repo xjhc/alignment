@@ -1,0 +1,27 @@
+FROM golang:1.22-alpine
+
+RUN apk add --no-cache su-exec curl
+
+WORKDIR /app
+
+# Install air for live reloading
+RUN go install github.com/cosmtrek/air@v1.51.0
+
+# Copy the entrypoint script and make it executable
+COPY scripts/entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Copy dependency files and vendor them
+COPY server/go.mod server/go.sum ./server/
+COPY core ./core
+WORKDIR /app/server
+RUN go mod tidy && go mod vendor
+WORKDIR /app
+
+# Copy the rest of the source code
+COPY . .
+
+EXPOSE 8080
+
+ENTRYPOINT ["entrypoint.sh"]
+CMD ["air", "-c", "server/.air.toml"]

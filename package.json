@@ -1,0 +1,12 @@
+{
+  "name": "alignment-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Orchestration scripts for the Alignment monorepo.",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names \"BACKEND,FRONTEND\" \"cd server && go run ./cmd/server/\" \"cd client && npm run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
