@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/xjhc/alignment/core"
-	"github.com/xjhc/alignment/server/internal/lobby"
+	"github.com/xjhc/alignment/server/internal/interfaces"
 )
 
 // Supervisor manages all game actors and provides fault isolation
@@ -19,12 +19,12 @@ type Supervisor struct {
 	cancel context.CancelFunc
 
 	// Dependencies
-	datastore   DataStore
-	broadcaster Broadcaster
+	datastore   interfaces.DataStore
+	broadcaster interfaces.Broadcaster
 }
 
 // NewSupervisor creates a new supervisor
-func NewSupervisor(ctx context.Context, datastore DataStore, broadcaster Broadcaster) *Supervisor {
+func NewSupervisor(ctx context.Context, datastore interfaces.DataStore, broadcaster interfaces.Broadcaster) *Supervisor {
 	supervisorCtx, cancel := context.WithCancel(ctx)
 	return &Supervisor{
 		actors:      make(map[string]*GameActor),
@@ -35,6 +35,11 @@ func NewSupervisor(ctx context.Context, datastore DataStore, broadcaster Broadca
 	}
 }
 
+// SetBroadcaster sets the broadcaster dependency (for dependency injection)
+func (s *Supervisor) SetBroadcaster(broadcaster interfaces.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
 // Start begins the supervisor's monitoring loop
 func (s *Supervisor) Start() {
 	go s.monitoringLoop()
@@ -43,89 +48,55 @@ func (s *Supervisor) Start() {
 // Stop gracefully shuts down all actors
 func (s *Supervisor) Stop() {
 	log.Println("Supervisor: Shutting down all actors")
-
-	// Cancel context to signal all actors to stop
 	s.cancel()
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Wait for all actors to stop gracefully
 	for gameID, actor := range s.actors {
 		log.Printf("Supervisor: Stopping actor %s", gameID)
 		actor.Stop()
 	}
-
-	// Clear actors map
 	s.actors = make(map[string]*GameActor)
 }
 
-// CreateGame creates a new game actor
+// CreateGame creates a new game actor, but is deprecated
 func (s *Supervisor) CreateGame(gameID string) error {
-	return s.CreateGameWithPlayers(gameID, []lobby.PlayerInfo{}, "")
+	return fmt.Errorf("CreateGame is deprecated, use CreateGameWithPlayers")
 }
 
-// CreateGameWithPlayers creates a new game actor, queues players to join, and queues the start game action.
-func (s *Supervisor) CreateGameWithPlayers(gameID string, players []lobby.PlayerInfo, hostID string) error {
+func (s *Supervisor) CreateGameWithPlayers(gameID string, players map[string]*core.Player) (interfaces.GameActorInterface, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Check if game already exists
 	if _, exists := s.actors[gameID]; exists {
-		log.Printf("Supervisor: Game %s already exists", gameID)
-		return ErrGameAlreadyExists
+		log.Printf("[Supervisor] Game %s already exists", gameID)
+		// Return the existing actor instead of an error
+		return s.actors[gameID], nil
 	}
 
-	// Create new actor with child context
 	actorCtx, actorCancel := context.WithCancel(s.ctx)
-	actor := NewGameActor(actorCtx, actorCancel, gameID, s.datastore, s.broadcaster)
+	actor := NewGameActor(actorCtx, actorCancel, gameID, players)
 	s.actors[gameID] = actor
 
-	// This is the critical part from the documentation - launch supervised goroutine
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				// This is where you handle the crash of a single game
-				log.Printf("Supervisor: GameActor %s panicked: %v", gameID, r)
-				s.RemoveGame(gameID) // Or implement a restart policy
+				log.Printf("[Supervisor] GameActor %s panicked: %v", gameID, r)
+				s.RemoveGame(gameID)
 			}
 		}()
-		// Each actor runs its own main loop
 		actor.Start()
 	}()
 
-	// If players are provided, send join actions for each
-	for _, player := range players {
-		action := core.Action{
-			Type:      core.ActionJoinGame,
-			PlayerID:  player.ID,
-			GameID:    gameID,
-			Timestamp: time.Now(),
-			Payload: map[string]interface{}{
-				"name": player.Name,
-			},
-		}
-		actor.SendAction(action)
-	}
-
-	// After all players are queued to join, send the start game action
-	startAction := core.Action{
-		Type:      core.ActionStartGame,
-		PlayerID:  hostID,
-		GameID:    gameID,
-		Timestamp: time.Now(),
-	}
-	actor.SendAction(startAction)
-
-	log.Printf("Supervisor: Created game actor %s and queued %d players and a start action", gameID, len(players))
-	return nil
+	log.Printf("[Supervisor] Created game actor %s", gameID)
+	return actor, nil
 }
 
 // GetActor returns a game actor by ID
-func (s *Supervisor) GetActor(gameID string) (*GameActor, bool) {
+func (s *Supervisor) GetActor(gameID string) (interfaces.GameActorInterface, bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-
 	actor, exists := s.actors[gameID]
 	return actor, exists
 }
@@ -134,9 +105,8 @@ func (s *Supervisor) GetActor(gameID string) (*GameActor, bool) {
 func (s *Supervisor) RemoveGame(gameID string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	if actor, exists := s.actors[gameID]; exists {
-		log.Printf("Supervisor: Removing game actor %s", gameID)
+		log.Printf("[Supervisor] Removing game actor %s", gameID)
 		actor.Stop()
 		delete(s.actors, gameID)
 	}
@@ -152,7 +122,7 @@ func (s *Supervisor) monitoringLoop() {
 		case <-ticker.C:
 			s.checkActorHealth()
 		case <-s.ctx.Done():
-			log.Println("Supervisor: Monitoring loop stopped")
+			log.Println("[Supervisor] Monitoring loop stopped")
 			return
 		}
 	}
@@ -162,63 +132,46 @@ func (s *Supervisor) monitoringLoop() {
 func (s *Supervisor) checkActorHealth() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	for gameID, actor := range s.actors {
-		// Check if actor context is done (actor has stopped)
 		select {
 		case <-actor.ctx.Done():
-			// Actor has stopped, attempt restart
-			log.Printf("Supervisor: Detected failed actor %s, attempting restart", gameID)
+			log.Printf("[Supervisor] Detected failed actor %s, attempting restart", gameID)
 			s.restartActor(gameID)
 		default:
-			// Actor is still running
 		}
 	}
 }
 
 // restartActor attempts to restart a failed actor
 func (s *Supervisor) restartActor(gameID string) {
-	// Remove the failed actor
 	delete(s.actors, gameID)
-
-	// Create new actor with fresh context
 	actorCtx, actorCancel := context.WithCancel(s.ctx)
-	actor := NewGameActor(actorCtx, actorCancel, gameID, s.datastore, s.broadcaster)
-
-	// TODO: Restore state from persistence layer
-	// This would involve loading the latest snapshot and replaying events
-
+	// For restarted actors, we'll start with empty players map - they'll rejoin if still connected
+	actor := NewGameActor(actorCtx, actorCancel, gameID, make(map[string]*core.Player))
 	s.actors[gameID] = actor
 
-	// Launch supervised goroutine for the restarted actor
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("Supervisor: Restarted GameActor %s panicked: %v", gameID, r)
+				log.Printf("[Supervisor] Restarted GameActor %s panicked: %v", gameID, r)
 				s.RemoveGame(gameID)
 			}
 		}()
 		actor.Start()
 	}()
-
-	log.Printf("Supervisor: Restarted actor %s", gameID)
+	log.Printf("[Supervisor] Restarted actor %s", gameID)
 }
 
 // GetStats returns supervisor statistics
 func (s *Supervisor) GetStats() SupervisorStats {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-
-	return SupervisorStats{
-		ActiveGames: len(s.actors),
-		Uptime:      time.Since(time.Now()), // Simplified
-	}
+	return SupervisorStats{ActiveGames: len(s.actors)}
 }
 
 // SupervisorStats contains supervisor statistics
 type SupervisorStats struct {
-	ActiveGames int           `json:"active_games"`
-	Uptime      time.Duration `json:"uptime"`
+	ActiveGames int `json:"active_games"`
 }
 
 // Custom errors

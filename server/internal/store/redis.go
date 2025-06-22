@@ -78,12 +78,12 @@ func (rds *RedisDataStore) AppendEvent(gameID string, event core.Event) error {
 	return nil
 }
 
-// SaveSnapshot saves a complete game state snapshot
-func (rds *RedisDataStore) SaveSnapshot(gameID string, state *core.GameState) error {
+// CreateSnapshot saves a complete game state snapshot
+func (rds *RedisDataStore) CreateSnapshot(gameID string, state core.GameState) error {
 	snapshotKey := fmt.Sprintf("game:%s:snapshot", gameID)
 
 	// Serialize game state
-	stateJSON, err := json.Marshal(state)
+	stateJSON, err := json.Marshal(&state)
 	if err != nil {
 		return fmt.Errorf("failed to marshal game state: %w", err)
 	}
@@ -155,7 +155,36 @@ func (rds *RedisDataStore) LoadEvents(gameID string, afterSequence int) ([]core.
 	return events, nil
 }
 
-// LoadSnapshot loads the latest game state snapshot
+// GetEvents loads all events for a game
+func (rds *RedisDataStore) GetEvents(gameID string) ([]core.Event, error) {
+	return rds.LoadEvents(gameID, 0)
+}
+
+// GetEventsSince loads events since a timestamp
+func (rds *RedisDataStore) GetEventsSince(gameID string, timestamp string) ([]core.Event, error) {
+	// For simplicity, just load all events and filter
+	// In a real implementation, you'd optimize this by using Redis stream IDs
+	allEvents, err := rds.GetEvents(gameID)
+	if err != nil {
+		return nil, err
+	}
+
+	var filteredEvents []core.Event
+	for _, event := range allEvents {
+		if event.Timestamp.Format(time.RFC3339) >= timestamp {
+			filteredEvents = append(filteredEvents, event)
+		}
+	}
+
+	return filteredEvents, nil
+}
+
+// GetLatestSnapshot loads the latest game state snapshot
+func (rds *RedisDataStore) GetLatestSnapshot(gameID string) (*core.GameState, error) {
+	return rds.LoadSnapshot(gameID)
+}
+
+// LoadSnapshot loads the latest game state snapshot (internal method)
 func (rds *RedisDataStore) LoadSnapshot(gameID string) (*core.GameState, error) {
 	snapshotKey := fmt.Sprintf("game:%s:snapshot", gameID)
 

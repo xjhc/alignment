@@ -7,8 +7,14 @@ import { WaitingScreen } from './components/WaitingScreen';
 import { RoleRevealScreen } from './components/RoleRevealScreen';
 import { GameScreen } from './components/GameScreen';
 import { WasmTestScreen } from './components/WasmTestScreen';
-import { AppState, GameState } from './types';
+import { AppState, GameState, Role, PersonalKPI } from './types';
 import { convertToClientTypes } from './utils/coreTypes';
+
+interface RoleAssignment {
+  role: Role;
+  alignment: string;
+  personalKPI: PersonalKPI;
+}
 
 // Centralized lobby state interface
 interface PlayerLobbyInfo {
@@ -34,6 +40,8 @@ function App() {
     playerName: '',
   });
 
+  const [isInGameSession, setIsInGameSession] = useState(false);
+
   const [gameState, setGameState] = useState<GameState>({
     id: '',
     players: [],
@@ -41,6 +49,8 @@ function App() {
     dayNumber: 1,
     chatMessages: [],
   });
+
+  const [roleAssignment, setRoleAssignment] = useState<RoleAssignment | null>(null);
 
   // Centralized lobby state
   const [lobbyState, setLobbyState] = useState<LobbyState>({
@@ -61,18 +71,36 @@ function App() {
     gameState: coreGameState
   } = useGameEngine();
 
+  // The SINGLE source of truth for UI updates.
+  useEffect(() => {
+    if (!coreGameState || !appState.playerId) {
+      // Don't do anything until both the Wasm state and the player's identity are known.
+      return;
+    }
+
+    // 1. Sync the core state to our React state
+    const clientState = convertToClientTypes(coreGameState);
+    setGameState(clientState);
+
+    // 2. Try to extract the role assignment for the local player
+    const localPlayer = clientState.players.find((p: any) => p.id === appState.playerId);
+    if (localPlayer && localPlayer.role && localPlayer.alignment && localPlayer.personalKPI) {
+      const newAssignment = { role: localPlayer.role, alignment: localPlayer.alignment, personalKPI: localPlayer.personalKPI };
+      setRoleAssignment(newAssignment);
+    }
+
+    // 3. Self-healing state transition logic
+    if (clientState.phase?.type !== 'LOBBY' && appState.currentScreen === 'waiting') {
+      console.log(`[App] Game state advanced to ${clientState.phase?.type} while in lobby. Transitioning to role-reveal.`);
+      setAppState(prev => ({ ...prev, currentScreen: 'role-reveal' }));
+    }
+  }, [coreGameState, appState.playerId, appState.currentScreen]);
+
+
   // Set dark theme by default
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
   }, []);
-
-  // Sync core game state with React state
-  useEffect(() => {
-    if (coreGameState) {
-      const clientState = convertToClientTypes(coreGameState);
-      setGameState(clientState);
-    }
-  }, [coreGameState]);
 
   // Stabilized event handlers using useCallback
   const handleLobbyStateUpdate = useCallback((event: any) => {
@@ -92,15 +120,11 @@ function App() {
       canStart: payload.can_start,
       lobbyName: payload.name,
       maxPlayers: payload.max_players,
-      // FIXED: Use current playerId from lobby state instead of stale appState
       isHost: prev.playerId === payload.host_id,
       connectionError: null,
     }));
-  }, []); // No dependencies = no stale closures
-
-  const handleGameStart = useCallback(() => {
-    setAppState(prev => ({ ...prev, currentScreen: 'role-reveal' }));
   }, []);
+
 
   const handleSystemMessage = useCallback((event: any) => {
     const payload = event.payload as { message: string, error?: boolean };
@@ -112,7 +136,7 @@ function App() {
   const handleClientIdentified = useCallback((event: any) => {
     const payload = event.payload as { your_player_id: string };
     const playerId = payload.your_player_id;
-    
+
     // Update both appState and lobbyState synchronously
     setAppState(prev => ({ ...prev, playerId }));
     setLobbyState(prev => ({ ...prev, playerId }));
@@ -120,21 +144,18 @@ function App() {
 
   // Listen for our new private event to get the player ID
   useEffect(() => {
-    // Only subscribe if we are in a state that requires a connection
-    if (appState.currentScreen === 'waiting' || appState.currentScreen === 'game' || appState.currentScreen === 'role-reveal') {
+    if (isInGameSession) {
       const unsubscribe = subscribe('CLIENT_IDENTIFIED', handleClientIdentified);
       return unsubscribe;
     }
-    // Always return a function to maintain hooks consistency
     return () => { };
-  }, [appState.currentScreen, subscribe, handleClientIdentified]);
+  }, [isInGameSession, subscribe, handleClientIdentified]);
 
   // Centralized lobby event management
   useEffect(() => {
     if (appState.currentScreen === 'waiting') {
       const unsubscribers = [
         subscribe('LOBBY_STATE_UPDATE', handleLobbyStateUpdate),
-        subscribe('GAME_STARTED', handleGameStart),
         subscribe('SYSTEM_MESSAGE', handleSystemMessage),
       ];
 
@@ -153,34 +174,25 @@ function App() {
         unsubscribers.forEach(unsub => unsub());
       };
     }
-    // Always return a function to maintain hooks consistency
     return () => { };
-  }, [appState.currentScreen, subscribe, handleLobbyStateUpdate, handleGameStart, handleSystemMessage]);
+  }, [appState.currentScreen, subscribe, handleLobbyStateUpdate, handleSystemMessage]);
 
-  // REVISED: Centralized WebSocket connection logic
+
+  // Centralized WebSocket connection logic based on session state
   useEffect(() => {
-    let shouldConnect = false;
-
-    if ((appState.currentScreen === 'waiting' || appState.currentScreen === 'game' || appState.currentScreen === 'role-reveal') &&
-      appState.gameId && appState.playerId && appState.sessionToken
-    ) {
-      // Session-based connection: works for both lobby and game states
-      connect(appState.gameId, appState.playerId, appState.sessionToken, appState.lastEventId)
+    if (isInGameSession && appState.gameId && appState.playerId && appState.sessionToken) {
+      connect(appState.gameId, appState.playerId, appState.sessionToken)
         .catch(error => {
           console.error('Failed to connect to WebSocket:', error);
-          // TODO: Handle connection error appropriately
         });
-      shouldConnect = true;
-    }
 
-    // Cleanup function: disconnect when dependencies change or component unmounts
-    return () => {
-      if (shouldConnect) {
+      // The cleanup function will now only be called when isInGameSession becomes false
+      return () => {
         disconnect();
-      }
-    };
+      };
+    }
   }, [
-    appState.currentScreen,
+    isInGameSession, // The primary trigger
     appState.gameId,
     appState.playerId,
     appState.sessionToken,
@@ -195,6 +207,7 @@ function App() {
       playerAvatar: avatar,
       currentScreen: 'lobby-list'
     }));
+    setIsInGameSession(false); // Ensure session is not active
   };
 
   const handleJoinLobby = (gameId: string, playerId: string, sessionToken: string) => {
@@ -205,8 +218,8 @@ function App() {
       sessionToken,
       currentScreen: 'waiting'
     }));
-    // Immediately set playerId in lobbyState too
     setLobbyState(prev => ({ ...prev, playerId }));
+    setIsInGameSession(true); // START the session
   };
 
   const handleCreateGame = (gameId: string, playerId: string, sessionToken: string) => {
@@ -217,8 +230,8 @@ function App() {
       sessionToken,
       currentScreen: 'waiting'
     }));
-    // Immediately set playerId in lobbyState too
     setLobbyState(prev => ({ ...prev, playerId }));
+    setIsInGameSession(true); // START the session
   };
 
 
@@ -233,6 +246,7 @@ function App() {
   const handleStartGameAction = useCallback(() => {
     if (lobbyState.isHost && lobbyState.canStart && isConnected && appState.gameId) {
       try {
+        // Simply send the action. The server will handle the connection handoff.
         sendAction({
           type: 'START_GAME',
           payload: {
@@ -247,66 +261,40 @@ function App() {
   }, [lobbyState.isHost, lobbyState.canStart, isConnected, appState.gameId, sendAction]);
 
   const handleLeaveLobby = useCallback(() => {
-    try {
-      if (isConnected) {
-        sendAction({
-          type: 'LEAVE_GAME',
-          payload: {}
-        });
-      }
-      // disconnect is now handled by App.tsx on screen change
-      setAppState(prev => ({
-        ...prev,
-        gameId: undefined,
-        playerId: undefined,
-        joinToken: undefined,
-        sessionToken: undefined,
-        currentScreen: 'lobby-list'
-      }));
-      // Reset lobby state completely when leaving
-      setLobbyState({
-        playerId: undefined,
-        playerInfos: [],
-        isHost: false,
-        canStart: false,
-        hostId: '',
-        lobbyName: '',
-        maxPlayers: 8,
-        connectionError: null,
-      });
-    } catch (error) {
-      console.error('Failed to leave lobby:', error);
-      // Still navigate away even if action fails
-      setAppState(prev => ({
-        ...prev,
-        gameId: undefined,
-        playerId: undefined,
-        joinToken: undefined,
-        sessionToken: undefined,
-        currentScreen: 'lobby-list'
-      }));
-      // Reset lobby state completely when leaving
-      setLobbyState({
-        playerId: undefined,
-        playerInfos: [],
-        isHost: false,
-        canStart: false,
-        hostId: '',
-        lobbyName: '',
-        maxPlayers: 8,
-        connectionError: null,
-      });
-    }
-  }, [isConnected, sendAction]);
+    // Explicitly disconnect first
+    disconnect();
+
+    // Then update state which will prevent a reconnect attempt
+    setIsInGameSession(false);
+
+    setAppState(prev => ({
+      ...prev,
+      gameId: undefined,
+      playerId: undefined,
+      joinToken: undefined,
+      sessionToken: undefined,
+      currentScreen: 'lobby-list'
+    }));
+    // Reset lobby state completely when leaving
+    setLobbyState({
+      playerId: undefined,
+      playerInfos: [],
+      isHost: false,
+      canStart: false,
+      hostId: '',
+      lobbyName: '',
+      maxPlayers: 8,
+      connectionError: null,
+    });
+  }, [disconnect]);
 
   const handleBackToLogin = () => {
+    setIsInGameSession(false); // END the session
     setAppState({
       currentScreen: 'login',
       playerName: '',
     });
   };
-
-  // handleUpdateGameState removed - state is now managed by gameEngine
 
   // Show loading screen while game engine is loading
   if (gameEngineLoading) {
@@ -372,13 +360,19 @@ function App() {
       );
 
     case 'role-reveal':
-      return <RoleRevealScreen onEnterGame={handleEnterGame} />;
+      return (
+        <RoleRevealScreen
+          assignment={roleAssignment}
+          onEnterGame={handleEnterGame}
+        />
+      );
 
     case 'game':
       return (
         <GameScreen
           gameState={gameState}
           playerId={appState.playerId || 'unknown'}
+          isChatHistoryLoading={false} // Chat history is not yet implemented
         />
       );
 

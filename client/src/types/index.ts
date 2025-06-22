@@ -11,19 +11,18 @@ export interface WebSocketMessage {
 // Client-to-server actions
 export interface ClientAction extends WebSocketMessage {
   type: 'RECONNECT' | 'CREATE_GAME' | 'JOIN_GAME' | 'START_GAME' | 'LEAVE_GAME' |
-        'POST_CHAT_MESSAGE' | 'UPDATE_STATUS' | 'SUBMIT_NIGHT_ACTION' | 
-        'SUBMIT_VOTE' | 'SUBMIT_PULSE_CHECK' | 'SUBMIT_EXIT_INTERVIEW' |
-        'REQUEST_LOBBY_LIST';
+  'POST_CHAT_MESSAGE' | 'UPDATE_STATUS' | 'SUBMIT_NIGHT_ACTION' |
+  'SUBMIT_VOTE' | 'SUBMIT_PULSE_CHECK' | 'SUBMIT_EXIT_INTERVIEW' |
+  'REQUEST_LOBBY_LIST';
 }
 
 // Server-to-client events
 export interface ServerEvent extends WebSocketMessage {
-  type: 'PLAYER_JOINED' | 'PLAYER_LEFT' | 'PLAYER_DEACTIVATED' | 
-        'ROLES_ASSIGNED' | 'ALIGNMENT_CHANGED' | 'PHASE_CHANGED' | 
-        'CHAT_MESSAGE_POSTED' | 'PULSE_CHECK_SUBMITTED' | 
-        'NIGHT_ACTIONS_RESOLVED' | 'GAME_ENDED' | 'SYNC_COMPLETE' | 
-        'PRIVATE_NOTIFICATION' | 'LOBBY_LIST_UPDATE' | 'LOBBY_STATE_UPDATE' |
-        'GAME_STARTED';
+  type: 'PLAYER_JOINED' | 'PLAYER_LEFT' | 'PLAYER_DEACTIVATED' |
+  'PHASE_CHANGED' | 'CHAT_MESSAGE_POSTED' | 'PULSE_CHECK_SUBMITTED' |
+  'NIGHT_ACTIONS_RESOLVED' | 'GAME_ENDED' | 'SYNC_COMPLETE' |
+  'PRIVATE_NOTIFICATION' | 'LOBBY_STATE_UPDATE' | 'GAME_STATE_UPDATE' |
+  'CHAT_HISTORY_SNAPSHOT' | 'CLIENT_IDENTIFIED' | 'SYSTEM_MESSAGE';
   id?: string;        // Event ID for tracking
   game_id?: string;   // Game ID for storage
 }
@@ -116,6 +115,5 @@ export interface AppState {
   playerId?: string;
   joinToken?: string;
   sessionToken?: string;
-  lastEventId?: string;
   lobbyInfo?: LobbyInfo;
 }

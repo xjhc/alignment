@@ -86,6 +86,7 @@ const (
 	// Status and State events
 	EventPlayerStatusChanged EventType = "PLAYER_STATUS_CHANGED"
 	EventGameStateSnapshot   EventType = "GAME_STATE_SNAPSHOT"
+	EventChatHistorySnapshot EventType = "CHAT_HISTORY_SNAPSHOT"
 	EventPlayerReconnected   EventType = "PLAYER_RECONNECTED"
 	EventPlayerDisconnected  EventType = "PLAYER_DISCONNECTED"
 	EventSyncComplete        EventType = "SYNC_COMPLETE"
@@ -137,9 +138,10 @@ type ActionType string
 
 const (
 	// Lobby actions
-	ActionJoinGame  ActionType = "JOIN_GAME"
-	ActionLeaveGame ActionType = "LEAVE_GAME"
-	ActionStartGame ActionType = "START_GAME"
+	ActionCreateGame ActionType = "CREATE_GAME"
+	ActionJoinGame   ActionType = "JOIN_GAME"
+	ActionLeaveGame  ActionType = "LEAVE_GAME"
+	ActionStartGame  ActionType = "START_GAME"
 
 	// Communication actions
 	ActionSendMessage      ActionType = "SEND_MESSAGE"

@@ -10,15 +10,15 @@ The project is a **Go monorepo** containing two main applications:
 
 ## 1. The Core Backend Architecture: A Supervised Actor Model
 
-At its heart, the backend is a **stateful, in-memory system** designed for massive concurrency and low latency. It is built on three core principles:
+At its heart, the backend is a **stateful, in-memory system** designed for massive concurrency and low latency. It is built on a player-centric actor model with three core principles:
 
-1.  **The Game Actor:** Each active game runs in its own dedicated goroutine (an "Actor"). This actor "owns" the `GameState` struct for its game, holding it entirely in memory. It processes all events and actions for that game serially through a Go channel (`chan`), which guarantees high performance and eliminates data races without locks.
+1.  **The `PlayerActor` (The Session Owner):** The moment a client connects via WebSocket, a dedicated `PlayerActor` goroutine is spawned. This actor **owns that single player's connection and session state** for their entire lifecycle. It functions as a state machine (`InLobby`, `InGame`, etc.) and routes actions to the appropriate manager. This is the cornerstone of our concurrency model.
 
-2.  **The [Supervisor](../adr/003-supervisor-pattern.md):** A top-level goroutine launches and monitors all Game Actors. If a single game actor panics due to a bug, the Supervisor catches the panic, logs the error with the `gameID`, and terminates that *single game*. This provides critical fault isolation and prevents the entire server from crashing.
+2.  **The `GameActor` (The Simulation Engine):** Each active game instance runs in its own dedicated `GameActor` goroutine. This actor "owns" the `GameState` struct for its game, holding it entirely in memory. It processes all game logic serially, guaranteeing data consistency without locks. It receives actions from `PlayerActor`s (via a manager) and broadcasts state updates back.
 
-3.  **The [Scheduler](../architecture/README.md#the-lifecycle-of-a-player-action):** A single, central goroutine manages all time-based events (like phase timers) for the entire application using a highly efficient **[Timing Wheel](../glossary.md#timing-wheel)** algorithm. This avoids the overhead of managing thousands of individual system timers and keeps the Game Actors focused on pure game logic.
+3.  **The `Supervisor` (The Guardian):** A top-level goroutine launches and monitors all `GameActor`s. If a single game actor panics due to a bug, the Supervisor catches the panic, logs the error, and terminates that *single game*. This provides critical fault isolation and prevents the entire server from crashing.
 
-A central **[Dispatcher](../glossary.md#dispatcher)** routes all incoming WebSocket messages to the correct actor's channel, completing the core processing loop.
+A **`LobbyManager`** and a **`SessionManager`** act as orchestrators, coordinating actions between the `PlayerActor`s and the `GameActor`s.
 
 ---
 
@@ -26,13 +26,13 @@ A central **[Dispatcher](../glossary.md#dispatcher)** routes all incoming WebSoc
 
 Our system is "stateless" at the process level, meaning the server process can be restarted without data loss. We achieve this through a specific persistence strategy.
 
-*   **In-Memory is for Speed:** The "source of truth" for a *live* game is the `GameState` struct held in the actor's memory. All reads are instantaneous, CPU-bound operations.
+*   **In-Memory is for Speed:** The "source of truth" for a *live* game is the `GameState` struct held in the `GameActor`'s memory. All reads are instantaneous, CPU-bound operations.
 
 *   **Redis is for Durability (Write-Ahead Log):** Redis is our persistence layer, but we **do not** read from it during normal gameplay. Its role is twofold:
     1.  **Event Stream (WAL):** Every state-changing event is first appended to a **Redis Stream** (e.g., `game_events:g-xyz`). This is our unbreakable, ordered log of everything that happened.
-    2.  **Snapshots:** Periodically, a Game Actor saves a full snapshot of its `GameState` to a Redis key.
+    2.  **Snapshots:** Periodically, a `GameActor` saves a full snapshot of its `GameState` to a Redis key.
 
-*   **Recovery:** On a server restart, a new actor is spawned for each game. It rehydrates its state by loading the latest snapshot and then replaying only the few events from the stream that occurred *after* the snapshot was taken. This makes recovery extremely fast.
+*   **Recovery:** On a server restart, a new `GameActor` is spawned for each game. It rehydrates its state by loading the latest snapshot and then replaying only the few events from the stream that occurred *after* the snapshot was taken. This makes recovery extremely fast.
 
 ---
 
@@ -44,7 +44,7 @@ The AI is a core feature with a deliberate, two-part design to balance believabi
 
 *   **The Language Model:** A Large Language Model is used **exclusively for communication**: generating human-like chat to maintain its persona and engage socially. This is where we spend our "AI budget."
 
-*   **The [MCP Interface](../architecture/03-mcp-interface.md):** We use the **Model Context Protocol (MCP)** as the formal, read-only API between our server and the Language Model. Our backend acts as an `McpServer`, exposing the `GameState` as a resource (e.g., `game://alignment/{id}`). The Language Model uses an `McpClient` to read this context before generating a chat message. This provides a clean, secure, and future-proof interface for any AI interactions.
+*   **The [MCP Interface](./architecture/03-mcp-interface.md):** We use the **Model Context Protocol (MCP)** as the formal, read-only API between our server and the Language Model. Our backend acts as an `McpServer`, exposing the `GameState` as a resource (e.g., `game://alignment/{id}`). The Language Model uses an `McpClient` to read this context before generating a chat message. This provides a clean, secure, and future-proof interface for any AI interactions.
 
 ---
 
@@ -53,7 +53,7 @@ The AI is a core feature with a deliberate, two-part design to balance believabi
 The frontend is a modern web application with two distinct parts that work together:
 
 ```mermaid
-graph TB
+graph TD
     subgraph Browser["🌐 Browser Environment"]
         subgraph ReactApp["React/TypeScript UI Shell"]
             Components["React Components<br/>• Game Board<br/>• Chat Interface<br/>• Player Status<br/>• Action Buttons"]
@@ -113,4 +113,4 @@ graph TB
 
 ---
 
-**In short: We run a supervised, in-memory actor system for the backend. The frontend is a React/Vite app that loads a Go/Wasm module to handle its game logic and state. Welcome aboard.**
+**In short: We run a supervised, player-centric actor system. Each player session is a stateful actor. A separate `GameActor` manages the simulation for each game instance. The frontend is a React/Vite app that loads a Go/Wasm module to handle its game logic. Welcome aboard.**

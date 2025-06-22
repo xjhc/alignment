@@ -232,3 +232,136 @@ def test_player_visibility_race_condition():
     finally:
         if 'ws' in locals() and ws.connected:
             ws.close()
+
+def test_lobby_to_game_transition():
+    """
+    Tests the complete lobby-to-game transition flow:
+    1. Create a lobby with multiple players
+    2. Host starts the game 
+    3. All players should receive GAME_STATE_SNAPSHOT events
+    4. Verify players transition from lobby to game state
+    """
+    print("\nSTEP 1: Creating lobby with host...")
+    create_response = requests.post(
+        f"{BASE_URL}/api/games",
+        json={"lobby_name": "Transition Test Game", "player_name": "GameHost", "player_avatar": "👑"}
+    )
+    assert create_response.status_code == 201
+    
+    create_data = create_response.json()
+    game_id = create_data["game_id"]
+    host_player_id = create_data["player_id"]
+    host_session_token = create_data["session_token"]
+    print(f"  ✅ Lobby created: {game_id}")
+
+    # Add a few more players to make the game interesting
+    print("STEP 2: Adding additional players...")
+    player_connections = []
+    
+    # Connect the host first
+    host_ws_url = f"{WS_URL}?gameId={game_id}&playerId={host_player_id}&sessionToken={host_session_token}"
+    host_ws = websocket.create_connection(host_ws_url, timeout=5)
+    player_connections.append({"ws": host_ws, "player_id": host_player_id, "name": "GameHost"})
+    
+    # Add 2 more players
+    for i in range(2, 4):
+        join_response = requests.post(
+            f"{BASE_URL}/api/games/{game_id}/join",
+            json={"player_name": f"Player{i}", "player_avatar": f"🎮"}
+        )
+        if join_response.status_code == 200:
+            join_data = join_response.json()
+            player_id = join_data["player_id"]
+            session_token = join_data["session_token"]
+            
+            # Connect via WebSocket
+            ws_url = f"{WS_URL}?gameId={game_id}&playerId={player_id}&sessionToken={session_token}"
+            ws = websocket.create_connection(ws_url, timeout=5)
+            player_connections.append({"ws": ws, "player_id": player_id, "name": f"Player{i}"})
+            print(f"  ✅ Player {i} joined and connected")
+
+    try:
+        # STEP 3: Host starts the game
+        print("STEP 3: Host starting the game...")
+        
+        # Set up message receivers for all players
+        all_received_messages = {}
+        stop_events = []
+        receive_threads = []
+        
+        for i, conn in enumerate(player_connections):
+            received_messages = {}
+            stop_event = threading.Event()
+            
+            receive_thread = threading.Thread(
+                target=receive_websocket_messages,
+                args=(conn["ws"], received_messages, stop_event, 10)  # Longer timeout for game start
+            )
+            receive_thread.start()
+            
+            all_received_messages[conn["player_id"]] = received_messages
+            stop_events.append(stop_event)
+            receive_threads.append(receive_thread)
+        
+        # Wait a moment for initial lobby messages to settle
+        time.sleep(1)
+        
+        # Host sends START_GAME action
+        start_game_action = {
+            "type": "START_GAME",
+            "player_id": host_player_id,
+            "game_id": game_id,
+            "timestamp": time.time(),
+            "payload": {}
+        }
+        
+        host_ws.send(json.dumps(start_game_action))
+        print("  ✅ START_GAME action sent by host")
+        
+        # Wait for game transition messages
+        print("STEP 4: Waiting for game transition messages...")
+        time.sleep(3)  # Give time for the atomic transition to complete
+        
+        # Stop all receivers
+        for stop_event in stop_events:
+            stop_event.set()
+        
+        for thread in receive_threads:
+            thread.join(timeout=2)
+        
+        # STEP 5: Verify all players received GAME_STATE_SNAPSHOT
+        print("STEP 5: Verifying game state snapshots...")
+        
+        game_snapshots_received = 0
+        for player_id, messages in all_received_messages.items():
+            print(f"  Player {player_id} received message types: {list(messages.keys())}")
+            
+            # Each player should receive a GAME_STATE_SNAPSHOT
+            if "GAME_STATE_SNAPSHOT" in messages:
+                game_snapshots_received += 1
+                snapshot = messages["GAME_STATE_SNAPSHOT"]
+                
+                # Verify the snapshot contains game state
+                payload = snapshot.get("payload", {})
+                assert "game_state" in payload, f"Player {player_id} snapshot missing game_state"
+                
+                game_state = payload["game_state"]
+                assert game_state is not None, f"Player {player_id} received null game_state"
+                
+                print(f"  ✅ Player {player_id} received valid GAME_STATE_SNAPSHOT")
+            else:
+                print(f"  ❌ Player {player_id} did NOT receive GAME_STATE_SNAPSHOT")
+        
+        # Verify all players received game snapshots
+        expected_players = len(player_connections)
+        assert game_snapshots_received == expected_players, f"Expected {expected_players} players to receive GAME_STATE_SNAPSHOT, but only {game_snapshots_received} did"
+        
+        print(f"  ✅ All {game_snapshots_received} players successfully transitioned to game!")
+        
+    except Exception as e:
+        pytest.fail(f"Lobby-to-game transition test failed: {e}")
+    finally:
+        # Clean up all WebSocket connections
+        for conn in player_connections:
+            if conn["ws"].connected:
+                conn["ws"].close()

@@ -1,7 +1,6 @@
 import { wasmLoader, AlignmentCore } from './wasmLoader';
 import { CoreGameState, CoreEvent, CoreAction } from '../utils/coreTypes';
 
-// Bridge between React frontend and Go WASM core
 export class GameEngine {
   private core: AlignmentCore | null = null;
   private stateChangeListeners: ((state: CoreGameState) => void)[] = [];
@@ -10,8 +9,7 @@ export class GameEngine {
     try {
       await wasmLoader.load();
       this.core = wasmLoader.getCore();
-      
-      // Set up state change listener
+
       wasmLoader.onStateChange((stateJson: string) => {
         try {
           const state: CoreGameState = JSON.parse(stateJson);
@@ -20,12 +18,42 @@ export class GameEngine {
           console.error('Failed to parse game state from WASM:', error);
         }
       });
-      
+
       console.log('Game engine initialized successfully');
     } catch (error) {
       console.error('Failed to initialize game engine:', error);
       throw error;
     }
+  }
+
+  resetAndLoadState(state: CoreGameState): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.core) {
+        reject(new Error('Game engine not initialized'));
+        return;
+      }
+
+      try {
+        // Step 1: Re-create the game state in WASM to discard any old/stale state.
+        const createResult = this.core.createGame(state.id);
+        if (!createResult.success) {
+          throw new Error(createResult.error || `Failed to re-initialize game state for ${state.id}`);
+        }
+
+        // Step 2: Load the snapshot into the now-pristine state object.
+        const stateJson = JSON.stringify(state);
+        const loadResult = this.core.deserializeGameState(stateJson);
+        if (loadResult.success) {
+          // Manually trigger a state change notification since the Go side won't
+          this.notifyStateChange(state);
+          resolve();
+        } else {
+          reject(new Error(loadResult.error || 'Failed to load state from snapshot'));
+        }
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
   createGame(gameId: string): Promise<void> {
@@ -37,6 +65,11 @@ export class GameEngine {
 
       const result = this.core.createGame(gameId);
       if (result.success) {
+        // After creating, immediately get the new state and notify listeners.
+        const newState = this.getCurrentState();
+        if (newState) {
+          this.notifyStateChange(newState);
+        }
         resolve();
       } else {
         reject(new Error(result.error || 'Failed to create game'));
@@ -54,7 +87,7 @@ export class GameEngine {
       try {
         const eventJson = JSON.stringify(event);
         const result = this.core.applyEvent(eventJson);
-        
+
         if (result.success) {
           resolve();
         } else {
@@ -73,18 +106,15 @@ export class GameEngine {
 
     try {
       const result = this.core.getGameState();
-      
-      // Check if the result is an error object (WASM returns error objects when no game state)
+
       if (typeof result === 'object' && result !== null && 'error' in result) {
-        // This is an error response from WASM, not a JSON string
         return null;
       }
-      
-      // Should be a JSON string, parse it
+
       if (typeof result === 'string') {
         return JSON.parse(result);
       }
-      
+
       console.warn('Unexpected result type from getGameState:', typeof result, result);
       return null;
     } catch (error) {
@@ -103,7 +133,7 @@ export class GameEngine {
       try {
         const stateJson = JSON.stringify(state);
         const result = this.core.deserializeGameState(stateJson);
-        
+
         if (result.success) {
           resolve();
         } else {
@@ -174,13 +204,10 @@ export class GameEngine {
     return this.core.isGamePhaseOver();
   }
 
-  // Helper methods for common game operations
   submitPlayerAction(action: CoreAction): Promise<CoreEvent[]> {
     return new Promise((resolve, reject) => {
-      // Convert action to events (this would typically be done by server)
-      // For client-side prediction, we can simulate some events
       const events = this.actionToEvents(action);
-      
+
       Promise.all(events.map(event => this.applyEvent(event)))
         .then(() => resolve(events))
         .catch(reject);
@@ -188,8 +215,6 @@ export class GameEngine {
   }
 
   private actionToEvents(action: CoreAction): CoreEvent[] {
-    // This is a simplified conversion for client-side prediction
-    // In practice, the server would generate the authoritative events
     const baseEvent: Partial<CoreEvent> = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       gameId: action.gameId,
@@ -229,11 +254,9 @@ export class GameEngine {
     }
   }
 
-  // State change management
   onStateChange(callback: (state: CoreGameState) => void): () => void {
     this.stateChangeListeners.push(callback);
-    
-    // Return unsubscribe function
+
     return () => {
       const index = this.stateChangeListeners.indexOf(callback);
       if (index > -1) {

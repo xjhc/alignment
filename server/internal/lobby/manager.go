@@ -4,59 +4,15 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/xjhc/alignment/server/internal/interfaces"
 )
 
-// LobbyManager manages pre-game lobbies in memory
-type LobbyManager struct {
-	lobbies map[string]*Lobby
-	tokens  map[string]*JoinToken
-	actors  map[string]*LobbyActor
-	mutex   sync.RWMutex
-
-	// Dependencies
-	broadcaster Broadcaster
-	supervisor  Supervisor
-}
-
-// PlayerInfo holds basic info for a player in the lobby
-type PlayerInfo struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Avatar string `json:"avatar"`
-}
-
-// Supervisor manages game actors
-type Supervisor interface {
-	CreateGameWithPlayers(gameID string, players []PlayerInfo, hostID string) error
-}
-
-// Lobby represents a pre-game waiting room
-type Lobby struct {
-	ID           string       `json:"id"`
-	Name         string       `json:"name"`
-	HostPlayerID string       `json:"host_player_id"`
-	Players      []PlayerInfo `json:"players"`
-	MaxPlayers   int          `json:"max_players"`
-	MinPlayers   int          `json:"min_players"`
-	CreatedAt    time.Time    `json:"created_at"`
-	Status       string       `json:"status"`
-	JoinTokens   []string     `json:"-"`
-	mutex        sync.RWMutex
-}
-
-// JoinToken represents a session token for a player in a lobby
-type JoinToken struct {
-	Token     string    `json:"token"`
-	LobbyID   string    `json:"lobby_id"`
-	PlayerID  string    `json:"player_id"` // Now storing playerID instead of name/avatar
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-// LobbyInfo represents public lobby information
+// LobbyInfo represents lobby information for listing
 type LobbyInfo struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
@@ -68,91 +24,296 @@ type LobbyInfo struct {
 	CanJoin     bool      `json:"can_join"`
 }
 
+// LobbyManager manages pre-game lobbies using PlayerActors
+type LobbyManager struct {
+	lobbies map[string]*Lobby
+	tokens  map[string]*JoinToken
+	mutex   sync.RWMutex
+
+	// Dependencies
+	sessionManager interfaces.SessionManagerInterface
+}
+
+// Import interfaces to avoid circular dependency
+
+// JoinToken represents a session token for a player in a lobby
+type JoinToken struct {
+	Token        string    `json:"token"`
+	LobbyID      string    `json:"lobby_id"`
+	PlayerID     string    `json:"player_id"`
+	PlayerName   string    `json:"player_name"`
+	PlayerAvatar string    `json:"player_avatar"`
+	LobbyName    string    `json:"lobby_name"`
+	IsHost       bool      `json:"is_host"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
 // NewLobbyManager creates a new lobby manager
-func NewLobbyManager(broadcaster Broadcaster, supervisor Supervisor) *LobbyManager {
-	return &LobbyManager{
-		lobbies:     make(map[string]*Lobby),
-		tokens:      make(map[string]*JoinToken),
-		actors:      make(map[string]*LobbyActor),
-		broadcaster: broadcaster,
-		supervisor:  supervisor,
+func NewLobbyManager(sessionManager interfaces.SessionManagerInterface) *LobbyManager {
+	lm := &LobbyManager{
+		lobbies:        make(map[string]*Lobby),
+		tokens:         make(map[string]*JoinToken),
+		sessionManager: sessionManager,
+	}
+
+	// Start cleanup routine for stale lobbies
+	go lm.startCleanupRoutine()
+
+	return lm
+}
+
+// startCleanupRoutine periodically removes stale lobbies
+func (lm *LobbyManager) startCleanupRoutine() {
+	ticker := time.NewTicker(5 * time.Minute) // Check every 5 minutes
+	defer ticker.Stop()
+
+	for range ticker.C {
+		lm.cleanupStaleLobbies()
 	}
 }
 
-// CreateLobby creates a new lobby and returns the lobby ID, host player ID, and host session token
-func (lm *LobbyManager) CreateLobby(hostName, hostAvatar, lobbyName string) (string, string, string, error) {
+// cleanupStaleLobbies removes lobbies that have been stale for too long
+func (lm *LobbyManager) cleanupStaleLobbies() {
+	lm.mutex.Lock()
+	defer lm.mutex.Unlock()
+
+	now := time.Now()
+	var staleLobbyIDs []string
+
+	for lobbyID, lobby := range lm.lobbies {
+		// Remove lobbies waiting for host for more than 10 minutes
+		if lobby.Status == "WAITING_FOR_HOST" && now.Sub(lobby.CreatedAt) > 10*time.Minute {
+			staleLobbyIDs = append(staleLobbyIDs, lobbyID)
+		}
+		// Remove empty lobbies that have been around for more than 30 minutes
+		if len(lobby.Players) == 0 && now.Sub(lobby.CreatedAt) > 30*time.Minute {
+			staleLobbyIDs = append(staleLobbyIDs, lobbyID)
+		}
+	}
+
+	// Remove stale lobbies and their associated tokens
+	for _, lobbyID := range staleLobbyIDs {
+		delete(lm.lobbies, lobbyID)
+
+		// Clean up associated tokens
+		var staleTokens []string
+		for tokenStr, token := range lm.tokens {
+			if token.LobbyID == lobbyID {
+				staleTokens = append(staleTokens, tokenStr)
+			}
+		}
+		for _, tokenStr := range staleTokens {
+			delete(lm.tokens, tokenStr)
+		}
+
+		log.Printf("LobbyManager: Cleaned up stale lobby %s", lobbyID)
+	}
+
+	// Also clean up expired tokens
+	for tokenStr, token := range lm.tokens {
+		if now.After(token.ExpiresAt) {
+			delete(lm.tokens, tokenStr)
+		}
+	}
+}
+
+// CreateLobbyViaHTTP creates a lobby and returns all necessary info for the host to connect
+func (lm *LobbyManager) CreateLobbyViaHTTP(hostPlayerName, lobbyName, playerAvatar string) (string, string, string, error) {
+	lobbyID := uuid.New().String()
+	hostPlayerID := fmt.Sprintf("player_%s_%d", hostPlayerName, time.Now().UnixNano())
+
+	// CRITICAL FIX: Do not create the lobby struct here or hold any locks.
+	// The lobby will be created when the host's WebSocket connects.
+	// This prevents the deadlock where CreateLobbyViaHTTP holds a write lock
+	// while the WebSocket handler tries to acquire a read lock.
+
+	// Generate the session token for the host with lobby creation info
+	sessionToken, err := lm.generateSessionTokenWithLobbyInfo(lobbyID, hostPlayerID, hostPlayerName, playerAvatar, lobbyName, true)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate session token: %w", err)
+	}
+
+	log.Printf("LobbyManager: Generated credentials for lobby %s, waiting for host %s to connect", lobbyID, hostPlayerID)
+
+	// Return everything the client needs to connect
+	return lobbyID, hostPlayerID, sessionToken, nil
+}
+
+// CreateLobby creates a new lobby with the host player actor
+func (lm *LobbyManager) CreateLobby(hostActor interfaces.PlayerActorInterface, lobbyName string) (string, error) {
 	lm.mutex.Lock()
 	defer lm.mutex.Unlock()
 
 	lobbyID := uuid.New().String()
-	hostPlayerID := uuid.New().String()
+	hostPlayerID := hostActor.GetPlayerID()
 
-	// CRITICAL FIX: Create the host's info and add them to the player list IMMEDIATELY.
-	hostInfo := PlayerInfo{ID: hostPlayerID, Name: hostName, Avatar: hostAvatar}
-	lobby := &Lobby{
-		ID:           lobbyID,
-		Name:         lobbyName,
-		HostPlayerID: hostPlayerID,
-		Players:      []PlayerInfo{hostInfo}, // Host is added to the list from the start.
-		MaxPlayers:   8,
-		MinPlayers:   4,
-		CreatedAt:    time.Now(),
-		Status:       "WAITING",
-	}
+	lobby := NewLobby(lobbyID, lobbyName, hostPlayerID, hostActor)
 	lm.lobbies[lobbyID] = lobby
 
-	actor := NewLobbyActor(lobby, lm.broadcaster, lm) // Pass the pointer to the lobby
-	lm.actors[lobbyID] = actor
-	actor.Start()
-
-	sessionToken, err := lm.generateSessionToken(lobbyID, hostPlayerID)
+	// Transition the host actor to lobby state
+	err := hostActor.TransitionToLobby(lobbyID)
 	if err != nil {
-		// Clean up on failure
 		delete(lm.lobbies, lobbyID)
-		delete(lm.actors, lobbyID)
-		return "", "", "", fmt.Errorf("failed to generate host session token: %w", err)
+		return "", fmt.Errorf("failed to transition host to lobby: %w", err)
 	}
 
-	return lobbyID, hostPlayerID, sessionToken, nil
+	// Generate session token for host
+	sessionToken, err := lm.generateSessionTokenWithLobbyInfo(lobbyID, hostPlayerID, hostActor.GetPlayerName(), "", lobbyName, false)
+	if err != nil {
+		delete(lm.lobbies, lobbyID)
+		return "", fmt.Errorf("failed to generate host session token: %w", err)
+	}
+
+	return sessionToken, nil
 }
 
-// JoinLobby atomically adds the player to the lobby state and returns a session token.
-func (lm *LobbyManager) JoinLobby(lobbyID, playerName, playerAvatar string) (string, string, error) {
-	lm.mutex.Lock()
-	lobby, exists := lm.lobbies[lobbyID]
-	lm.mutex.Unlock() // Unlock manager early, we just need the lobby pointer
-
+// JoinLobby by gameID, playerName, avatar - this is for HTTP API
+func (lm *LobbyManager) JoinLobby(gameID, playerName, playerAvatar string) (string, string, error) {
+	lm.mutex.RLock()
+	lobby, exists := lm.lobbies[gameID]
 	if !exists {
+		lm.mutex.RUnlock()
 		return "", "", fmt.Errorf("lobby not found")
 	}
 
-	// Lock the specific lobby we're modifying
-	lobby.mutex.Lock()
-	defer lobby.mutex.Unlock()
+	// Check lobby status safely
+	lobby.mutex.RLock()
+	status := lobby.Status
+	playerCount := len(lobby.Players)
+	maxPlayers := lobby.MaxPlayers
+	lobby.mutex.RUnlock()
+	lm.mutex.RUnlock()
 
-	if lobby.Status != "WAITING" {
-		return "", "", fmt.Errorf("lobby is not accepting new players")
-	}
-	if len(lobby.Players) >= lobby.MaxPlayers {
-		return "", "", fmt.Errorf("lobby is full")
+	if status != "WAITING" {
+		return "", "", ErrLobbyNotAcceptingPlayers
 	}
 
-	playerID := uuid.New().String()
-	playerInfo := PlayerInfo{ID: playerID, Name: playerName, Avatar: playerAvatar}
-	sessionToken, err := lm.generateSessionToken(lobbyID, playerID)
+	if playerCount >= maxPlayers {
+		return "", "", ErrLobbyFull
+	}
+
+	// Generate a unique player ID and session token
+	playerID := fmt.Sprintf("player_%s_%d", playerName, time.Now().UnixNano())
+	sessionToken, err := lm.generateSessionTokenWithLobbyInfo(gameID, playerID, playerName, playerAvatar, "", false)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}
 
-	lobby.Players = append(lobby.Players, playerInfo)
+	return playerID, sessionToken, nil
+}
 
-	if actor, ok := lm.actors[lobbyID]; ok {
-		actor.BroadcastLobbyUpdate()
-	} else {
-		return "", "", fmt.Errorf("consistency error: lobby actor not found for %s", lobbyID)
+// JoinLobbyWithActor adds a player actor to the lobby, creating it if needed
+func (lm *LobbyManager) JoinLobbyWithActor(lobbyID string, playerActor interfaces.PlayerActorInterface) error {
+	lm.mutex.Lock()
+	lobby, exists := lm.lobbies[lobbyID]
+	if !exists {
+		// Lobby doesn't exist, check if this is a host trying to create it
+		playerID := playerActor.GetPlayerID()
+
+		// Find the token for this player to get lobby creation info
+		var hostToken *JoinToken
+		for _, token := range lm.tokens {
+			if token.LobbyID == lobbyID && token.PlayerID == playerID {
+				hostToken = token
+				break
+			}
+		}
+
+		if hostToken == nil {
+			lm.mutex.Unlock()
+			return fmt.Errorf("lobby not found and no valid token available")
+		}
+
+		// Create the lobby now that the first player (likely host) is connecting
+		lobbyName := hostToken.LobbyName
+		if lobbyName == "" {
+			lobbyName = hostToken.PlayerName + "'s Game"
+		}
+		lobby = NewLobby(lobbyID, lobbyName, hostToken.PlayerID, playerActor)
+		lobby.Status = "WAITING" // Host is connected, so it's waiting for players
+		lm.lobbies[lobbyID] = lobby
+		log.Printf("[LobbyManager] Created lobby %s for player %s", lobbyID, playerID)
+	}
+	lm.mutex.Unlock()
+
+	// Add player to lobby (this will handle validation and broadcasting)
+	err := lobby.AddPlayer(playerActor)
+	if err != nil {
+		return err
 	}
 
-	return playerID, sessionToken, nil
+	// Transition the player actor to lobby state
+	return playerActor.TransitionToLobby(lobbyID)
+}
+
+// LeaveLobby removes a player from the lobby
+func (lm *LobbyManager) LeaveLobby(lobbyID string, playerID string) error {
+	lm.mutex.RLock()
+	lobby, exists := lm.lobbies[lobbyID]
+	lm.mutex.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("lobby not found")
+	}
+
+	lobby.RemovePlayer(playerID)
+	return nil
+}
+
+// StartGame initiates the atomic transition from lobby to game
+func (lm *LobbyManager) StartGame(lobbyID string, hostPlayerID string) error {
+	log.Printf("[LobbyManager] Received START_GAME from host %s for lobby %s", hostPlayerID, lobbyID)
+	lm.mutex.RLock()
+	lobby, exists := lm.lobbies[lobbyID]
+	if !exists {
+		lm.mutex.RUnlock()
+		return fmt.Errorf("lobby not found")
+	}
+	lm.mutex.RUnlock()
+
+	// Lock the specific lobby for the duration of the check and data copy
+	lobby.mutex.Lock()
+
+	// Verify the host is starting the game
+	if lobby.HostPlayerID != hostPlayerID {
+		lobby.mutex.Unlock()
+		return fmt.Errorf("only the host can start the game")
+	}
+
+	// BUG FIX: Check start conditions directly since we already hold the lock.
+	// Calling lobby.CanStart() here would cause a deadlock because it tries to
+	// acquire a RLock while this function holds a WLock.
+	if len(lobby.Players) < lobby.MinPlayers || lobby.Status != "WAITING" {
+		lobby.mutex.Unlock()
+		return fmt.Errorf("lobby cannot start: not enough players or invalid state")
+	}
+
+	// Mark lobby as transitioning to prevent more players from joining
+	lobby.Status = "STARTING"
+
+	// Copy the players out so we can release the lobby lock
+	playerActors := make(map[string]interfaces.PlayerActorInterface)
+	for id, actor := range lobby.Players {
+		playerActors[id] = actor
+	}
+
+	lobby.mutex.Unlock() // Release the lobby lock BEFORE the long operation
+
+	// Create the game with atomic transition
+	err := lm.sessionManager.CreateGameFromLobby(lobbyID, playerActors)
+	if err != nil {
+		lobby.mutex.Lock()
+		lobby.Status = "WAITING" // Revert on failure
+		lobby.mutex.Unlock()
+		return fmt.Errorf("failed to create game: %w", err)
+	}
+
+	// Remove the lobby after successful transition
+	lm.mutex.Lock()
+	delete(lm.lobbies, lobbyID)
+	lm.mutex.Unlock()
+
+	return nil
 }
 
 // ValidateSession validates a session token for a player in a game
@@ -172,37 +333,52 @@ func (lm *LobbyManager) ValidateSession(gameID, playerID, sessionToken string) b
 	return token.LobbyID == gameID && token.PlayerID == playerID
 }
 
-// ValidateAndConsumeToken is deprecated in favor of ValidateSession
-func (lm *LobbyManager) ValidateAndConsumeToken(tokenStr string) (*PlayerInfo, string, error) {
-	return nil, "", fmt.Errorf("ValidateAndConsumeToken is deprecated, use ValidateSession")
-}
-
-// GetLobbyList returns a list of available lobbies
-func (lm *LobbyManager) GetLobbyList() []LobbyInfo {
+// GetPlayerInfo returns player information for token validation
+func (lm *LobbyManager) GetPlayerInfo(gameID, playerID string) (string, string, error) {
 	lm.mutex.RLock()
 	defer lm.mutex.RUnlock()
 
-	var lobbies []LobbyInfo
+	// For now, we'll need to look up player info from the token
+	for _, token := range lm.tokens {
+		if token.LobbyID == gameID && token.PlayerID == playerID {
+			// Return a default name - in a real implementation this would be stored
+			return fmt.Sprintf("Player_%s", playerID[:8]), "", nil
+		}
+	}
+
+	return "", "", fmt.Errorf("player not found")
+}
+
+// GetLobbyList returns a list of available lobbies
+func (lm *LobbyManager) GetLobbyList() []interface{} {
+	lm.mutex.RLock()
+	defer lm.mutex.RUnlock()
+
+	var lobbies []interface{}
 	for _, lobby := range lm.lobbies {
+		// Use fine-grained locking to read lobby state safely
+		lobby.mutex.RLock()
 		if lobby.Status == "WAITING" {
+			playerActors := len(lobby.Players) // Read directly to avoid extra lock
 			lobbies = append(lobbies, LobbyInfo{
 				ID:          lobby.ID,
 				Name:        lobby.Name,
-				PlayerCount: len(lobby.Players),
+				PlayerCount: playerActors,
 				MaxPlayers:  lobby.MaxPlayers,
 				MinPlayers:  lobby.MinPlayers,
 				CreatedAt:   lobby.CreatedAt,
 				Status:      lobby.Status,
-				CanJoin:     len(lobby.Players) < lobby.MaxPlayers,
+				CanJoin:     playerActors < lobby.MaxPlayers,
 			})
 		}
+		lobby.mutex.RUnlock()
 	}
 
 	return lobbies
 }
 
 // GetLobby returns a lobby by ID
-func (lm *LobbyManager) GetLobby(lobbyID string) (*Lobby, bool) {
+func (lm *LobbyManager) GetLobby(lobbyID string) (interface{}, bool) {
 	lm.mutex.RLock()
 	defer lm.mutex.RUnlock()
 
@@ -210,89 +386,18 @@ func (lm *LobbyManager) GetLobby(lobbyID string) (*Lobby, bool) {
 	return lobby, exists
 }
 
-// TransitionLobbyToGame handles the handoff from lobby to game
-func (lm *LobbyManager) TransitionLobbyToGame(lobbyID string) error {
-	lm.mutex.Lock()
-	defer lm.mutex.Unlock()
-
-	lobby, exists := lm.lobbies[lobbyID]
-	if !exists {
-		return fmt.Errorf("lobby not found to transition")
-	}
-
-	lobby.Status = "STARTING"
-
-	// Get a copy of player info and host ID to pass to the game actor
-	playerInfos := make([]PlayerInfo, len(lobby.Players))
-	copy(playerInfos, lobby.Players)
-
-	// Tell the supervisor to create the GameActor and send it the initial state
-	err := lm.supervisor.CreateGameWithPlayers(lobbyID, playerInfos, lobby.HostPlayerID)
-	if err != nil {
-		lobby.Status = "WAITING" // Revert on failure
-		return err
-	}
-
-	// Successfully created game, now stop and remove the LobbyActor
-	if actor, ok := lm.actors[lobbyID]; ok {
-		actor.Stop()
-		delete(lm.actors, lobbyID)
-	}
-
-	// Mark lobby as started to remove it from public list
-	lobby.Status = "IN_PROGRESS"
-
-	return nil
+// GenerateJoinToken creates a public session token for lobby joining
+func (lm *LobbyManager) GenerateJoinToken(lobbyID, playerID string) (string, error) {
+	return lm.generateSessionToken(lobbyID, playerID)
 }
 
-// GetLobbyActor returns a lobby actor by ID (implements TokenValidator)
-func (lm *LobbyManager) GetLobbyActor(lobbyID string) (*LobbyActor, bool) {
-	lm.mutex.RLock()
-	defer lm.mutex.RUnlock()
-
-	actor, exists := lm.actors[lobbyID]
-	return actor, exists
-}
-
-// RemoveLobby removes a lobby and invalidates all its tokens
-func (lm *LobbyManager) RemoveLobby(lobbyID string) {
-	lm.mutex.Lock()
-	defer lm.mutex.Unlock()
-
-	lobby, exists := lm.lobbies[lobbyID]
-	if !exists {
-		return
-	}
-
-	// Stop and remove lobby actor
-	if actor, exists := lm.actors[lobbyID]; exists {
-		actor.Stop()
-		delete(lm.actors, lobbyID)
-	}
-
-	// Invalidate all tokens for this lobby
-	for _, tokenStr := range lobby.JoinTokens {
-		delete(lm.tokens, tokenStr)
-	}
-
-	delete(lm.lobbies, lobbyID)
-}
-
-// CleanupExpiredTokens removes expired tokens
-func (lm *LobbyManager) CleanupExpiredTokens() {
-	lm.mutex.Lock()
-	defer lm.mutex.Unlock()
-
-	now := time.Now()
-	for tokenStr, token := range lm.tokens {
-		if now.After(token.ExpiresAt) {
-			delete(lm.tokens, tokenStr)
-		}
-	}
-}
-
-// generateSessionToken creates a session token for a player in a lobby
+// generateSessionToken creates a session token for a player in a lobby (legacy method)
 func (lm *LobbyManager) generateSessionToken(lobbyID, playerID string) (string, error) {
+	return lm.generateSessionTokenWithLobbyInfo(lobbyID, playerID, "Unknown", "", "", false)
+}
+
+// generateSessionTokenWithLobbyInfo creates a session token with full lobby info
+func (lm *LobbyManager) generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost bool) (string, error) {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
@@ -300,12 +405,18 @@ func (lm *LobbyManager) generateSessionToken(lobbyID, playerID string) (string, 
 	tokenStr := hex.EncodeToString(bytes)
 
 	token := &JoinToken{
-		Token:     tokenStr,
-		LobbyID:   lobbyID,
-		PlayerID:  playerID,
-		ExpiresAt: time.Now().Add(24 * time.Hour), // Longer session duration
+		Token:        tokenStr,
+		LobbyID:      lobbyID,
+		PlayerID:     playerID,
+		PlayerName:   playerName,
+		PlayerAvatar: playerAvatar,
+		LobbyName:    lobbyName,
+		IsHost:       isHost,
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
 	}
 
+	lm.mutex.Lock()
 	lm.tokens[tokenStr] = token
+	lm.mutex.Unlock()
 	return tokenStr, nil
 }

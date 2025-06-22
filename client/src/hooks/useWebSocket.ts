@@ -1,3 +1,4 @@
+// client/src/hooks/useWebSocket.ts
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { websocketClient } from '../services/websocket';
 import { ServerEvent, ConnectionState, ClientAction } from '../types';
@@ -20,8 +21,8 @@ export function useWebSocket() {
   }, []);
 
   const connect = useCallback(
-    (gameId?: string, playerId?: string, sessionToken?: string, lastEventId?: string) => {
-      return websocketClient.connect(gameId, playerId, sessionToken, lastEventId);
+    (gameId?: string, playerId?: string, sessionToken?: string) => {
+      return websocketClient.connect(gameId, playerId, sessionToken);
     },
     []
   );
@@ -69,164 +70,4 @@ export function useWebSocketEvent<T = any>(
     const unsubscribe = subscribe(eventType, eventHandler);
     return unsubscribe;
   }, [eventType, subscribe]); // Now the effect only re-runs if eventType or subscribe change
-}
-
-// Hook for handling the full suite of game events with automatic game engine integration
-export function useGameEvents() {
-  const { subscribe, isConnected } = useWebSocket();
-  
-  // Import gameEngine dynamically to avoid circular dependencies
-  const [gameEngine, setGameEngine] = useState<any>(null);
-  
-  useEffect(() => {
-    import('../services/gameEngine').then(module => {
-      setGameEngine(module.gameEngine);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!isConnected) return;
-
-    const unsubscribeFunctions: (() => void)[] = [];
-
-    // Game lifecycle events
-    unsubscribeFunctions.push(
-      subscribe('GAME_STARTED', (event) => {
-        console.log('Game started:', event.payload);
-        if (gameEngine && gameEngine.isReady()) {
-          gameEngine.applyEvent(event).catch((error: any) => {
-            console.error('Failed to apply GAME_STARTED event:', error);
-          });
-        }
-      }),
-      subscribe('GAME_ENDED', (event) => {
-        console.log('Game ended:', event.payload);
-        if (gameEngine && gameEngine.isReady()) {
-          gameEngine.applyEvent(event).catch((error: any) => {
-            console.error('Failed to apply GAME_ENDED event:', error);
-          });
-        }
-      }),
-      subscribe('PHASE_CHANGED', (event) => {
-        console.log('Phase changed:', event.payload);
-        if (gameEngine && gameEngine.isReady()) {
-          gameEngine.applyEvent(event).catch((error: any) => {
-            console.error('Failed to apply PHASE_CHANGED event:', error);
-          });
-        }
-      })
-    );
-
-    // Player events
-    unsubscribeFunctions.push(
-      subscribe('PLAYER_JOINED', (event) => {
-        console.log('Player joined:', event.payload);
-      }),
-      subscribe('PLAYER_LEFT', (event) => {
-        console.log('Player left:', event.payload);
-      }),
-      subscribe('PLAYER_DEACTIVATED', (event) => {
-        console.log('Player eliminated:', event.payload);
-      }),
-      subscribe('ROLES_ASSIGNED', (event) => {
-        console.log('Roles assigned:', event.payload);
-      }),
-      subscribe('ALIGNMENT_CHANGED', (event) => {
-        console.log('Player alignment changed:', event.payload);
-      })
-    );
-
-    // Chat and communication events
-    unsubscribeFunctions.push(
-      subscribe('CHAT_MESSAGE_POSTED', (event) => {
-        console.log('Chat message posted:', event.payload);
-      }),
-      subscribe('PRIVATE_NOTIFICATION', (event) => {
-        console.log('Private notification:', event.payload);
-      })
-    );
-
-    // Voting events
-    unsubscribeFunctions.push(
-      subscribe('VOTE_CAST', (event) => {
-        console.log('Vote cast:', event.payload);
-      }),
-      subscribe('VOTE_STARTED', (event) => {
-        console.log('Vote started:', event.payload);
-      }),
-      subscribe('VOTE_COMPLETED', (event) => {
-        console.log('Vote completed:', event.payload);
-      })
-    );
-
-    // Token and mining events
-    unsubscribeFunctions.push(
-      subscribe('TOKENS_AWARDED', (event) => {
-        console.log('Tokens awarded:', event.payload);
-      }),
-      subscribe('MINING_SUCCESSFUL', (event) => {
-        console.log('Mining successful:', event.payload);
-      }),
-      subscribe('MINING_FAILED', (event) => {
-        console.log('Mining failed:', event.payload);
-      })
-    );
-
-    // Night action and crisis events
-    unsubscribeFunctions.push(
-      subscribe('NIGHT_ACTIONS_RESOLVED', (event) => {
-        console.log('Night actions resolved:', event.payload);
-        // Apply the event to the game engine so it updates the game state
-        if (gameEngine && gameEngine.isReady()) {
-          gameEngine.applyEvent(event).catch((error: any) => {
-            console.error('Failed to apply NIGHT_ACTIONS_RESOLVED event:', error);
-          });
-        }
-      }),
-      subscribe('PULSE_CHECK_SUBMITTED', (event) => {
-        console.log('Pulse check submitted:', event.payload);
-        if (gameEngine && gameEngine.isReady()) {
-          gameEngine.applyEvent(event).catch((error: any) => {
-            console.error('Failed to apply PULSE_CHECK_SUBMITTED event:', error);
-          });
-        }
-      }),
-      subscribe('CRISIS_TRIGGERED', (event) => {
-        console.log('Crisis triggered:', event.payload);
-        if (gameEngine && gameEngine.isReady()) {
-          gameEngine.applyEvent(event).catch((error: any) => {
-            console.error('Failed to apply CRISIS_TRIGGERED event:', error);
-          });
-        }
-      }),
-      subscribe('PRIVATE_NOTIFICATION', (event) => {
-        console.log('Private notification:', event.payload);
-        if (gameEngine && gameEngine.isReady()) {
-          gameEngine.applyEvent(event).catch((error: any) => {
-            console.error('Failed to apply PRIVATE_NOTIFICATION event:', error);
-          });
-        }
-      })
-    );
-
-    // Sync and lobby events
-    unsubscribeFunctions.push(
-      subscribe('SYNC_COMPLETE', (event) => {
-        console.log('Sync complete:', event.payload);
-      }),
-      subscribe('LOBBY_LIST_UPDATE', (event) => {
-        console.log('Lobby list updated:', event.payload);
-      }),
-      subscribe('LOBBY_STATE_UPDATE', (event) => {
-        console.log('Lobby state updated:', event.payload);
-      })
-    );
-
-    // Return cleanup function
-    return () => {
-      unsubscribeFunctions.forEach(fn => fn());
-    };
-  }, [subscribe, isConnected]);
-
-  return { isConnected };
 }

@@ -1,30 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useGameEngine } from '../hooks/useGameEngine';
-import { useWebSocket, useGameEvents } from '../hooks/useWebSocket';
+import { useWebSocket } from '../hooks/useWebSocket';
 import { GameState, Player, Phase, ClientAction } from '../types';
 import { PrivateNotifications } from './PrivateNotifications';
 
 interface GameScreenProps {
   gameState: GameState;
   playerId: string;
+  isChatHistoryLoading?: boolean;
 }
 
-export function GameScreen({ gameState, playerId }: GameScreenProps) {
+export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }: GameScreenProps) {
   const [chatInput, setChatInput] = useState('');
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [selectedNominee, setSelectedNominee] = useState<string>('');
   const [selectedVote, setSelectedVote] = useState<'GUILTY' | 'INNOCENT' | ''>('');
   const [conversionTarget, setConversionTarget] = useState<string>('');
-  
-  const { 
+
+  const {
     canPlayerAffordAbility,
     isValidNightActionTarget
   } = useGameEngine();
-  
+
   const { sendAction, isConnected } = useWebSocket();
-  
-  // Subscribe to all game events automatically
-  useGameEvents();
 
   useEffect(() => {
     const player = gameState.players.find(p => p.id === playerId);
@@ -54,10 +52,10 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
     const phaseStart = new Date(phase.startTime).getTime();
     const phaseEnd = phaseStart + phase.duration;
     const remaining = Math.max(0, phaseEnd - now);
-    
+
     const minutes = Math.floor(remaining / 60000);
     const seconds = Math.floor((remaining % 60000) / 1000);
-    
+
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
@@ -214,7 +212,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSendMessage();
     }
@@ -233,7 +231,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
     <div className="game-screen">
       {/* Private Notifications Overlay */}
       {gameState.privateNotifications && (
-        <PrivateNotifications 
+        <PrivateNotifications
           notifications={gameState.privateNotifications}
           onMarkAsRead={(notificationId) => {
             // TODO: Send action to mark notification as read
@@ -247,13 +245,13 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
           <h1>LOEBIAN INC. // WAR ROOM</h1>
           <div className="game-id">Game: {gameState.id.substring(0, 6)}</div>
         </div>
-        
+
         <div className="phase-info">
           <div className="phase-name">{getPhaseDisplayName(gameState.phase.type)}</div>
           <div className="day-counter">Day {gameState.dayNumber}</div>
           <div className="time-remaining">{formatTimeRemaining(gameState.phase)}</div>
         </div>
-        
+
         <div className="player-status">
           <div className="player-name">{currentPlayer.name}</div>
           <div className="player-role">{currentPlayer.role?.name || 'Unknown'}</div>
@@ -270,8 +268,8 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
         <aside className="player-list">
           <h3>Personnel ({gameState.players.filter(p => p.isAlive).length} alive)</h3>
           {gameState.players.map(player => (
-            <div 
-              key={player.id} 
+            <div
+              key={player.id}
               className={`player-card ${!player.isAlive ? 'eliminated' : ''} ${player.id === playerId ? 'self' : ''}`}
             >
               <div className="player-avatar">👤</div>
@@ -293,7 +291,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
             <div className="discussion-phase">
               <h2>Discussion Phase</h2>
               <p>Share information and discuss who might be the AI.</p>
-              
+
               {gameState.crisisEvent && (
                 <div className="crisis-event">
                   <h3>🚨 {gameState.crisisEvent.title}</h3>
@@ -307,7 +305,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
             <div className="night-phase">
               <h2>Night Phase</h2>
               <p>Choose your night action. All actions are executed simultaneously at the end of the phase.</p>
-              
+
               <div className="night-actions-grid">
                 <div className="action-category">
                   <h3>Universal Actions</h3>
@@ -324,7 +322,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                 {currentPlayer.role?.ability && (
                   <div className="action-category">
                     <h3>Role Ability</h3>
-                    <div 
+                    <div
                       className={`action-card ability ${canPlayerAffordAbility(playerId) ? '' : 'disabled'}`}
                       onClick={canPlayerAffordAbility(playerId) ? handleUseAbility : undefined}
                     >
@@ -349,7 +347,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                         {gameState.players
                           .filter(p => p.isAlive && p.id !== playerId && p.alignment !== 'AI')
                           .map(player => (
-                            <div 
+                            <div
                               key={player.id}
                               className={`target-card ${conversionTarget === player.id ? 'selected' : ''}`}
                               onClick={() => setConversionTarget(player.id)}
@@ -366,7 +364,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                           ))}
                       </div>
                       {conversionTarget && (
-                        <button 
+                        <button
                           className="action-btn conversion"
                           onClick={handleConversionAttempt}
                           disabled={!isConnected}
@@ -398,7 +396,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
             <div className="sitrep-phase">
               <h2>{getPhaseDisplayName(gameState.phase.type)}</h2>
               <p>The day is starting. Review the situation and prepare for discussion.</p>
-              
+
               {/* Night Action Results Summary */}
               {gameState.nightActionResults && gameState.nightActionResults.length > 0 && (
                 <div className="night-results-summary">
@@ -409,19 +407,19 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                       .map(result => (
                         <div key={result.id} className={`night-result-card ${result.result}`}>
                           <div className="result-icon">
-                            {result.type === 'MINE_TOKENS' ? '⛏️' : 
-                             result.type === 'BLOCK' ? '🚫' : 
-                             result.type === 'CONVERT' ? '🤖' : 
-                             result.type === 'INVESTIGATE' ? '🔍' : 
-                             result.type === 'PROTECT' ? '🛡️' : '❓'}
+                            {result.type === 'MINE_TOKENS' ? '⛏️' :
+                              result.type === 'BLOCK' ? '🚫' :
+                                result.type === 'CONVERT' ? '🤖' :
+                                  result.type === 'INVESTIGATE' ? '🔍' :
+                                    result.type === 'PROTECT' ? '🛡️' : '❓'}
                           </div>
                           <div className="result-details">
                             <div className="result-action">{result.type.replace('_', ' ')}</div>
                             <div className="result-description">{result.description}</div>
                             <div className={`result-status ${result.result}`}>
-                              {result.result === 'success' ? '✅ Success' : 
-                               result.result === 'failed' ? '❌ Failed' : 
-                               result.result === 'blocked' ? '🚫 Blocked' : result.result}
+                              {result.result === 'success' ? '✅ Success' :
+                                result.result === 'failed' ? '❌ Failed' :
+                                  result.result === 'blocked' ? '🚫 Blocked' : result.result}
                             </div>
                           </div>
                         </div>
@@ -442,9 +440,9 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                         {Object.entries(gameState.crisisEvent.effects).map(([key, value]) => (
                           <li key={key}>
                             <strong>{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong>
-                            {typeof value === 'boolean' ? (value ? ' Active' : ' Inactive') : 
-                             typeof value === 'number' ? ` ${value}` : 
-                             ` ${value}`}
+                            {typeof value === 'boolean' ? (value ? ' Active' : ' Inactive') :
+                              typeof value === 'number' ? ` ${value}` :
+                                ` ${value}`}
                           </li>
                         ))}
                       </ul>
@@ -465,9 +463,9 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                         {Object.entries(gameState.corporateMandate.effects).map(([key, value]) => (
                           <li key={key}>
                             <strong>{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong>
-                            {typeof value === 'boolean' ? (value ? ' Enabled' : ' Disabled') : 
-                             typeof value === 'number' ? ` ${value}` : 
-                             ` ${value}`}
+                            {typeof value === 'boolean' ? (value ? ' Enabled' : ' Disabled') :
+                              typeof value === 'number' ? ` ${value}` :
+                                ` ${value}`}
                           </li>
                         ))}
                       </ul>
@@ -483,21 +481,21 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
               <h2>{getPhaseDisplayName(gameState.phase.type)}</h2>
               <p>Submit your pulse check response.</p>
               <div className="pulse-check-actions">
-                <button 
+                <button
                   className="action-btn"
                   onClick={() => handlePulseCheck('POSITIVE')}
                   disabled={!isConnected}
                 >
                   Positive
                 </button>
-                <button 
+                <button
                   className="action-btn"
                   onClick={() => handlePulseCheck('NEGATIVE')}
                   disabled={!isConnected}
                 >
                   Negative
                 </button>
-                <button 
+                <button
                   className="action-btn"
                   onClick={() => handlePulseCheck('NEUTRAL')}
                   disabled={!isConnected}
@@ -512,7 +510,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
             <div className="nomination-phase">
               <h2>Nomination Phase</h2>
               <p>Select a team member to nominate for elimination.</p>
-              
+
               {gameState.voteState && (
                 <div className="voting-progress">
                   <h3>Current Nominations:</h3>
@@ -529,14 +527,14 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                   </div>
                 </div>
               )}
-              
+
               <div className="nomination-form">
                 <div className="player-grid">
                   {gameState.players
                     .filter(p => p.isAlive && p.id !== playerId)
                     .map(player => (
-                      <div 
-                        key={player.id} 
+                      <div
+                        key={player.id}
                         className={`nominee-card ${selectedNominee === player.id ? 'selected' : ''}`}
                         onClick={() => setSelectedNominee(player.id)}
                       >
@@ -549,7 +547,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                       </div>
                     ))}
                 </div>
-                <button 
+                <button
                   className="action-btn primary"
                   onClick={handleNominate}
                   disabled={!selectedNominee || !isConnected}
@@ -563,7 +561,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
           {(gameState.phase.type === 'TRIAL' || gameState.phase.type === 'VERDICT') && (
             <div className="voting-phase">
               <h2>{getPhaseDisplayName(gameState.phase.type)}</h2>
-              
+
               {gameState.nominatedPlayer && (
                 <div className="nominated-player">
                   <h3>On Trial:</h3>
@@ -584,9 +582,9 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                   })()}
                 </div>
               )}
-              
+
               <p>Cast your vote to determine their fate.</p>
-              
+
               {gameState.voteState && (
                 <div className="voting-progress">
                   <h3>Current Votes:</h3>
@@ -602,10 +600,10 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                   </div>
                 </div>
               )}
-              
+
               <div className="voting-form">
                 <div className="vote-buttons">
-                  <button 
+                  <button
                     className={`vote-btn guilty ${selectedVote === 'GUILTY' ? 'selected' : ''}`}
                     onClick={() => setSelectedVote('GUILTY')}
                   >
@@ -613,7 +611,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                     <span className="vote-text">GUILTY</span>
                     <span className="vote-sub">Eliminate</span>
                   </button>
-                  <button 
+                  <button
                     className={`vote-btn innocent ${selectedVote === 'INNOCENT' ? 'selected' : ''}`}
                     onClick={() => setSelectedVote('INNOCENT')}
                   >
@@ -622,7 +620,7 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
                     <span className="vote-sub">Keep alive</span>
                   </button>
                 </div>
-                <button 
+                <button
                   className="action-btn primary"
                   onClick={handleVote}
                   disabled={!selectedVote || !isConnected}
@@ -638,9 +636,15 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
         <aside className="chat-panel">
           <h3>Communications</h3>
           <div className="chat-messages">
+            {isChatHistoryLoading && gameState.chatMessages.length === 0 && (
+              <div className="chat-loading">
+                <div className="loading-spinner">⏳</div>
+                <div className="loading-text">Loading chat history...</div>
+              </div>
+            )}
             {gameState.chatMessages.map(message => (
-              <div 
-                key={message.id} 
+              <div
+                key={message.id}
                 className={`chat-message ${message.isSystem ? 'system' : ''} ${message.playerID === playerId ? 'own' : ''}`}
               >
                 <div className="message-header">
@@ -653,17 +657,17 @@ export function GameScreen({ gameState, playerId }: GameScreenProps) {
               </div>
             ))}
           </div>
-          
+
           <div className="chat-input">
             <input
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               placeholder="Type message..."
               maxLength={200}
             />
-            <button 
+            <button
               onClick={handleSendMessage}
               disabled={!isConnected || !chatInput.trim()}
             >

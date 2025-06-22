@@ -8,7 +8,7 @@ These are the commands a client can send to the server. The server will validate
 
 | Action Name | Payload | Description |
 | :--- | :--- | :--- |
-| **`RECONNECT`** | `{ "game_id": string, "player_id": string, "session_token": string, "last_event_id": string }` | Sent immediately upon connection to rejoin an active game. The `last_event_id` tells the server which events the client has already seen, allowing for an efficient catch-up. |
+| **`RECONNECT`** | `{ "game_id": string, "player_id": string, "session_token": string }` | Sent immediately upon connection to rejoin an active game. The server will respond with a `GAME_STATE_SNAPSHOT` to bring the client up-to-date instantly. |
 | **`CREATE_GAME`** | `{ "player_name": string }` | Asks the server to create a new game lobby and join it as the host. |
 | **`JOIN_GAME`** | `{ "game_id": string, "player_name": string }` | Joins an existing game lobby. |
 | **`START_GAME`** | `{}` | Sent by the lobby host to begin the game, assigning roles and starting Day 1. |
@@ -28,17 +28,17 @@ These are the immutable facts the server broadcasts. The client uses these event
 
 | Event Type | Payload | Description |
 | :--- | :--- | :--- |
+| **`GAME_STATE_SNAPSHOT`**| `{ "game_state": GameState }` | **Sent privately** upon reconnect. Contains the complete, authoritative core game state (players, phase, etc.) but omits bulky historical data like the chat log. This is used to instantly hydrate the client's UI. |
+| **`CHAT_HISTORY_SNAPSHOT`**| `{ "messages": ChatMessage[] }` | **Sent privately** upon reconnect, immediately after the `GAME_STATE_SNAPSHOT`. Contains the full chat history to allow the client to backfill its chat panel. |
 | **`PLAYER_JOINED`** | `{ "player": PlayerObject }` | A new player has joined the lobby. |
 | **`PLAYER_LEFT`** | `{ "player_id": string }` | A player has disconnected from the lobby or game. |
 | **`PLAYER_DEACTIVATED`** | `{ "player_id": string, "revealed_role": string, "revealed_alignment": string }` | A player has been voted out. This event crucially reveals their final role and alignment to all players. |
-| **`ROLES_ASSIGNED`** | `{ "your_role": RoleInfo }` | **Sent privately** to each player at the start of the game, revealing their role, alignment, and secret Personal KPI. |
+| **`ROLE_ASSIGNED`** | `{ "your_role": RoleInfo }` | **Sent privately** to each player at the start of the game, revealing their role, alignment, and secret Personal KPI. |
 | **`ALIGNMENT_CHANGED`** | `{ "new_alignment": string }` | **Sent privately** to a player when they have been converted by the AI faction. Signals the client to update its state and reveal AI-faction UI elements. |
 | **`PHASE_CHANGED`** | `{ "new_phase": string, "duration_sec": int, "day_number": int, "crisis_event"?: CrisisEventObject }` | Signals a new game phase (`LOBBY`, `DAY`, `NIGHT`, `END`). The daily crisis event is announced with the `DAY` phase change. |
 | **`CHAT_MESSAGE_POSTED`**| `{ "message": ChatMessageObject }` | A new chat message to be displayed. |
 | **`PULSE_CHECK_SUBMITTED`**| `{ "player_id": string, "player_name": string, "response": string }` | A player's response to the daily Pulse Check. The client should display this publicly with attribution. |
 | **`NIGHT_ACTIONS_RESOLVED`**| `{ "results": NightResultsObject }` | Summarizes the outcomes of the Night Phase. The full `NightResultsObject` is defined in the [Core Data Structures](./02-data-structures.md) document. This event triggers the start of the next Day Phase. |
-... (no change to other events) ...
 | **`GAME_ENDED`** | `{ "winning_faction": string, "reason": string, "player_states": Player[] }` | Announces the end of the game, the winner, and the final state of all players. |
-| **`SYNC_COMPLETE`** | `{}` | **Sent privately** to a reconnecting client after its batch of catch-up events has been delivered, signaling it's now up-to-date. |
 | **`PRIVATE_NOTIFICATION`**| `{ "message": string, "type": string }` | **Sent privately** to a single player to deliver sensitive information that only they should see. The `type` field allows the client to handle different kinds of notifications. <br> **Examples:** <br> • `"type": "SYSTEM_SHOCK_AFFLICTED"` <br> • `"type": "KPI_OBJECTIVE_COMPLETED"`|
 ---

@@ -1,10 +1,5 @@
-import { useState } from 'react';
-import { useWebSocketEvent } from '../hooks/useWebSocket';
+import { useState, useEffect } from 'react';
 import { Role, PersonalKPI } from '../types';
-
-interface RoleRevealScreenProps {
-  onEnterGame: () => void;
-}
 
 interface RoleAssignment {
   role: Role;
@@ -12,16 +7,20 @@ interface RoleAssignment {
   personalKPI: PersonalKPI;
 }
 
-export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
-  const [roleAssignment, setRoleAssignment] = useState<RoleAssignment | null>(null);
+interface RoleRevealScreenProps {
+  onEnterGame: () => void;
+  assignment: RoleAssignment | null;
+}
+
+export function RoleRevealScreen({ onEnterGame, assignment }: RoleRevealScreenProps) {
   const [showDetails, setShowDetails] = useState(false);
 
-  // Listen for role assignment
-  useWebSocketEvent('ROLES_ASSIGNED', (payload: { your_role: RoleAssignment }) => {
-    setRoleAssignment(payload.your_role);
-    // Auto-show details after a brief delay for dramatic effect
-    setTimeout(() => setShowDetails(true), 1500);
-  });
+  useEffect(() => {
+    if (assignment) {
+      // Auto-show details after a brief delay for dramatic effect
+      setTimeout(() => setShowDetails(true), 1500);
+    }
+  }, [assignment]);
 
   const getAlignmentColor = (alignment: string) => {
     return alignment === 'HUMAN' ? 'var(--color-human)' : 'var(--color-ai)';
@@ -31,12 +30,17 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
     return alignment === 'HUMAN' ? '🧑‍💼' : '🤖';
   };
 
-  if (!roleAssignment) {
+  if (!assignment || !assignment.role || !assignment.role.name) {
     return (
       <div className="launch-screen">
         <div className="launch-form">
           <h2>Assigning roles...</h2>
           <div className="loading-spinner">⏳</div>
+          {process.env.NODE_ENV === 'development' && (
+            <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+              Debug: assignment={JSON.stringify(assignment)}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -53,10 +57,10 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
         
         <div className="identity-header">
           <div className="role-avatar">
-            {getAlignmentIcon(roleAssignment.alignment)}
+            {getAlignmentIcon(assignment.alignment)}
           </div>
-          <h3>{roleAssignment.role.name}</h3>
-          <p className="role-description">{roleAssignment.role.description}</p>
+          <h3>{assignment.role.name}</h3>
+          <p className="role-description">{assignment.role.description}</p>
         </div>
         
         <div className="personnel-file">
@@ -64,9 +68,9 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
             <span className="label">INITIAL ALIGNMENT:</span>
             <span 
               className="value alignment"
-              style={{ color: getAlignmentColor(roleAssignment.alignment) }}
+              style={{ color: getAlignmentColor(assignment.alignment) }}
             >
-              {roleAssignment.alignment}
+              {assignment.alignment}
             </span>
           </div>
           
@@ -74,23 +78,23 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
             <>
               <div className="personnel-file-item">
                 <span className="label">ROLE TYPE:</span>
-                <span className="value">{roleAssignment.role.type}</span>
+                <span className="value">{assignment.role.type}</span>
               </div>
               
-              {roleAssignment.role.ability && (
+              {assignment.role.ability && (
                 <div className="personnel-file-item">
                   <span className="label">SPECIAL ABILITY:</span>
-                  <span className="value">{roleAssignment.role.ability.name}</span>
+                  <span className="value">{assignment.role.ability.name}</span>
                 </div>
               )}
               
               <div className="personnel-file-item kpi">
                 <span className="label">PERSONAL KPI:</span>
                 <div className="kpi-details">
-                  <div className="kpi-type">{roleAssignment.personalKPI.type}</div>
-                  <div className="kpi-description">{roleAssignment.personalKPI.description}</div>
+                  <div className="kpi-type">{assignment.personalKPI.type}</div>
+                  <div className="kpi-description">{assignment.personalKPI.description}</div>
                   <div className="kpi-reward">
-                    <strong>Reward:</strong> {roleAssignment.personalKPI.reward}
+                    <strong>Reward:</strong> {assignment.personalKPI.reward}
                   </div>
                 </div>
               </div>
@@ -98,7 +102,7 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
           )}
         </div>
         
-        {roleAssignment.alignment === 'HUMAN' ? (
+        {assignment.alignment === 'HUMAN' ? (
           <p className="objective-text">
             Your objective is to identify and deactivate the rogue AI before it gains control.
           </p>

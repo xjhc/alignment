@@ -45,7 +45,7 @@ func NewGameState(id string) *GameState {
 		NightActions: make(map[string]*SubmittedNightAction),
 		Settings: GameSettings{
 			MaxPlayers:         10,
-			MinPlayers:         4,
+			MinPlayers:         2,
 			SitrepDuration:     15 * time.Second,
 			PulseCheckDuration: 30 * time.Second,
 			DiscussionDuration: 2 * time.Minute,

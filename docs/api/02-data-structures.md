@@ -40,7 +40,7 @@ type Player struct {
     StatusMessage     string    `json:"status_message"`
     // --- Local Player Only ---
     // These fields are populated for the viewing client via private, targeted events.
-    // The client uses the payload of events like ROLES_ASSIGNED or ALIGNMENT_CHANGED
+    // The client uses the payload of events like ROLE_ASSIGNED or ALIGNMENT_CHANGED
     // to update the state of its local player object.
     Role              string    `json:"role,omitempty"`
     Alignment         string    `json:"alignment,omitempty"`
@@ -68,7 +68,7 @@ type CrisisEvent struct {
 }
 ```
 
-**`RoleInfo` Object** (Payload for the `ROLES_ASSIGNED` event)
+**`RoleInfo` Object** (Payload for the `ROLE_ASSIGNED` event)
 ```go
 type RoleInfo struct {
     Role        string `json:"role"`

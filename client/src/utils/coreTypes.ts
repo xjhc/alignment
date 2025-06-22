@@ -170,7 +170,7 @@ export function convertToClientTypes(coreState: CoreGameState): any {
   // Convert core types to client types
   // Handle the difference between Go map[string]*Player and JS array
   const playersArray = Object.values(coreState.players || {});
-  
+
   return {
     id: coreState.id,
     players: playersArray,
@@ -196,7 +196,7 @@ export function convertToCoreTypes(clientState: any): CoreGameState {
       playersMap[player.id] = player;
     });
   }
-  
+
   return {
     id: clientState.id,
     players: playersMap,
@@ -207,7 +207,7 @@ export function convertToCoreTypes(clientState: any): CoreGameState {
     updatedAt: clientState.updatedAt || new Date().toISOString(),
     settings: clientState.settings || {
       maxPlayers: 8,
-      minPlayers: 4,
+      minPlayers: 2,
       sitrepDuration: 15000,
       pulseCheckDuration: 30000,
       discussionDuration: 120000,
