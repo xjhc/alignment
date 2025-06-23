@@ -1,4 +1,5 @@
 import React from 'react';
+import styles from './ThreatMeter.module.css';
 
 interface ThreatMeterProps {
   tokens: number;
@@ -22,32 +23,32 @@ export const ThreatMeter: React.FC<ThreatMeterProps> = ({ tokens, aiEquity }) =>
   const status = getStatusIndicator();
 
   return (
-    <div className="hud-section">
-      <div className="section-header">
-        <span className="section-title">🌀 ALIGNMENT</span>
+    <div className={styles.hudSection}>
+      <div className={styles.sectionHeader}>
+        <span className={styles.sectionTitle}>🌀 ALIGNMENT</span>
       </div>
-      <div className="threat-meter-card">
-        <div className="threat-meter-header">
-          <span className="threat-label">AI EXPOSURE</span>
+      <div className={styles.threatMeterCard}>
+        <div className={styles.threatMeterHeader}>
+          <span className={styles.threatLabel}>AI EXPOSURE</span>
           <span 
-            className="visibility-icon private"
+            className={`${styles.visibilityIcon} ${styles.private}`}
             title="If AI Exposure exceeds your Tokens, you will be Aligned."
           >
             🔒
           </span>
         </div>
-        <div className="threat-meter-bar">
-          <div className="threat-bar-bg">
+        <div className={styles.threatMeterBar}>
+          <div className={styles.threatBarBg}>
             <div 
-              className="threat-bar-fill" 
+              className={styles.threatBarFill} 
               style={{ width: `${getBarWidth()}%` }}
             />
           </div>
         </div>
-        <div className="threat-meter-value">
+        <div className={styles.threatMeterValue}>
           <span>Equity: {aiEquity}</span>
           <span>Tokens: {tokens}</span>
-          <span className={`status-indicator ${status.className}`}>
+          <span className={`${styles.statusIndicator} ${styles[status.className]}`}>
             {status.text}
           </span>
         </div>

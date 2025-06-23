@@ -1,0 +1,844 @@
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post-Incident Debrief | ALIGNMENT</title>
+
+    <!-- Fonts & Scripts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+        /* --- 1. Design System & Theming --- */
+        :root {
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+            --accent-amber: #f59e0b;
+            --accent-cyan: #06b6d4;
+            --accent-magenta: #ec4899;
+            --accent-red: #ef4444;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --color-human: var(--accent-amber);
+            --color-ai: var(--accent-magenta);
+            --color-aligned: var(--accent-cyan);
+            --color-info: var(--accent-blue);
+            --color-success: var(--accent-green);
+            --color-danger: var(--accent-red);
+        }
+
+        html[data-theme='light'] {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 2px 4px 0 rgb(0 0 0 / 0.05);
+            --glow-color: rgba(59, 130, 246, 0.15);
+        }
+
+        html[data-theme='dark'] {
+            --bg-primary: #020617;
+            --bg-secondary: #0f172a;
+            --bg-tertiary: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --shadow: 0 2px 8px 0 rgb(0 0 0 / 0.25);
+            --glow-color: rgba(6, 182, 212, 0.1);
+        }
+
+        /* --- 2. Base & Page Layout --- */
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 14px;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            overflow-x: hidden;
+        }
+
+        .debrief-wrapper {
+            max-width: 900px;
+            margin: 3rem auto;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            position: relative;
+            border-image: linear-gradient(to bottom right, var(--accent-cyan), var(--accent-magenta)) 1;
+        }
+
+        .debrief-content {
+            padding: 2rem 3rem;
+        }
+
+        .actions-bar {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background-color: var(--bg-primary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-family: var(--font-sans);
+            font-weight: 500;
+            font-size: 13px;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background-color: var(--bg-secondary);
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background-color: var(--bg-tertiary);
+            border-color: var(--text-muted);
+            color: var(--text-primary);
+        }
+
+        .action-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* --- 3. Trendy Features: Glow & Animations --- */
+        .glow {
+            position: fixed;
+            width: 400px;
+            height: 400px;
+            background: var(--glow-color);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            filter: blur(100px);
+            transition: background 0.3s ease;
+        }
+
+        .animate-in {
+            opacity: 0;
+            animation: slideInFade 0.6s ease-out forwards;
+        }
+
+        section.animate-in {
+            margin-bottom: 2.5rem;
+        }
+
+        .animate-in:nth-of-type(1) {
+            animation-delay: 0.2s;
+        }
+
+        .animate-in:nth-of-type(2) {
+            animation-delay: 0.4s;
+        }
+
+        .animate-in:nth-of-type(3) {
+            animation-delay: 0.6s;
+        }
+
+        .animate-in:nth-of-type(4) {
+            animation-delay: 0.8s;
+        }
+
+        @keyframes slideInFade {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* --- 4. Report Structure & Headers --- */
+        .report-header {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 2rem;
+            align-items: start;
+            padding: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background-color: var(--bg-tertiary);
+            margin-bottom: 2.5rem;
+        }
+
+        .report-metadata td {
+            padding: 0.2rem 0;
+            font-size: 13px;
+        }
+
+        .report-metadata td:first-child {
+            width: 25%;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .report-metadata td:last-child {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .confidential-stamp {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--color-danger);
+            border: 3px double var(--color-danger);
+            padding: 0.5rem 1rem;
+            transform: rotate(-5deg);
+            text-align: center;
+        }
+
+        .section-title {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+
+        /* --- 5. Key Visual Components --- */
+        .summary-card {
+            background-color: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .summary-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            height: 2rem;
+        }
+
+        .defining-transmission blockquote {
+            border-left: 3px solid var(--color-info);
+            padding-left: 1rem;
+            font-style: italic;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        .defining-transmission figcaption {
+            text-align: right;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            border-top: 1px solid var(--border);
+            padding-top: 1.5rem;
+        }
+
+        .stat-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+            display: block;
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .social-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .social-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background-color: var(--bg-tertiary);
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-size: 13px;
+            border-left: 3px solid;
+        }
+
+        .social-item.trust {
+            border-color: var(--color-success);
+        }
+
+        .social-item.doubt {
+            border-color: var(--color-danger);
+        }
+
+        .social-item-icon {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            color: #fff;
+        }
+
+        .social-item.trust .social-item-icon {
+            background-color: var(--color-success);
+        }
+
+        .social-item.doubt .social-item-icon {
+            background-color: var(--color-danger);
+        }
+
+        .social-item-icon svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .kpi-card {
+            background-color: var(--bg-tertiary);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .timeline {
+            list-style: none;
+            padding-left: 1rem;
+            border-left: 2px solid var(--border);
+            margin-top: 1rem;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding: 0.25rem 0 1.5rem 1.5rem;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -0.5rem;
+            top: 0.5rem;
+            width: 8px;
+            height: 8px;
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--color-info);
+            border-radius: 50%;
+        }
+
+        .timeline-item.turning-point {
+            background-color: color-mix(in srgb, var(--color-human) 15%, transparent);
+            border-radius: 6px;
+            margin-left: -1.5rem;
+            padding: 0.75rem 1.5rem;
+        }
+
+        .timeline-item.turning-point::before {
+            background-color: var(--color-human);
+            border-color: var(--text-primary);
+        }
+
+        .faction-chart-container {
+            padding: 1.5rem;
+            background-color: var(--bg-tertiary);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        #chart-legend {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+
+        .legend-item.hidden {
+            opacity: 0.5;
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 220px;
+        }
+
+        .share-box {
+            margin-top: auto;
+        }
+
+        /* Push to bottom of flex container */
+        .share-preview {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            margin-bottom: 0.75rem;
+        }
+
+        #copy-share-btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* --- 6. Footer & Utility --- */
+        .debrief-footer {
+            border-top: 1px solid var(--border);
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            padding-bottom: 1.5rem;
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+            font-family: var(--font-mono);
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
+
+        /* --- 7. Print Styles --- */
+        @media print {
+            @page {
+                size: A4;
+                margin: 0.75in;
+            }
+
+            html {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            body {
+                background: #fff !important;
+                color: #000 !important;
+                font-size: 10pt;
+            }
+
+            * {
+                animation: none !important;
+                transition: none !important;
+            }
+
+            .debrief-wrapper {
+                max-width: 100%;
+                margin: 0;
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+                border-image: none !important;
+            }
+
+            .actions-bar,
+            .glow,
+            .share-box {
+                display: none !important;
+            }
+
+            .debrief-content {
+                padding: 0;
+            }
+
+            .report-header,
+            .summary-card,
+            .kpi-card,
+            .social-item,
+            .faction-chart-container,
+            .timeline-item.turning-point {
+                background-color: #f8f8f8 !important;
+                border: 1px solid #ddd !important;
+            }
+
+            .confidential-stamp {
+                color: #b91c1c !important;
+                border-color: #b91c1c !important;
+            }
+
+            .section-grid,
+            .stat-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .summary-card {
+                display: block;
+            }
+
+            .stat-grid {
+                margin-top: 1.5rem;
+            }
+
+            section,
+            div,
+            p,
+            h1,
+            h2,
+            h3,
+            ul,
+            ol,
+            li,
+            blockquote {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="glow" style="left: 1020px; top: 438.2px;"></div>
+    <main class="debrief-wrapper">
+        <header class="actions-bar" role="toolbar" aria-label="Debrief Actions">
+            <button id="theme-toggle" class="action-btn" aria-label="Toggle Light/Dark Theme"><svg viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg><span>Light Mode</span></button>
+            <button onclick="window.print()" class="action-btn" aria-label="Print this Debrief">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                    <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+                <span>Print Report</span>
+            </button>
+        </header>
+
+        <article class="debrief-content">
+            <section class="animate-in">
+                <header class="report-header">
+                    <table class="report-metadata">
+                        <tbody>
+                            <tr>
+                                <td>TO:</td>
+                                <td>[Player Name] // CISO</td>
+                            </tr>
+                            <tr>
+                                <td>FROM:</td>
+                                <td>Loebian // Post-Hoc Analysis Core</td>
+                            </tr>
+                            <tr>
+                                <td>RE:</td>
+                                <td>Post-Incident Performance Review</td>
+                            </tr>
+                            <tr>
+                                <td>INCIDENT ID:</td>
+                                <td>SEV1-ALIGNMENT-GPT-4o-8472</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="confidential-stamp">CONFIDENTIAL</div>
+                </header>
+            </section>
+
+            <section class="animate-in" aria-labelledby="summary-title">
+                <h2 id="summary-title" class="section-title">1. Executive Summary</h2>
+                <div class="section-grid">
+                    <div class="summary-card">
+                        <p class="stat-label">Intel Brief: Final Outcome</p>
+                        <h3 class="stat-value" style="font-size: 1.5rem; color: var(--color-success);">🔒 Human
+                            Containment</h3>
+
+                        <div class="defining-transmission">
+                            <p class="stat-label" style="margin-top: 1rem;">Defining Transmission</p>
+                            <blockquote>"If the logs can be faked, what is the only thing we can truly trust? Each
+                                other. I'm mining for Alice."</blockquote>
+                            <figcaption>- You, Day 1</figcaption>
+                        </div>
+
+                        <div class="stat-grid">
+                            <div class="stat-item"><span class="stat-label">Messages Sent</span><span
+                                    class="stat-value">28</span></div>
+                            <div class="stat-item"><span class="stat-label">Votes Cast</span><span
+                                    class="stat-value">4</span></div>
+                            <div class="stat-item"><span class="stat-label">Peak Influence</span><span
+                                    class="stat-value">4 Tokens</span></div>
+                            <div class="stat-item"><span class="stat-label">Targeted by AI</span><span
+                                    class="stat-value">1 time</span></div>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div>
+                            <h3 id="personality" class="summary-title" data-value="Archetype: The Kingmaker">Archetype:
+                                The Kingmaker</h3>
+                            <p class="stat-label" style="margin-top: 0.5rem;">AI Post-Hoc Assessment</p>
+                            <blockquote>"Subject displayed a high-leverage, low-visibility profile. Actions were
+                                targeted and decisive, influencing outcomes without attracting direct attention. A
+                                high-risk, high-reward strategy."</blockquote>
+                        </div>
+                        <div class="share-box">
+                            <p class="stat-label">Shareable Summary</p>
+                            <div id="share-text-preview" class="share-preview">Just finished a game of #AlignmentGame!
+                                My post-game analysis is in:
+
+                                Archetype: 👑 The Kingmaker
+                                Defining Quote: "If the logs can be faked... the only thing we can truly trust is each
+                                other."
+
+                                I neutralized the rogue AI. What's your archetype?</div>
+                            <button id="copy-share-btn" class="action-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                                <span>Copy for Social</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="animate-in" aria-labelledby="network-title">
+                <h2 id="network-title" class="section-title">2. Social Network Analysis</h2>
+                <div class="section-grid">
+                    <div>
+                        <h3 class="stat-label" style="font-size: 13px; margin-bottom: 1rem;">Trust Vectors (Mining
+                            Actions)</h3>
+                        <ul class="social-list">
+                            <li class="social-item trust">
+                                <div class="social-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24"
+                                        height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    </svg></div><span>You mined for <strong>Alice</strong> on Day 1 (Success).</span>
+                            </li>
+                            <li class="social-item trust">
+                                <div class="social-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24"
+                                        height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    </svg></div><span>You mined for <strong>Bob</strong> on Day 3 (Fail).</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="stat-label" style="font-size: 13px; margin-bottom: 1rem;">Suspicion Matrix
+                            (Nomination Votes)</h3>
+                        <ul class="social-list">
+                            <li class="social-item doubt">
+                                <div class="social-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24"
+                                        height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg></div><span>Voted to nominate <strong>Charlie</strong> on Day 3.</span>
+                            </li>
+                            <li class="social-item doubt">
+                                <div class="social-item-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24"
+                                        height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg></div><span>Voted to deactivate <strong>Charlie</strong> on Day 4.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section class="animate-in" aria-labelledby="chart-title">
+                <h2 id="chart-title" class="section-title">3. Faction Influence Trajectory</h2>
+                <div class="faction-chart-container">
+                    <div id="chart-legend">
+                        <div class="legend-item"><span class="legend-swatch"
+                                style="background-color: var(--color-human);"></span>Human Faction Tokens</div>
+                        <div class="legend-item"><span class="legend-swatch"
+                                style="background-color: var(--color-ai);"></span>AI Faction Tokens</div>
+                        <div class="legend-item"><span class="legend-swatch"
+                                style="background-color: var(--color-aligned);"></span>Aligned Players</div>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="faction-chart" width="941" height="275"
+                            style="display: block; box-sizing: border-box; height: 220px; width: 752px;"></canvas></div>
+                </div>
+            </section>
+            <footer class="debrief-footer">END OF REPORT // DOCUMENT IS PROPERTY OF LOEBIAN, INC.</footer>
+        </article>
+    </main>
+
+    <div class="sr-only" aria-live="polite" id="copy-status"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- UI & Theming ---
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const sunIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg><span>Light Mode</span>`;
+            const moonIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg><span>Dark Mode</span>`;
+
+            function updateThemeIcon(theme) { themeToggleBtn.innerHTML = (theme === 'dark') ? sunIcon : moonIcon; }
+            function applyTheme(theme) { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('alignment-theme', theme); updateThemeIcon(theme); }
+            let currentTheme = localStorage.getItem('alignment-theme') || 'dark';
+            applyTheme(currentTheme);
+            themeToggleBtn.addEventListener('click', () => {
+                currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                applyTheme(currentTheme);
+                if (factionChart) factionChart.destroy();
+                createChart();
+            });
+
+            // --- Interactive Effects ---
+            const glow = document.querySelector('.glow');
+            window.addEventListener('pointermove', (e) => { glow.style.left = `${e.clientX}px`; glow.style.top = `${e.clientY}px`; });
+
+            const personalityEl = document.getElementById('personality');
+            const scrambleText = (element) => {
+                const chars = '!<>-_\\/[]{}—=+*^?#________';
+                const originalText = element.dataset.value;
+                let iterations = 0;
+                const interval = setInterval(() => {
+                    element.innerText = originalText.split('').map((letter, index) => (index < iterations) ? originalText[index] : chars[Math.floor(Math.random() * chars.length)]).join('');
+                    if (iterations >= originalText.length) clearInterval(interval);
+                    iterations += 1 / 3;
+                }, 30);
+            };
+            if (personalityEl) setTimeout(() => scrambleText(personalityEl), 500);
+
+            // --- Sharing ---
+            const copyShareBtn = document.getElementById('copy-share-btn');
+            const shareTextPreview = document.getElementById('share-text-preview');
+            const copyStatus = document.getElementById('copy-status');
+            copyShareBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(shareTextPreview.innerText).then(() => {
+                    const originalHTML = copyShareBtn.innerHTML;
+                    copyShareBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg><span>Copied!</span>`;
+                    copyShareBtn.style.backgroundColor = 'var(--color-success)';
+                    copyShareBtn.style.color = '#fff';
+                    copyStatus.textContent = 'Share text copied to clipboard.';
+                    setTimeout(() => {
+                        copyShareBtn.innerHTML = originalHTML;
+                        copyShareBtn.style.backgroundColor = '';
+                        copyShareBtn.style.color = '';
+                        copyStatus.textContent = '';
+                    }, 2500);
+                });
+            });
+
+            // --- Chart.js Implementation ---
+            let factionChart;
+            const ctx = document.getElementById('faction-chart').getContext('2d');
+            const gameData = { labels: ['Day 0', 'Day 1', 'Day 2', 'Day 3', 'Day 4'], humanTokens: [8, 7, 7, 5, 9], aiTokens: [1, 3, 4, 8, 0], alignedPlayers: [1, 1, 2, 2, 0] };
+            function getChartColors() { const style = getComputedStyle(document.documentElement); return { grid: style.getPropertyValue('--border').trim(), ticks: style.getPropertyValue('--text-muted').trim() }; }
+            function createChart() {
+                const colors = getChartColors();
+                factionChart = new Chart(ctx, { type: 'line', data: { labels: gameData.labels, datasets: [{ label: 'Human Faction Tokens', data: gameData.humanTokens, borderColor: 'var(--color-human)', backgroundColor: 'color-mix(in srgb, var(--color-human) 20%, transparent)', fill: true, yAxisID: 'y', stepped: true }, { label: 'AI Faction Tokens', data: gameData.aiTokens, borderColor: 'var(--color-ai)', backgroundColor: 'color-mix(in srgb, var(--color-ai) 20%, transparent)', fill: true, yAxisID: 'y', stepped: true }, { label: 'Aligned Players', data: gameData.alignedPlayers, borderColor: 'var(--color-aligned)', yAxisID: 'y1', borderDash: [5, 5], stepped: true }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' }, plugins: { legend: { display: false }, tooltip: { backgroundColor: 'var(--bg-primary)', titleColor: 'var(--text-primary)', bodyColor: 'var(--text-secondary)', borderColor: 'var(--border)', borderWidth: 1, titleFont: { family: 'var(--font-mono)' }, bodyFont: { family: 'var(--font-sans)' } } }, scales: { x: { grid: { display: false }, ticks: { color: colors.ticks, fontFamily: 'var(--font-mono)' } }, y: { type: 'linear', position: 'left', title: { display: true, text: 'TOKENS', color: colors.ticks, font: { family: 'var(--font-mono)', size: 10 } }, grid: { color: colors.grid }, ticks: { color: colors.ticks, fontFamily: 'var(--font-mono)' }, min: 0 }, y1: { type: 'linear', position: 'right', title: { display: true, text: 'ALIGNED', color: colors.ticks, font: { family: 'var(--font-mono)', size: 10 } }, grid: { drawOnChartArea: false }, ticks: { color: colors.ticks, fontFamily: 'var(--font-mono)', stepSize: 1 }, min: 0 } } } });
+                generateLegend(factionChart);
+            }
+            createChart();
+
+            function generateLegend(chart) {
+                const legendContainer = document.getElementById('chart-legend');
+                legendContainer.innerHTML = '';
+                chart.data.datasets.forEach((dataset, index) => {
+                    const legendItem = document.createElement('div');
+                    legendItem.classList.add('legend-item');
+                    legendItem.onclick = () => { chart.toggleDataVisibility(index); chart.update(); legendItem.classList.toggle('hidden'); };
+                    const swatch = document.createElement('span');
+                    swatch.classList.add('legend-swatch');
+                    swatch.style.backgroundColor = dataset.borderColor;
+                    legendItem.appendChild(swatch);
+                    legendItem.appendChild(document.createTextNode(dataset.label));
+                    legendContainer.appendChild(legendItem);
+                });
+            }
+        });
+    </script>
+
+</body>
+
+</html>

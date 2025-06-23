@@ -1,3 +1,5 @@
+import styles from './WaitingScreen.module.css';
+
 interface PlayerLobbyInfo {
   id: string;
   name: string;
@@ -49,17 +51,17 @@ export function WaitingScreen({
   // Show connection error if unable to connect
   if (connectionError) {
     return (
-      <div className="launch-screen">
-        <h1 className="logo">
-          LOEBIAN INC. // <span className="glitch">EMERGENCY BRIDGE</span>
+      <div className={styles.launchScreen}>
+        <h1 className={styles.logo}>
+          LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
         </h1>
 
-        <div className="launch-form">
+        <div className={styles.launchForm}>
           <h2>CONNECTION ERROR</h2>
-          <p style={{ color: 'var(--error)', margin: '1rem 0' }}>
+          <p style={{ color: 'var(--accent-red)', margin: '1rem 0' }}>
             {connectionError}
           </p>
-          <button onClick={onLeaveLobby} className="btn-secondary">
+          <button onClick={onLeaveLobby} className={styles.btnSecondary}>
             ← Go Back
           </button>
         </div>
@@ -70,12 +72,12 @@ export function WaitingScreen({
   // Show loading while connecting
   if (!isConnected) {
     return (
-      <div className="launch-screen">
-        <h1 className="logo">
-          LOEBIAN INC. // <span className="glitch">EMERGENCY BRIDGE</span>
+      <div className={styles.launchScreen}>
+        <h1 className={styles.logo}>
+          LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
         </h1>
 
-        <div className="launch-form">
+        <div className={styles.launchForm}>
           <h2>CONNECTING TO LOBBY...</h2>
           <p>Establishing secure connection...</p>
         </div>
@@ -84,44 +86,44 @@ export function WaitingScreen({
   }
 
   return (
-    <div className="launch-screen">
-      <h1 className="logo">
-        LOEBIAN INC. // <span className="glitch">EMERGENCY BRIDGE</span>
+    <div className={styles.launchScreen}>
+      <h1 className={styles.logo}>
+        LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
       </h1>
 
-      <div className="launch-form waiting-screen">
+      <div className={`${styles.launchForm} ${styles.waitingScreen}`}>
         <h2>WAITING IN LOBBY...</h2>
-        <p className="game-id-info">
+        <p className={styles.gameIdInfo}>
           Lobby: <strong>{lobbyName || 'Loading...'}</strong><br />
           Game ID: <code>{formatGameId(gameId)}</code><br />
           Share this ID with other personnel.
         </p>
 
-        <div className="player-roster">
-          <div className="list-header">
+        <div className={styles.playerRoster}>
+          <div className={styles.listHeader}>
             Personnel Connected - {playerInfos.length} / {maxPlayers}
           </div>
 
           {playerInfos.map((playerInfo) => (
-            <div key={playerInfo.id} className="player-card">
-              <div className="player-avatar">
+            <div key={playerInfo.id} className={styles.playerCard}>
+              <div className={styles.playerAvatar}>
                 {playerInfo.avatar || '👤'}
                 {playerInfo.id === hostId && (
-                  <div className="host-crown">👑</div>
+                  <div className={styles.hostCrown}>👑</div>
                 )}
               </div>
-              <div className="player-content">
-                <div className="player-main-info">
-                  <span className="player-name">
+              <div className={styles.playerContent}>
+                <div className={styles.playerMainInfo}>
+                  <span className={styles.playerName}>
                     {playerInfo.name}
                     {playerInfo.id === hostId && ' (Host)'}
                     {playerInfo.id === playerId && ' (You)'}
                   </span>
-                  <span className="player-job">
+                  <span className={styles.playerJob}>
                     Personnel
                   </span>
                 </div>
-                <div className="player-tokens">
+                <div className={styles.playerTokens}>
                   🪙0
                 </div>
               </div>
@@ -130,14 +132,14 @@ export function WaitingScreen({
 
           {/* Show empty slots */}
           {Array.from({ length: Math.max(0, maxPlayers - playerInfos.length) }).map((_, index) => (
-            <div key={`empty-${index}`} className="player-card empty">
-              <div className="player-avatar">⏳</div>
-              <div className="player-content">
-                <div className="player-main-info">
-                  <span className="player-name">Waiting for player...</span>
-                  <span className="player-job">-</span>
+            <div key={`empty-${index}`} className={`${styles.playerCard} ${styles.empty}`}>
+              <div className={styles.playerAvatar}>⏳</div>
+              <div className={styles.playerContent}>
+                <div className={styles.playerMainInfo}>
+                  <span className={styles.playerName}>Waiting for player...</span>
+                  <span className={styles.playerJob}>-</span>
                 </div>
-                <div className="player-tokens">🪙-</div>
+                <div className={styles.playerTokens}>🪙-</div>
               </div>
             </div>
           ))}
@@ -145,7 +147,7 @@ export function WaitingScreen({
 
         {isHost && (
           <button
-            className="btn-primary"
+            className={styles.btnPrimary}
             onClick={onStartGame}
             disabled={!canStart || !isConnected}
             style={{ marginTop: '24px' }}
@@ -158,12 +160,12 @@ export function WaitingScreen({
         )}
 
         {!isHost && (
-          <p className="waiting-message">
+          <p className={styles.waitingMessage}>
             Waiting for host to start the game...
           </p>
         )}
 
-        <button onClick={onLeaveLobby} className="back-button">
+        <button onClick={onLeaveLobby} className={styles.backButton}>
           ← Leave Lobby
         </button>
       </div>

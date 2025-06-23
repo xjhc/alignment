@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import styles from './LoginScreen.module.css';
 
 interface LoginScreenProps {
   onLogin: (playerName: string, avatar: string) => void;
@@ -18,18 +19,18 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className="launch-screen">
-      <h1 className="logo">
-        LOEBIAN INC. // <span className="glitch">EMERGENCY BRIDGE</span>
+    <div className={styles.launchScreen}>
+      <h1 className={styles.logo}>
+        LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
       </h1>
       
-      <form className="launch-form" onSubmit={handleSubmit}>
-        <div className="avatar-selector">
+      <form className={styles.launchForm} onSubmit={handleSubmit}>
+        <div className={styles.avatarSelector}>
           {avatarOptions.map((avatar) => (
             <button
               key={avatar}
               type="button"
-              className={`avatar-option ${selectedAvatar === avatar ? 'selected' : ''}`}
+              className={`${styles.avatarOption} ${selectedAvatar === avatar ? styles.selected : ''}`}
               onClick={() => setSelectedAvatar(avatar)}
             >
               {avatar}
@@ -46,7 +47,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           required
         />
         
-        <button type="submit" className="btn-primary" disabled={!playerName.trim()}>
+        <button type="submit" className={styles.btnPrimary} disabled={!playerName.trim()}>
           [ &gt; BROWSE LOBBIES ]
         </button>
       </form>

@@ -1,4 +1,5 @@
 import React from 'react';
+import styles from './ObjectiveCard.module.css';
 
 interface ObjectiveCardProps {
   type: 'Team Objective' | 'Personal KPI' | 'Mandate';
@@ -16,35 +17,36 @@ export const ObjectiveCard: React.FC<ObjectiveCardProps> = ({
   isPrivate = false 
 }) => {
   const getCardClassName = () => {
+    const baseClass = styles.objectiveCard;
     switch (type) {
       case 'Team Objective':
-        return 'objective-card faction';
+        return `${baseClass} ${styles.faction}`;
       case 'Personal KPI':
-        return 'objective-card kpi';
+        return `${baseClass} ${styles.kpi}`;
       case 'Mandate':
-        return 'objective-card mandate';
+        return `${baseClass} ${styles.mandate}`;
       default:
-        return 'objective-card';
+        return baseClass;
     }
   };
 
   return (
     <div className={getCardClassName()}>
-      <div className="objective-type">{type}</div>
-      <div className="objective-name">
+      <div className={styles.objectiveType}>{type}</div>
+      <div className={styles.objectiveName}>
         {name}
         {isPrivate && (
           <span 
-            className="visibility-icon private"
+            className={`${styles.visibilityIcon} ${styles.private}`}
             title="Your secret objective"
           >
             🔒
           </span>
         )}
       </div>
-      <div className="objective-desc">{description}</div>
+      <div className={styles.objectiveDesc}>{description}</div>
       {progressText && (
-        <div className="objective-progress">{progressText}</div>
+        <div className={styles.objectiveProgress}>{progressText}</div>
       )}
     </div>
   );

@@ -1,0 +1,66 @@
+/* Ability Card Styles */
+.hudSection {
+  animation: fadeIn 0.3s ease;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.abilityStatus {
+  background: var(--color-success);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.abilityStatus.locked {
+  background-color: var(--text-muted);
+}
+
+.abilityCard {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.abilityCard.ready {
+  border-color: var(--color-success);
+}
+
+.abilityCard.locked {
+  opacity: 0.7;
+}
+
+.abilityName {
+  font-weight: bold;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.abilityDescription {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.abilityUsage {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+}

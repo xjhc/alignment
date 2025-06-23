@@ -1,0 +1,185 @@
+/* Final Player Card Styles */
+.finalPlayerCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  position: relative;
+  transition: all 0.3s ease;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+.finalPlayerCard.survivor {
+  border-color: var(--color-success);
+  background: linear-gradient(135deg, var(--bg-secondary), rgba(16, 185, 129, 0.05));
+}
+
+.finalPlayerCard.eliminated {
+  opacity: 0.7;
+}
+
+.finalPlayerCard.defeated {
+  border-color: var(--color-danger);
+}
+
+.finalPlayerCard.human {
+  /* Human specific styling if needed */
+}
+
+.finalPlayerCard.aiOriginal {
+  /* AI original specific styling if needed */
+}
+
+.finalPlayerCard.aligned {
+  /* Aligned specific styling if needed */
+}
+
+.cardStatusBadge {
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--border-color);
+}
+
+.survivorBadge {
+  background: var(--color-success);
+  color: white;
+  border-color: var(--color-success);
+}
+
+.aiBadge {
+  background: var(--color-ai);
+  color: white;
+  border-color: var(--color-ai);
+}
+
+.alignedBadge {
+  background: var(--color-aligned);
+  color: white;
+  border-color: var(--color-aligned);
+}
+
+.eliminatedBadge {
+  background: var(--color-danger);
+  color: white;
+  border-color: var(--color-danger);
+}
+
+.playerAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-color);
+  margin: 0 auto;
+}
+
+.playerAvatar.large {
+  width: 48px;
+  height: 48px;
+  font-size: 28px;
+  border: 2px solid var(--border-color);
+}
+
+.playerAvatar.faded {
+  opacity: 0.6;
+  filter: grayscale(50%);
+}
+
+.playerAvatar.glitch {
+  animation: glitch 5s infinite steps(1);
+}
+
+.playerInfo {
+  text-align: center;
+  margin: 12px 0;
+}
+
+.playerName {
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  margin: 8px 0 4px 0;
+  color: var(--text-primary);
+}
+
+.playerName.glitch {
+  animation: glitch 5s infinite steps(1);
+}
+
+.playerRole {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 8px 0;
+}
+
+.finalStats {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.statItem {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.statItem.human {
+  background: var(--color-human);
+  color: white;
+}
+
+.statItem.ai {
+  background: var(--color-ai);
+  color: white;
+}
+
+.statItem.aligned {
+  background: var(--color-aligned);
+  color: white;
+}
+
+.statItem.faded {
+  opacity: 0.5;
+}
+
+.partingMessage {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-secondary);
+  text-align: center;
+  border-left: 3px solid var(--border-color);
+}
+
+.partingMessage.aiMessage {
+  border-left-color: var(--color-ai);
+  color: var(--color-ai);
+}
+
+.partingMessage.alignedMessage {
+  border-left-color: var(--color-aligned);
+  color: var(--color-aligned);
+}

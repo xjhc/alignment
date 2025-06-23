@@ -1,0 +1,174 @@
+/* Role Reveal Screen Styles */
+.launchScreen {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.logo {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+.glitch {
+  display: inline-block;
+  animation: glitch 5s infinite steps(1);
+}
+
+.launchForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  width: 320px;
+}
+
+.roleReveal {
+  width: 400px;
+}
+
+.revealTitle {
+  color: var(--accent-amber);
+  text-shadow: 0 0 8px var(--accent-amber);
+  margin-bottom: 24px;
+}
+
+.identityHeader {
+  width: 100%;
+  margin: 16px 0;
+  text-align: center;
+}
+
+.roleAvatar {
+  width: 80px;
+  height: 80px;
+  font-size: 48px;
+  margin: 0 auto 16px;
+  background: var(--bg-secondary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border-color);
+}
+
+.roleDescription {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.personnelFile {
+  width: 100%;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.personnelFileItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.personnelFileItem.kpi {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.personnelFileItem .label {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.personnelFileItem .value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.personnelFileItem .value.alignment {
+  font-weight: var(--font-weight-bold);
+}
+
+.kpiDetails {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.kpiType {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.kpiDescription {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.kpiReward {
+  color: var(--color-success);
+  font-size: 11px;
+}
+
+.objectiveText {
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.objectiveText.ai {
+  color: var(--accent-magenta);
+  font-weight: var(--font-weight-medium);
+}
+
+.btnPrimary {
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+  background-color: var(--accent-amber);
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background-color: var(--accent-amber-light);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.loadingSpinner {
+  font-size: 24px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

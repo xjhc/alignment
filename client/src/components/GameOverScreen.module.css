@@ -1,0 +1,205 @@
+/* End Game Screen Styles */
+.endgameScreen {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.endgameHeader {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-secondary);
+}
+
+.companyLogo {
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-bold);
+  font-size: 16px;
+  letter-spacing: 1.5px;
+}
+
+.companyLogo.glitch {
+  animation: glitch 5s infinite steps(1);
+}
+
+.headerControls {
+  display: flex;
+  gap: 8px;
+}
+
+.headerBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background-color: var(--bg-tertiary);
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.headerBtn:hover {
+  background-color: var(--bg-quaternary);
+}
+
+.endgameContent {
+  flex: 1;
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.victoryAnnouncement {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.victoryBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 32px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 2px solid;
+}
+
+.victoryBadge.humanVictory {
+  background: linear-gradient(135deg, var(--color-human), var(--accent-amber-light));
+  border-color: var(--color-human);
+  color: white;
+}
+
+.victoryBadge.aiVictory {
+  background: linear-gradient(135deg, var(--color-ai), var(--accent-magenta-light));
+  border-color: var(--color-ai);
+  color: white;
+}
+
+.victoryIcon {
+  font-size: 48px;
+}
+
+.victoryIcon.glitch {
+  animation: glitch 5s infinite steps(1);
+}
+
+.victoryText {
+  text-align: left;
+}
+
+.victoryTitle {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: var(--font-weight-extrabold);
+  letter-spacing: 2px;
+  margin: 0;
+}
+
+.victoryTitle.glitch {
+  animation: glitch 5s infinite steps(1);
+}
+
+.victorySubtitle {
+  font-size: 14px;
+  opacity: 0.9;
+  margin: 4px 0 0 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.victoryReason {
+  font-size: 16px;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.finalStatusSection {
+  margin-bottom: 40px;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: 24px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.personnelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.victoryActions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.btnPrimary {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+  background-color: var(--accent-amber);
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background-color: var(--accent-amber-light);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.btnSecondary:hover {
+  background: var(--bg-quaternary);
+  transform: translateY(-2px);
+}
+
+.analysisBtn {
+  /* specific styles if needed */
+}
+
+.playAgainBtn {
+  /* specific styles if needed */
+}
+
+@media (max-width: 768px) {
+  .personnelGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .victoryActions {
+    flex-direction: column;
+    align-items: center;
+  }
+}

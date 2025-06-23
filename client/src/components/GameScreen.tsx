@@ -6,6 +6,7 @@ import { PrivateNotifications } from './PrivateNotifications';
 import { RosterPanel } from './game/RosterPanel';
 import { CommsPanel } from './game/CommsPanel';
 import { PlayerHUD } from './game/PlayerHUD';
+import styles from './GameScreen.module.css';
 
 interface GameScreenProps {
   gameState: GameState;
@@ -228,14 +229,14 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
 
   if (!localPlayer) {
     return (
-      <div className="game-screen">
-        <div className="loading">Loading game state...</div>
+      <div className={styles.gameScreen}>
+        <div className={styles.loading}>Loading game state...</div>
       </div>
     );
   }
 
   return (
-    <div className="game-screen game-layout-desktop">
+    <div className={`${styles.gameScreen} ${styles.gameLayoutDesktop}`}>
       {/* Private Notifications Overlay */}
       {gameState.privateNotifications && (
         <PrivateNotifications

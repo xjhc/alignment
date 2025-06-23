@@ -1,0 +1,60 @@
+/* Objective Card Styles */
+.objectiveCard {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 6px;
+}
+
+.objectiveCard.faction {
+  border-left: 3px solid var(--accent-blue);
+}
+
+.objectiveCard.kpi {
+  border-left: 3px solid var(--color-success);
+}
+
+.objectiveCard.mandate {
+  border-left: 3px solid var(--color-info);
+}
+
+.objectiveType {
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.objectiveName {
+  font-weight: bold;
+  margin-bottom: 3px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.objectiveDesc {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+
+.objectiveProgress {
+  font-size: 10px;
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+.visibilityIcon {
+  font-size: 8px;
+  opacity: 0.6;
+  cursor: help;
+}
+
+.visibilityIcon.private {
+  color: var(--accent-magenta);
+}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Player } from '../../types';
+import styles from './AbilityCard.module.css';
 
 interface AbilityCardProps {
   localPlayer: Player;
@@ -10,14 +11,14 @@ export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer }) => {
   
   if (!ability) {
     return (
-      <div className="hud-section">
-        <div className="section-header">
-          <span className="section-title">🎯 ABILITY</span>
-          <span className="ability-status">NO ABILITY</span>
+      <div className={styles.hudSection}>
+        <div className={styles.sectionHeader}>
+          <span className={styles.sectionTitle}>🎯 ABILITY</span>
+          <span className={styles.abilityStatus}>NO ABILITY</span>
         </div>
-        <div className="ability-card locked">
-          <div className="ability-name">No Active Ability</div>
-          <div className="ability-description">This role has no special abilities.</div>
+        <div className={`${styles.abilityCard} ${styles.locked}`}>
+          <div className={styles.abilityName}>No Active Ability</div>
+          <div className={styles.abilityDescription}>This role has no special abilities.</div>
         </div>
       </div>
     );
@@ -25,18 +26,18 @@ export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer }) => {
 
   const isReady = ability.isReady && !localPlayer.hasUsedAbility;
   const status = isReady ? 'READY' : 'LOCKED';
-  const cardClass = isReady ? 'ability-card ready' : 'ability-card locked';
+  const cardClass = isReady ? `${styles.abilityCard} ${styles.ready}` : `${styles.abilityCard} ${styles.locked}`;
 
   return (
-    <div className="hud-section">
-      <div className="section-header">
-        <span className="section-title">🎯 ABILITY</span>
-        <span className="ability-status">{status}</span>
+    <div className={styles.hudSection}>
+      <div className={styles.sectionHeader}>
+        <span className={styles.sectionTitle}>🎯 ABILITY</span>
+        <span className={styles.abilityStatus}>{status}</span>
       </div>
       <div className={cardClass}>
-        <div className="ability-name">{ability.name}</div>
-        <div className="ability-description">{ability.description}</div>
-        <div className="ability-usage">Used during Night Phase (30s window)</div>
+        <div className={styles.abilityName}>{ability.name}</div>
+        <div className={styles.abilityDescription}>{ability.description}</div>
+        <div className={styles.abilityUsage}>Used during Night Phase (30s window)</div>
       </div>
     </div>
   );

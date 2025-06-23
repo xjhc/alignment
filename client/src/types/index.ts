@@ -40,7 +40,32 @@ export type Ability = CoreTypes.CoreAbility;
 export type PersonalKPI = CoreTypes.CorePersonalKPI;
 export type SystemShock = CoreTypes.CoreSystemShock;
 export type NightAction = CoreTypes.CoreNightAction;
-export type ChatMessage = CoreTypes.CoreChatMessage;
+// Enhanced ChatMessage with specialized message types
+export interface ChatMessage extends CoreTypes.CoreChatMessage {
+  type?: 'SITREP' | 'VOTE_RESULT' | 'PULSE_CHECK' | 'REGULAR';
+  metadata?: {
+    nightActions?: any[];
+    playerHeadcount?: {
+      humans: number;
+      aligned: number;
+      dead: number;
+    };
+    crisisEvent?: CrisisEvent;
+    voteResult?: {
+      question: string;
+      outcome: string;
+      votes: Record<string, string>;
+      results: Record<string, number>;
+      eliminatedPlayer?: {
+        id: string;
+        name: string;
+        role: string;
+        alignment: string;
+      };
+    };
+    pulseCheckResponses?: Record<string, string>;
+  };
+}
 export type Phase = CoreTypes.CorePhase;
 export type VoteState = CoreTypes.CoreVoteState;
 export type CrisisEvent = CoreTypes.CoreCrisisEvent;

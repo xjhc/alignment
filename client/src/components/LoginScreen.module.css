@@ -1,0 +1,110 @@
+/* Login Screen Styles */
+.launchScreen {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.logo {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+.glitch {
+  display: inline-block;
+  animation: glitch 5s infinite steps(1);
+}
+
+.launchForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  width: 320px;
+}
+
+.launchForm input {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.launchForm input::placeholder {
+  color: var(--text-muted);
+}
+
+.avatarSelector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  justify-content: center;
+}
+
+.avatarOption {
+  width: 48px;
+  height: 48px;
+  border: 2px solid var(--border-color);
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatarOption:hover {
+  border-color: var(--accent-primary);
+  transform: scale(1.05);
+}
+
+.avatarOption.selected {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  box-shadow: 0 0 16px rgba(var(--accent-primary-rgb), 0.3);
+}
+
+.btnPrimary {
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+  background-color: var(--accent-amber);
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background-color: var(--accent-amber-light);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes glitch {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}

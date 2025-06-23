@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import styles from './LobbyListScreen.module.css';
 
 interface LobbyInfo {
   id: string;
@@ -109,8 +110,8 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
 
   if (isLoading) {
     return (
-      <div className="launch-screen">
-        <div className="launch-form">
+      <div className={styles.launchScreen}>
+        <div className={styles.launchForm}>
           <h2>Loading lobbies...</h2>
         </div>
       </div>
@@ -118,27 +119,27 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
   }
 
   return (
-    <div className="launch-screen">
-      <h1 className="logo">
-        LOEBIAN INC. // <span className="glitch">EMERGENCY BRIDGE</span>
+    <div className={styles.launchScreen}>
+      <h1 className={styles.logo}>
+        LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
       </h1>
       
-      <div className="lobby-list-container">
-        <div className="lobby-list-header">
+      <div className={styles.lobbyListContainer}>
+        <div className={styles.lobbyListHeader}>
           <h2>Game Lobbies</h2>
-          <button className="btn-secondary" onClick={handleCreateGame}>
+          <button className={styles.btnSecondary} onClick={handleCreateGame}>
             + Create New Game
           </button>
         </div>
 
         {error && (
-          <div className="error-message" style={{ color: 'var(--error)', margin: '1rem 0', padding: '0.5rem', background: 'rgba(255, 0, 0, 0.1)', borderRadius: '4px' }}>
+          <div className={styles.errorMessage}>
             {error}
           </div>
         )}
         
-        <div className="lobby-list">
-          <div className="lobby-item lobby-header">
+        <div className={styles.lobbyList}>
+          <div className={`${styles.lobbyItem} ${styles.lobbyHeader}`}>
             <div>Lobby Name</div>
             <div>Players</div>
             <div>Status</div>
@@ -146,22 +147,22 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
           </div>
           
           {lobbies.length === 0 ? (
-            <div className="lobby-item" style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            <div className={styles.lobbyItem} style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--text-secondary)' }}>
               No active lobbies. Create one to get started!
             </div>
           ) : (
             lobbies.map((lobby) => (
-              <div key={lobby.id} className="lobby-item">
-                <div className="lobby-name">#{lobby.name}</div>
+              <div key={lobby.id} className={styles.lobbyItem}>
+                <div className={styles.lobbyName}>#{lobby.name}</div>
                 <div>{lobby.player_count} / {lobby.max_players}</div>
                 <div>
-                  <span className={`lobby-status ${lobby.status ? lobby.status.toLowerCase().replace('_', '-') : 'unknown'}`}>
+                  <span className={`${styles.lobbyStatus} ${styles[lobby.status ? lobby.status.toLowerCase().replace('_', '') : 'unknown']}`}>
                     {lobby.status || 'Unknown'}
                   </span>
                 </div>
                 <div>
                   <button
-                    className="btn-secondary"
+                    className={styles.btnSecondary}
                     onClick={() => handleJoinLobby(lobby.id)}
                     disabled={!lobby.can_join}
                   >
@@ -173,7 +174,7 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
           )}
         </div>
         
-        <button onClick={onBack} className="back-button">
+        <button onClick={onBack} className={styles.backButton}>
           ← Back
         </button>
       </div>

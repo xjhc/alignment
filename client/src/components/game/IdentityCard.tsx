@@ -1,5 +1,6 @@
 import React from 'react';
 import { Player } from '../../types';
+import styles from './IdentityCard.module.css';
 
 interface IdentityCardProps {
   localPlayer: Player;
@@ -19,16 +20,16 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
   const getAlignmentDisplay = (player: Player) => {
     if (player.alignment === 'AI') {
       return (
-        <span className="stat aligned">
+        <span className={`${styles.stat} ${styles.aligned}`}>
           🤖 ALIGNED 
-          <span className="visibility-icon private" title="Only you can see this">🔒</span>
+          <span className={`${styles.visibilityIcon} ${styles.private}`} title="Only you can see this">🔒</span>
         </span>
       );
     }
     return (
-      <span className="stat human">
+      <span className={`${styles.stat} ${styles.human}`}>
         👤 HUMAN 
-        <span className="visibility-icon private" title="Only you can see this">🔒</span>
+        <span className={`${styles.visibilityIcon} ${styles.private}`} title="Only you can see this">🔒</span>
       </span>
     );
   };
@@ -48,17 +49,17 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
   };
 
   return (
-    <div className="hud-header">
-      <div className="identity-compact">
-        <div className="player-avatar large">
+    <div className={styles.hudHeader}>
+      <div className={styles.identityCompact}>
+        <div className={`${styles.playerAvatar} ${styles.large}`}>
           {getPlayerAvatar(localPlayer)}
         </div>
-        <div className="identity-info">
-          <h3 className="identity-name">{localPlayer.name}</h3>
-          <p className="identity-role">{getRoleDisplayName(localPlayer)}</p>
-          <div className="identity-stats">
+        <div className={styles.identityInfo}>
+          <h3 className={styles.identityName}>{localPlayer.name}</h3>
+          <p className={styles.identityRole}>{getRoleDisplayName(localPlayer)}</p>
+          <div className={styles.identityStats}>
             {getAlignmentDisplay(localPlayer)}
-            <span className="stat tokens">🪙 {localPlayer.tokens}</span>
+            <span className={`${styles.stat} ${styles.tokens}`}>🪙 {localPlayer.tokens}</span>
           </div>
         </div>
       </div>
