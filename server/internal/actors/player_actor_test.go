@@ -12,14 +12,14 @@ import (
 
 // MockLobbyManager implements LobbyManagerInterface for testing
 type MockLobbyManager struct {
-	createLobbyCalls    []CreateLobbyCall
-	joinLobbyCalls      []JoinLobbyCall
-	leaveLobbyCalls     []LeaveLobbyCall
-	startGameCalls      []StartGameCall
-	createLobbyResult   CreateLobbyResult
-	joinLobbyResult     error
-	leaveLobbyResult    error
-	startGameResult     error
+	createLobbyCalls  []CreateLobbyCall
+	joinLobbyCalls    []JoinLobbyCall
+	leaveLobbyCalls   []LeaveLobbyCall
+	startGameCalls    []StartGameCall
+	createLobbyResult CreateLobbyResult
+	joinLobbyResult   error
+	leaveLobbyResult  error
+	startGameResult   error
 }
 
 type CreateLobbyCall struct {
@@ -83,19 +83,21 @@ func (m *MockLobbyManager) StartGame(lobbyID string, hostPlayerID string) error 
 func (m *MockLobbyManager) JoinLobby(gameID, playerName, playerAvatar string) (string, string, error) {
 	return "", "", nil
 }
-func (m *MockLobbyManager) GetLobbyList() []interface{}                                       { return nil }
-func (m *MockLobbyManager) GetLobby(lobbyID string) (interface{}, bool)                      { return nil, false }
-func (m *MockLobbyManager) ValidateSession(gameID, playerID, sessionToken string) bool       { return false }
-func (m *MockLobbyManager) GetPlayerInfo(gameID, playerID string) (string, string, error)    { return "", "", nil }
+func (m *MockLobbyManager) GetLobbyList() []interface{}                                { return nil }
+func (m *MockLobbyManager) GetLobby(lobbyID string) (interface{}, bool)                { return nil, false }
+func (m *MockLobbyManager) ValidateSession(gameID, playerID, sessionToken string) bool { return false }
+func (m *MockLobbyManager) GetPlayerInfo(gameID, playerID string) (string, string, error) {
+	return "", "", nil
+}
 
 // MockSessionManager implements SessionManagerInterface for testing
 type MockSessionManager struct {
-	joinGameCalls      []JoinGameCall
-	leaveGameCalls     []LeaveGameCall
-	sendActionCalls    []SendActionCall
-	joinGameResult     error
-	leaveGameResult    error
-	sendActionResult   error
+	joinGameCalls    []JoinGameCall
+	leaveGameCalls   []LeaveGameCall
+	sendActionCalls  []SendActionCall
+	joinGameResult   error
+	leaveGameResult  error
+	sendActionResult error
 }
 
 type JoinGameCall struct {
@@ -431,30 +433,17 @@ func TestPlayerActor_ServerMessageHandling(t *testing.T) {
 	// Integration tests would verify the actual WebSocket message flow
 	t.Log("Server message handling test passed - no panics occurred")
 }
-```
-```go path=server/internal/actors/player_actor_test.go
-package actors
-
-import (
-	"context"
-	"testing"
-	"time"
-
-	"github.com/xjhc/alignment/core"
-	"github.com/xjhc/alignment/server/internal/interfaces"
-	"github.com/xjhc/alignment/server/internal/lobby"
-)
 
 // MockLobbyManager implements LobbyManagerInterface for testing
 type MockLobbyManager struct {
-	createLobbyCalls    []CreateLobbyCall
-	joinLobbyCalls      []JoinLobbyCall
-	leaveLobbyCalls     []LeaveLobbyCall
-	startGameCalls      []StartGameCall
-	createLobbyResult   CreateLobbyResult
-	joinLobbyResult     error
-	leaveLobbyResult    error
-	startGameResult     error
+	createLobbyCalls  []CreateLobbyCall
+	joinLobbyCalls    []JoinLobbyCall
+	leaveLobbyCalls   []LeaveLobbyCall
+	startGameCalls    []StartGameCall
+	createLobbyResult CreateLobbyResult
+	joinLobbyResult   error
+	leaveLobbyResult  error
+	startGameResult   error
 }
 
 type CreateLobbyCall struct {
@@ -518,19 +507,21 @@ func (m *MockLobbyManager) StartGame(lobbyID string, hostPlayerID string) error 
 func (m *MockLobbyManager) JoinLobby(gameID, playerName, playerAvatar string) (string, string, error) {
 	return "", "", nil
 }
-func (m *MockLobbyManager) GetLobbyList() []interface{}                                       { return nil }
-func (m *MockLobbyManager) GetLobby(lobbyID string) (interface{}, bool)                      { return nil, false }
-func (m *MockLobbyManager) ValidateSession(gameID, playerID, sessionToken string) bool       { return false }
-func (m *MockLobbyManager) GetPlayerInfo(gameID, playerID string) (string, string, error)    { return "", "", nil }
+func (m *MockLobbyManager) GetLobbyList() []interface{}                                { return nil }
+func (m *MockLobbyManager) GetLobby(lobbyID string) (interface{}, bool)                { return nil, false }
+func (m *MockLobbyManager) ValidateSession(gameID, playerID, sessionToken string) bool { return false }
+func (m *MockLobbyManager) GetPlayerInfo(gameID, playerID string) (string, string, error) {
+	return "", "", nil
+}
 
 // MockSessionManager implements SessionManagerInterface for testing
 type MockSessionManager struct {
-	joinGameCalls      []JoinGameCall
-	leaveGameCalls     []LeaveGameCall
-	sendActionCalls    []SendActionCall
-	joinGameResult     error
-	leaveGameResult    error
-	sendActionResult   error
+	joinGameCalls    []JoinGameCall
+	leaveGameCalls   []LeaveGameCall
+	sendActionCalls  []SendActionCall
+	joinGameResult   error
+	leaveGameResult  error
+	sendActionResult error
 }
 
 type JoinGameCall struct {

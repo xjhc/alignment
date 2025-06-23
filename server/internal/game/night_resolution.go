@@ -128,11 +128,11 @@ func (nrm *NightResolutionManager) resolveMiningActions() []core.Event {
 	for minerID, targetID := range result.SuccessfulMines {
 		target := nrm.gameState.Players[targetID]
 		miner := nrm.gameState.Players[minerID]
-		
+
 		if target != nil && miner != nil {
 			// Award the token
 			target.Tokens++
-			
+
 			// Create success event
 			event := core.Event{
 				ID:        fmt.Sprintf("mining_success_%s_%s", minerID, targetID),
@@ -398,7 +398,7 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 
 	// Calculate conversion success based on AI Equity vs Player Tokens
 	conversionThreshold := player.AIEquity
-	
+
 	// Check for crisis AI equity bonus
 	if nrm.gameState.CrisisEvent != nil {
 		if bonus, exists := nrm.gameState.CrisisEvent.Effects["ai_equity_bonus"]; exists {
@@ -411,7 +411,7 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 	if conversionThreshold > target.Tokens {
 		// Successful conversion - target becomes AI aligned
 		target.Alignment = "ALIGNED"
-		
+
 		// Apply AI equity bonus from crisis if applicable
 		equityGained := 1
 		if nrm.gameState.CrisisEvent != nil {
@@ -430,11 +430,11 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 			PlayerID:  targetID,
 			Timestamp: getCurrentTime(),
 			Payload: map[string]interface{}{
-				"converter_id":       playerID,
-				"target_id":          targetID,
-				"target_name":        target.Name,
-				"ai_equity_gained":   equityGained,
-				"new_ai_equity":      target.AIEquity,
+				"converter_id":     playerID,
+				"target_id":        targetID,
+				"target_name":      target.Name,
+				"ai_equity_gained": equityGained,
+				"new_ai_equity":    target.AIEquity,
 			},
 		}}
 	} else {
@@ -494,7 +494,7 @@ func (nrm *NightResolutionManager) canPlayerUseAbility(playerID, abilityType str
 
 	// Check milestone requirements (may be modified by corporate mandate)
 	requiredMilestones := 3 // Default requirement
-	
+
 	// Check if corporate mandate modifies milestone requirements
 	if nrm.gameState.CorporateMandate != nil && nrm.gameState.CorporateMandate.IsActive {
 		if milestonesVal, exists := nrm.gameState.CorporateMandate.Effects["milestones_for_abilities"]; exists {

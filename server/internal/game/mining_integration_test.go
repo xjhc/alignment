@@ -14,9 +14,9 @@ func TestMiningManager_CorporateMandateEffects(t *testing.T) {
 	// Add test players
 	for i := 0; i < 6; i++ {
 		gameState.Players[fmt.Sprintf("player%d", i)] = &core.Player{
-			ID:        fmt.Sprintf("player%d", i),
-			IsAlive:   true,
-			Alignment: "HUMAN",
+			ID:            fmt.Sprintf("player%d", i),
+			IsAlive:       true,
+			Alignment:     "HUMAN",
 			StatusMessage: "",
 		}
 	}

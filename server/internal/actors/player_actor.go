@@ -122,6 +122,37 @@ func (pa *PlayerActor) GetState() PlayerState {
 	return pa.state
 }
 
+func (pa *PlayerActor) GetGameID() string {
+	pa.stateMutex.RLock()
+	defer pa.stateMutex.RUnlock()
+	return pa.gameID
+}
+
+func (pa *PlayerActor) GetLobbyID() string {
+	pa.stateMutex.RLock()
+	defer pa.stateMutex.RUnlock()
+	return pa.lobbyID
+}
+
+// isConnectionValid checks if the player's connection is in a valid state
+func (pa *PlayerActor) isConnectionValid() bool {
+	// Check if WebSocket connection is still active
+	if pa.conn == nil {
+		return false
+	}
+
+	// Check if actor hasn't been cancelled
+	select {
+	case <-pa.ctx.Done():
+		return false
+	default:
+	}
+
+	// Additional validation could include checking session token expiry
+	// but that's handled by the LobbyManager's token validation
+	return true
+}
+
 // SendServerMessage sends a message from server components to this player
 func (pa *PlayerActor) SendServerMessage(message interface{}) {
 	select {
@@ -294,6 +325,12 @@ func (pa *PlayerActor) handleClientAction(action core.Action) {
 	currentState := pa.state
 	pa.stateMutex.RUnlock()
 
+	// Validate connection state before processing actions
+	if !pa.isConnectionValid() {
+		pa.sendError("Invalid connection state")
+		return
+	}
+
 	log.Printf("[PlayerActor/%s] Handling action %s in state %s", pa.playerID, action.Type, currentState)
 
 	// Route actions based on current state to enforce state machine
@@ -406,19 +443,17 @@ func (pa *PlayerActor) handleStartGame(action core.Action) {
 		return
 	}
 
-	// Launch the potentially long-running StartGame process in a new goroutine
+	// BUG FIX: Launch the potentially long-running StartGame process in a new goroutine
 	// to prevent blocking the PlayerActor's main processing loop.
-	// This is the key to preventing the deadlock.
 	go func() {
 		log.Printf("[PlayerActor/%s] Dispatching START_GAME for lobby %s", pa.playerID, pa.lobbyID)
-		err := pa.lobbyManager.StartGame(pa.lobbyID, pa.playerID)
+		err := pa.lobbyManager.StartGame(pa.playerID, pa.lobbyID)
 		if err != nil {
 			// If an error occurs (e.g., not enough players), send it back to the client.
 			// This is safe to call from a goroutine as it sends to a channel.
 			pa.sendError(fmt.Sprintf("Failed to start game: %v", err))
 		}
 	}()
-	// Log the dispatch immediately, not the completion.
 	log.Printf("[PlayerActor/%s] Dispatched START_GAME action for lobby %s", pa.playerID, pa.lobbyID)
 }
 
@@ -436,6 +471,18 @@ func (pa *PlayerActor) handleLobbyChat(action core.Action) {
 
 // handleGameAction forwards actions to the game
 func (pa *PlayerActor) handleGameAction(action core.Action) {
+	// Validate that player is actually in a game
+	if pa.gameID == "" {
+		pa.sendError("Player not in a game")
+		return
+	}
+
+	// Validate that the action's gameID matches the player's current game
+	if action.GameID != "" && action.GameID != pa.gameID {
+		pa.sendError("Action gameID does not match player's current game")
+		return
+	}
+
 	// Handle special game-level actions that don't go to GameActor
 	switch action.Type {
 	case core.ActionLeaveGame:
@@ -447,6 +494,10 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 			pa.sendError("Session manager not available")
 			return
 		}
+
+		// Ensure the action is properly attributed to this player and game
+		action.PlayerID = pa.playerID
+		action.GameID = pa.gameID
 
 		err := pa.sessionManager.SendActionToGame(pa.gameID, action)
 		if err != nil {
@@ -483,7 +534,17 @@ func (pa *PlayerActor) handleTransitionToGame(transition interfaces.TransitionTo
 		return
 	}
 
-	// Send the game state snapshot immediately
+	// First, send a generic GAME_STARTED event to signal the UI to transition.
+	gameStartedEvent := core.Event{
+		Type:      core.EventGameStarted,
+		GameID:    transition.GameID,
+		PlayerID:  pa.playerID, // Private, to this player
+		Timestamp: time.Now(),
+		Payload:   map[string]interface{}{"game_id": transition.GameID},
+	}
+	pa.sendEvent(gameStartedEvent)
+
+	// THEN, send the game state snapshot with role info etc.
 	pa.sendGameStateSnapshot(interfaces.GameStateSnapshot{
 		GameID:    transition.GameID,
 		GameState: transition.GameState,
@@ -529,10 +590,12 @@ func (pa *PlayerActor) sendLobbyStateUpdate(update lobby.LobbyStateUpdate) {
 
 // sendGameStateSnapshot sends game state to client
 func (pa *PlayerActor) sendGameStateSnapshot(snapshot interfaces.GameStateSnapshot) {
+	// BUG FIX: The snapshot now contains the already-prepared player-specific view.
+	// We just need to wrap it in the GAME_STATE_UPDATE event.
 	event := core.Event{
-		Type:      core.EventGameStateSnapshot,
+		Type:      "GAME_STATE_UPDATE",
 		GameID:    snapshot.GameID,
-		PlayerID:  pa.playerID,
+		PlayerID:  pa.playerID, // Private event
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
 			"game_state": snapshot.GameState,

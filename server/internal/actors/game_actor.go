@@ -69,12 +69,12 @@ func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string,
 	phaseManager := game.NewPhaseManager(scheduler, gameID, state.Settings)
 
 	actor := &GameActor{
-		gameID:      gameID,
-		state:       state,
-		mailbox:     make(chan actorRequest, 100), // Buffered channel for async requests
-		ctx:         ctx,
-		cancel:      cancel,
-		rng:         rng,
+		gameID:  gameID,
+		state:   state,
+		mailbox: make(chan actorRequest, 100), // Buffered channel for async requests
+		ctx:     ctx,
+		cancel:  cancel,
+		rng:     rng,
 
 		// Initialize managers with shared state
 		votingManager:      game.NewVotingManager(state),
@@ -218,15 +218,23 @@ func (ga *GameActor) processLoop() {
 				ga.state = &newState
 			}
 
-			// After applying events, generate the state updates for all players
-			var stateUpdateEvents []core.Event
-			for playerID := range ga.state.Players {
-				if ga.state.Players[playerID].IsAlive { // Only send updates to alive players
-					stateUpdateEvents = append(stateUpdateEvents, ga.CreatePlayerStateUpdateEvent(playerID))
+			// Check for EventGameStarted or EventPhaseChanged and schedule next phase transition
+			for _, event := range eventsToPersist {
+				switch event.Type {
+				case core.EventGameStarted:
+					log.Printf("[GameActor/%s] Game started, scheduling first phase transition", ga.gameID)
+					ga.phaseManager.SchedulePhaseTransition(ga.state.Phase.Type, time.Now())
+				case core.EventPhaseChanged:
+					// Extract next phase from the event payload
+					if nextPhase, ok := event.Payload["phase_type"].(string); ok {
+						log.Printf("[GameActor/%s] Phase changed to %s, scheduling next transition", ga.gameID, nextPhase)
+						ga.phaseManager.SchedulePhaseTransition(core.PhaseType(nextPhase), time.Now())
+					}
 				}
 			}
 
-			request.responseChan <- interfaces.ProcessActionResult{Events: stateUpdateEvents, Error: nil}
+			// Return the granular events instead of state snapshots
+			request.responseChan <- interfaces.ProcessActionResult{Events: eventsToPersist, Error: nil}
 
 		case <-ga.ctx.Done():
 			log.Printf("[GameActor/%s] Context done, shutting down", ga.gameID)
@@ -249,6 +257,8 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 		return ga.roleAbilityManager.HandleNightAction(action)
 	case core.ActionMineTokens:
 		return ga.miningManager.HandleMineAction(action)
+	case core.ActionSendMessage:
+		return ga.validateAndGenerateChatMessage(action)
 	case core.ActionType("PHASE_TRANSITION"):
 		return ga.validateAndGeneratePhaseTransition(action)
 	default:
@@ -256,32 +266,45 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 	}
 }
 
-// generateInitializeGameEvents handles the game setup.
+// generateInitializeGameEvents handles the game setup by generating events.
 func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Event, error) {
-	log.Printf("[GameActor/%s] Applying roles and alignments...", ga.gameID)
+	log.Printf("[GameActor/%s] Generating events for role and alignment assignment...", ga.gameID)
+	var events []core.Event
+
 	assignments := assignRolesAndAlignments(getPlayerIDs(ga.state.Players), ga.rng)
 	for playerID, assignment := range assignments {
-		if p, ok := ga.state.Players[playerID]; ok {
-			p.Role = &core.Role{
-				Type:        assignment.RoleType,
-				Name:        getRoleName(assignment.RoleType),
-				Description: getRoleDescription(assignment.RoleType),
-			}
-			p.Alignment = assignment.Alignment
-			p.JobTitle = getRoleName(assignment.RoleType)
-			p.PersonalKPI = &core.PersonalKPI{
-				Type:        assignment.KPIType,
-				Description: getKPIDescription(assignment.KPIType),
-			}
+		// Create a ROLE_ASSIGNED event for each player.
+		// These events will be applied internally to build the correct server state
+		// before generating the player-specific snapshots.
+		roleAssignedEvent := core.Event{
+			ID:        fmt.Sprintf("role_assigned_%s", playerID),
+			Type:      core.EventRoleAssigned,
+			GameID:    ga.gameID,
+			PlayerID:  playerID, // Event is specific to this player
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"role_type":        string(assignment.RoleType),
+				"role_name":        assignment.RoleName,
+				"role_description": assignment.RoleDescription,
+				"kpi_type":         string(assignment.KPIType),
+				"kpi_description":  assignment.KPIDescription,
+				"alignment":        assignment.Alignment,
+			},
 		}
+		events = append(events, roleAssignedEvent)
 	}
 
-	// This is now just a standard event that will be applied to state.
-	return []core.Event{{
-		Type:     core.EventGameStarted,
-		GameID:   ga.gameID,
-		PlayerID: "", // Public event
-	}}, nil
+	// Add the game started event, which transitions the phase
+	gameStartedEvent := core.Event{
+		ID:        fmt.Sprintf("game_started_%s", ga.gameID),
+		Type:      core.EventGameStarted,
+		GameID:    ga.gameID,
+		PlayerID:  "", // Public event
+		Timestamp: time.Now(),
+	}
+	events = append(events, gameStartedEvent)
+
+	return events, nil
 }
 
 func (ga *GameActor) validateAndGenerateLeaveGame(action core.Action) ([]core.Event, error) {
@@ -296,6 +319,48 @@ func (ga *GameActor) validateAndGenerateLeaveGame(action core.Action) ([]core.Ev
 		PlayerID:  action.PlayerID,
 		Timestamp: time.Now(),
 		Payload:   make(map[string]interface{}),
+	}
+
+	return []core.Event{event}, nil
+}
+
+// validateAndGenerateChatMessage handles chat message actions
+func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.Event, error) {
+	// Validate that the player exists and is alive
+	player, exists := ga.state.Players[action.PlayerID]
+	if !exists {
+		return nil, fmt.Errorf("player %s not in game", action.PlayerID)
+	}
+	
+	if !player.IsAlive {
+		return nil, fmt.Errorf("dead players cannot send messages")
+	}
+
+	// Extract message from payload
+	message, ok := action.Payload["message"].(string)
+	if !ok || message == "" {
+		return nil, fmt.Errorf("invalid or missing message in payload")
+	}
+
+	// Basic message validation
+	if len(message) > 500 {
+		return nil, fmt.Errorf("message too long (max 500 characters)")
+	}
+
+	// Create chat message event
+	event := core.Event{
+		ID:        fmt.Sprintf("chat_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventChatMessage,
+		GameID:    ga.gameID,
+		PlayerID:  "", // Public event - broadcast to all players
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"sender_id":   action.PlayerID,
+			"sender_name": player.Name,
+			"message":     message,
+			"phase":       string(ga.state.Phase.Type),
+			"day_number":  ga.state.DayNumber,
+		},
 	}
 
 	return []core.Event{event}, nil
@@ -528,7 +593,7 @@ func (ga *GameActor) createPlayerSpecificGameView(playerID string) *core.GameSta
 		if id != playerID {
 			// This is another player. Strip out their private data.
 			playerCopy.Alignment = ""
-			playerCopy.Role = nil // This sets the whole struct to nil
+			playerCopy.Role = nil        // This sets the whole struct to nil
 			playerCopy.PersonalKPI = nil // This sets the whole struct to nil
 			playerCopy.AIEquity = 0
 		}

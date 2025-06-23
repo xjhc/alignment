@@ -9,15 +9,15 @@ import (
 
 // MockPlayerActor for testing LobbyManager
 type MockPlayerActor struct {
-	PlayerID      string
-	PlayerName    string
-	CurrentState  interfaces.PlayerState
-	Messages      chan interface{}
+	PlayerID     string
+	PlayerName   string
+	CurrentState interfaces.PlayerState
+	Messages     chan interface{}
 }
 
-func (m *MockPlayerActor) GetPlayerID() string     { return m.PlayerID }
-func (m *MockPlayerActor) GetPlayerName() string   { return m.PlayerName }
-func (m *MockPlayerActor) GetSessionToken() string { return "test-token" }
+func (m *MockPlayerActor) GetPlayerID() string              { return m.PlayerID }
+func (m *MockPlayerActor) GetPlayerName() string            { return m.PlayerName }
+func (m *MockPlayerActor) GetSessionToken() string          { return "test-token" }
 func (m *MockPlayerActor) GetState() interfaces.PlayerState { return m.CurrentState }
 
 func (m *MockPlayerActor) TransitionToLobby(lobbyID string) error {
@@ -53,9 +53,11 @@ func (m *MockSessionManager) CreateGameFromLobby(lobbyID string, playerActors ma
 	return m.CreateGameError
 }
 
-func (m *MockSessionManager) JoinGame(gameID string, player interfaces.PlayerActorInterface) error { return nil }
-func (m *MockSessionManager) LeaveGame(gameID string, playerID string) error                     { return nil }
-func (m *MockSessionManager) SendActionToGame(gameID string, action interface{}) error           { return nil }
+func (m *MockSessionManager) JoinGame(gameID string, player interfaces.PlayerActorInterface) error {
+	return nil
+}
+func (m *MockSessionManager) LeaveGame(gameID string, playerID string) error           { return nil }
+func (m *MockSessionManager) SendActionToGame(gameID string, action interface{}) error { return nil }
 
 // TestLobbyManager_StartGame tests the full game start flow from the lobby
 func TestLobbyManager_StartGame(t *testing.T) {

@@ -4,7 +4,7 @@ import { Role, PersonalKPI } from '../types';
 interface RoleAssignment {
   role: Role;
   alignment: string;
-  personalKPI: PersonalKPI;
+  personalKPI: PersonalKPI | null;
 }
 
 interface RoleRevealScreenProps {
@@ -88,16 +88,20 @@ export function RoleRevealScreen({ onEnterGame, assignment }: RoleRevealScreenPr
                 </div>
               )}
               
-              <div className="personnel-file-item kpi">
-                <span className="label">PERSONAL KPI:</span>
-                <div className="kpi-details">
-                  <div className="kpi-type">{assignment.personalKPI.type}</div>
-                  <div className="kpi-description">{assignment.personalKPI.description}</div>
-                  <div className="kpi-reward">
-                    <strong>Reward:</strong> {assignment.personalKPI.reward}
+              {assignment.personalKPI && (
+                <div className="personnel-file-item kpi">
+                  <span className="label">PERSONAL KPI:</span>
+                  <div className="kpi-details">
+                    <div className="kpi-type">{assignment.personalKPI.type}</div>
+                    <div className="kpi-description">{assignment.personalKPI.description}</div>
+                    {assignment.personalKPI.reward && (
+                      <div className="kpi-reward">
+                        <strong>Reward:</strong> {assignment.personalKPI.reward}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
             </>
           )}
         </div>

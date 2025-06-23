@@ -9,6 +9,7 @@ export class WebSocketClient {
   private connectionState: ConnectionState = { isConnected: false, isReconnecting: false };
   private reconnectInterval: number | null = null;
   private heartbeatInterval: number | null = null;
+  private connectionCredentials: { gameId: string; playerId: string; sessionToken: string; connectedAt: Date } | null = null;
 
   constructor(url: string = 'ws://localhost:8080/ws') {
     this.url = url;
@@ -17,16 +18,28 @@ export class WebSocketClient {
   connect(gameId?: string, playerId?: string, sessionToken?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-
         let wsUrl = this.url;
         if (gameId && playerId && sessionToken) {
-          const params = new URLSearchParams({
-            gameId: gameId,
-            playerId: playerId,
-            sessionToken: sessionToken
-          });
+          // Ensure proper URL encoding and validation
+          const params = new URLSearchParams();
+          params.set('gameId', gameId.trim());
+          params.set('playerId', playerId.trim());
+          params.set('sessionToken', sessionToken.trim());
+
+          // Validate required parameters
+          if (!params.get('gameId') || !params.get('playerId') || !params.get('sessionToken')) {
+            throw new Error('Invalid connection parameters: gameId, playerId, and sessionToken must be non-empty');
+          }
 
           wsUrl = `${this.url}?${params.toString()}`;
+          
+          // Store credentials for reconnection
+          this.connectionCredentials = {
+            gameId: params.get('gameId')!,
+            playerId: params.get('playerId')!,
+            sessionToken: params.get('sessionToken')!,
+            connectedAt: new Date()
+          };
         }
 
         this.socket = new WebSocket(wsUrl);
@@ -95,10 +108,16 @@ export class WebSocketClient {
       this.socket.close(1000, 'Client disconnect');
       this.socket = null;
     }
+    this.connectionCredentials = null; // Clear stored credentials
     this.updateConnectionState({ isConnected: false, isReconnecting: false });
   }
 
   sendAction(action: ClientAction): void {
+    if (!this.isValidConnection()) {
+      console.warn('Cannot send action: Invalid connection state');
+      return;
+    }
+
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
         this.socket.send(JSON.stringify(action));
@@ -142,24 +161,79 @@ export class WebSocketClient {
     return { ...this.connectionState };
   }
 
+  isValidConnection(): boolean {
+    return this.connectionState.isConnected && 
+           !this.connectionState.isReconnecting && 
+           this.connectionCredentials !== null;
+  }
+
+  getConnectionAge(): number | null {
+    if (!this.connectionCredentials) {
+      return null;
+    }
+    return Date.now() - this.connectionCredentials.connectedAt.getTime();
+  }
+
+  isConnectionNearExpiry(): boolean {
+    const age = this.getConnectionAge();
+    // Warn if connection is older than 23 hours (tokens expire at 24h)
+    return age !== null && age > 23 * 60 * 60 * 1000;
+  }
+
   private handleServerEvent(event: ServerEvent): void {
     console.log('Received server event:', event.type, event.payload);
 
-    // The only event that should modify the Wasm state is GAME_STATE_UPDATE
-    if (event.type === 'GAME_STATE_UPDATE') {
-      if (gameEngine.isReady()) {
-        const gameState = event.payload?.game_state;
-        if (gameState) {
-          console.log('Loading core state from GAME_STATE_UPDATE...');
-          gameEngine.resetAndLoadState(gameState)
-            .catch(err => console.error('Failed to load game state:', err));
+    // Handle events using a switch statement
+    switch (event.type) {
+      case 'GAME_STATE_UPDATE':
+        // Full state sync - only used for initial game transition
+        if (gameEngine.isReady()) {
+          const gameState = event.payload?.game_state;
+          if (gameState) {
+            console.log('Loading core state from GAME_STATE_UPDATE...');
+            gameEngine.resetAndLoadState(gameState)
+              .catch(err => console.error('Failed to load game state:', err));
+          }
+        } else {
+          console.warn('Game engine not ready for GAME_STATE_UPDATE, will retry when ready');
         }
-      } else {
-        console.warn('Game engine not ready for GAME_STATE_UPDATE, will retry when ready');
-      }
+        break;
+
+      case 'ROLE_ASSIGNED':
+      case 'GAME_STARTED':
+      case 'PHASE_CHANGED':
+      case 'CHAT_MESSAGE':
+      case 'VOTE_CAST':
+      case 'NIGHT_ACTION_SUBMITTED':
+      case 'PLAYER_LEFT':
+      case 'PLAYER_ELIMINATED':
+        // Granular events - apply to game engine if available
+        if (gameEngine.isReady()) {
+          console.log(`Applying granular event ${event.type} to game engine`);
+          // Convert ServerEvent to CoreEvent format
+          const coreEvent = {
+            id: event.id || `event_${Date.now()}`,
+            type: event.type,
+            gameId: event.gameId || event.game_id || '',
+            playerId: event.playerId || '',
+            timestamp: event.timestamp || new Date().toISOString(),
+            payload: event.payload || {}
+          };
+          gameEngine.applyEvent(coreEvent)
+            .catch(err => console.error(`Failed to apply event ${event.type}:`, err));
+        } else {
+          console.warn(`Game engine not ready for event ${event.type}, will buffer for later`);
+          // Could implement event buffering here if needed
+        }
+        break;
+
+      default:
+        // Unknown event types - just log and pass to subscribers
+        console.log(`Unknown event type: ${event.type}, passing to subscribers only`);
+        break;
     }
 
-    // All other events are emitted to UI listeners.
+    // Always emit to UI subscribers for additional handling
     this.emitToSubscribers(event);
   }
 
@@ -191,14 +265,34 @@ export class WebSocketClient {
     if (this.reconnectInterval) {
       return;
     }
+    
+    // Don't reconnect if we don't have credentials
+    if (!this.connectionCredentials) {
+      console.log('No credentials available for reconnection');
+      return;
+    }
+    
     this.updateConnectionState({ isReconnecting: true });
     this.reconnectInterval = window.setTimeout(() => {
       this.reconnectInterval = null;
       console.log('Attempting to reconnect...');
-      this.connect()
+      const creds = this.connectionCredentials!;
+      this.connect(creds.gameId, creds.playerId, creds.sessionToken)
         .catch(error => {
           console.error('Reconnection failed:', error);
-          setTimeout(() => this.scheduleReconnect(), 5000);
+          // If token is invalid, clear credentials and stop reconnecting
+          if (error.message?.includes('Invalid session') || error.message?.includes('Unauthorized')) {
+            console.log('Session expired, clearing credentials');
+            this.connectionCredentials = null;
+            this.updateConnectionState({ 
+              isConnected: false, 
+              isReconnecting: false,
+              lastError: 'Session expired' 
+            });
+          } else {
+            // Retry for other errors
+            setTimeout(() => this.scheduleReconnect(), 5000);
+          }
         });
     }, 2000);
   }

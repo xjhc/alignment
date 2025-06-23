@@ -74,28 +74,55 @@ function App() {
   // The SINGLE source of truth for UI updates.
   useEffect(() => {
     if (!coreGameState || !appState.playerId) {
-      // Don't do anything until both the Wasm state and the player's identity are known.
       return;
     }
 
-    // 1. Sync the core state to our React state
     const clientState = convertToClientTypes(coreGameState);
     setGameState(clientState);
 
-    // 2. Try to extract the role assignment for the local player
     const localPlayer = clientState.players.find((p: any) => p.id === appState.playerId);
-    if (localPlayer && localPlayer.role && localPlayer.alignment && localPlayer.personalKPI) {
-      const newAssignment = { role: localPlayer.role, alignment: localPlayer.alignment, personalKPI: localPlayer.personalKPI };
+    if (localPlayer && localPlayer.role && localPlayer.alignment) {
+      // PersonalKPI might be null/undefined, handle gracefully
+      const newAssignment = { 
+        role: localPlayer.role, 
+        alignment: localPlayer.alignment, 
+        personalKPI: localPlayer.personalKPI || null 
+      };
       setRoleAssignment(newAssignment);
     }
+  }, [coreGameState, appState.playerId]);
 
-    // 3. Self-healing state transition logic
-    if (clientState.phase?.type !== 'LOBBY' && appState.currentScreen === 'waiting') {
-      console.log(`[App] Game state advanced to ${clientState.phase?.type} while in lobby. Transitioning to role-reveal.`);
+  // BUG FIX: Wait for BOTH phase change AND role assignment before transitioning
+  // This prevents the race condition where screen transitions before role data is available
+  useEffect(() => {
+    if (appState.currentScreen === 'waiting' && 
+        gameState.phase.type !== 'LOBBY' && 
+        roleAssignment) {
+      console.log(`[App] Game phase changed to ${gameState.phase.type} and role assigned. Transitioning to role-reveal.`);
       setAppState(prev => ({ ...prev, currentScreen: 'role-reveal' }));
     }
-  }, [coreGameState, appState.playerId, appState.currentScreen]);
+  }, [appState.currentScreen, gameState.phase.type, roleAssignment]);
 
+  // Backup: GAME_STARTED event with timeout for emergency fallback
+  const handleGameStarted = useCallback(() => {
+    if (appState.currentScreen === 'waiting') {
+      // Give role assignment 3 seconds to complete, then transition anyway
+      setTimeout(() => {
+        if (appState.currentScreen === 'waiting') {
+          console.log(`[App] Emergency fallback: Transitioning to role-reveal after timeout.`);
+          setAppState(prev => ({ ...prev, currentScreen: 'role-reveal' }));
+        }
+      }, 3000);
+    }
+  }, [appState.currentScreen]);
+
+  useEffect(() => {
+    if (isInGameSession) {
+      const unsubscribe = subscribe('GAME_STARTED', handleGameStarted);
+      return unsubscribe;
+    }
+    return () => { };
+  }, [isInGameSession, subscribe, handleGameStarted]);
 
   // Set dark theme by default
   useEffect(() => {

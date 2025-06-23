@@ -11,7 +11,7 @@ import (
 
 // MockGameActor for testing SessionManager
 type MockGameActor struct {
-	GameID string
+	GameID           string
 	PostActionResult chan interfaces.ProcessActionResult
 }
 
@@ -35,7 +35,6 @@ func (m *MockGameActor) CreatePlayerStateUpdateEvent(playerID string) core.Event
 
 func (m *MockGameActor) Stop() {}
 
-
 // TestSessionManager_CreateGameFromLobby tests the atomic game creation from a lobby
 func TestSessionManager_CreateGameFromLobby(t *testing.T) {
 	ctx := context.Background()
@@ -55,7 +54,7 @@ func TestSessionManager_CreateGameFromLobby(t *testing.T) {
 
 	// Set up supervisor mock to return a game actor
 	mockGameActor := &MockGameActor{
-		GameID: lobbyID,
+		GameID:           lobbyID,
 		PostActionResult: make(chan interfaces.ProcessActionResult, 1),
 	}
 
@@ -114,7 +113,7 @@ func TestSessionManager_CreateGameFromLobby(t *testing.T) {
 				if startMsg.Type != core.EventGameStarted {
 					t.Errorf("Expected GAME_STARTED, got %s", startMsg.Type)
 				}
-			case <-time.After(100*time.Millisecond):
+			case <-time.After(100 * time.Millisecond):
 				t.Errorf("Player %s did not receive GAME_STARTED event", playerID)
 			}
 
@@ -126,16 +125,16 @@ func TestSessionManager_CreateGameFromLobby(t *testing.T) {
 
 // MockPlayerActor for testing SessionManager
 type MockPlayerActor struct {
-	PlayerID      string
-	PlayerName    string
-	SessionToken  string
-	CurrentState  interfaces.PlayerState
-	Messages      chan interface{}
+	PlayerID     string
+	PlayerName   string
+	SessionToken string
+	CurrentState interfaces.PlayerState
+	Messages     chan interface{}
 }
 
-func (m *MockPlayerActor) GetPlayerID() string     { return m.PlayerID }
-func (m *MockPlayerActor) GetPlayerName() string   { return m.PlayerName }
-func (m *MockPlayerActor) GetSessionToken() string { return m.SessionToken }
+func (m *MockPlayerActor) GetPlayerID() string              { return m.PlayerID }
+func (m *MockPlayerActor) GetPlayerName() string            { return m.PlayerName }
+func (m *MockPlayerActor) GetSessionToken() string          { return m.SessionToken }
 func (m *MockPlayerActor) GetState() interfaces.PlayerState { return m.CurrentState }
 
 func (m *MockPlayerActor) TransitionToLobby(lobbyID string) error {
@@ -162,12 +161,13 @@ func (m *MockPlayerActor) SendServerMessage(message interface{}) {
 
 // MockBroadcaster for testing
 type MockBroadcaster struct{}
-func (m *MockBroadcaster) BroadcastToGame(gameID string, event core.Event) error { return nil }
+
+func (m *MockBroadcaster) BroadcastToGame(gameID string, event core.Event) error        { return nil }
 func (m *MockBroadcaster) SendToPlayer(gameID, playerID string, event core.Event) error { return nil }
 
 // MockSupervisor for testing
 type MockSupervisor struct {
-	CreateGameCalls int
+	CreateGameCalls  int
 	CreateGameResult interfaces.GameActorInterface
 }
 
@@ -176,14 +176,21 @@ func (m *MockSupervisor) CreateGameWithPlayers(gameID string, players map[string
 	return m.CreateGameResult, nil
 }
 
-func (m *MockSupervisor) GetActor(gameID string) (interfaces.GameActorInterface, bool) { return nil, false }
+func (m *MockSupervisor) GetActor(gameID string) (interfaces.GameActorInterface, bool) {
+	return nil, false
+}
 func (m *MockSupervisor) RemoveGame(gameID string) {}
 
 // MockDataStore for testing
 type MockDataStore struct{}
+
 func (m *MockDataStore) AppendEvent(gameID string, event core.Event) error { return nil }
-func (m *MockDataStore) LoadEvents(gameID string, afterSequence int) ([]core.Event, error) { return nil, nil }
+func (m *MockDataStore) LoadEvents(gameID string, afterSequence int) ([]core.Event, error) {
+	return nil, nil
+}
 func (m *MockDataStore) CreateSnapshot(gameID string, state core.GameState) error { return nil }
 func (m *MockDataStore) GetLatestSnapshot(gameID string) (*core.GameState, error) { return nil, nil }
-func (m *MockDataStore) Close() error { return nil }
-func (m *MockDataStore) GetEventsSince(gameID string, timestamp string) ([]core.Event, error) { return nil, nil }
+func (m *MockDataStore) Close() error                                             { return nil }
+func (m *MockDataStore) GetEventsSince(gameID string, timestamp string) ([]core.Event, error) {
+	return nil, nil
+}

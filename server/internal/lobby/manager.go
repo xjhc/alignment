@@ -261,7 +261,7 @@ func (lm *LobbyManager) LeaveLobby(lobbyID string, playerID string) error {
 }
 
 // StartGame initiates the atomic transition from lobby to game
-func (lm *LobbyManager) StartGame(lobbyID string, hostPlayerID string) error {
+func (lm *LobbyManager) StartGame(hostPlayerID, lobbyID string) error {
 	log.Printf("[LobbyManager] Received START_GAME from host %s for lobby %s", hostPlayerID, lobbyID)
 	lm.mutex.RLock()
 	lobby, exists := lm.lobbies[lobbyID]

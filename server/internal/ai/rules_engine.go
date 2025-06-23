@@ -66,7 +66,7 @@ func (re *RulesEngine) MakeDecisionFromData(gameData map[string]interface{}) Dec
 func (re *RulesEngine) makeNightDecision(players map[string]interface{}) Decision {
 	threats := re.calculateThreatAssessment(players)
 	aiPlayer := re.findAIPlayer(players)
-	
+
 	if aiPlayer == nil {
 		return Decision{
 			Action: "MINE_TOKENS",
@@ -130,7 +130,7 @@ func (re *RulesEngine) makeNightDecision(players map[string]interface{}) Decisio
 // makeDayDecision decides what to do during day phases
 func (re *RulesEngine) makeDayDecision(players map[string]interface{}) Decision {
 	threats := re.calculateThreatAssessment(players)
-	
+
 	// During voting phases, select target based on threat assessment
 	if len(threats) > 0 {
 		// Target highest threat non-AI player
@@ -145,7 +145,7 @@ func (re *RulesEngine) makeDayDecision(players map[string]interface{}) Decision 
 							Reason: fmt.Sprintf("Targeting high threat player: %.2f threat level", threat.ThreatLevel),
 							Payload: map[string]interface{}{
 								"threat_level": threat.ThreatLevel,
-								"player_name": re.getPlayerName(players, threat.PlayerID),
+								"player_name":  re.getPlayerName(players, threat.PlayerID),
 							},
 						}
 					}

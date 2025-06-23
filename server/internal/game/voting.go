@@ -175,12 +175,12 @@ func (em *EliminationManager) EliminatePlayer(playerID string) ([]core.Event, er
 			PlayerID:  playerID,
 			Timestamp: getCurrentTime(),
 			Payload: map[string]interface{}{
-				"kpi_type": string(core.KPIScapegoat),
+				"kpi_type":    string(core.KPIScapegoat),
 				"achievement": "Eliminated by unanimous vote",
 			},
 		}
 		events = append(events, kpiEvent)
-		
+
 		// Award tokens for KPI completion
 		tokenReward := core.CalculateTokenReward(core.EventKPICompleted, *player, *em.gameState)
 		if tokenReward > 0 {

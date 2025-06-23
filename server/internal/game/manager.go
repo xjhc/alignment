@@ -93,19 +93,42 @@ func (sm *SessionManager) CreateGameFromLobby(lobbyID string, playerActors map[s
 		return fmt.Errorf("timeout waiting for game actor initialization")
 	}
 
-	// Persist the game start event and then broadcast all the state updates
-	if err := sm.datastore.AppendEvent(lobbyID, core.Event{Type: core.EventGameStarted, GameID: lobbyID}); err != nil {
-		log.Printf("CRITICAL: Failed to persist GAME_STARTED event for %s: %v", lobbyID, err)
-		// Don't fail the whole process, but log critically
-	}
-
+	// Persist all events generated during game initialization
 	for _, event := range stateUpdateEvents {
-		if playerActor, exists := playerActors[event.PlayerID]; exists {
-			playerActor.SendServerMessage(event)
+		if err := sm.datastore.AppendEvent(lobbyID, event); err != nil {
+			log.Printf("CRITICAL: Failed to persist event %s for %s: %v", event.ID, lobbyID, err)
+			// Don't fail the whole process, but log critically
 		}
 	}
 
-	log.Printf("SessionManager: Successfully created game %s", lobbyID)
+	// Broadcast granular events to the appropriate players
+	for _, event := range stateUpdateEvents {
+		switch event.Type {
+		case core.EventRoleAssigned:
+			// Private event - send only to the specific player
+			if playerActor, exists := playerActors[event.PlayerID]; exists {
+				transitionMessage := interfaces.TransitionToGame{
+					GameID:    lobbyID,
+					GameState: nil, // No snapshot needed anymore
+				}
+				playerActor.SendServerMessage(transitionMessage)
+				playerActor.SendServerMessage(event)
+			}
+		case core.EventGameStarted:
+			// Public event - broadcast to all players  
+			for _, playerActor := range playerActors {
+				playerActor.SendServerMessage(event)
+			}
+		default:
+			// Handle other event types as they are implemented
+			log.Printf("SessionManager: Broadcasting event %s to all players", event.Type)
+			for _, playerActor := range playerActors {
+				playerActor.SendServerMessage(event)
+			}
+		}
+	}
+
+	log.Printf("SessionManager: Successfully created game %s and sent transition messages", lobbyID)
 	return nil
 }
 

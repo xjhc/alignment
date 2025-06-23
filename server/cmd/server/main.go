@@ -21,11 +21,11 @@ import (
 
 // Server represents the main application server
 type Server struct {
-	supervisor   *actors.Supervisor
-	wsManager    *comms.WebSocketManager
-	datastore    *store.RedisDataStore
-	scheduler    *game.Scheduler
-	lobbyManager *lobby.LobbyManager
+	supervisor     *actors.Supervisor
+	wsManager      *comms.WebSocketManager
+	datastore      *store.RedisDataStore
+	scheduler      *game.Scheduler
+	lobbyManager   *lobby.LobbyManager
 	sessionManager *game.SessionManager
 }
 
@@ -104,7 +104,6 @@ func (s *Server) Stop() {
 
 	log.Println("Server stopped")
 }
-
 
 // HTTP handlers
 func (s *Server) setupRoutes() {

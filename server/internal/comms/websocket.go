@@ -99,7 +99,7 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	// Create new PlayerActor
 	playerActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, sessionToken, conn)
 	playerActor.SetDependencies(wsm.lobbyManager, wsm.sessionManager)
-	
+
 	wsm.playerActors[playerID] = playerActor
 	wsm.actorsMutex.Unlock()
 
@@ -163,17 +163,23 @@ func (wsm *WebSocketManager) BroadcastToGame(gameID string, event core.Event) er
 	wsm.actorsMutex.RLock()
 	var actorsToNotify []*actors.PlayerActor
 	for _, actor := range wsm.playerActors {
-		// For now, we'll rely on the PlayerActor's state to determine if it should receive this event
-		// The GameActor or LobbyManager should only send events to relevant players
-		actorsToNotify = append(actorsToNotify, actor)
+		// Check if the player is in the target game or lobby
+		actorGameID := actor.GetGameID()
+		actorLobbyID := actor.GetLobbyID()
+
+		// Include players who are either in the game or in a lobby that matches the gameID
+		if actorGameID == gameID || actorLobbyID == gameID {
+			actorsToNotify = append(actorsToNotify, actor)
+		}
 	}
 	wsm.actorsMutex.RUnlock()
 
-	// Send to all actors - they will filter based on their state and context
+	// Send only to relevant actors
 	for _, actor := range actorsToNotify {
 		actor.SendServerMessage(event)
 	}
 
+	log.Printf("WebSocketManager: Broadcasted %s to %d players for game %s", event.Type, len(actorsToNotify), gameID)
 	return nil
 }
 
@@ -187,6 +193,15 @@ func (wsm *WebSocketManager) SendToPlayer(gameID, playerID string, event core.Ev
 		return ErrPlayerNotFound
 	}
 
+	// Validate that the player is actually in the specified game/lobby
+	actorGameID := actor.GetGameID()
+	actorLobbyID := actor.GetLobbyID()
+	if actorGameID != gameID && actorLobbyID != gameID {
+		log.Printf("WebSocketManager: Player %s not in game %s (playerGame=%s, playerLobby=%s)",
+			playerID, gameID, actorGameID, actorLobbyID)
+		return fmt.Errorf("player not in specified game")
+	}
+
 	actor.SendServerMessage(event)
 	return nil
 }
@@ -195,17 +210,17 @@ func (wsm *WebSocketManager) SendToPlayer(gameID, playerID string, event core.Ev
 func (wsm *WebSocketManager) GetStats() map[string]interface{} {
 	wsm.actorsMutex.RLock()
 	defer wsm.actorsMutex.RUnlock()
-	
+
 	stats := make(map[string]interface{})
 	stats["connected_players"] = len(wsm.playerActors)
-	
+
 	stateCounts := make(map[string]int)
 	for _, actor := range wsm.playerActors {
 		state := actor.GetState().String()
 		stateCounts[state]++
 	}
 	stats["player_states"] = stateCounts
-	
+
 	return stats
 }
 

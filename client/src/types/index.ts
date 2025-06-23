@@ -19,12 +19,16 @@ export interface ClientAction extends WebSocketMessage {
 // Server-to-client events
 export interface ServerEvent extends WebSocketMessage {
   type: 'PLAYER_JOINED' | 'PLAYER_LEFT' | 'PLAYER_DEACTIVATED' |
-  'PHASE_CHANGED' | 'CHAT_MESSAGE_POSTED' | 'PULSE_CHECK_SUBMITTED' |
-  'NIGHT_ACTIONS_RESOLVED' | 'GAME_ENDED' | 'SYNC_COMPLETE' |
+  'PHASE_CHANGED' | 'CHAT_MESSAGE_POSTED' | 'CHAT_MESSAGE' | 'PULSE_CHECK_SUBMITTED' |
+  'NIGHT_ACTIONS_RESOLVED' | 'GAME_ENDED' | 'GAME_STARTED' | 'SYNC_COMPLETE' |
   'PRIVATE_NOTIFICATION' | 'LOBBY_STATE_UPDATE' | 'GAME_STATE_UPDATE' |
-  'CHAT_HISTORY_SNAPSHOT' | 'CLIENT_IDENTIFIED' | 'SYSTEM_MESSAGE';
+  'CHAT_HISTORY_SNAPSHOT' | 'CLIENT_IDENTIFIED' | 'SYSTEM_MESSAGE' |
+  'ROLE_ASSIGNED' | 'VOTE_CAST' | 'NIGHT_ACTION_SUBMITTED' | 'PLAYER_ELIMINATED';
   id?: string;        // Event ID for tracking
   game_id?: string;   // Game ID for storage
+  gameId?: string;    // Alternative naming for compatibility
+  timestamp?: string; // Timestamp for events
+  playerId?: string;  // Player ID for events
 }
 
 // Type aliases for compatibility with existing code

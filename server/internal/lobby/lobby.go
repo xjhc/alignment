@@ -209,5 +209,5 @@ type PlayerInfo struct {
 // Custom errors
 var (
 	ErrLobbyNotAcceptingPlayers = errors.New("lobby is not accepting new players")
-	ErrLobbyFull               = errors.New("lobby is full")
+	ErrLobbyFull                = errors.New("lobby is full")
 )
