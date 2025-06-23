@@ -79,6 +79,38 @@ func (nrm *NightResolutionManager) resolveBlockActions() []core.Event {
 				}
 				events = append(events, event)
 			}
+		} else if action.Type == "ISOLATE_NODE" {
+			// ISOLATE_NODE is a blocking ability that must be processed first
+			targetID := action.TargetID
+			
+			// Use the role ability manager to process the ISOLATE_NODE
+			roleAbilityManager := NewRoleAbilityManager(nrm.gameState)
+			roleAbilityAction := &RoleAbilityAction{
+				PlayerID:    playerID,
+				AbilityType: "ISOLATE_NODE",
+				TargetID:    targetID,
+			}
+			
+			result, err := roleAbilityManager.UseRoleAbility(*roleAbilityAction)
+			if err == nil && result != nil {
+				// The role ability manager should have set BlockedPlayersTonight
+				if nrm.gameState.BlockedPlayersTonight != nil && nrm.gameState.BlockedPlayersTonight[targetID] {
+					blockedPlayers[targetID] = true
+					
+					event := core.Event{
+						ID:        fmt.Sprintf("isolate_node_%s_%s", playerID, targetID),
+						Type:      "ISOLATE_NODE",
+						GameID:    nrm.gameState.ID,
+						PlayerID:  playerID, // The CISO who performed the isolation
+						Timestamp: getCurrentTime(),
+						Payload: map[string]interface{}{
+							"ciso_id":   playerID,
+							"target_id": targetID,
+						},
+					}
+					events = append(events, event)
+				}
+			}
 		}
 	}
 
@@ -193,13 +225,6 @@ func (nrm *NightResolutionManager) resolveRoleAbilities() []core.Event {
 			roleAbilityAction = &RoleAbilityAction{
 				PlayerID:    playerID,
 				AbilityType: "OVERCLOCK_SERVERS",
-				TargetID:    targetID,
-			}
-		case "ISOLATE_NODE":
-			targetID, _ := action.Payload["target_id"].(string)
-			roleAbilityAction = &RoleAbilityAction{
-				PlayerID:    playerID,
-				AbilityType: "ISOLATE_NODE",
 				TargetID:    targetID,
 			}
 		case "PERFORMANCE_REVIEW":

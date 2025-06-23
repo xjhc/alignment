@@ -2,6 +2,16 @@
 
 This document provides a comprehensive list of all messages exchanged between the client and server over the WebSocket connection.
 
+## Important: The Hybrid REST + WebSocket Model
+
+This project uses a hybrid communication model for session management.
+
+1.  **Session Initiation (REST API):** Creating a new lobby or joining an existing one is handled via a standard REST API (`/api/games`). These endpoints return the necessary credentials (`game_id`, `player_id`, `session_token`).
+2.  **Real-time Communication (WebSocket):** Once credentials are acquired, the client establishes a single, persistent WebSocket connection. All subsequent real-time game actions are sent as JSON messages over this connection.
+
+The actions listed below are only those sent over the **WebSocket**.
+
+
 ## I. Client → Server Actions
 
 These are the commands a client can send to the server. The server will validate each action and, if valid, generate one or more corresponding events.

@@ -147,6 +147,7 @@ func TestNightResolutionManager_CorporateMandateIntegration(t *testing.T) {
 func TestNightResolutionManager_ComplexInteractions(t *testing.T) {
 	gameState := core.NewGameState("test-game")
 	gameState.DayNumber = 1
+	gameState.Phase.Type = core.PhaseNight
 
 	// Add test players
 	gameState.Players["ciso"] = &core.Player{

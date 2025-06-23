@@ -7,6 +7,7 @@ import (
 
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/interfaces"
+	"github.com/xjhc/alignment/server/internal/mocks"
 )
 
 // MockGameActor for testing SessionManager
@@ -40,9 +41,9 @@ func TestSessionManager_CreateGameFromLobby(t *testing.T) {
 	ctx := context.Background()
 
 	// Mocks
-	mockDatastore := &MockDataStore{}
-	mockBroadcaster := &MockBroadcaster{}
-	mockSupervisor := &MockSupervisor{}
+	mockDatastore := &mocks.MockDataStore{}
+	mockBroadcaster := &mocks.MockBroadcaster{}
+	mockSupervisor := &mocks.MockSupervisor{}
 
 	sessionManager := NewSessionManager(ctx, mockDatastore, mockBroadcaster, mockSupervisor)
 
@@ -67,7 +68,9 @@ func TestSessionManager_CreateGameFromLobby(t *testing.T) {
 		mockGameActor.PostActionResult <- interfaces.ProcessActionResult{Events: updateEvents}
 	}()
 
-	mockSupervisor.CreateGameResult = mockGameActor
+	mockSupervisor.CreateGameWithPlayersResults = []mocks.CreateGameWithPlayersResult{
+		{Actor: mockGameActor, Error: nil},
+	}
 
 	err := sessionManager.CreateGameFromLobby(lobbyID, playerActors)
 
@@ -76,8 +79,8 @@ func TestSessionManager_CreateGameFromLobby(t *testing.T) {
 	}
 
 	// Verify that a game actor was created
-	if mockSupervisor.CreateGameCalls != 1 {
-		t.Errorf("Expected CreateGameWithPlayers to be called once, got %d", mockSupervisor.CreateGameCalls)
+	if len(mockSupervisor.CreateGameWithPlayersCalls) != 1 {
+		t.Errorf("Expected CreateGameWithPlayers to be called once, got %d", len(mockSupervisor.CreateGameWithPlayersCalls))
 	}
 
 	// Verify the game session was created
@@ -94,27 +97,27 @@ func TestSessionManager_CreateGameFromLobby(t *testing.T) {
 
 		select {
 		case msg := <-mockActor.Messages:
-			// The first message is the state update
-			updateMsg, ok := msg.(core.Event)
+			// The first message should be TransitionToGame
+			transitionMsg, ok := msg.(interfaces.TransitionToGame)
 			if !ok {
-				t.Fatalf("Expected first message to be core.Event, got %T", msg)
+				t.Fatalf("Expected first message to be TransitionToGame, got %T", msg)
 			}
-			if updateMsg.Type != "GAME_STATE_UPDATE" {
-				t.Errorf("Expected GAME_STATE_UPDATE, got %s", updateMsg.Type)
+			if transitionMsg.GameID != lobbyID {
+				t.Errorf("Expected GameID %s, got %s", lobbyID, transitionMsg.GameID)
 			}
 
-			// The second message is the GAME_STARTED event
+			// The second message should be the state update event
 			select {
 			case msg = <-mockActor.Messages:
-				startMsg, ok := msg.(core.Event)
+				updateMsg, ok := msg.(core.Event)
 				if !ok {
 					t.Fatalf("Expected second message to be core.Event, got %T", msg)
 				}
-				if startMsg.Type != core.EventGameStarted {
-					t.Errorf("Expected GAME_STARTED, got %s", startMsg.Type)
+				if updateMsg.Type != "GAME_STATE_UPDATE" {
+					t.Errorf("Expected GAME_STATE_UPDATE, got %s", updateMsg.Type)
 				}
 			case <-time.After(100 * time.Millisecond):
-				t.Errorf("Player %s did not receive GAME_STARTED event", playerID)
+				t.Errorf("Player %s did not receive state update event", playerID)
 			}
 
 		case <-time.After(100 * time.Millisecond):
@@ -159,38 +162,3 @@ func (m *MockPlayerActor) SendServerMessage(message interface{}) {
 	m.Messages <- message
 }
 
-// MockBroadcaster for testing
-type MockBroadcaster struct{}
-
-func (m *MockBroadcaster) BroadcastToGame(gameID string, event core.Event) error        { return nil }
-func (m *MockBroadcaster) SendToPlayer(gameID, playerID string, event core.Event) error { return nil }
-
-// MockSupervisor for testing
-type MockSupervisor struct {
-	CreateGameCalls  int
-	CreateGameResult interfaces.GameActorInterface
-}
-
-func (m *MockSupervisor) CreateGameWithPlayers(gameID string, players map[string]*core.Player) (interfaces.GameActorInterface, error) {
-	m.CreateGameCalls++
-	return m.CreateGameResult, nil
-}
-
-func (m *MockSupervisor) GetActor(gameID string) (interfaces.GameActorInterface, bool) {
-	return nil, false
-}
-func (m *MockSupervisor) RemoveGame(gameID string) {}
-
-// MockDataStore for testing
-type MockDataStore struct{}
-
-func (m *MockDataStore) AppendEvent(gameID string, event core.Event) error { return nil }
-func (m *MockDataStore) LoadEvents(gameID string, afterSequence int) ([]core.Event, error) {
-	return nil, nil
-}
-func (m *MockDataStore) CreateSnapshot(gameID string, state core.GameState) error { return nil }
-func (m *MockDataStore) GetLatestSnapshot(gameID string) (*core.GameState, error) { return nil, nil }
-func (m *MockDataStore) Close() error                                             { return nil }
-func (m *MockDataStore) GetEventsSince(gameID string, timestamp string) ([]core.Event, error) {
-	return nil, nil
-}

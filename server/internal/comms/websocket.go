@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/actors"
+	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 )
 
@@ -21,8 +22,8 @@ type WebSocketManager struct {
 	tokenValidator TokenValidator
 
 	// Dependencies for PlayerActors
-	lobbyManager   interfaces.LobbyManagerInterface
-	sessionManager interfaces.SessionManagerInterface
+	lifecycleManager interfaces.GameLifecycleManagerInterface
+	eventBus         *events.EventBus
 }
 
 // TokenValidator validates sessions and provides player information
@@ -48,9 +49,9 @@ func NewWebSocketManager(ctx context.Context, tokenValidator TokenValidator) *We
 }
 
 // SetDependencies injects the required managers
-func (wsm *WebSocketManager) SetDependencies(lobbyManager interfaces.LobbyManagerInterface, sessionManager interfaces.SessionManagerInterface) {
-	wsm.lobbyManager = lobbyManager
-	wsm.sessionManager = sessionManager
+func (wsm *WebSocketManager) SetDependencies(lifecycleManager interfaces.GameLifecycleManagerInterface, eventBus *events.EventBus) {
+	wsm.lifecycleManager = lifecycleManager
+	wsm.eventBus = eventBus
 }
 
 // Start is now a no-op since PlayerActors manage themselves
@@ -98,7 +99,7 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 
 	// Create new PlayerActor
 	playerActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, sessionToken, conn)
-	playerActor.SetDependencies(wsm.lobbyManager, wsm.sessionManager)
+	playerActor.SetDependencies(wsm.lifecycleManager, wsm.eventBus)
 
 	wsm.playerActors[playerID] = playerActor
 	wsm.actorsMutex.Unlock()
@@ -124,13 +125,13 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 
 // joinLobbyAutomatically handles the automatic lobby joining in REST-then-WebSocket flow
 func (wsm *WebSocketManager) joinLobbyAutomatically(lobbyID string, playerActor *actors.PlayerActor) error {
-	if wsm.lobbyManager == nil {
-		return fmt.Errorf("lobby manager not initialized")
+	if wsm.lifecycleManager == nil {
+		return fmt.Errorf("lifecycle manager not initialized")
 	}
 
-	// Let the LobbyManager handle all the logic for joining
+	// Let the GameLifecycleManager handle all the logic for joining
 	// This includes checking if the player is the host, lobby status, etc.
-	err := wsm.lobbyManager.JoinLobbyWithActor(lobbyID, playerActor)
+	err := wsm.lifecycleManager.JoinLobbyWithActor(lobbyID, playerActor)
 	if err != nil {
 		return fmt.Errorf("failed to auto-join lobby %s: %w", lobbyID, err)
 	}

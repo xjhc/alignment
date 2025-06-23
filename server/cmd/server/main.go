@@ -14,19 +14,20 @@ import (
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/actors"
 	"github.com/xjhc/alignment/server/internal/comms"
+	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/game"
-	"github.com/xjhc/alignment/server/internal/lobby"
+	"github.com/xjhc/alignment/server/internal/lifecycle"
 	"github.com/xjhc/alignment/server/internal/store"
 )
 
 // Server represents the main application server
 type Server struct {
-	supervisor     *actors.Supervisor
-	wsManager      *comms.WebSocketManager
-	datastore      *store.RedisDataStore
-	scheduler      *game.Scheduler
-	lobbyManager   *lobby.LobbyManager
-	sessionManager *game.SessionManager
+	supervisor       *actors.Supervisor
+	wsManager        *comms.WebSocketManager
+	datastore        *store.RedisDataStore
+	scheduler        *game.Scheduler
+	lifecycleManager *lifecycle.GameLifecycleManager
+	eventBus         *events.EventBus
 }
 
 // NewServer creates a new server instance
@@ -49,34 +50,33 @@ func NewServer() (*Server, error) {
 	ctx := context.Background()
 	supervisor := actors.NewSupervisor(ctx, datastore, nil) // Will set broadcaster later
 
-	// Create session manager
-	sessionManager := game.NewSessionManager(ctx, datastore, nil, supervisor) // Will set broadcaster later
+	// Create event bus
+	eventBus := events.NewEventBus()
 
-	// Create scheduler with the correct callback pointing to the session manager
+	// Create unified lifecycle manager
+	lifecycleManager := lifecycle.NewGameLifecycleManager(ctx, datastore, nil, supervisor, eventBus)
+
+	// Create scheduler (simplified - no longer needs session manager callback)
 	scheduler := game.NewScheduler(func(timer game.Timer) {
-		if sessionManager != nil {
-			handleTimerExpired(sessionManager, timer)
-		}
+		log.Printf("Timer expired: %+v", timer)
+		// Timer handling can be implemented later if needed
 	})
 
-	// Create lobby manager (needs session manager)
-	lobbyManager := lobby.NewLobbyManager(sessionManager)
-
 	// Create WebSocket manager
-	wsManager := comms.NewWebSocketManager(ctx, lobbyManager)
-	wsManager.SetDependencies(lobbyManager, sessionManager)
+	wsManager := comms.NewWebSocketManager(ctx, lifecycleManager)
+	wsManager.SetDependencies(lifecycleManager, eventBus)
 
-	// Set the WebSocketManager as broadcaster for supervisor and session manager
+	// Set the WebSocketManager as broadcaster for supervisor and lifecycle manager
 	supervisor.SetBroadcaster(wsManager)
-	sessionManager.SetBroadcaster(wsManager)
+	// Note: lifecycleManager doesn't need a broadcaster - it uses the event bus
 
 	server := &Server{
-		supervisor:     supervisor,
-		wsManager:      wsManager,
-		datastore:      datastore,
-		scheduler:      scheduler,
-		lobbyManager:   lobbyManager,
-		sessionManager: sessionManager,
+		supervisor:       supervisor,
+		wsManager:        wsManager,
+		datastore:        datastore,
+		scheduler:        scheduler,
+		lifecycleManager: lifecycleManager,
+		eventBus:         eventBus,
 	}
 
 	return server, nil
@@ -139,7 +139,7 @@ func (s *Server) gamesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listLobbies(w http.ResponseWriter, r *http.Request) {
-	lobbies := s.lobbyManager.GetLobbyList()
+	lobbies := s.lifecycleManager.GetLobbyList()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -168,9 +168,9 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Call the new, centralized method in the LobbyManager
+	// Call the new, centralized method in the GameLifecycleManager
 	// This ensures only one hostPlayerID is generated and used consistently
-	lobbyID, hostPlayerID, sessionToken, err := s.lobbyManager.CreateLobbyViaHTTP(req.PlayerName, req.LobbyName, req.PlayerAvatar)
+	lobbyID, hostPlayerID, sessionToken, err := s.lifecycleManager.CreateLobbyViaHTTP(req.PlayerName, req.LobbyName, req.PlayerAvatar)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create lobby: %v", err), http.StatusInternalServerError)
 		return
@@ -241,7 +241,7 @@ func (s *Server) joinLobby(w http.ResponseWriter, r *http.Request, gameID string
 		return
 	}
 
-	playerID, sessionToken, err := s.lobbyManager.JoinLobby(gameID, req.PlayerName, req.PlayerAvatar)
+	playerID, sessionToken, err := s.lifecycleManager.JoinLobby(gameID, req.PlayerName, req.PlayerAvatar)
 	if err != nil {
 		switch err.Error() {
 		case "lobby not found":

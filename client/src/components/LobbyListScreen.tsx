@@ -155,8 +155,8 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
                 <div className="lobby-name">#{lobby.name}</div>
                 <div>{lobby.player_count} / {lobby.max_players}</div>
                 <div>
-                  <span className={`lobby-status ${lobby.status.toLowerCase().replace('_', '-')}`}>
-                    {lobby.status}
+                  <span className={`lobby-status ${lobby.status ? lobby.status.toLowerCase().replace('_', '-') : 'unknown'}`}>
+                    {lobby.status || 'Unknown'}
                   </span>
                 </div>
                 <div>

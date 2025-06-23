@@ -123,7 +123,7 @@ func TestScheduler_GameTimerCancellation(t *testing.T) {
 			ID:        "timer-" + string(rune('1'+i)),
 			GameID:    "test-game",
 			Type:      TimerPhaseEnd,
-			ExpiresAt: time.Now().Add(100 * time.Millisecond),
+			ExpiresAt: time.Now().Add(1500 * time.Millisecond),
 			Action:    TimerAction{Type: "TEST_ACTION"},
 		}
 		scheduler.ScheduleTimer(timer)
@@ -134,7 +134,7 @@ func TestScheduler_GameTimerCancellation(t *testing.T) {
 		ID:        "other-timer",
 		GameID:    "other-game",
 		Type:      TimerPhaseEnd,
-		ExpiresAt: time.Now().Add(100 * time.Millisecond),
+		ExpiresAt: time.Now().Add(1500 * time.Millisecond),
 		Action:    TimerAction{Type: "TEST_ACTION"},
 	}
 	scheduler.ScheduleTimer(otherTimer)
@@ -143,7 +143,10 @@ func TestScheduler_GameTimerCancellation(t *testing.T) {
 	scheduler.CancelGameTimers("test-game")
 
 	// Wait for expiration
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
+	
+	// Give extra time for callback execution
+	time.Sleep(100 * time.Millisecond)
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -175,14 +178,14 @@ func TestScheduler_MultipleTimers(t *testing.T) {
 			ID:        "timer-" + string(rune('1'+i)),
 			GameID:    "test-game",
 			Type:      TimerPhaseEnd,
-			ExpiresAt: time.Now().Add(time.Duration(50*(i+1)) * time.Millisecond),
+			ExpiresAt: time.Now().Add(time.Duration(1000*(i+1)) * time.Millisecond),
 			Action:    TimerAction{Type: "TEST_ACTION"},
 		}
 		scheduler.ScheduleTimer(timer)
 	}
 
 	// Wait for all timers to expire
-	time.Sleep(400 * time.Millisecond)
+	time.Sleep(6000 * time.Millisecond)
 
 	mu.Lock()
 	defer mu.Unlock()

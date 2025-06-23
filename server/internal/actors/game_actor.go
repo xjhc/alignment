@@ -221,12 +221,12 @@ func (ga *GameActor) processLoop() {
 			for _, event := range eventsToPersist {
 				newState := core.ApplyEvent(*ga.state, event)
 				ga.state = &newState
-				
+
 				// Check for win conditions after certain events
 				additionalEvents := ga.handlePostEventProcessing(event)
 				allEvents = append(allEvents, additionalEvents...)
 			}
-			
+
 			// Apply any additional events that were generated
 			for i := len(eventsToPersist); i < len(allEvents); i++ {
 				newState := core.ApplyEvent(*ga.state, allEvents[i])
@@ -347,7 +347,7 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 	if !exists {
 		return nil, fmt.Errorf("player %s not in game", action.PlayerID)
 	}
-	
+
 	if !player.IsAlive {
 		return nil, fmt.Errorf("dead players cannot send messages")
 	}
@@ -527,7 +527,7 @@ func (ga *GameActor) handleVoteAction(action core.Action) ([]core.Event, error) 
 // handleNightAction processes night actions
 func (ga *GameActor) handleNightAction(action core.Action) ([]core.Event, error) {
 	actionType, _ := action.Payload["action_type"].(string)
-	
+
 	switch actionType {
 	case "MINE_TOKENS", "MINE":
 		return ga.miningManager.HandleMineAction(action)
@@ -616,7 +616,7 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 			// Check if the verdict passed (more GUILTY than INNOCENT votes by token weight)
 			guiltyVotes := ga.state.VoteState.Results["GUILTY"]
 			innocentVotes := ga.state.VoteState.Results["INNOCENT"]
-			
+
 			if guiltyVotes > innocentVotes {
 				// Eliminate the nominated player
 				eliminationEvents, err := ga.eliminationManager.EliminatePlayer(ga.state.NominatedPlayer)
@@ -671,7 +671,7 @@ func (ga *GameActor) processVoteCompletion() []core.Event {
 	if ga.votingManager.IsVoteComplete() {
 		// Mark vote as complete
 		ga.votingManager.CompleteVote()
-		
+
 		voteCompleteEvent := core.Event{
 			ID:        fmt.Sprintf("vote_completed_%s_%d", ga.state.VoteState.Type, time.Now().UnixNano()),
 			Type:      core.EventVoteCompleted,

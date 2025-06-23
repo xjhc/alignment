@@ -8,17 +8,17 @@ The project is a **Go monorepo** containing two main applications:
 
 ---
 
-## 1. The Core Backend Architecture: A Supervised Actor Model
+## 1. The Core Backend Architecture: A Player-Centric Actor Model
 
-At its heart, the backend is a **stateful, in-memory system** designed for massive concurrency and low latency. It is built on a player-centric actor model with three core principles:
+At its heart, the backend is a **stateful, in-memory system** designed for massive concurrency and low latency. It is built on a modern, player-centric actor model with several core components:
 
-1.  **The `PlayerActor` (The Session Owner):** The moment a client connects via WebSocket, a dedicated `PlayerActor` goroutine is spawned. This actor **owns that single player's connection and session state** for their entire lifecycle. It functions as a state machine (`InLobby`, `InGame`, etc.) and routes actions to the appropriate manager. This is the cornerstone of our concurrency model.
+1.  **The `PlayerActor` (The Session Owner):** This is the cornerstone of our concurrency model. The moment a client establishes a WebSocket connection, a dedicated `PlayerActor` goroutine is spawned. This actor **owns that single player's connection and session state** for their entire lifecycle. It functions as a state machine (`Idle`, `InLobby`, `InGame`), ensuring a player has exactly one point of contact with the server.
 
-2.  **The `GameActor` (The Simulation Engine):** Each active game instance runs in its own dedicated `GameActor` goroutine. This actor "owns" the `GameState` struct for its game, holding it entirely in memory. It processes all game logic serially, guaranteeing data consistency without locks. It receives actions from `PlayerActor`s (via a manager) and broadcasts state updates back.
+2.  **The `GameActor` (The Simulation Engine):** Each active game instance runs in its own dedicated `GameActor` goroutine. This actor "owns" the `GameState` struct for its game, holding it entirely in memory and processing all game logic serially to guarantee data consistency without locks. It receives actions forwarded by `PlayerActor`s (via a manager) and broadcasts state updates back.
 
-3.  **The `Supervisor` (The Guardian):** A top-level goroutine launches and monitors all `GameActor`s. If a single game actor panics due to a bug, the Supervisor catches the panic, logs the error, and terminates that *single game*. This provides critical fault isolation and prevents the entire server from crashing.
+3.  **The `Supervisor` (The Guardian):** A top-level goroutine that launches and monitors all `GameActor`s. If a `GameActor` panics due to a bug, the Supervisor catches the panic, logs the error, and terminates that *single game*, preventing the entire server from crashing.
 
-A **`LobbyManager`** and a **`SessionManager`** act as orchestrators, coordinating actions between the `PlayerActor`s and the `GameActor`s.
+**Orchestrators (`LobbyManager`, `SessionManager`):** These are singleton services that manage the lifecycle of lobbies and games. They do not own connections; they receive requests from `PlayerActor`s and coordinate state transitions across the system (e.g., moving a group of `PlayerActor`s from a lobby into a new `GameActor`).
 
 ---
 

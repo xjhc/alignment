@@ -11,20 +11,23 @@ This directory contains the source code for the `Alignment` web client, a hybrid
 
 ---
 
-## Architectural Pattern: "Smart Engine, Dumb Shell"
+## Architectural Pattern: A Three-Layer Model
 
 The client is designed with a clear separation of concerns to ensure robustness and maintainability.
 
-1.  **The "Engine" (Go/Wasm):** The Go/Wasm module is the brain of the client.
-    *   It manages the WebSocket connection to the server.
-    *   It holds the local, client-side copy of the `GameState`.
-    *   It contains the shared `ApplyEvent` logic (from `/core`) to process events received from the server and update its state.
-    *   It exposes a small, well-defined API to the JavaScript world (e.g., `submitAction()`, `getGameState()`).
+1.  **The "UI Shell" (React/TypeScript):** The presentation layer.
+    *   Its primary job is to render UI components based on the state it receives.
+    *   It captures user input (clicks, typing) and calls functions on the Communication Service to send actions to the server.
+    *   It does **not** contain any game rule or direct WebSocket logic.
 
-2.  **The "UI Shell" (React):** The React application is a "dumb" presentation layer.
-    *   Its primary job is to render the UI based on the state it receives as props.
-    *   It captures user input (clicks, typing) and calls functions exposed by the Go/Wasm engine to send actions to the server.
-    *   It does **not** contain any game rule logic.
+2.  **The "Communication Service" (TypeScript):** The network layer.
+    *   The service at `src/services/websocket.ts` is responsible for managing the WebSocket connection, including connection, disconnection, and automatic reconnection logic.
+    *   It receives raw events from the server and forwards them to the Go/Wasm Engine for processing.
+
+3.  **The "Engine" (Go/Wasm):** The core logic layer.
+    *   It holds the local, client-side copy of the `core.GameState`.
+    *   It contains the shared `ApplyEvent` function (from `/core`) to process events received from the Communication Service and update its state.
+    *   It exposes a small, well-defined API to the JavaScript world (e.g., `getGameState()`, `applyEvent()`). It does **not** manage the network connection directly.
 
 ### State Management: Centralized in `App.tsx`
 

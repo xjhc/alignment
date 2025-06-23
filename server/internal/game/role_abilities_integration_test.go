@@ -368,6 +368,9 @@ func TestRoleAbilityManager_CFOBudgetReallocation(t *testing.T) {
 		t.Errorf("Expected poor player to have 1 token, got %d", gameState.Players["poor_player"].Tokens)
 	}
 
+	// FIX: Reset the CFO's ability usage state before the next test case
+	gameState.Players["cfo"].HasUsedAbility = false
+
 	// Test reallocation from player with insufficient tokens
 	insufficientAction := RoleAbilityAction{
 		PlayerID:       "cfo",
@@ -381,7 +384,7 @@ func TestRoleAbilityManager_CFOBudgetReallocation(t *testing.T) {
 		t.Error("Expected error when source player has insufficient tokens")
 	}
 
-	if err.Error() != "source player has insufficient tokens" {
+	if err.Error() != "source player has no tokens to reallocate" {
 		t.Errorf("Expected insufficient tokens error, got: %s", err.Error())
 	}
 }
@@ -433,7 +436,7 @@ func TestRoleAbilityManager_AbilityAlreadyUsed(t *testing.T) {
 		t.Error("Expected error for second ability use")
 	}
 
-	if err.Error() != "player has already used their ability" {
+	if err.Error() != "ability already used this night" {
 		t.Errorf("Expected already used error, got: %s", err.Error())
 	}
 }

@@ -72,6 +72,22 @@ type SessionManagerInterface interface {
 	CreateGameFromLobby(lobbyID string, playerActors map[string]PlayerActorInterface) error
 }
 
+// GameLifecycleManagerInterface unifies lobby and session management
+type GameLifecycleManagerInterface interface {
+	// Lobby management
+	CreateLobbyViaHTTP(hostPlayerName, lobbyName, playerAvatar string) (string, string, string, error)
+	JoinLobby(lobbyID, playerName, playerAvatar string) (string, string, error)
+	JoinLobbyWithActor(lobbyID string, playerActor PlayerActorInterface) error
+	StartGame(lobbyID string, hostPlayerID string) error
+	ValidateSessionToken(token string) (interface{}, error)
+	
+	// Game session management
+	SendActionToGame(gameID string, action core.Action) error
+	
+	// Utility
+	Stop()
+}
+
 // SupervisorInterface manages GameActors
 type SupervisorInterface interface {
 	CreateGameWithPlayers(gameID string, players map[string]*core.Player) (GameActorInterface, error)

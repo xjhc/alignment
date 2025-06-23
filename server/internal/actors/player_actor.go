@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/xjhc/alignment/core"
+	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/lobby"
 )
@@ -47,8 +48,8 @@ type PlayerActor struct {
 	cancel context.CancelFunc
 
 	// Dependencies (will be injected)
-	lobbyManager   interfaces.LobbyManagerInterface
-	sessionManager interfaces.SessionManagerInterface
+	lifecycleManager interfaces.GameLifecycleManagerInterface
+	eventBus         *events.EventBus
 }
 
 // Message types are now defined in interfaces package
@@ -73,9 +74,9 @@ func NewPlayerActor(ctx context.Context, playerID, playerName, sessionToken stri
 }
 
 // SetDependencies injects the required managers
-func (pa *PlayerActor) SetDependencies(lobbyManager interfaces.LobbyManagerInterface, sessionManager interfaces.SessionManagerInterface) {
-	pa.lobbyManager = lobbyManager
-	pa.sessionManager = sessionManager
+func (pa *PlayerActor) SetDependencies(lifecycleManager interfaces.GameLifecycleManagerInterface, eventBus *events.EventBus) {
+	pa.lifecycleManager = lifecycleManager
+	pa.eventBus = eventBus
 }
 
 // Start begins the PlayerActor's processing loops
@@ -95,6 +96,16 @@ func (pa *PlayerActor) Start() {
 // Stop gracefully shuts down the PlayerActor
 func (pa *PlayerActor) Stop() {
 	log.Printf("[PlayerActor/%s] Stopping", pa.playerID)
+	
+	// Publish disconnection event if we have event bus
+	if pa.eventBus != nil {
+		pa.eventBus.Publish(events.PlayerDisconnectedEvent{
+			PlayerID: pa.playerID,
+			LobbyID:  pa.lobbyID,
+			GameID:   pa.gameID,
+		})
+	}
+	
 	pa.cancel()
 	close(pa.send)
 	close(pa.shutdown)
@@ -379,19 +390,14 @@ func (pa *PlayerActor) handleCreateLobby(action core.Action) {
 		lobbyName = fmt.Sprintf("%s's Game", pa.playerName)
 	}
 
-	if pa.lobbyManager == nil {
-		pa.sendError("Lobby manager not available")
+	if pa.lifecycleManager == nil {
+		pa.sendError("Lifecycle manager not available")
 		return
 	}
 
-	lobbyID, err := pa.lobbyManager.CreateLobby(pa, lobbyName)
-	if err != nil {
-		pa.sendError(fmt.Sprintf("Failed to create lobby: %v", err))
-		return
-	}
-
-	// The lobby manager will call TransitionToLobby on success
-	log.Printf("[PlayerActor/%s] Created lobby %s", pa.playerID, lobbyID)
+	// In the new architecture, lobby creation happens via HTTP, not here
+	pa.sendError("Lobby creation should be done via HTTP API, not WebSocket")
+	return
 }
 
 // handleJoinLobby joins an existing lobby
@@ -402,12 +408,12 @@ func (pa *PlayerActor) handleJoinLobby(action core.Action) {
 		return
 	}
 
-	if pa.lobbyManager == nil {
-		pa.sendError("Lobby manager not available")
+	if pa.lifecycleManager == nil {
+		pa.sendError("Lifecycle manager not available")
 		return
 	}
 
-	err := pa.lobbyManager.JoinLobbyWithActor(lobbyID, pa)
+	err := pa.lifecycleManager.JoinLobbyWithActor(lobbyID, pa)
 	if err != nil {
 		pa.sendError(fmt.Sprintf("Failed to join lobby: %v", err))
 		return
@@ -422,13 +428,23 @@ func (pa *PlayerActor) handleLeaveGame(action core.Action) {
 
 	switch state {
 	case StateInLobby:
-		if pa.lobbyManager != nil {
-			pa.lobbyManager.LeaveLobby(pa.lobbyID, pa.playerID)
+		// Publish disconnection event for lifecycle manager to handle
+		if pa.eventBus != nil {
+			pa.eventBus.Publish(events.PlayerDisconnectedEvent{
+				PlayerID: pa.playerID,
+				LobbyID:  pa.lobbyID,
+				GameID:   "",
+			})
 		}
 		pa.TransitionToIdle()
 	case StateInGame:
-		if pa.sessionManager != nil {
-			pa.sessionManager.LeaveGame(pa.gameID, pa.playerID)
+		// Publish disconnection event for lifecycle manager to handle
+		if pa.eventBus != nil {
+			pa.eventBus.Publish(events.PlayerDisconnectedEvent{
+				PlayerID: pa.playerID,
+				LobbyID:  "",
+				GameID:   pa.gameID,
+			})
 		}
 		pa.TransitionToIdle()
 	default:
@@ -438,16 +454,16 @@ func (pa *PlayerActor) handleLeaveGame(action core.Action) {
 
 // handleStartGame starts the game (only available to lobby host)
 func (pa *PlayerActor) handleStartGame(action core.Action) {
-	if pa.lobbyManager == nil {
-		pa.sendError("Lobby manager not available")
+	if pa.lifecycleManager == nil {
+		pa.sendError("Lifecycle manager not available")
 		return
 	}
 
-	// BUG FIX: Launch the potentially long-running StartGame process in a new goroutine
+	// Launch the potentially long-running StartGame process in a new goroutine
 	// to prevent blocking the PlayerActor's main processing loop.
 	go func() {
 		log.Printf("[PlayerActor/%s] Dispatching START_GAME for lobby %s", pa.playerID, pa.lobbyID)
-		err := pa.lobbyManager.StartGame(pa.playerID, pa.lobbyID)
+		err := pa.lifecycleManager.StartGame(pa.lobbyID, pa.playerID)
 		if err != nil {
 			// If an error occurs (e.g., not enough players), send it back to the client.
 			// This is safe to call from a goroutine as it sends to a channel.
@@ -529,9 +545,9 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 		return
 	}
 
-	// Forward valid game actions to SessionManager
-	if pa.sessionManager == nil {
-		pa.sendError("Session manager not available")
+	// Forward valid game actions to GameLifecycleManager
+	if pa.lifecycleManager == nil {
+		pa.sendError("Lifecycle manager not available")
 		return
 	}
 
@@ -541,7 +557,7 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 	action.PlayerID = pa.playerID
 	action.GameID = pa.gameID
 
-	err := pa.sessionManager.SendActionToGame(pa.gameID, action)
+	err := pa.lifecycleManager.SendActionToGame(pa.gameID, action)
 	if err != nil {
 		log.Printf("[PlayerActor/%s] Failed to send action to game: %v", pa.playerID, err)
 		pa.sendError(fmt.Sprintf("Failed to process action: %v", err))
@@ -595,14 +611,25 @@ func (pa *PlayerActor) handleDisconnect() {
 	state := pa.GetState()
 	log.Printf("[PlayerActor/%s] Disconnecting in state %s", pa.playerID, state)
 
+	// Publish disconnection events for the lifecycle manager to handle
 	switch state {
 	case StateInLobby:
-		if pa.lobbyManager != nil {
-			pa.lobbyManager.LeaveLobby(pa.lobbyID, pa.playerID)
+		log.Printf("[PlayerActor/%s] Leaving lobby %s", pa.playerID, pa.lobbyID)
+		if pa.eventBus != nil {
+			pa.eventBus.Publish(events.PlayerDisconnectedEvent{
+				PlayerID: pa.playerID,
+				LobbyID:  pa.lobbyID,
+				GameID:   "",
+			})
 		}
 	case StateInGame:
-		if pa.sessionManager != nil {
-			pa.sessionManager.LeaveGame(pa.gameID, pa.playerID)
+		log.Printf("[PlayerActor/%s] Leaving game %s", pa.playerID, pa.gameID)
+		if pa.eventBus != nil {
+			pa.eventBus.Publish(events.PlayerDisconnectedEvent{
+				PlayerID: pa.playerID,
+				LobbyID:  "",
+				GameID:   pa.gameID,
+			})
 		}
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/xjhc/alignment/core"
-	"github.com/xjhc/alignment/server/internal/interfaces"
 )
 
 // Helper function to create a test GameActor with initialized players
@@ -67,8 +66,13 @@ func TestGameActor_ProcessAction_LeaveGame(t *testing.T) {
 		t.Errorf("Expected no error for valid leave action, got: %v", result.Error)
 	}
 
-	if len(result.Events) != 3 { // State update for each remaining player
-		t.Errorf("Expected 3 events (one for each player), got %d", len(result.Events))
+	if len(result.Events) != 1 { // Only the PLAYER_LEFT event
+		t.Errorf("Expected 1 PLAYER_LEFT event, got %d", len(result.Events))
+	}
+	
+	// Verify the event type is correct
+	if result.Events[0].Type != core.EventPlayerLeft {
+		t.Errorf("Expected event type to be PLAYER_LEFT, got %s", result.Events[0].Type)
 	}
 }
 

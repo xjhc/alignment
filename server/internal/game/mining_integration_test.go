@@ -130,6 +130,9 @@ func TestMiningManager_PrioritySystem(t *testing.T) {
 // TestMiningManager_SelfMiningPrevention tests that players cannot mine for themselves
 func TestMiningManager_SelfMiningPrevention(t *testing.T) {
 	gameState := core.NewGameState("test-game")
+	
+	// FIX: Set the game to the correct phase for mining
+	gameState.Phase.Type = core.PhaseNight
 
 	// Add test players
 	gameState.Players["player1"] = &core.Player{
@@ -150,7 +153,7 @@ func TestMiningManager_SelfMiningPrevention(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for self-mining request")
 	}
-	if err.Error() != "players cannot mine for themselves" {
+	if err.Error() != "cannot mine for yourself - mining must be selfless" {
 		t.Errorf("Expected self-mining error, got: %s", err.Error())
 	}
 

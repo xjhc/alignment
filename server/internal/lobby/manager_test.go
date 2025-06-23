@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/xjhc/alignment/server/internal/interfaces"
+	"github.com/xjhc/alignment/server/internal/mocks"
 )
 
 // MockPlayerActor for testing LobbyManager
@@ -61,7 +62,7 @@ func (m *MockSessionManager) SendActionToGame(gameID string, action interface{})
 
 // TestLobbyManager_StartGame tests the full game start flow from the lobby
 func TestLobbyManager_StartGame(t *testing.T) {
-	mockSessionManager := &MockSessionManager{}
+	mockSessionManager := &mocks.MockSessionManager{}
 	lobbyManager := NewLobbyManager(mockSessionManager)
 
 	// Create a lobby and add players
@@ -81,8 +82,8 @@ func TestLobbyManager_StartGame(t *testing.T) {
 	}
 
 	// Verify that CreateGameFromLobby was called
-	if mockSessionManager.CreateGameCalls != 1 {
-		t.Errorf("Expected CreateGameFromLobby to be called once, got %d", mockSessionManager.CreateGameCalls)
+	if len(mockSessionManager.CreateGameFromLobbyCalls) != 1 {
+		t.Errorf("Expected CreateGameFromLobby to be called once, got %d", len(mockSessionManager.CreateGameFromLobbyCalls))
 	}
 
 	// Verify that the lobby was removed after starting
@@ -93,7 +94,7 @@ func TestLobbyManager_StartGame(t *testing.T) {
 
 // TestLobbyManager_StartGame_NotEnoughPlayers tests starting with insufficient players
 func TestLobbyManager_StartGame_NotEnoughPlayers(t *testing.T) {
-	mockSessionManager := &MockSessionManager{}
+	mockSessionManager := &mocks.MockSessionManager{}
 	lobbyManager := NewLobbyManager(mockSessionManager)
 
 	hostActor := &MockPlayerActor{PlayerID: "host", PlayerName: "Host"}
@@ -110,7 +111,7 @@ func TestLobbyManager_StartGame_NotEnoughPlayers(t *testing.T) {
 
 // TestLobbyManager_StartGame_NotHost tests starting by a non-host player
 func TestLobbyManager_StartGame_NotHost(t *testing.T) {
-	mockSessionManager := &MockSessionManager{}
+	mockSessionManager := &mocks.MockSessionManager{}
 	lobbyManager := NewLobbyManager(mockSessionManager)
 
 	hostActor := &MockPlayerActor{PlayerID: "host", PlayerName: "Host"}

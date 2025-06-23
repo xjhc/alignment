@@ -85,9 +85,19 @@ test-backend:
 	@cd server && go test -race -cover ./...
 
 .PHONY: test-frontend
-test-frontend:
+test-frontend: ## 🧪 Run frontend tests once
 	@echo ">>> Running frontend tests..."
 	@cd client && npm test
+
+.PHONY: test-frontend-watch
+test-frontend-watch: ## 👀 Run frontend tests in watch mode for development
+	@echo ">>> Running frontend tests in watch mode... (Press Ctrl+C to stop)"
+	@cd client && npm run test:watch
+
+.PHONY: test-frontend-coverage
+test-frontend-coverage: ## 📊 Run frontend tests with coverage report
+	@echo ">>> Running frontend tests with coverage..."
+	@cd client && npx vitest run --coverage
 
 ## --------------------------------------
 ## HELP
