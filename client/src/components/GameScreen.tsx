@@ -16,6 +16,7 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
   const [selectedNominee, setSelectedNominee] = useState<string>('');
   const [selectedVote, setSelectedVote] = useState<'GUILTY' | 'INNOCENT' | ''>('');
   const [conversionTarget, setConversionTarget] = useState<string>('');
+  const [miningTarget, setMiningTarget] = useState<string>('');
 
   const {
     canPlayerAffordAbility,
@@ -83,7 +84,7 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
   };
 
   const handleMineTokens = async () => {
-    if (!currentPlayer || !isConnected) return;
+    if (!currentPlayer || !miningTarget || !isConnected) return;
 
     try {
       const action: ClientAction = {
@@ -92,11 +93,12 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
           game_id: gameState.id,
           player_id: playerId,
           action_type: 'MINE_TOKENS',
-          difficulty: 0.3,
+          target_player_id: miningTarget,
         },
       };
 
       sendAction(action);
+      setMiningTarget('');
     } catch (error) {
       console.error('Failed to mine tokens:', error);
     }
@@ -160,8 +162,8 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
         payload: {
           game_id: gameState.id,
           player_id: playerId,
+          target_id: selectedNominee,
           vote_type: 'NOMINATION',
-          nominee_id: selectedNominee,
         },
       };
 
@@ -181,8 +183,8 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
         payload: {
           game_id: gameState.id,
           player_id: playerId,
-          vote_type: 'TRIAL',
-          vote: selectedVote,
+          target_id: selectedVote, // For GUILTY/INNOCENT votes, the target is the vote itself
+          vote_type: 'VERDICT',
         },
       };
 
@@ -309,13 +311,35 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
               <div className="night-actions-grid">
                 <div className="action-category">
                   <h3>Universal Actions</h3>
-                  <div className="action-card" onClick={handleMineTokens}>
-                    <div className="action-icon">⛏️</div>
-                    <div className="action-details">
-                      <div className="action-name">Mine Tokens</div>
-                      <div className="action-description">Earn digital currency for abilities</div>
-                      <div className="action-cost">Free</div>
+                  <div className="mining-section">
+                    <h4>Mine Tokens For:</h4>
+                    <div className="mining-targets">
+                      {gameState.players
+                        .filter(p => p.isAlive && p.id !== playerId)
+                        .map(player => (
+                          <div
+                            key={player.id}
+                            className={`target-card ${miningTarget === player.id ? 'selected' : ''}`}
+                            onClick={() => setMiningTarget(player.id)}
+                          >
+                            <div className="player-avatar">👤</div>
+                            <div className="target-details">
+                              <div className="target-name">{player.name}</div>
+                              <div className="target-job">{player.jobTitle}</div>
+                              <div className="target-tokens">🪙 {player.tokens}</div>
+                            </div>
+                          </div>
+                        ))}
                     </div>
+                    {miningTarget && (
+                      <button
+                        className="action-btn mining"
+                        onClick={handleMineTokens}
+                        disabled={!isConnected}
+                      >
+                        ⛏️ Mine for {gameState.players.find(p => p.id === miningTarget)?.name}
+                      </button>
+                    )}
                   </div>
                 </div>
 

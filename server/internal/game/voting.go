@@ -313,8 +313,8 @@ func (vv *VoteValidator) IsValidVotePhase(voteType core.VoteType) error {
 			return fmt.Errorf("nomination votes only allowed during nomination phase")
 		}
 	case core.VoteVerdict:
-		if vv.gameState.Phase.Type != core.PhaseVerdict {
-			return fmt.Errorf("verdict votes only allowed during verdict phase")
+		if vv.gameState.Phase.Type != core.PhaseTrial && vv.gameState.Phase.Type != core.PhaseVerdict {
+			return fmt.Errorf("verdict votes only allowed during trial or verdict phase")
 		}
 	default:
 		return fmt.Errorf("unknown vote type: %s", voteType)
@@ -335,7 +335,7 @@ func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, err
 	switch vm.gameState.Phase.Type {
 	case core.PhaseNomination:
 		voteType = core.VoteNomination
-	case core.PhaseVerdict:
+	case core.PhaseTrial, core.PhaseVerdict:
 		voteType = core.VoteVerdict
 	case core.PhaseExtension:
 		voteType = core.VoteExtension

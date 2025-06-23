@@ -15,6 +15,10 @@ import (
 // Manager interfaces for better testability
 type VotingManager interface {
 	HandleVoteAction(action core.Action) ([]core.Event, error)
+	GetWinner() (string, int, bool)
+	IsVoteComplete() bool
+	CompleteVote()
+	ClearVote()
 }
 
 type MiningManager interface {
@@ -212,11 +216,23 @@ func (ga *GameActor) processLoop() {
 				continue
 			}
 
-			// Apply events to local state
+			// Apply events to local state and check for additional events (like win conditions)
+			allEvents := eventsToPersist
 			for _, event := range eventsToPersist {
 				newState := core.ApplyEvent(*ga.state, event)
 				ga.state = &newState
+				
+				// Check for win conditions after certain events
+				additionalEvents := ga.handlePostEventProcessing(event)
+				allEvents = append(allEvents, additionalEvents...)
 			}
+			
+			// Apply any additional events that were generated
+			for i := len(eventsToPersist); i < len(allEvents); i++ {
+				newState := core.ApplyEvent(*ga.state, allEvents[i])
+				ga.state = &newState
+			}
+			eventsToPersist = allEvents
 
 			// Check for EventGameStarted or EventPhaseChanged and schedule next phase transition
 			for _, event := range eventsToPersist {
@@ -252,15 +268,15 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 	case core.ActionLeaveGame:
 		return ga.validateAndGenerateLeaveGame(action)
 	case core.ActionSubmitVote:
-		return ga.votingManager.HandleVoteAction(action)
+		return ga.handleVoteAction(action)
 	case core.ActionSubmitNightAction:
-		return ga.roleAbilityManager.HandleNightAction(action)
+		return ga.handleNightAction(action)
 	case core.ActionMineTokens:
 		return ga.miningManager.HandleMineAction(action)
 	case core.ActionSendMessage:
 		return ga.validateAndGenerateChatMessage(action)
 	case core.ActionType("PHASE_TRANSITION"):
-		return ga.validateAndGeneratePhaseTransition(action)
+		return ga.handlePhaseTransition(action)
 	default:
 		return nil, fmt.Errorf("unknown action type: %s", action.Type)
 	}
@@ -493,7 +509,74 @@ func getKPIDescription(kpiType core.KPIType) string {
 	}
 }
 
-func (ga *GameActor) validateAndGeneratePhaseTransition(action core.Action) ([]core.Event, error) {
+// handleVoteAction processes voting with full phase management
+func (ga *GameActor) handleVoteAction(action core.Action) ([]core.Event, error) {
+	// Use the voting manager to handle the vote
+	events, err := ga.votingManager.HandleVoteAction(action)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if we need to process vote completion and phase transitions
+	additionalEvents := ga.processVoteCompletion()
+	events = append(events, additionalEvents...)
+
+	return events, nil
+}
+
+// handleNightAction processes night actions
+func (ga *GameActor) handleNightAction(action core.Action) ([]core.Event, error) {
+	actionType, _ := action.Payload["action_type"].(string)
+	
+	switch actionType {
+	case "MINE_TOKENS", "MINE":
+		return ga.miningManager.HandleMineAction(action)
+	case "ATTEMPT_CONVERSION":
+		// Store the night action for later resolution
+		return ga.storeNightAction(action)
+	default:
+		// Handle other night actions through role ability manager
+		return ga.roleAbilityManager.HandleNightAction(action)
+	}
+}
+
+// storeNightAction stores a night action for resolution at night end
+func (ga *GameActor) storeNightAction(action core.Action) ([]core.Event, error) {
+	if ga.state.NightActions == nil {
+		ga.state.NightActions = make(map[string]*core.SubmittedNightAction)
+	}
+
+	actionType, _ := action.Payload["action_type"].(string)
+	targetID, _ := action.Payload["target_player_id"].(string)
+
+	nightAction := &core.SubmittedNightAction{
+		PlayerID:  action.PlayerID,
+		Type:      actionType,
+		TargetID:  targetID,
+		Payload:   action.Payload,
+		Timestamp: action.Timestamp,
+	}
+
+	ga.state.NightActions[action.PlayerID] = nightAction
+
+	// Create night action submitted event
+	event := core.Event{
+		ID:        fmt.Sprintf("night_action_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventNightActionSubmitted,
+		GameID:    ga.gameID,
+		PlayerID:  action.PlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"action_type": actionType,
+			"target_id":   targetID,
+		},
+	}
+
+	return []core.Event{event}, nil
+}
+
+// handlePhaseTransition processes phase transitions and special logic
+func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, error) {
 	nextPhase, ok := action.Payload["next_phase"].(string)
 	if !ok || nextPhase == "" {
 		return nil, fmt.Errorf("missing or invalid next_phase in payload")
@@ -501,6 +584,63 @@ func (ga *GameActor) validateAndGeneratePhaseTransition(action core.Action) ([]c
 
 	var events []core.Event
 
+	// Handle special logic based on phase we're entering
+	switch core.PhaseType(nextPhase) {
+	case core.PhaseVerdict:
+		// Determine who was nominated and set up the trial
+		if ga.state.VoteState != nil {
+			winner, _, hasTie := ga.votingManager.GetWinner()
+			if !hasTie && winner != "" {
+				// Set the nominated player
+				ga.state.NominatedPlayer = winner
+				nominationEvent := core.Event{
+					ID:        fmt.Sprintf("player_nominated_%s_%d", winner, time.Now().UnixNano()),
+					Type:      core.EventPlayerNominated,
+					GameID:    ga.gameID,
+					PlayerID:  "",
+					Timestamp: time.Now(),
+					Payload: map[string]interface{}{
+						"nominated_player": winner,
+						"nomination_votes": ga.state.VoteState.Results[winner],
+					},
+				}
+				events = append(events, nominationEvent)
+			}
+		}
+		// Clear previous vote state for verdict voting
+		ga.votingManager.ClearVote()
+
+	case core.PhaseNight:
+		// Process verdict vote results and potentially eliminate a player
+		if ga.state.VoteState != nil && ga.state.NominatedPlayer != "" {
+			// Check if the verdict passed (more GUILTY than INNOCENT votes by token weight)
+			guiltyVotes := ga.state.VoteState.Results["GUILTY"]
+			innocentVotes := ga.state.VoteState.Results["INNOCENT"]
+			
+			if guiltyVotes > innocentVotes {
+				// Eliminate the nominated player
+				eliminationEvents, err := ga.eliminationManager.EliminatePlayer(ga.state.NominatedPlayer)
+				if err == nil {
+					events = append(events, eliminationEvents...)
+				}
+			}
+		}
+		// Clear vote state and nominated player for next day
+		ga.votingManager.ClearVote()
+		ga.state.NominatedPlayer = ""
+
+	case core.PhaseSitrep:
+		// Resolve all night actions
+		if ga.state.Phase.Type == core.PhaseNight {
+			nightManager := game.NewNightResolutionManager(ga.state)
+			nightEvents := nightManager.ResolveNightActions()
+			events = append(events, nightEvents...)
+		}
+		// Increment day number
+		ga.state.DayNumber++
+	}
+
+	// Create the main phase transition event
 	phaseEvent := core.Event{
 		ID:        fmt.Sprintf("phase_transition_%s_%d", nextPhase, time.Now().UnixNano()),
 		Type:      core.EventPhaseChanged,
@@ -517,6 +657,36 @@ func (ga *GameActor) validateAndGeneratePhaseTransition(action core.Action) ([]c
 	events = append(events, phaseEvent)
 
 	return events, nil
+}
+
+// processVoteCompletion checks if voting is complete and handles transitions
+func (ga *GameActor) processVoteCompletion() []core.Event {
+	if ga.state.VoteState == nil {
+		return []core.Event{}
+	}
+
+	var events []core.Event
+
+	// Check if all alive players have voted
+	if ga.votingManager.IsVoteComplete() {
+		// Mark vote as complete
+		ga.votingManager.CompleteVote()
+		
+		voteCompleteEvent := core.Event{
+			ID:        fmt.Sprintf("vote_completed_%s_%d", ga.state.VoteState.Type, time.Now().UnixNano()),
+			Type:      core.EventVoteCompleted,
+			GameID:    ga.gameID,
+			PlayerID:  "",
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"vote_type": string(ga.state.VoteState.Type),
+				"results":   ga.state.VoteState.Results,
+			},
+		}
+		events = append(events, voteCompleteEvent)
+	}
+
+	return events
 }
 
 func (ga *GameActor) handlePostEventProcessing(event core.Event) []core.Event {

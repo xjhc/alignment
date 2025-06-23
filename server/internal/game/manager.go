@@ -101,17 +101,26 @@ func (sm *SessionManager) CreateGameFromLobby(lobbyID string, playerActors map[s
 		}
 	}
 
-	// Broadcast granular events to the appropriate players
+	// Send initial game state snapshots to all players after events are applied
+	for playerID, playerActor := range playerActors {
+		// Send transition message with the current game state
+		playerGameState := gameActor.CreatePlayerStateUpdateEvent(playerID)
+		transitionMessage := interfaces.TransitionToGame{
+			GameID:    lobbyID,
+			GameState: playerGameState.Payload["game_state"],
+		}
+		playerActor.SendServerMessage(transitionMessage)
+		
+		// Also send the game state update event for initialization
+		playerActor.SendServerMessage(playerGameState)
+	}
+
+	// Then broadcast granular events to the appropriate players
 	for _, event := range stateUpdateEvents {
 		switch event.Type {
 		case core.EventRoleAssigned:
 			// Private event - send only to the specific player
 			if playerActor, exists := playerActors[event.PlayerID]; exists {
-				transitionMessage := interfaces.TransitionToGame{
-					GameID:    lobbyID,
-					GameState: nil, // No snapshot needed anymore
-				}
-				playerActor.SendServerMessage(transitionMessage)
 				playerActor.SendServerMessage(event)
 			}
 		case core.EventGameStarted:
