@@ -471,6 +471,17 @@ func (pa *PlayerActor) handleLobbyChat(action core.Action) {
 
 // handleGameAction forwards actions to the game
 func (pa *PlayerActor) handleGameAction(action core.Action) {
+	// Handle special non-game actions first
+	switch action.Type {
+	case "ping":
+		// Handle WebSocket heartbeat - just respond with pong
+		pa.sendPong()
+		return
+	case core.ActionLeaveGame:
+		pa.handleLeaveGame(action)
+		return
+	}
+
 	// Validate that player is actually in a game
 	if pa.gameID == "" {
 		pa.sendError("Player not in a game")
@@ -483,29 +494,57 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 		return
 	}
 
-	// Handle special game-level actions that don't go to GameActor
+	// Handle client action types that need to be mapped to core action types
+	actionType := action.Type
 	switch action.Type {
-	case core.ActionLeaveGame:
-		pa.handleLeaveGame(action)
-		return
-	case core.ActionSubmitVote, core.ActionSubmitNightAction, core.ActionMineTokens, core.ActionSendMessage:
-		// Valid game actions - forward to SessionManager
-		if pa.sessionManager == nil {
-			pa.sendError("Session manager not available")
-			return
-		}
+	case "POST_CHAT_MESSAGE":
+		actionType = core.ActionSendMessage
+	}
 
-		// Ensure the action is properly attributed to this player and game
-		action.PlayerID = pa.playerID
-		action.GameID = pa.gameID
+	// List of valid game actions that should be forwarded to the SessionManager
+	validGameActions := map[core.ActionType]bool{
+		core.ActionSendMessage:         true,
+		core.ActionSubmitVote:          true,
+		core.ActionSubmitNightAction:   true,
+		core.ActionMineTokens:          true,
+		core.ActionSubmitPulseCheck:    true,
+		core.ActionUseAbility:          true,
+		core.ActionAttemptConversion:   true,
+		core.ActionExtendDiscussion:    true,
+		core.ActionRunAudit:            true,
+		core.ActionOverclockServers:    true,
+		core.ActionIsolateNode:         true,
+		core.ActionPerformanceReview:   true,
+		core.ActionReallocateBudget:    true,
+		core.ActionPivot:               true,
+		core.ActionDeployHotfix:        true,
+		core.ActionSetSlackStatus:      true,
+		core.ActionProjectMilestones:   true,
+		core.ActionReconnect:           true,
+	}
 
-		err := pa.sessionManager.SendActionToGame(pa.gameID, action)
-		if err != nil {
-			log.Printf("[PlayerActor/%s] Failed to send action to game: %v", pa.playerID, err)
-		}
-	default:
-		// Invalid actions for InGame state
+	// Check if this is a valid game action
+	if !validGameActions[actionType] {
 		pa.sendError(fmt.Sprintf("Action %s not allowed in InGame state", action.Type))
+		return
+	}
+
+	// Forward valid game actions to SessionManager
+	if pa.sessionManager == nil {
+		pa.sendError("Session manager not available")
+		return
+	}
+
+	// Update the action type if it was mapped
+	action.Type = actionType
+	// Ensure the action is properly attributed to this player and game
+	action.PlayerID = pa.playerID
+	action.GameID = pa.gameID
+
+	err := pa.sessionManager.SendActionToGame(pa.gameID, action)
+	if err != nil {
+		log.Printf("[PlayerActor/%s] Failed to send action to game: %v", pa.playerID, err)
+		pa.sendError(fmt.Sprintf("Failed to process action: %v", err))
 	}
 }
 
@@ -638,6 +677,18 @@ func (pa *PlayerActor) sendError(message string) {
 			"message": message,
 			"error":   true,
 		},
+	}
+
+	pa.sendEvent(event)
+}
+
+// sendPong responds to a ping with a pong message
+func (pa *PlayerActor) sendPong() {
+	event := core.Event{
+		Type:      "pong",
+		PlayerID:  pa.playerID,
+		Timestamp: time.Now(),
+		Payload:   map[string]interface{}{},
 	}
 
 	pa.sendEvent(event)

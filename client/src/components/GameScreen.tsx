@@ -51,7 +51,7 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
   const formatTimeRemaining = (phase: Phase) => {
     const now = new Date().getTime();
     const phaseStart = new Date(phase.startTime).getTime();
-    const phaseEnd = phaseStart + phase.duration;
+    const phaseEnd = phaseStart + (phase.duration * 1000);
     const remaining = Math.max(0, phaseEnd - now);
 
     const minutes = Math.floor(remaining / 60000);

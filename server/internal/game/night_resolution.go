@@ -28,21 +28,20 @@ func (nrm *NightResolutionManager) ResolveNightActions() []core.Event {
 
 	var allEvents []core.Event
 
-	// Phase 1: Resolve blocking actions (highest precedence)
+	// Pass 1: Resolve blocking actions (highest precedence)
+	// These must be resolved first as they prevent other actions
 	blockEvents := nrm.resolveBlockActions()
 	allEvents = append(allEvents, blockEvents...)
 
-	// Phase 2: Resolve mining actions with liquidity pool
-	miningEvents := nrm.resolveMiningActions()
-	allEvents = append(allEvents, miningEvents...)
+	// Pass 2: Resolve AI conversion attempts
+	// AI targeting functions as a block, so must be resolved before standard actions
+	conversionEvents := nrm.resolveConversionActions()
+	allEvents = append(allEvents, conversionEvents...)
 
-	// Phase 3: Resolve role-specific abilities (audit, overclock, etc.)
-	roleAbilityEvents := nrm.resolveRoleAbilities()
-	allEvents = append(allEvents, roleAbilityEvents...)
-
-	// Phase 4: Resolve other night actions (investigate, protect, convert)
-	nightActionEvents := nrm.resolveOtherNightActions()
-	allEvents = append(allEvents, nightActionEvents...)
+	// Pass 3: Resolve standard actions (mining, role abilities, others)
+	// These are resolved for non-blocked players only
+	standardEvents := nrm.resolveStandardActions()
+	allEvents = append(allEvents, standardEvents...)
 
 	// Generate summary event
 	summaryEvent := nrm.createNightResolutionSummary(allEvents)
@@ -248,12 +247,61 @@ func (nrm *NightResolutionManager) resolveRoleAbilities() []core.Event {
 	return events
 }
 
-// resolveOtherNightActions handles investigate, protect, and convert actions
+// resolveConversionActions handles AI conversion attempts in Pass 2
+func (nrm *NightResolutionManager) resolveConversionActions() []core.Event {
+	var events []core.Event
+
+	for playerID, action := range nrm.gameState.NightActions {
+		// Skip if player is blocked from Pass 1
+		if nrm.isPlayerBlocked(playerID) {
+			continue
+		}
+
+		if action.Type == "ATTEMPT_CONVERSION" || action.Type == "CONVERT" {
+			if nrm.canPlayerUseAbility(playerID, "CONVERT") {
+				// AI conversion also blocks the target player
+				targetID := action.TargetID
+				if targetID != "" {
+					if nrm.gameState.BlockedPlayersTonight == nil {
+						nrm.gameState.BlockedPlayersTonight = make(map[string]bool)
+					}
+					nrm.gameState.BlockedPlayersTonight[targetID] = true
+				}
+
+				convertEvents := nrm.resolveConvertAction(playerID, action)
+				events = append(events, convertEvents...)
+			}
+		}
+	}
+
+	return events
+}
+
+// resolveStandardActions handles all remaining actions in Pass 3
+func (nrm *NightResolutionManager) resolveStandardActions() []core.Event {
+	var events []core.Event
+
+	// Phase 3a: Resolve mining actions with liquidity pool
+	miningEvents := nrm.resolveMiningActions()
+	events = append(events, miningEvents...)
+
+	// Phase 3b: Resolve role-specific abilities (audit, overclock, etc.)
+	roleAbilityEvents := nrm.resolveRoleAbilities()
+	events = append(events, roleAbilityEvents...)
+
+	// Phase 3c: Resolve other night actions (investigate, protect)
+	otherEvents := nrm.resolveOtherNightActions()
+	events = append(events, otherEvents...)
+
+	return events
+}
+
+// resolveOtherNightActions handles investigate and protect actions (after conversion)
 func (nrm *NightResolutionManager) resolveOtherNightActions() []core.Event {
 	var events []core.Event
 
 	for playerID, action := range nrm.gameState.NightActions {
-		// Skip if player is blocked
+		// Skip if player is blocked (from Pass 1 or Pass 2)
 		if nrm.isPlayerBlocked(playerID) {
 			continue
 		}
@@ -266,10 +314,6 @@ func (nrm *NightResolutionManager) resolveOtherNightActions() []core.Event {
 		case "PROTECT":
 			if nrm.canPlayerUseAbility(playerID, "PROTECT") {
 				events = append(events, nrm.resolveProtectAction(playerID, action))
-			}
-		case "ATTEMPT_CONVERSION":
-			if nrm.canPlayerUseAbility(playerID, "CONVERT") {
-				events = append(events, nrm.resolveConvertAction(playerID, action)...)
 			}
 		}
 	}
@@ -465,20 +509,62 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 	}
 }
 
-// createNightResolutionSummary creates a summary event of all night actions
+// createNightResolutionSummary creates a comprehensive summary event of all night actions
 func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents []core.Event) core.Event {
-	// Count different types of actions
+	// Analyze the resolved events to create a detailed summary
+	eventCounts := make(map[string]int)
+	blockedPlayers := []string{}
+	convertedPlayers := []string{}
+	eliminatedPlayers := []string{}
+	miningResults := make(map[string]interface{})
+	
+	for _, event := range resolvedEvents {
+		// Count event types
+		eventType := string(event.Type)
+		eventCounts[eventType]++
+		
+		// Extract specific information based on event type
+		switch event.Type {
+		case core.EventPlayerBlocked:
+			if targetID, ok := event.Payload["target_id"].(string); ok {
+				blockedPlayers = append(blockedPlayers, targetID)
+			}
+		case core.EventAIConversionSuccess:
+			if targetID, ok := event.Payload["target_id"].(string); ok {
+				convertedPlayers = append(convertedPlayers, targetID)
+			}
+		case core.EventPlayerEliminated:
+			if playerID := event.PlayerID; playerID != "" {
+				eliminatedPlayers = append(eliminatedPlayers, playerID)
+			}
+		case core.EventMiningSuccessful:
+			if minerID, ok := event.Payload["miner_id"].(string); ok {
+				if targetID, ok := event.Payload["target_id"].(string); ok {
+					miningResults[minerID] = targetID
+				}
+			}
+		}
+	}
+
+	// Create comprehensive summary payload
 	summary := map[string]interface{}{
-		"total_actions":   len(nrm.gameState.NightActions),
-		"resolved_events": len(resolvedEvents),
-		"phase_end":       true,
+		"night_number":      nrm.gameState.DayNumber,
+		"total_actions":     len(nrm.gameState.NightActions),
+		"resolved_events":   len(resolvedEvents),
+		"event_counts":      eventCounts,
+		"blocked_players":   blockedPlayers,
+		"converted_players": convertedPlayers,
+		"eliminated_players": eliminatedPlayers,
+		"mining_results":    miningResults,
+		"phase_end":         true,
+		"next_phase":        "SITREP",
 	}
 
 	return core.Event{
 		ID:        fmt.Sprintf("night_resolution_summary_%d", nrm.gameState.DayNumber),
 		Type:      core.EventNightActionsResolved,
 		GameID:    nrm.gameState.ID,
-		PlayerID:  "",
+		PlayerID:  "", // Public event - broadcast to all players
 		Timestamp: getCurrentTime(),
 		Payload:   summary,
 	}
