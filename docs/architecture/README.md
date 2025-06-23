@@ -14,7 +14,7 @@ The backend is composed of several key, concurrent components that work together
 
 *   **The [Game Actor](./04-actor-and-event-processing.md) (The Workhorse):** A dedicated goroutine that "owns" a single game. It holds that game's complete state in memory (`GameState`) and processes all actions and events for that game serially via a private channel. This is the source of our performance and data consistency.
 
-*   **The [Dispatcher](../glossary.md#dispatcher) (The Router):** The central hub for all network traffic. It listens to all incoming WebSocket messages from players, identifies the target game, and routes the message to the correct Game Actor's channel (mailbox). In a single-node deployment, it also handles broadcasting events back to clients; this role shifts to a Redis Pub/Sub model in a [multi-node environment](./07-scaling-path.md).
+*   **The [Dispatcher](../glossary.md#dispatcher) (The Router):** The central hub for all network traffic. It listens to all incoming WebSocket messages from players, identifies the target game, and routes the message to the correct Game Actor's channel (mailbox). In a single-node deployment, it also handles broadcasting events back to clients; this role shifts to a Redis Pub/Sub model in a [multi-node environment](./07-future-scaling-path.md).
 
 *   **The [Scheduler](../glossary.md#scheduler) (The Metronome):** A single, highly-efficient goroutine that manages all time-based events for the entire server (e.g., phase timers, AI thinking delays). It uses a **[Timing Wheel](../glossary.md#timing-wheel)** algorithm to handle thousands of timers with minimal overhead.
 

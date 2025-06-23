@@ -8,8 +8,8 @@ import (
 type Event struct {
 	ID        string                 `json:"id"`
 	Type      EventType              `json:"type"`
-	GameID    string                 `json:"game_id"`
-	PlayerID  string                 `json:"player_id,omitempty"`
+	GameID    string                 `json:"gameId"`
+	PlayerID  string                 `json:"playerId,omitempty"`
 	Timestamp time.Time              `json:"timestamp"`
 	Payload   map[string]interface{} `json:"payload"`
 }
@@ -127,8 +127,8 @@ const (
 // Action represents a player action that can generate events
 type Action struct {
 	Type      ActionType             `json:"type"`
-	PlayerID  string                 `json:"player_id"`
-	GameID    string                 `json:"game_id"`
+	PlayerID  string                 `json:"playerId"`
+	GameID    string                 `json:"gameId"`
 	Timestamp time.Time              `json:"timestamp"`
 	Payload   map[string]interface{} `json:"payload"`
 }
@@ -177,7 +177,7 @@ const (
 // Phase represents the current game phase
 type Phase struct {
 	Type      PhaseType     `json:"type"`
-	StartTime time.Time     `json:"start_time"`
+	StartTime time.Time     `json:"startTime"`
 	Duration  time.Duration `json:"duration"`
 }
 
@@ -201,25 +201,25 @@ const (
 type Player struct {
 	ID                string    `json:"id"`
 	Name              string    `json:"name"`
-	JobTitle          string    `json:"job_title"`
-	IsAlive           bool      `json:"is_alive"`
+	JobTitle          string    `json:"jobTitle"`
+	IsAlive           bool      `json:"isAlive"`
 	Tokens            int       `json:"tokens"`
-	ProjectMilestones int       `json:"project_milestones"`
-	StatusMessage     string    `json:"status_message"`
-	JoinedAt          time.Time `json:"joined_at"`
+	ProjectMilestones int       `json:"projectMilestones"`
+	StatusMessage     string    `json:"statusMessage"`
+	JoinedAt          time.Time `json:"joinedAt"`
 
 	// Private fields (only visible to the player themselves)
 	Alignment       string       `json:"alignment,omitempty"` // "HUMAN" or "ALIGNED"
 	Role            *Role        `json:"role,omitempty"`
-	PersonalKPI     *PersonalKPI `json:"personal_kpi,omitempty"`
-	AIEquity        int          `json:"ai_equity,omitempty"` // For alignment conversion
-	HasUsedAbility  bool         `json:"has_used_ability,omitempty"`
-	LastNightAction *NightAction `json:"last_night_action,omitempty"`
+	PersonalKPI     *PersonalKPI `json:"personalKPI,omitempty"`
+	AIEquity        int          `json:"aiEquity,omitempty"` // For alignment conversion
+	HasUsedAbility  bool         `json:"hasUsedAbility,omitempty"`
+	LastNightAction *NightAction `json:"lastNightAction,omitempty"`
 
 	// Public status and effects
-	SlackStatus  string        `json:"slack_status,omitempty"`
-	PartingShot  string        `json:"parting_shot,omitempty"`
-	SystemShocks []SystemShock `json:"system_shocks,omitempty"`
+	SlackStatus  string        `json:"slackStatus,omitempty"`
+	PartingShot  string        `json:"partingShot,omitempty"`
+	SystemShocks []SystemShock `json:"systemShocks,omitempty"`
 }
 
 // Role represents a player's role and abilities
@@ -227,7 +227,7 @@ type Role struct {
 	Type        RoleType `json:"type"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
-	IsUnlocked  bool     `json:"is_unlocked"`
+	IsUnlocked  bool     `json:"isUnlocked"`
 	Ability     *Ability `json:"ability,omitempty"`
 }
 
@@ -249,7 +249,7 @@ const (
 type Ability struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	IsReady     bool   `json:"is_ready"`
+	IsReady     bool   `json:"isReady"`
 }
 
 // PersonalKPI represents a player's secret objective
@@ -258,7 +258,7 @@ type PersonalKPI struct {
 	Description string  `json:"description"`
 	Progress    int     `json:"progress"`
 	Target      int     `json:"target"`
-	IsCompleted bool    `json:"is_completed"`
+	IsCompleted bool    `json:"isCompleted"`
 	Reward      string  `json:"reward"`
 }
 
@@ -277,8 +277,8 @@ const (
 type SystemShock struct {
 	Type        ShockType `json:"type"`
 	Description string    `json:"description"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	IsActive    bool      `json:"is_active"`
+	ExpiresAt   time.Time `json:"expiresAt"`
+	IsActive    bool      `json:"isActive"`
 }
 
 // ShockType represents different shock effects
@@ -296,7 +296,7 @@ type CorporateMandate struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
 	Effects     map[string]interface{} `json:"effects"`
-	IsActive    bool                   `json:"is_active"`
+	IsActive    bool                   `json:"isActive"`
 }
 
 // MandateType represents different corporate mandates
@@ -311,7 +311,7 @@ const (
 // NightAction represents an action taken during night phase
 type NightAction struct {
 	Type     NightActionType `json:"type"`
-	TargetID string          `json:"target_id,omitempty"`
+	TargetID string          `json:"targetId,omitempty"`
 }
 
 // NightActionType represents types of night actions
@@ -336,20 +336,20 @@ type CrisisEvent struct {
 // ChatMessage represents a chat message
 type ChatMessage struct {
 	ID         string    `json:"id"`
-	PlayerID   string    `json:"player_id"`
-	PlayerName string    `json:"player_name"`
+	PlayerID   string    `json:"playerID"`
+	PlayerName string    `json:"playerName"`
 	Message    string    `json:"message"`
 	Timestamp  time.Time `json:"timestamp"`
-	IsSystem   bool      `json:"is_system"`
+	IsSystem   bool      `json:"isSystem"`
 }
 
 // VoteState represents the current voting state
 type VoteState struct {
 	Type         VoteType          `json:"type"`
 	Votes        map[string]string `json:"votes"`         // PlayerID -> TargetID
-	TokenWeights map[string]int    `json:"token_weights"` // PlayerID -> Token count
+	TokenWeights map[string]int    `json:"tokenWeights"` // PlayerID -> Token count
 	Results      map[string]int    `json:"results"`       // TargetID -> Total tokens
-	IsComplete   bool              `json:"is_complete"`
+	IsComplete   bool              `json:"isComplete"`
 }
 
 // VoteType represents different types of votes
@@ -370,25 +370,25 @@ type WinCondition struct {
 
 // GameSettings contains game configuration
 type GameSettings struct {
-	MaxPlayers         int           `json:"max_players"`
-	MinPlayers         int           `json:"min_players"`
-	SitrepDuration     time.Duration `json:"sitrep_duration"`
-	PulseCheckDuration time.Duration `json:"pulse_check_duration"`
-	DiscussionDuration time.Duration `json:"discussion_duration"`
-	ExtensionDuration  time.Duration `json:"extension_duration"`
-	NominationDuration time.Duration `json:"nomination_duration"`
-	TrialDuration      time.Duration `json:"trial_duration"`
-	VerdictDuration    time.Duration `json:"verdict_duration"`
-	NightDuration      time.Duration `json:"night_duration"`
-	StartingTokens     int           `json:"starting_tokens"`
-	VotingThreshold    float64       `json:"voting_threshold"`
+	MaxPlayers         int           `json:"maxPlayers"`
+	MinPlayers         int           `json:"minPlayers"`
+	SitrepDuration     time.Duration `json:"sitrepDuration"`
+	PulseCheckDuration time.Duration `json:"pulseCheckDuration"`
+	DiscussionDuration time.Duration `json:"discussionDuration"`
+	ExtensionDuration  time.Duration `json:"extensionDuration"`
+	NominationDuration time.Duration `json:"nominationDuration"`
+	TrialDuration      time.Duration `json:"trialDuration"`
+	VerdictDuration    time.Duration `json:"verdictDuration"`
+	NightDuration      time.Duration `json:"nightDuration"`
+	StartingTokens     int           `json:"startingTokens"`
+	VotingThreshold    float64       `json:"votingThreshold"`
 }
 
 // SubmittedNightAction represents an action submitted during the night phase
 type SubmittedNightAction struct {
-	PlayerID  string                 `json:"player_id"`
+	PlayerID  string                 `json:"playerID"`
 	Type      string                 `json:"type"` // "MINE", "BLOCK", "INVESTIGATE", etc.
-	TargetID  string                 `json:"target_id"`
+	TargetID  string                 `json:"targetID"`
 	Payload   map[string]interface{} `json:"payload,omitempty"`
 	Timestamp time.Time              `json:"timestamp"`
 }

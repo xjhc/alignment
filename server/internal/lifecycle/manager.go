@@ -229,31 +229,35 @@ func (glm *GameLifecycleManager) JoinLobbyWithActor(lobbyID string, playerActor 
 	targetLobby, exists := glm.lobbies[lobbyID]
 
 	if !exists {
-		// Lobby doesn't exist at all - this shouldn't happen in the new flow
+		// This should not happen in the regular flow anymore, as the lobby
+		// is created via HTTP first. But as a safeguard:
 		glm.mutex.Unlock()
 		return fmt.Errorf("lobby not found: %s", lobbyID)
 	}
 
-	// Check if this is the host connecting for the first time
+	// Lock the specific lobby for state changes
+	targetLobby.Lock()
+
 	playerID := playerActor.GetPlayerID()
+	// Check if this is the host connecting for the first time
 	if targetLobby.Status == "WAITING_FOR_HOST" && targetLobby.HostPlayerID == playerID {
 		// Host is connecting - transition lobby from placeholder to active
 		targetLobby.Status = "WAITING"
-		log.Printf("GameLifecycleManager: Host %s connected to lobby %s", playerID, lobbyID)
+		log.Printf("GameLifecycleManager: Host %s connected, lobby %s is now active", playerID, lobbyID)
+	} else if targetLobby.Status == "WAITING_FOR_HOST" {
+		// If another player tries to join before the host, reject them.
+		targetLobby.Unlock()
+		glm.mutex.Unlock()
+		return fmt.Errorf("lobby is not accepting new players yet")
 	}
-	glm.mutex.Unlock()
+	targetLobby.Unlock() // Unlock the lobby after status check/update
+	glm.mutex.Unlock() // Unlock the manager after getting the lobby ref
 
-	// Add player to lobby
+	// Add player to lobby (this will handle its own locking and broadcasting)
 	err := targetLobby.AddPlayer(playerActor)
 	if err != nil {
 		return err
 	}
-
-	// Publish player joined event
-	glm.eventBus.Publish(events.PlayerJoinedLobbyEvent{
-		PlayerID: playerActor.GetPlayerID(),
-		LobbyID:  lobbyID,
-	})
 
 	// Transition player actor to lobby state
 	return playerActor.TransitionToLobby(lobbyID)

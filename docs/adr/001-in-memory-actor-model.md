@@ -2,7 +2,6 @@
 # ADR-001: Adopt an In-Memory Actor Model
 
 *   **Status:** Accepted
-*   **Date:** 2023-10-26
 
 ### Context
 

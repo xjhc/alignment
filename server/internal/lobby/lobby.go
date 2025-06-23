@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 )
 
@@ -78,37 +79,27 @@ func (l *Lobby) copyPlayers_unsafe() map[string]interfaces.PlayerActorInterface 
 // AddPlayer adds a player to the lobby
 func (l *Lobby) AddPlayer(playerActor interfaces.PlayerActorInterface) error {
 	l.mutex.Lock()
+	defer l.mutex.Unlock()
 
 	// Allow players to join if lobby is waiting or if it's the host connecting for the first time
 	if l.Status != "WAITING" && l.Status != "WAITING_FOR_HOST" {
-		l.mutex.Unlock()
 		return ErrLobbyNotAcceptingPlayers
 	}
 
 	// Special case: if status is WAITING_FOR_HOST, only the host can join
 	if l.Status == "WAITING_FOR_HOST" && l.HostPlayerID != playerActor.GetPlayerID() {
-		l.mutex.Unlock()
 		return ErrLobbyNotAcceptingPlayers
 	}
 
 	if len(l.Players) >= l.MaxPlayers {
-		l.mutex.Unlock()
 		return ErrLobbyFull
 	}
 
 	playerID := playerActor.GetPlayerID()
 	l.Players[playerID] = playerActor
 
-	// Create the update and a copy of the players *inside* the lock
-	update := l.createStateUpdate_unsafe()
-	playersToNotify := l.copyPlayers_unsafe()
-
-	l.mutex.Unlock() // Unlock *before* broadcasting
-
-	// Broadcast outside the lock
-	for _, actor := range playersToNotify {
-		actor.SendServerMessage(update)
-	}
+	// Create the update and broadcast it to all players in the lobby
+	l.broadcastStateUpdate()
 
 	return nil
 }
@@ -116,22 +107,16 @@ func (l *Lobby) AddPlayer(playerActor interfaces.PlayerActorInterface) error {
 // RemovePlayer removes a player from the lobby
 func (l *Lobby) RemovePlayer(playerID string) {
 	l.mutex.Lock()
+	defer l.mutex.Unlock()
 
 	if _, exists := l.Players[playerID]; !exists {
-		l.mutex.Unlock()
 		return
 	}
 
 	delete(l.Players, playerID)
 
-	update := l.createStateUpdate_unsafe()
-	playersToNotify := l.copyPlayers_unsafe()
-
-	l.mutex.Unlock() // Unlock *before* broadcasting
-
-	for _, actor := range playersToNotify {
-		actor.SendServerMessage(update)
-	}
+	// Create the update and broadcast it to all players in the lobby
+	l.broadcastStateUpdate()
 }
 
 // CanStart returns whether the lobby can start a game
@@ -171,7 +156,6 @@ func (l *Lobby) GetPlayerInfos() []PlayerInfo {
 // broadcastStateUpdate sends lobby state to all players
 // NOTE: This method assumes the caller already holds the lobby lock
 func (l *Lobby) broadcastStateUpdate() {
-	// Build player info list without calling GetPlayerInfos() to avoid re-entrant lock
 	var playerInfos []PlayerInfo
 	for _, actor := range l.Players {
 		playerInfos = append(playerInfos, PlayerInfo{
@@ -184,12 +168,28 @@ func (l *Lobby) broadcastStateUpdate() {
 		LobbyID:   l.ID,
 		Players:   playerInfos,
 		HostID:    l.HostPlayerID,
-		CanStart:  len(l.Players) >= l.MinPlayers && l.Status == "WAITING", // Inline CanStart logic
+		CanStart:  len(l.Players) >= l.MinPlayers && l.Status == "WAITING",
 		LobbyName: l.Name,
 	}
 
+	// This event is now a struct, not a core.Event
+	// We'll wrap it in a core.Event for consistency
+	event := core.Event{
+		Type: "LOBBY_STATE_UPDATE",
+		GameID: l.ID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"lobby_id": update.LobbyID,
+			"players": update.Players,
+			"host_id": update.HostID,
+			"can_start": update.CanStart,
+			"name": update.LobbyName,
+		},
+	}
+
 	for _, actor := range l.Players {
-		actor.SendServerMessage(update)
+		// The PlayerActor will handle marshaling this event to JSON
+		actor.SendServerMessage(event)
 	}
 }
 
@@ -198,6 +198,14 @@ func (l *Lobby) SetStatus(status string) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	l.Status = status
+}
+
+func (l *Lobby) Lock() {
+	 l.mutex.Lock()
+}
+
+func (l *Lobby) Unlock() {
+	 l.mutex.Unlock()
 }
 
 // PlayerInfo holds basic info for a player in the lobby

@@ -127,7 +127,12 @@ html {
   width: 100vw;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   letter-spacing: -0.025em;
@@ -148,22 +153,28 @@ input {
 
 /* Animations */
 @keyframes glitch {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate(0, 0);
     text-shadow: none;
   }
+
   20% {
     transform: translate(-1px, 1px);
     text-shadow: -1px 0 var(--accent-cyan), 1px 0 var(--accent-magenta);
   }
+
   40% {
     transform: translate(1px, -1px);
     text-shadow: -1px 0 var(--accent-cyan), 1px 0 var(--accent-magenta);
   }
+
   60% {
     transform: translate(-1px, 1px);
     text-shadow: -1px 0 var(--accent-cyan), 1px 0 var(--accent-magenta);
   }
+
   80% {
     transform: translate(1px, -1px);
     text-shadow: -1px 0 var(--accent-cyan), 1px 0 var(--accent-magenta);
@@ -175,6 +186,7 @@ input {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -182,9 +194,12 @@ input {
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.7;
   }
@@ -703,6 +718,14 @@ input {
   margin-top: 2px;
 }
 
+.game-layout-desktop {
+  display: grid;
+  grid-template-columns: 260px 1fr 320px;
+  height: 100vh;
+  gap: 1px;
+  background: var(--border-color);
+}
+
 .game-main {
   display: grid;
   grid-template-columns: 260px 1fr 320px;
@@ -926,7 +949,8 @@ input {
   background: var(--accent-amber-light);
 }
 
-.loading, .loading-spinner {
+.loading,
+.loading-spinner {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1703,8 +1727,663 @@ input {
     transform: translateX(100%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+
+/* --- Main Panel Styles --- */
+.panel-left,
+.panel-center,
+.panel-right {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-secondary);
+  overflow: hidden;
+  /* Prevent content from spilling */
+}
+
+.panel-center {
+  background-color: var(--bg-primary);
+}
+
+/* --- Left Panel: Header & Channels --- */
+.header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.company-logo {
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-bold);
+  font-size: 16px;
+  letter-spacing: 1.5px;
+}
+
+.header-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.header-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background-color: var(--bg-tertiary);
+  font-size: 14px;
+}
+
+.header-btn:hover {
+  background-color: var(--bg-quaternary);
+}
+
+.channel-list {
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.channel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-bottom: 1px;
+  font-size: 13px;
+}
+
+.channel:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.channel.active {
+  background-color: var(--color-human);
+  color: #000;
+}
+
+.channel.ai-channel.unlocked {
+  color: var(--color-aligned);
+  background-color: rgba(6, 182, 212, 0.1);
+}
+
+.channel.has-unread {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.channel-notification {
+  background: var(--color-danger);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  margin-left: auto;
+}
+
+.channel-blocked {
+  margin-left: auto;
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+/* --- Left Panel: Roster & Player Cards --- */
+.player-roster {
+  padding: 12px 8px;
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.roster-stats {
+  display: flex;
+  gap: 8px;
+}
+
+.stat-item {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-weight: bold;
+}
+
+.stat-item.human {
+  background-color: var(--color-human);
+  color: #000;
+}
+
+.stat-item.aligned {
+  background-color: var(--color-aligned);
+  color: #fff;
+}
+
+.stat-item.dead {
+  background-color: var(--bg-quaternary);
+  color: var(--text-muted);
+}
+
+.player-card-uniform {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 2px;
+}
+
+.player-card-uniform:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.player-card-uniform.is-me {
+  border-left: 2px solid var(--color-human);
+}
+
+.player-card-uniform.aligned {
+  border-left: 2px solid var(--color-aligned);
+}
+
+.player-card-uniform.deactivated {
+  opacity: 0.6;
+  filter: grayscale(60%);
+}
+
+.player-card-uniform[data-status="shocked"] .player-status-line {
+  color: var(--accent-magenta);
+}
+
+.player-tokens-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-progress-inline {
+  display: flex;
+  gap: 1px;
+  align-items: center;
+}
+
+.progress-icon {
+  font-size: 6px;
+  color: var(--text-muted);
+}
+
+.progress-icon.filled {
+  color: var(--color-human);
+}
+
+.progress-icon.filled.aligned {
+  color: var(--color-aligned);
+}
+
+.player-status-line {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.player-status-line.parting {
+  opacity: 0.8;
+}
+
+/* --- Center Panel: Chat --- */
+.chat-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.channel-info .channel-name {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.channel-topic {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.timer-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.phase-indicator {
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: white;
+}
+
+.phase-indicator.discussion {
+  background-color: var(--color-success);
+}
+
+.phase-indicator.night {
+  background-color: var(--color-ai);
+}
+
+.phase-indicator.sitrep {
+  background-color: var(--color-info);
+}
+
+.timer-display {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.timer-label {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.timer-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--color-danger);
+}
+
+.timer-value.pulse {
+  animation: pulse 1s infinite;
+}
+
+.chat-log {
+  flex-grow: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-message-compact {
+  display: flex;
+  gap: 10px;
+}
+
+.message-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  border: 1px solid var(--border-color);
+  margin-top: 4px;
+}
+
+.message-content {
+  flex-grow: 1;
+}
+
+.message-author {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 1px;
+}
+
+.message-author.loebmate-name {
+  color: var(--color-info);
+}
+
+.message-body {
+  line-height: 1.4;
+  word-wrap: break-word;
+  font-size: 12px;
+}
+
+.chat-input-area {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.chat-input {
+  width: 100%;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.chat-input:focus {
+  outline: none;
+  border-color: var(--color-human);
+}
+
+.chat-input:disabled {
+  background-color: var(--bg-tertiary);
+  cursor: not-allowed;
+}
+
+/* --- Right Panel: HUD --- */
+.hud-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.identity-compact {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.identity-info {
+  flex-grow: 1;
+}
+
+.identity-name {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.identity-role {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.identity-stats {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.stat {
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.stat.human {
+  background-color: var(--color-human);
+  color: #000;
+}
+
+.stat.aligned {
+  background-color: var(--color-aligned);
+  color: #fff;
+}
+
+.stat.tokens {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+
+.visibility-icon {
+  font-size: 8px;
+  opacity: 0.6;
+  cursor: help;
+}
+
+.visibility-icon.private {
+  color: var(--accent-magenta);
+}
+
+.hud-content-single {
+  flex-grow: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hud-section {
+  animation: fadeIn 0.3s ease;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.threat-meter-card {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.threat-meter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.threat-label {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.threat-meter-bar {
+  margin-bottom: 6px;
+}
+
+.threat-bar-bg {
+  width: 100%;
+  height: 6px;
+  background-color: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.threat-bar-fill {
+  height: 100%;
+  background: var(--accent-magenta);
+  border-radius: 3px;
+}
+
+.threat-meter-value {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.status-indicator {
+  font-weight: bold;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+}
+
+.status-indicator.safe {
+  color: var(--color-success);
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.status-indicator.danger {
+  color: var(--color-danger);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.status-indicator.critical {
+  color: var(--color-danger);
+  background-color: rgba(239, 68, 68, 0.1);
+  animation: pulse 1s infinite;
+}
+
+.status-indicator.aligned {
+  color: var(--color-ai);
+  background-color: rgba(236, 72, 153, 0.1);
+}
+
+.objective-card {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 6px;
+}
+
+.objective-card.faction {
+  border-left: 3px solid var(--accent-blue);
+}
+
+.objective-card.kpi {
+  border-left: 3px solid var(--color-success);
+}
+
+.objective-card.mandate {
+  border-left: 3px solid var(--color-info);
+}
+
+.objective-type {
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.objective-name {
+  font-weight: bold;
+  margin-bottom: 3px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.objective-desc {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+
+.objective-progress {
+  font-size: 10px;
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+.ability-status {
+  background: var(--color-success);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.ability-status.LOCKED {
+  background-color: var(--text-muted);
+}
+
+.ability-card {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.ability-card.ready {
+  border-color: var(--color-success);
+}
+
+.ability-card.locked {
+  opacity: 0.7;
+}
+
+.ability-name {
+  font-weight: bold;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.ability-description {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.ability-usage {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.action-item.ability {
+  border-color: var(--color-human);
+}
+
+.action-icon {
+  font-size: 12px;
+  width: 16px;
+  text-align: center;
+}
+
+.action-name {
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.action-target {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--color-info);
+  font-family: var(--font-mono);
 }

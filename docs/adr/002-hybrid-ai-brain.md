@@ -2,7 +2,6 @@
 # ADR-002: Implement a Hybrid AI Brain
 
 *   **Status:** Accepted
-*   **Date:** 2023-10-26
 
 ### Context
 

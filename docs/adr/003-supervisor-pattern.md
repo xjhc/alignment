@@ -2,7 +2,6 @@
 # ADR-003: Isolate Actor Failures with a Supervisor Pattern
 
 *   **Status:** Accepted
-*   **Date:** 2023-10-26
 
 ### Context
 

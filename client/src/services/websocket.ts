@@ -32,7 +32,7 @@ export class WebSocketClient {
           }
 
           wsUrl = `${this.url}?${params.toString()}`;
-          
+
           // Store credentials for reconnection
           this.connectionCredentials = {
             gameId: params.get('gameId')!,
@@ -162,9 +162,9 @@ export class WebSocketClient {
   }
 
   isValidConnection(): boolean {
-    return this.connectionState.isConnected && 
-           !this.connectionState.isReconnecting && 
-           this.connectionCredentials !== null;
+    return this.connectionState.isConnected &&
+      !this.connectionState.isReconnecting &&
+      this.connectionCredentials !== null;
   }
 
   getConnectionAge(): number | null {
@@ -226,6 +226,13 @@ export class WebSocketClient {
           // Could implement event buffering here if needed
         }
         break;
+      case 'LOBBY_STATE_UPDATE':
+      case 'CLIENT_IDENTIFIED':
+      case 'SYSTEM_MESSAGE':
+        // These events are handled directly by UI subscribers in App.tsx.
+        // The game engine doesn't need to process them.
+        // We add them here to prevent the "Unknown event" log.
+        break;
 
       default:
         // Unknown event types - just log and pass to subscribers
@@ -265,13 +272,13 @@ export class WebSocketClient {
     if (this.reconnectInterval) {
       return;
     }
-    
+
     // Don't reconnect if we don't have credentials
     if (!this.connectionCredentials) {
       console.log('No credentials available for reconnection');
       return;
     }
-    
+
     this.updateConnectionState({ isReconnecting: true });
     this.reconnectInterval = window.setTimeout(() => {
       this.reconnectInterval = null;
@@ -284,10 +291,10 @@ export class WebSocketClient {
           if (error.message?.includes('Invalid session') || error.message?.includes('Unauthorized')) {
             console.log('Session expired, clearing credentials');
             this.connectionCredentials = null;
-            this.updateConnectionState({ 
-              isConnected: false, 
+            this.updateConnectionState({
+              isConnected: false,
               isReconnecting: false,
-              lastError: 'Session expired' 
+              lastError: 'Session expired'
             });
           } else {
             // Retry for other errors

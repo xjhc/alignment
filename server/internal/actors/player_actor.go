@@ -42,6 +42,7 @@ type PlayerActor struct {
 	mailbox       chan interface{} // From client WebSocket
 	serverMailbox chan interface{} // From server components
 	shutdown      chan struct{}
+	stopOnce      sync.Once // <-- ADD THIS
 
 	// Context for graceful shutdown
 	ctx    context.Context
@@ -51,8 +52,6 @@ type PlayerActor struct {
 	lifecycleManager interfaces.GameLifecycleManagerInterface
 	eventBus         *events.EventBus
 }
-
-// Message types are now defined in interfaces package
 
 // NewPlayerActor creates a new PlayerActor for a WebSocket connection
 func NewPlayerActor(ctx context.Context, playerID, playerName, sessionToken string, conn *websocket.Conn) *PlayerActor {
@@ -95,20 +94,23 @@ func (pa *PlayerActor) Start() {
 
 // Stop gracefully shuts down the PlayerActor
 func (pa *PlayerActor) Stop() {
-	log.Printf("[PlayerActor/%s] Stopping", pa.playerID)
-	
-	// Publish disconnection event if we have event bus
-	if pa.eventBus != nil {
-		pa.eventBus.Publish(events.PlayerDisconnectedEvent{
-			PlayerID: pa.playerID,
-			LobbyID:  pa.lobbyID,
-			GameID:   pa.gameID,
-		})
-	}
-	
-	pa.cancel()
-	close(pa.send)
-	close(pa.shutdown)
+	// Use sync.Once to ensure the shutdown logic runs exactly once.
+	pa.stopOnce.Do(func() {
+		log.Printf("[PlayerActor/%s] Stopping", pa.playerID)
+
+		// Publish disconnection event if we have event bus
+		if pa.eventBus != nil {
+			pa.eventBus.Publish(events.PlayerDisconnectedEvent{
+				PlayerID: pa.playerID,
+				LobbyID:  pa.lobbyID,
+				GameID:   pa.gameID,
+			})
+		}
+
+		pa.cancel()
+		close(pa.send)
+		close(pa.shutdown)
+	})
 }
 
 // GetPlayerID returns the player's ID
@@ -166,12 +168,29 @@ func (pa *PlayerActor) isConnectionValid() bool {
 
 // SendServerMessage sends a message from server components to this player
 func (pa *PlayerActor) SendServerMessage(message interface{}) {
+	// Prevent sending on a closed channel
+	if pa.ctx.Err() != nil {
+		log.Printf("[PlayerActor/%s] Dropped message, context is done.", pa.playerID)
+		return
+	}
+
+	// Marshal the message to JSON bytes.
+	data, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("[PlayerActor/%s] Failed to marshal server message: %v", pa.playerID, err)
+		return
+	}
+
 	select {
-	case pa.serverMailbox <- message:
+	case pa.send <- data:
+		// Message sent successfully
 	case <-pa.ctx.Done():
-		log.Printf("[PlayerActor/%s] Attempted to send server message to stopped actor", pa.playerID)
+		log.Printf("[PlayerActor/%s] Dropped server message, context is done.", pa.playerID)
+	default:
+		log.Printf("[PlayerActor/%s] Send channel is full, dropping server message.", pa.playerID)
 	}
 }
+
 
 // TransitionToLobby transitions the player to lobby state
 func (pa *PlayerActor) TransitionToLobby(lobbyID string) error {
@@ -566,17 +585,27 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 
 // handleServerMessage processes messages from server components
 func (pa *PlayerActor) handleServerMessage(message interface{}) {
-	switch msg := message.(type) {
-	case lobby.LobbyStateUpdate:
-		pa.sendLobbyStateUpdate(msg)
-	case interfaces.GameStateSnapshot:
-		pa.sendGameStateSnapshot(msg)
-	case interfaces.TransitionToGame:
-		pa.handleTransitionToGame(msg)
-	case core.Event:
-		pa.sendEvent(msg)
+	var data []byte
+	var err error
+
+	// Marshal the message to JSON. If it's already []byte, use it directly.
+	if bytes, ok := message.([]byte); ok {
+		data = bytes
+	} else {
+		data, err = json.Marshal(message)
+		if err != nil {
+			log.Printf("[PlayerActor/%s] Failed to marshal server message: %v", pa.playerID, err)
+			return
+		}
+	}
+
+	// Send the marshalled data to the client
+	select {
+	case pa.send <- data:
+	case <-pa.ctx.Done():
+		log.Printf("[PlayerActor/%s] Dropped server message, context is done.", pa.playerID)
 	default:
-		log.Printf("[PlayerActor/%s] Unknown server message type: %T", pa.playerID, message)
+		log.Printf("[PlayerActor/%s] Send channel is full, dropping server message.", pa.playerID)
 	}
 }
 
@@ -673,24 +702,7 @@ func (pa *PlayerActor) sendGameStateSnapshot(snapshot interfaces.GameStateSnapsh
 
 // sendEvent sends a core event to the client
 func (pa *PlayerActor) sendEvent(event core.Event) {
-	// Handle nil connection (for testing)
-	if pa.conn == nil {
-		return
-	}
-
-	data, err := json.Marshal(event)
-	if err != nil {
-		log.Printf("[PlayerActor/%s] Failed to marshal event: %v", pa.playerID, err)
-		return
-	}
-
-	select {
-	case pa.send <- data:
-	case <-pa.ctx.Done():
-		log.Printf("[PlayerActor/%s] Dropped message, context is done.", pa.playerID)
-	default:
-		log.Printf("[PlayerActor/%s] Send channel is full, dropping message.", pa.playerID)
-	}
+	pa.SendServerMessage(event)
 }
 
 // sendError sends an error message to the client

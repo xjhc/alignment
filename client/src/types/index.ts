@@ -32,7 +32,9 @@ export interface ServerEvent extends WebSocketMessage {
 }
 
 // Type aliases for compatibility with existing code
-export type Player = CoreTypes.CorePlayer;
+export interface Player extends CoreTypes.CorePlayer {
+  avatar?: string;
+}
 export type Role = CoreTypes.CoreRole;
 export type Ability = CoreTypes.CoreAbility;
 export type PersonalKPI = CoreTypes.CorePersonalKPI;
