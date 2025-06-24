@@ -1,15 +1,11 @@
 import React from 'react';
-import { Player } from '../../types';
+import { useGameContext } from '../../contexts/GameContext';
 import { PlayerCard } from './PlayerCard';
 import styles from './RosterPanel.module.css';
 
-interface RosterPanelProps {
-  players: Player[];
-  localPlayerId: string;
-}
-
-export const RosterPanel: React.FC<RosterPanelProps> = ({ players, localPlayerId }) => {
-  const localPlayer = players.find(p => p.id === localPlayerId);
+export const RosterPanel: React.FC = () => {
+  const { gameState, localPlayerId, localPlayer } = useGameContext();
+  const players = gameState.players;
 
   const getPlayerCounts = () => {
     const humanCount = players.filter(p => p.isAlive && p.alignment !== 'AI' && p.alignment !== 'ALIGNED').length;

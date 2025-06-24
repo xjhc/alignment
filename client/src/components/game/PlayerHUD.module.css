@@ -75,3 +75,35 @@
   color: var(--color-info);
   font-family: var(--font-mono);
 }
+
+/* Responsive Design */
+/* Mobile Layout (below 768px) */
+@media (max-width: 767px) {
+  .panelRight {
+    flex: 0 0 auto;
+    max-height: 40vh;
+    min-height: 250px;
+  }
+  
+  .hudContentSingle {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  .sectionTitle {
+    font-size: 10px;
+  }
+  
+  .actionItem {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+  
+  .actionName {
+    font-size: 10px;
+  }
+  
+  .actionTarget {
+    font-size: 9px;
+  }
+}

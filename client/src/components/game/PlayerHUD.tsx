@@ -1,18 +1,17 @@
 import React from 'react';
-import { GameState, Player } from '../../types';
+import { useGameContext } from '../../contexts/GameContext';
 import { IdentityCard } from './IdentityCard';
 import { ThreatMeter } from './ThreatMeter';
 import { ObjectiveCard } from './ObjectiveCard';
 import { AbilityCard } from './AbilityCard';
 import styles from './PlayerHUD.module.css';
 
-interface PlayerHUDProps {
-  localPlayer: Player;
-  gameState: GameState;
-  isConnected: boolean;
-}
+export const PlayerHUD: React.FC = () => {
+  const { gameState, localPlayer } = useGameContext();
 
-export const PlayerHUD: React.FC<PlayerHUDProps> = ({ localPlayer, gameState }) => {
+  if (!localPlayer) {
+    return null;
+  }
   const aiEquity = localPlayer.aiEquity || 0;
 
   return (

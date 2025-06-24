@@ -1,5 +1,5 @@
 import React from 'react';
-import { GameState, Player } from '../../types';
+import { useGameContext } from '../../contexts/GameContext';
 import { ContextualInputArea } from './ContextualInputArea';
 import { SitrepMessage } from './SitrepMessage';
 import { VoteResultMessage } from './VoteResultMessage';
@@ -7,16 +7,13 @@ import { PulseCheckMessage } from './PulseCheckMessage';
 import styles from './CommsPanel.module.css';
 
 interface CommsPanelProps {
-  gameState: GameState;
-  localPlayer: Player;
   chatInput: string;
   setChatInput: (value: string) => void;
   handleSendMessage: () => void;
   handleKeyDown: (e: React.KeyboardEvent) => void;
   getPhaseDisplayName: (phaseType: string) => string;
-  formatTimeRemaining: (phase: GameState['phase']) => string;
+  formatTimeRemaining: (phase: any) => string;
   isChatHistoryLoading: boolean;
-  isConnected: boolean;
 
   // Props for Part 3 voting UI.
   selectedNominee: string;
@@ -40,8 +37,6 @@ interface CommsPanelProps {
 }
 
 export const CommsPanel: React.FC<CommsPanelProps> = ({
-  gameState,
-  localPlayer,
   chatInput,
   setChatInput,
   handleSendMessage,
@@ -49,7 +44,6 @@ export const CommsPanel: React.FC<CommsPanelProps> = ({
   getPhaseDisplayName,
   formatTimeRemaining,
   isChatHistoryLoading,
-  isConnected,
   selectedNominee,
   setSelectedNominee,
   selectedVote,
@@ -67,6 +61,11 @@ export const CommsPanel: React.FC<CommsPanelProps> = ({
   canPlayerAffordAbility,
   isValidNightActionTarget,
 }) => {
+  const { gameState, localPlayer, isConnected } = useGameContext();
+
+  if (!localPlayer) {
+    return <div>Loading...</div>;
+  }
   const phaseName = getPhaseDisplayName(gameState.phase.type);
   const timeRemaining = formatTimeRemaining(gameState.phase);
 

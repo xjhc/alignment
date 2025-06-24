@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useGameEngine } from '../hooks/useGameEngine';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { GameState, Player, Phase, ClientAction } from '../types';
+import { GameProvider } from '../contexts/GameContext';
 import { PrivateNotifications } from './PrivateNotifications';
 import { RosterPanel } from './game/RosterPanel';
 import { CommsPanel } from './game/CommsPanel';
@@ -236,57 +237,53 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
   }
 
   return (
-    <div className={`${styles.gameScreen} ${styles.gameLayoutDesktop}`}>
-      {/* Private Notifications Overlay */}
-      {gameState.privateNotifications && (
-        <PrivateNotifications
-          notifications={gameState.privateNotifications}
-          onMarkAsRead={(notificationId) => {
-            // TODO: Send action to mark notification as read
-            console.log('Mark notification as read:', notificationId);
-          }}
+    <GameProvider 
+      gameState={gameState} 
+      localPlayerId={playerId} 
+      isConnected={isConnected}
+    >
+      <div className={`${styles.gameScreen} ${styles.gameLayoutDesktop}`}>
+        {/* Private Notifications Overlay */}
+        {gameState.privateNotifications && (
+          <PrivateNotifications
+            notifications={gameState.privateNotifications}
+            onMarkAsRead={(notificationId) => {
+              // TODO: Send action to mark notification as read
+              console.log('Mark notification as read:', notificationId);
+            }}
+          />
+        )}
+        
+        <RosterPanel />
+        
+        <CommsPanel 
+          chatInput={chatInput}
+          setChatInput={setChatInput}
+          handleSendMessage={handleSendMessage}
+          handleKeyDown={handleKeyDown}
+          selectedNominee={selectedNominee}
+          setSelectedNominee={setSelectedNominee}
+          selectedVote={selectedVote}
+          setSelectedVote={setSelectedVote}
+          conversionTarget={conversionTarget}
+          setConversionTarget={setConversionTarget}
+          miningTarget={miningTarget}
+          setMiningTarget={setMiningTarget}
+          handleNominate={handleNominate}
+          handleVote={handleVote}
+          handlePulseCheck={handlePulseCheck}
+          handleMineTokens={handleMineTokens}
+          handleUseAbility={handleUseAbility}
+          handleConversionAttempt={handleConversionAttempt}
+          getPhaseDisplayName={getPhaseDisplayName}
+          formatTimeRemaining={formatTimeRemaining}
+          canPlayerAffordAbility={canPlayerAffordAbility}
+          isValidNightActionTarget={isValidNightActionTarget}
+          isChatHistoryLoading={isChatHistoryLoading}
         />
-      )}
-      
-      <RosterPanel 
-        players={gameState.players}
-        localPlayerId={playerId}
-      />
-      
-      <CommsPanel 
-        gameState={gameState}
-        localPlayer={localPlayer}
-        chatInput={chatInput}
-        setChatInput={setChatInput}
-        handleSendMessage={handleSendMessage}
-        handleKeyDown={handleKeyDown}
-        selectedNominee={selectedNominee}
-        setSelectedNominee={setSelectedNominee}
-        selectedVote={selectedVote}
-        setSelectedVote={setSelectedVote}
-        conversionTarget={conversionTarget}
-        setConversionTarget={setConversionTarget}
-        miningTarget={miningTarget}
-        setMiningTarget={setMiningTarget}
-        handleNominate={handleNominate}
-        handleVote={handleVote}
-        handlePulseCheck={handlePulseCheck}
-        handleMineTokens={handleMineTokens}
-        handleUseAbility={handleUseAbility}
-        handleConversionAttempt={handleConversionAttempt}
-        getPhaseDisplayName={getPhaseDisplayName}
-        formatTimeRemaining={formatTimeRemaining}
-        canPlayerAffordAbility={canPlayerAffordAbility}
-        isValidNightActionTarget={isValidNightActionTarget}
-        isConnected={isConnected}
-        isChatHistoryLoading={isChatHistoryLoading}
-      />
-      
-      <PlayerHUD 
-        localPlayer={localPlayer}
-        gameState={gameState}
-        isConnected={isConnected}
-      />
-    </div>
+        
+        <PlayerHUD />
+      </div>
+    </GameProvider>
   );
 }

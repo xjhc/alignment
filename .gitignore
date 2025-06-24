@@ -57,3 +57,5 @@ dump.rdb
 
 # Log files
 *.log
+*storybook.log
+storybook-static

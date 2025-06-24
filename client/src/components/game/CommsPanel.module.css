@@ -251,3 +251,50 @@
     opacity: 0.7;
   }
 }
+
+/* Responsive Design */
+/* Mobile Layout (below 768px) */
+@media (max-width: 767px) {
+  .panelCenter {
+    flex: 1;
+    min-height: 0;
+  }
+  
+  .chatHeader {
+    padding: 8px 12px;
+  }
+  
+  .channelName {
+    font-size: 12px;
+  }
+  
+  .channelTopic {
+    font-size: 10px;
+  }
+  
+  .phaseIndicator {
+    font-size: 9px;
+    padding: 3px 6px;
+  }
+  
+  .timerDisplay {
+    font-size: 10px;
+  }
+  
+  .chatMessages {
+    padding: 8px 12px;
+  }
+  
+  .chatInput {
+    padding: 8px 12px;
+  }
+  
+  .chatInput input {
+    font-size: 14px;
+  }
+  
+  .chatInput button {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+}

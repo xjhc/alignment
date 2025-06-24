@@ -135,3 +135,35 @@
   background-color: var(--bg-quaternary);
   color: var(--text-muted);
 }
+
+/* Responsive Design */
+/* Mobile Layout (below 768px) */
+@media (max-width: 767px) {
+  .panelLeft {
+    flex: 0 0 auto;
+    max-height: 30vh;
+    min-height: 200px;
+  }
+  
+  .header {
+    padding: 8px 12px;
+  }
+  
+  .companyLogo {
+    font-size: 14px;
+  }
+  
+  .channelList {
+    padding: 8px;
+  }
+  
+  .playerRoster {
+    padding: 8px;
+    max-height: calc(30vh - 120px);
+  }
+  
+  .channel {
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+}
