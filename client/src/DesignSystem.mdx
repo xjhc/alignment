@@ -1,0 +1,256 @@
+import { Meta } from '@storybook/blocks';
+
+<Meta title="Design System/CSS Variables" />
+
+# Design System
+
+This document showcases the CSS variables and design tokens used throughout the Alignment game application.
+
+## Typography
+
+### Font Families
+- **Sans Serif**: `--font-sans` → Inter, system fonts
+- **Monospace**: `--font-mono` → JetBrains Mono, SF Mono, Monaco
+
+### Font Weights
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontWeight: 'var(--font-weight-light)', marginBottom: '0.5rem' }}>Light (300)</div>
+    <code>--font-weight-light</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontWeight: 'var(--font-weight-normal)', marginBottom: '0.5rem' }}>Normal (400)</div>
+    <code>--font-weight-normal</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontWeight: 'var(--font-weight-medium)', marginBottom: '0.5rem' }}>Medium (500)</div>
+    <code>--font-weight-medium</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontWeight: 'var(--font-weight-semibold)', marginBottom: '0.5rem' }}>Semibold (600)</div>
+    <code>--font-weight-semibold</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontWeight: 'var(--font-weight-bold)', marginBottom: '0.5rem' }}>Bold (700)</div>
+    <code>--font-weight-bold</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontWeight: 'var(--font-weight-extrabold)', marginBottom: '0.5rem' }}>Extra Bold (800)</div>
+    <code>--font-weight-extrabold</code>
+  </div>
+</div>
+
+### Font Sizes
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontSize: 'var(--font-size-xs)', marginBottom: '0.5rem' }}>Extra Small (10px)</div>
+    <code>--font-size-xs</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontSize: 'var(--font-size-sm)', marginBottom: '0.5rem' }}>Small (11px)</div>
+    <code>--font-size-sm</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontSize: 'var(--font-size-base)', marginBottom: '0.5rem' }}>Base (12px)</div>
+    <code>--font-size-base</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontSize: 'var(--font-size-md)', marginBottom: '0.5rem' }}>Medium (13px)</div>
+    <code>--font-size-md</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontSize: 'var(--font-size-lg)', marginBottom: '0.5rem' }}>Large (14px)</div>
+    <code>--font-size-lg</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontSize: 'var(--font-size-xl)', marginBottom: '0.5rem' }}>Extra Large (16px)</div>
+    <code>--font-size-xl</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontSize: 'var(--font-size-2xl)', marginBottom: '0.5rem' }}>2X Large (18px)</div>
+    <code>--font-size-2xl</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ fontSize: 'var(--font-size-3xl)', marginBottom: '0.5rem' }}>3X Large (20px)</div>
+    <code>--font-size-3xl</code>
+  </div>
+</div>
+
+## Spacing
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: 'var(--space-1)', height: 'var(--space-1)', backgroundColor: 'var(--accent-primary)', marginBottom: '0.5rem' }}></div>
+    <div>4px</div>
+    <code>--space-1</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: 'var(--space-2)', height: 'var(--space-2)', backgroundColor: 'var(--accent-primary)', marginBottom: '0.5rem' }}></div>
+    <div>8px</div>
+    <code>--space-2</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: 'var(--space-3)', height: 'var(--space-3)', backgroundColor: 'var(--accent-primary)', marginBottom: '0.5rem' }}></div>
+    <div>12px</div>
+    <code>--space-3</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: 'var(--space-4)', height: 'var(--space-4)', backgroundColor: 'var(--accent-primary)', marginBottom: '0.5rem' }}></div>
+    <div>16px</div>
+    <code>--space-4</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: 'var(--space-6)', height: 'var(--space-6)', backgroundColor: 'var(--accent-primary)', marginBottom: '0.5rem' }}></div>
+    <div>24px</div>
+    <code>--space-6</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: 'var(--space-8)', height: 'var(--space-8)', backgroundColor: 'var(--accent-primary)', marginBottom: '0.5rem' }}></div>
+    <div>32px</div>
+    <code>--space-8</code>
+  </div>
+</div>
+
+## Colors
+
+### Game Semantic Colors
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--color-human)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Human</div>
+    <code>--color-human</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--color-aligned)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Aligned</div>
+    <code>--color-aligned</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--color-ai)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>AI</div>
+    <code>--color-ai</code>
+  </div>
+</div>
+
+### Status Colors
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--color-success)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Success</div>
+    <code>--color-success</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--color-danger)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Danger</div>
+    <code>--color-danger</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--color-warning)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Warning</div>
+    <code>--color-warning</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--color-info)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Info</div>
+    <code>--color-info</code>
+  </div>
+</div>
+
+### Accent Colors
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Primary</div>
+    <code>--accent-primary</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--accent-amber)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Amber</div>
+    <code>--accent-amber</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--accent-cyan)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Cyan</div>
+    <code>--accent-cyan</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--accent-magenta)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Magenta</div>
+    <code>--accent-magenta</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--accent-green)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Green</div>
+    <code>--accent-green</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--accent-blue)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Blue</div>
+    <code>--accent-blue</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '100%', height: '60px', backgroundColor: 'var(--accent-red)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Red</div>
+    <code>--accent-red</code>
+  </div>
+</div>
+
+## Border Radius
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '60px', height: '60px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem' }}></div>
+    <div>Small (3px)</div>
+    <code>--radius-sm</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '60px', height: '60px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-base)', marginBottom: '0.5rem' }}></div>
+    <div>Base (4px)</div>
+    <code>--radius-base</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '60px', height: '60px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}></div>
+    <div>Medium (6px)</div>
+    <code>--radius-md</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '60px', height: '60px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-lg)', marginBottom: '0.5rem' }}></div>
+    <div>Large (8px)</div>
+    <code>--radius-lg</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '60px', height: '60px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-xl)', marginBottom: '0.5rem' }}></div>
+    <div>Extra Large (12px)</div>
+    <code>--radius-xl</code>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+    <div style={{ width: '60px', height: '60px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-full)', marginBottom: '0.5rem' }}></div>
+    <div>Full (50%)</div>
+    <code>--radius-full</code>
+  </div>
+</div>
+
+## Usage
+
+All of these CSS variables are available globally and can be used in any component. The design system supports both light and dark themes, which automatically switch the appropriate color variables.
+
+### Example Usage
+
+```css
+.my-component {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+```
+
+### Theme Switching
+
+The application automatically switches between light and dark themes based on the `data-theme` attribute on the `html` element:
+
+- `data-theme="light"` → Light theme
+- `data-theme="dark"` → Dark theme (default)

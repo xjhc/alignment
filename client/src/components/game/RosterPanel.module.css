@@ -4,15 +4,17 @@
   flex-direction: column;
   background-color: var(--bg-secondary);
   overflow: hidden;
+  user-select: none;
 }
 
 .header {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
+  background-color: var(--bg-secondary);
 }
 
 .companyLogo {
@@ -20,6 +22,7 @@
   font-weight: var(--font-weight-bold);
   font-size: 16px;
   letter-spacing: 1.5px;
+  color: var(--text-primary);
 }
 
 .headerControls {
@@ -31,17 +34,24 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background-color: var(--bg-tertiary);
   font-size: 14px;
+  transition: all 0.15s ease;
+  border: none;
+  cursor: pointer;
 }
 
 .headerBtn:hover {
   background-color: var(--bg-quaternary);
+  transform: scale(1.05);
 }
 
 .channelList {
   padding: 12px 8px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -53,6 +63,9 @@
   letter-spacing: 0.5px;
   padding: 0 6px 6px 6px;
   margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .channel {
@@ -62,23 +75,34 @@
   padding: 6px 8px;
   border-radius: 6px;
   color: var(--text-secondary);
+  font-weight: var(--font-weight-normal);
   cursor: pointer;
   margin-bottom: 1px;
+  transition: all 0.15s ease;
   font-size: 13px;
 }
 
 .channel:hover {
-  background-color: var(--bg-tertiary);
+  background-color: var(--bg-quaternary);
+  color: var(--text-primary);
+  transform: translateX(2px);
 }
 
 .channel.active {
   background-color: var(--color-human);
-  color: #000;
+  color: white;
+  font-weight: var(--font-weight-normal);
+}
+
+.channel.aiChannel {
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 
 .channel.aiChannel.unlocked {
   color: var(--color-aligned);
   background-color: rgba(6, 182, 212, 0.1);
+  opacity: 1;
 }
 
 .channel.hasUnread {
@@ -92,6 +116,8 @@
   padding: 2px 6px;
   border-radius: 10px;
   font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-mono);
   margin-left: auto;
 }
 
@@ -123,12 +149,12 @@
 
 .statItem.human {
   background-color: var(--color-human);
-  color: #000;
+  color: white;
 }
 
 .statItem.aligned {
   background-color: var(--color-aligned);
-  color: #fff;
+  color: white;
 }
 
 .statItem.dead {

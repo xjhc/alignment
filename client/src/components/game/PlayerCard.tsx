@@ -5,9 +5,11 @@ import styles from './PlayerCard.module.css';
 interface PlayerCardProps {
   player: Player;
   isSelf: boolean;
+  isSelected: boolean;
+  onSelect: (playerId: string) => void;
 }
 
-export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf }) => {
+export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelected, onSelect }) => {
   const [wasAlive, setWasAlive] = useState(player.isAlive);
   const [showEliminationAnimation, setShowEliminationAnimation] = useState(false);
 
@@ -35,6 +37,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf }) => {
   const getPlayerClasses = () => {
     const classes = [styles.playerCardUniform];
     if (isSelf) classes.push(styles.isMe);
+    if (isSelected) classes.push(styles.isViewed);
     if (!player.isAlive) classes.push(styles.deactivated);
     if (player.alignment === 'AI' || player.alignment === 'ALIGNED') classes.push(styles.aligned);
     if (player.systemShocks?.some(shock => shock.isActive)) {
@@ -55,7 +58,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf }) => {
   };
 
   const renderProjectMilestones = () => {
-    const maxMilestones = 5; // Assuming max 5 milestones
+    const maxMilestones = 3; // Assuming max 3 milestones
     const icons = [];
     for (let i = 0; i < maxMilestones; i++) {
       const filled = i < player.projectMilestones;
@@ -63,7 +66,9 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf }) => {
         `${styles.progressIcon} ${styles.filled} ${player.alignment === 'AI' || player.alignment === 'ALIGNED' ? styles.aligned : ''}` : 
         styles.progressIcon;
       icons.push(
-        <span key={i} className={progressClass}>●</span>
+        <span key={i} className={progressClass} title={`Project Progress: ${player.projectMilestones} / ${maxMilestones}`}>
+          {filled ? '⬢' : '⬡'}
+        </span>
       );
     }
     return icons;
@@ -76,6 +81,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf }) => {
     <div
       className={getPlayerClasses()}
       {...getDataAttributes()}
+      onClick={() => onSelect(player.id)}
       title={`View Dossier for ${player.name}`}
     >
       <div className={styles.playerAvatar}>

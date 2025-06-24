@@ -1,0 +1,98 @@
+.card {
+  background-color: var(--bg-primary);
+  border-radius: var(--border-radius-lg);
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Variants */
+.default {
+  border: 1px solid var(--border);
+}
+
+.outlined {
+  border: 1px solid var(--border);
+  background-color: transparent;
+}
+
+.elevated {
+  border: none;
+  box-shadow: var(--shadow-md);
+}
+
+/* Padding variants */
+.padding-none {
+  padding: 0;
+}
+
+.padding-sm {
+  padding: var(--spacing-3);
+}
+
+.padding-md {
+  padding: var(--spacing-4);
+}
+
+.padding-lg {
+  padding: var(--spacing-6);
+}
+
+/* Interactive states */
+.hoverable:hover {
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.clickable {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-xl);
+}
+
+.clickable:active {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Compound components */
+.header {
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--spacing-4);
+}
+
+.body {
+  flex: 1;
+}
+
+.footer {
+  padding-top: var(--spacing-3);
+  border-top: 1px solid var(--border);
+  margin-top: var(--spacing-4);
+}
+
+/* Adjust padding for compound components */
+.card:has(.header) .header:first-child,
+.card:has(.body) .body:first-child,
+.card:has(.footer) .footer:first-child {
+  padding-top: 0;
+}
+
+.card:has(.header) .header:last-child,
+.card:has(.body) .body:last-child,
+.card:has(.footer) .footer:last-child {
+  padding-bottom: 0;
+}

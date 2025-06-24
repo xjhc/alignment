@@ -19,7 +19,7 @@
 
 .threatMeterCard {
   background-color: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
 }

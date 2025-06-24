@@ -1,14 +1,9 @@
-import { GameState } from '../types';
 import { FinalPlayerCard } from './game/FinalPlayerCard';
 import styles from './GameOverScreen.module.css';
+import { useSessionContext } from '../contexts/SessionContext';
 
-interface GameOverScreenProps {
-  gameState: GameState;
-  onViewAnalysis: () => void;
-  onPlayAgain: () => void;
-}
-
-export function GameOverScreen({ gameState, onViewAnalysis, onPlayAgain }: GameOverScreenProps) {
+export function GameOverScreen() {
+  const { gameState, onViewAnalysis, onPlayAgain } = useSessionContext();
   const isHumanVictory = gameState.winCondition?.winner === 'HUMANS';
   
   const sortedPlayers = [...gameState.players].sort((a, b) => {

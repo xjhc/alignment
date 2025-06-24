@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import { GameState } from '../types';
-
-interface PostGameAnalysisProps {
-  gameState: GameState;
-  onBackToResults: () => void;
-  onPlayAgain: () => void;
-}
+import { useSessionContext } from '../contexts/SessionContext';
 
 
 // Mock data for analysis - in a real implementation, this would come from the server
@@ -362,7 +356,8 @@ function HighlightsTab() {
   );
 }
 
-export function PostGameAnalysis({ onBackToResults, onPlayAgain }: PostGameAnalysisProps) {
+export function PostGameAnalysis() {
+  const { onBackToResults, onPlayAgain } = useSessionContext();
   const [activeTab, setActiveTab] = useState<'summary' | 'timeline' | 'analytics' | 'highlights'>('summary');
 
   const renderTabContent = () => {

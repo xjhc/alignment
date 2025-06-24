@@ -1,28 +1,27 @@
 import React from 'react';
-import { GameState, Player } from '../../types';
+import { useGameContext } from '../../contexts/GameContext';
+import { useGameActions } from '../../hooks/useGameActions';
+import { useSound } from '../../hooks/useSound';
+import { Tooltip } from '../ui/Tooltip';
 import styles from './VoteUI.module.css';
 
 interface VoteUIProps {
-  gameState: GameState;
-  localPlayer: Player;
-  selectedNominee: string;
-  setSelectedNominee: (value: string) => void;
-  selectedVote: 'GUILTY' | 'INNOCENT' | '';
-  setSelectedVote: (value: 'GUILTY' | 'INNOCENT' | '') => void;
-  handleNominate: () => Promise<void>;
-  handleVote: () => Promise<void>;
+  // No props needed - everything comes from context
 }
 
-export const VoteUI: React.FC<VoteUIProps> = ({
-  gameState,
-  localPlayer,
-  selectedNominee,
-  setSelectedNominee,
-  selectedVote,
-  setSelectedVote,
-  handleNominate,
-  handleVote,
-}) => {
+export const VoteUI: React.FC<VoteUIProps> = () => {
+  const { gameState, localPlayer } = useGameContext();
+  const {
+    selectedNominee,
+    setSelectedNominee,
+    selectedVote,
+    setSelectedVote,
+    handleNominate,
+    handleVote,
+  } = useGameActions();
+  const { playSound } = useSound();
+  
+  if (!localPlayer) return null;
   const alivePlayers = gameState.players.filter(p => p.isAlive && p.id !== localPlayer.id);
   
   if (gameState.phase.type === 'NOMINATION') {
@@ -38,17 +37,21 @@ export const VoteUI: React.FC<VoteUIProps> = ({
               Object.values(gameState.voteState.votes).filter(vote => vote === player.id).length : 0;
             
             return (
-              <button
+              <Tooltip
                 key={player.id}
-                className={`${styles.nomineeBtn} ${isSelected ? styles.voted : ''} ${player.alignment === 'ALIGNED' ? styles.aligned : ''}`}
-                onClick={() => {
-                  setSelectedNominee(player.id);
-                  handleNominate();
-                }}
-                onMouseDown={(e) => {
-                  e.currentTarget.classList.add('animate-scale-in');
-                  setTimeout(() => e.currentTarget.classList.remove('animate-scale-in'), 150);
-                }}
+                content={`${player.name} (${playerVotes} vote${playerVotes !== 1 ? 's' : ''})`}
+              >
+                <button
+                  className={`${styles.nomineeBtn} ${isSelected ? styles.voted : ''} ${player.alignment === 'ALIGNED' ? styles.aligned : ''}`}
+                  onClick={() => {
+                    playSound('vote');
+                    setSelectedNominee(player.id);
+                    handleNominate();
+                  }}
+                  onMouseDown={(e) => {
+                    e.currentTarget.classList.add('animate-scale-in');
+                    setTimeout(() => e.currentTarget.classList.remove('animate-scale-in'), 150);
+                  }}
               >
                 <span className={styles.nomineeEmoji}>
                   {player.jobTitle === 'CISO' ? '👤' :
@@ -63,6 +66,7 @@ export const VoteUI: React.FC<VoteUIProps> = ({
                 </span>
                 <span className={styles.nomineeVotes}>🪙 {playerVotes}</span>
               </button>
+              </Tooltip>
             );
           })}
         </div>

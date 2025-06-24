@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useWebSocket } from './hooks/useWebSocket';
-import { useGameEngine } from './hooks/useGameEngine';
-import { LoginScreen } from './components/LoginScreen';
-import { LobbyListScreen } from './components/LobbyListScreen';
-import { WaitingScreen } from './components/WaitingScreen';
-import { RoleRevealScreen } from './components/RoleRevealScreen';
-import { GameScreen } from './components/GameScreen';
-import { GameOverScreen } from './components/GameOverScreen';
-import { PostGameAnalysis } from './components/PostGameAnalysis';
-import { WasmTestScreen } from './components/WasmTestScreen';
+import { BrowserRouter, useLocation } from 'react-router-dom';
+import { useWebSocketContext } from './contexts/WebSocketContext';
+import { useGameEngineContext } from './contexts/GameEngineContext';
+import { useAppNavigation } from './hooks/useAppNavigation';
+import { AppRouter } from './components/AppRouter';
+import { SessionProvider } from './contexts/SessionContext';
+import { WebSocketProvider } from './contexts/WebSocketContext';
+import { GameProvider } from './contexts/GameContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { GameEngineProvider } from './contexts/GameEngineContext';
 import { AppState, GameState, Role, PersonalKPI } from './types';
 import { convertToClientTypes } from './utils/coreTypes';
 
@@ -36,11 +36,22 @@ interface LobbyState {
   connectionError: string | null;
 }
 
-function App() {
+function AppContent() {
+  const location = useLocation(); // Get location object for route-aware effects
+
   const [appState, setAppState] = useState<AppState>({
-    currentScreen: 'login',
     playerName: '',
   });
+
+  const {
+    navigateToLogin,
+    navigateToLobbyList,
+    navigateToWaiting,
+    navigateToRoleReveal,
+    navigateToGame,
+    navigateToGameOver,
+    navigateToAnalysis
+  } = useAppNavigation();
 
   const [isInGameSession, setIsInGameSession] = useState(false);
 
@@ -66,12 +77,12 @@ function App() {
     connectionError: null,
   });
 
-  const { connect, disconnect, subscribe, sendAction, isConnected } = useWebSocket();
+  const { connect, disconnect, subscribe, sendAction, isConnected } = useWebSocketContext();
   const {
     isLoading: gameEngineLoading,
     error: gameEngineError,
     gameState: coreGameState
-  } = useGameEngine();
+  } = useGameEngineContext();
 
   // The SINGLE source of truth for UI updates.
   useEffect(() => {
@@ -80,7 +91,7 @@ function App() {
     }
 
     const clientState = convertToClientTypes(coreGameState);
-    
+
     // Merge avatar information from lobbyState into players
     const playersWithAvatars = clientState.players.map((player: any) => {
       const lobbyInfo = lobbyState.playerInfos.find(info => info.id === player.id);
@@ -105,30 +116,26 @@ function App() {
       };
       setRoleAssignment(newAssignment);
     }
-    
+
     // Check for game over condition
-    if (clientState.winCondition && appState.currentScreen !== 'game-over' && appState.currentScreen !== 'analysis') {
+    if (clientState.winCondition) {
       console.log(`[App] Game over condition met. Winner: ${clientState.winCondition.winner}. Transitioning.`);
-      setAppState(prev => ({...prev, currentScreen: 'game-over'}));
+      navigateToGameOver();
     }
-  }, [coreGameState, appState.playerId, lobbyState.playerInfos, appState.currentScreen]);
+  }, [coreGameState, appState.playerId, lobbyState.playerInfos, navigateToGameOver]);
 
   // Wait for BOTH phase change AND role assignment before transitioning
   useEffect(() => {
-    // This effect should ONLY trigger the transition from 'waiting' to 'role-reveal'
-    // and it should only be able to do so once.
-    const isReadyToReveal =
-      appState.currentScreen === 'waiting' &&
-      gameState.phase.type !== 'LOBBY' &&
-      roleAssignment !== null;
+    // Centralized game start event management
+    // This event is the single trigger to move from Lobby to Role Reveal.
+    const handleGameStarted = () => {
+      console.log('[App] Game has started. Navigating to role reveal.');
+      navigateToRoleReveal();
+    };
 
-    if (isReadyToReveal) {
-      console.log(`[App] Game phase is now '${gameState.phase.type}' and role is assigned. Transitioning to 'role-reveal'.`);
-      setAppState(prev => ({ ...prev, currentScreen: 'role-reveal' }));
-    }
-    // By keeping the dependency array the same, we still react to the right changes,
-    // but the more robust condition prevents it from re-triggering incorrectly.
-  }, [appState.currentScreen, gameState.phase.type, roleAssignment]);
+    const unsubscribe = subscribe('GAME_STARTED', handleGameStarted);
+    return () => unsubscribe();
+  }, [subscribe, navigateToRoleReveal]);
 
   // Set dark theme by default
   useEffect(() => {
@@ -156,7 +163,7 @@ function App() {
       isHost: prev.playerId === payload.host_id,
       connectionError: null,
     }));
-  }, []);
+  }, [appState.playerId]); // FIX: Add dependency to prevent stale closure for `isHost` logic
 
 
   const handleSystemMessage = useCallback((event: any) => {
@@ -186,7 +193,8 @@ function App() {
 
   // Centralized lobby event management
   useEffect(() => {
-    if (appState.currentScreen === 'waiting') {
+    // Use location.pathname from the hook, not window.location
+    if (location.pathname === '/waiting') {
       const unsubscribers = [
         subscribe('LOBBY_STATE_UPDATE', handleLobbyStateUpdate),
         subscribe('SYSTEM_MESSAGE', handleSystemMessage),
@@ -208,7 +216,8 @@ function App() {
       };
     }
     return () => { };
-  }, [appState.currentScreen, subscribe, handleLobbyStateUpdate, handleSystemMessage]);
+    // FIX: Add location.pathname to the dependency array
+  }, [location.pathname, subscribe, handleLobbyStateUpdate, handleSystemMessage]);
 
 
   // Centralized WebSocket connection logic based on session state
@@ -237,10 +246,10 @@ function App() {
     setAppState(prev => ({
       ...prev,
       playerName,
-      playerAvatar: avatar,
-      currentScreen: 'lobby-list'
+      playerAvatar: avatar
     }));
     setIsInGameSession(false); // Ensure session is not active
+    navigateToLobbyList();
   };
 
   const handleJoinLobby = (gameId: string, playerId: string, sessionToken: string) => {
@@ -248,11 +257,11 @@ function App() {
       ...prev,
       gameId,
       playerId,
-      sessionToken,
-      currentScreen: 'waiting'
+      sessionToken
     }));
     setLobbyState(prev => ({ ...prev, playerId }));
     setIsInGameSession(true); // START the session
+    navigateToWaiting();
   };
 
   const handleCreateGame = (gameId: string, playerId: string, sessionToken: string) => {
@@ -260,19 +269,16 @@ function App() {
       ...prev,
       gameId,
       playerId,
-      sessionToken,
-      currentScreen: 'waiting'
+      sessionToken
     }));
     setLobbyState(prev => ({ ...prev, playerId }));
     setIsInGameSession(true); // START the session
+    navigateToWaiting();
   };
 
 
   const handleEnterGame = () => {
-    setAppState(prev => ({
-      ...prev,
-      currentScreen: 'game'
-    }));
+    navigateToGame();
   };
 
   // Lobby action handlers
@@ -305,8 +311,7 @@ function App() {
       gameId: undefined,
       playerId: undefined,
       joinToken: undefined,
-      sessionToken: undefined,
-      currentScreen: 'lobby-list'
+      sessionToken: undefined
     }));
     // Reset lobby state completely when leaving
     setLobbyState({
@@ -319,37 +324,38 @@ function App() {
       maxPlayers: 8,
       connectionError: null,
     });
+    navigateToLobbyList();
   }, [disconnect]);
 
   const handleBackToLogin = () => {
     setIsInGameSession(false); // END the session
     setAppState({
-      currentScreen: 'login',
       playerName: '',
     });
+    navigateToLogin();
   };
 
   const handlePlayAgain = () => {
     // End the current session
     setIsInGameSession(false);
     disconnect();
-    
+
     // Reset state and go back to the lobby list
     setAppState(prev => ({
       ...prev,
-      currentScreen: 'lobby-list',
       gameId: undefined,
       sessionToken: undefined,
     }));
     setRoleAssignment(null);
+    navigateToLobbyList();
   };
 
   const handleViewAnalysis = () => {
-    setAppState(prev => ({ ...prev, currentScreen: 'analysis' }));
+    navigateToAnalysis();
   };
 
   const handleBackToResults = () => {
-    setAppState(prev => ({ ...prev, currentScreen: 'game-over' }));
+    navigateToGameOver();
   };
 
   // Show loading screen while game engine is loading
@@ -382,99 +388,44 @@ function App() {
     );
   }
 
-  // Show WASM test screen if query parameter is present
-  if (window.location.search.includes('test=wasm')) {
-    return <WasmTestScreen />;
-  }
+  const sessionContextValue = {
+    appState,
+    lobbyState,
+    gameState,
+    roleAssignment,
+    isConnected,
+    onLogin: handleLogin,
+    onJoinLobby: handleJoinLobby,
+    onCreateGame: handleCreateGame,
+    onBackToLogin: handleBackToLogin,
+    onStartGame: handleStartGameAction,
+    onLeaveLobby: handleLeaveLobby,
+    onEnterGame: handleEnterGame,
+    onViewAnalysis: handleViewAnalysis,
+    onPlayAgain: handlePlayAgain,
+    onBackToResults: handleBackToResults,
+  };
+  return (
+    <SessionProvider value={sessionContextValue}>
+      <GameProvider gameState={gameState} localPlayerId={appState.playerId || ''}>
+        <AppRouter />
+      </GameProvider>
+    </SessionProvider>
+  );
+}
 
-  // Render the appropriate screen based on current state
-  const screenClass = "screen-transition animate-fade-in";
-  
-  switch (appState.currentScreen) {
-    case 'login':
-      return (
-        <div className={screenClass}>
-          <LoginScreen onLogin={handleLogin} />
-        </div>
-      );
-
-    case 'lobby-list':
-      return (
-        <div className={screenClass}>
-          <LobbyListScreen
-            playerName={appState.playerName}
-            playerAvatar={appState.playerAvatar}
-            onJoinLobby={handleJoinLobby}
-            onCreateGame={handleCreateGame}
-            onBack={handleBackToLogin}
-          />
-        </div>
-      );
-
-    case 'waiting':
-      return (
-        <div className={screenClass}>
-          <WaitingScreen
-            gameId={appState.gameId || 'unknown'}
-            playerId={appState.playerId}
-            lobbyState={lobbyState}
-            isConnected={isConnected}
-            onStartGame={handleStartGameAction}
-            onLeaveLobby={handleLeaveLobby}
-          />
-        </div>
-      );
-
-    case 'role-reveal':
-      return (
-        <div className={screenClass}>
-          <RoleRevealScreen
-            assignment={roleAssignment}
-            onEnterGame={handleEnterGame}
-          />
-        </div>
-      );
-
-    case 'game':
-      return (
-        <div className={screenClass}>
-          <GameScreen
-            gameState={gameState}
-            playerId={appState.playerId || 'unknown'}
-            isChatHistoryLoading={false} // Chat history is not yet implemented
-          />
-        </div>
-      );
-
-    case 'game-over':
-      return (
-        <div className={screenClass}>
-          <GameOverScreen 
-            gameState={gameState} 
-            onViewAnalysis={handleViewAnalysis}
-            onPlayAgain={handlePlayAgain}
-          />
-        </div>
-      );
-
-    case 'analysis':
-      return (
-        <div className={screenClass}>
-          <PostGameAnalysis 
-            gameState={gameState} 
-            onBackToResults={handleBackToResults}
-            onPlayAgain={handlePlayAgain}
-          />
-        </div>
-      );
-
-    default:
-      return (
-        <div className={screenClass}>
-          <LoginScreen onLogin={handleLogin} />
-        </div>
-      );
-  }
+function App() {
+  return (
+    <BrowserRouter>
+      <ThemeProvider>
+        <GameEngineProvider>
+          <WebSocketProvider>
+            <AppContent />
+          </WebSocketProvider>
+        </GameEngineProvider>
+      </ThemeProvider>
+    </BrowserRouter>
+  );
 }
 
 export default App;

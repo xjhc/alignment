@@ -18,9 +18,25 @@ The best way to prevent bugs is to make them impossible to write. We enforce bes
     *   **Example:** The `GameState` struct may have internal fields for tracking vote counts (`voteTally map[string]int`). By making this field unexported (lowercase `v`), only methods within the same package can modify it, preventing accidental manipulation from other parts of the codebase.
     *   **Enforcement:** This is enforced directly by the Go compiler.
 
-## **2. Enforcement by Testing**
+## **2. Enforcement by Testing: The Testing Pyramid**
 
-We employ a multi-layered testing strategy. Tests are a mandatory part of every pull request.
+We employ a multi-layered testing strategy, visualized by the testing pyramid. This strategy prioritizes a large number of fast, simple unit tests at the base and progressively fewer, more complex tests at higher levels.
+
+```mermaid
+graph TD
+    subgraph Testing Pyramid
+        direction TB
+        E2E(Level 4: E2E Tests<br/>Slow & Few)
+        System(Level 3: System Tests<br/>Slower)
+        Integration(Level 2: Integration Tests<br/>Faster)
+        Unit(Level 1: Unit Tests<br/>Fast & Numerous)
+    end
+
+    style E2E fill:#f9f,stroke:#333,stroke-width:2px
+    style System fill:#ccf,stroke:#333,stroke-width:2px
+    style Integration fill:#9cf,stroke:#333,stroke-width:2px
+    style Unit fill:#9f9,stroke:#333,stroke-width:2px
+```
 
 **Level 1: Unit Tests (The Foundation)**
 
@@ -85,6 +101,12 @@ We employ a multi-layered testing strategy. Tests are a mandatory part of every 
 *   **Technique:** In-memory tests that simulate system-wide conditions.
     *   **Test for Panic Recovery:** Create a `GameActor` that is designed to panic. Launch it via the `Supervisor`. Assert that the test process itself does not panic.
     *   **Test for Admission Control:** Manually set the `HealthStatus` to `"OVERLOADED"`. Call the `HandleCreateGameRequest` function. Assert that it returns the "waitlist" error and that the user ID was added to the (mocked) Redis waitlist.
+
+**Level 4: End-to-End (E2E) Tests (The Full Picture)**
+*   **Target:** The entire application stack, running as it would in production.
+*   **What to Test:** Critical user flows from the client's perspective. For example, "A user can create a lobby, a second user can join it, and the lobby state is correctly synchronized between them."
+*   **Technique:** Use an external test runner to drive the system. We use a **Python script with `pytest`** that acts as a real client, making REST API calls and connecting via WebSocket to a live, running instance of our application (launched via `docker-compose`).
+*   **Enforcement:** These tests run in a dedicated CI job (`e2e-tests.yml`) and are critical for catching regressions in the client-server contract or deployment configuration.
 
 **CI/CD Enforcement:**
 

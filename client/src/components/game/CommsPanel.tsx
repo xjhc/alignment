@@ -1,73 +1,35 @@
 import React from 'react';
 import { useGameContext } from '../../contexts/GameContext';
+import { usePhaseTimer } from '../../hooks/usePhaseTimer';
 import { ContextualInputArea } from './ContextualInputArea';
 import { SitrepMessage } from './SitrepMessage';
 import { VoteResultMessage } from './VoteResultMessage';
 import { PulseCheckMessage } from './PulseCheckMessage';
 import styles from './CommsPanel.module.css';
 
-interface CommsPanelProps {
-  chatInput: string;
-  setChatInput: (value: string) => void;
-  handleSendMessage: () => void;
-  handleKeyDown: (e: React.KeyboardEvent) => void;
-  getPhaseDisplayName: (phaseType: string) => string;
-  formatTimeRemaining: (phase: any) => string;
-  isChatHistoryLoading: boolean;
-
-  // Props for Part 3 voting UI.
-  selectedNominee: string;
-  setSelectedNominee: (value: string) => void;
-  selectedVote: 'GUILTY' | 'INNOCENT' | '';
-  setSelectedVote: (value: 'GUILTY' | 'INNOCENT' | '') => void;
-  handleNominate: () => Promise<void>;
-  handleVote: () => Promise<void>;
-  handlePulseCheck: (response: string) => Promise<void>;
-
-  // Props for Part 3 night action UI.
-  conversionTarget: string;
-  setConversionTarget: (value: string) => void;
-  miningTarget: string;
-  setMiningTarget: (value: string) => void;
-  handleConversionAttempt: () => Promise<void>;
-  handleMineTokens: () => Promise<void>;
-  handleUseAbility: () => Promise<void>;
-  canPlayerAffordAbility: (playerId: string) => boolean;
-  isValidNightActionTarget: (playerId: string, targetId: string, actionType: string) => boolean;
-}
-
-export const CommsPanel: React.FC<CommsPanelProps> = ({
-  chatInput,
-  setChatInput,
-  handleSendMessage,
-  handleKeyDown,
-  getPhaseDisplayName,
-  formatTimeRemaining,
-  isChatHistoryLoading,
-  selectedNominee,
-  setSelectedNominee,
-  selectedVote,
-  setSelectedVote,
-  handleNominate,
-  handleVote,
-  handlePulseCheck,
-  conversionTarget,
-  setConversionTarget,
-  miningTarget,
-  setMiningTarget,
-  handleConversionAttempt,
-  handleMineTokens,
-  handleUseAbility,
-  canPlayerAffordAbility,
-  isValidNightActionTarget,
-}) => {
-  const { gameState, localPlayer, isConnected } = useGameContext();
+export const CommsPanel: React.FC = () => {
+  const { gameState, localPlayer } = useGameContext();
+  const timeRemaining = usePhaseTimer(gameState.phase);
 
   if (!localPlayer) {
     return <div>Loading...</div>;
   }
+  
+  const getPhaseDisplayName = (phaseType: string) => {
+    switch (phaseType) {
+      case 'SITREP': return 'SITREP';
+      case 'PULSE_CHECK': return 'PULSE CHECK';
+      case 'DISCUSSION': return 'DISCUSSION';
+      case 'NOMINATION': return 'NOMINATION';
+      case 'TRIAL': return 'TRIAL';
+      case 'VERDICT': return 'VERDICT';
+      case 'NIGHT': return 'NIGHT PHASE';
+      case 'GAME_OVER': return 'GAME OVER';
+      default: return phaseType;
+    }
+  };
+
   const phaseName = getPhaseDisplayName(gameState.phase.type);
-  const timeRemaining = formatTimeRemaining(gameState.phase);
 
   const getPhaseClass = (phaseType: string) => {
     switch (phaseType) {
@@ -112,10 +74,14 @@ export const CommsPanel: React.FC<CommsPanelProps> = ({
       </header>
 
       <div className={styles.chatLog} ref={chatLogRef}>
-        {isChatHistoryLoading ? (
-          <div className={styles.loading}>Loading chat history...</div>
-        ) : (
-          gameState.chatMessages.map((msg, index) => {
+        {(!gameState.chatMessages || gameState.chatMessages.length === 0) ? (
+          <div className="empty-chat-message">
+            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              No messages yet. Waiting for system initialization...
+            </span>
+          </div>
+        ) : null}
+        {gameState.chatMessages.map((msg, index) => {
             // Render specialized system messages
             if (msg.isSystem && msg.type === 'SITREP') {
               return (
@@ -151,6 +117,13 @@ export const CommsPanel: React.FC<CommsPanelProps> = ({
             }
             
             // Default chat message rendering
+            const getMessageAvatar = (message: any) => {
+              if (message.isSystem) return '🤖';
+              const player = gameState.players.find((p: any) => p.name === message.playerName);
+              if (!player?.isAlive) return '👻';
+              return player?.avatar || '👤';
+            };
+
             return (
               <div 
                 key={msg.id || index} 
@@ -158,7 +131,7 @@ export const CommsPanel: React.FC<CommsPanelProps> = ({
                 style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
               >
                 <div className={`${styles.messageAvatar} ${msg.isSystem ? styles.loebmate : ''}`}>
-                  {msg.isSystem ? '🤖' : '👤'}
+                  {getMessageAvatar(msg)}
                 </div>
                 <div className={styles.messageContent}>
                   <span className={`${styles.messageAuthor} ${msg.isSystem ? styles.loebmateName : ''}`}>
@@ -169,34 +142,10 @@ export const CommsPanel: React.FC<CommsPanelProps> = ({
               </div>
             );
           })
-        )}
+        }
       </div>
 
-      <ContextualInputArea
-        gameState={gameState}
-        localPlayer={localPlayer}
-        chatInput={chatInput}
-        setChatInput={setChatInput}
-        handleSendMessage={handleSendMessage}
-        handleKeyDown={handleKeyDown}
-        isConnected={isConnected}
-        selectedNominee={selectedNominee}
-        setSelectedNominee={setSelectedNominee}
-        selectedVote={selectedVote}
-        setSelectedVote={setSelectedVote}
-        handleNominate={handleNominate}
-        handleVote={handleVote}
-        handlePulseCheck={handlePulseCheck}
-        conversionTarget={conversionTarget}
-        setConversionTarget={setConversionTarget}
-        miningTarget={miningTarget}
-        setMiningTarget={setMiningTarget}
-        handleConversionAttempt={handleConversionAttempt}
-        handleMineTokens={handleMineTokens}
-        handleUseAbility={handleUseAbility}
-        canPlayerAffordAbility={canPlayerAffordAbility}
-        isValidNightActionTarget={isValidNightActionTarget}
-      />
+      <ContextualInputArea />
     </section>
   );
 };

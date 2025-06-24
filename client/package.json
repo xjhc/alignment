@@ -3,13 +3,14 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
-    "build": "tsc && vite build",
+    "build:tokens": "cd .. && ./client/node_modules/.bin/style-dictionary build --config tokens.config.json",
+    "dev": "npm run build:tokens && vite --host",
+    "build": "npm run build:tokens && tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "storybook": "npm run build:tokens && storybook dev -p 6006",
+    "build-storybook": "npm run build:tokens && storybook build"
   },
   "keywords": [],
   "author": "",
@@ -29,18 +30,21 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.2",
+    "@vitest/browser": "3.2.4",
     "@vitest/coverage-v8": "^3.2.4",
     "dotenv": "^16.5.0",
     "jsdom": "^26.1.0",
+    "playwright": "^1.53.1",
     "storybook": "^9.0.12",
+    "style-dictionary": "^5.0.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
-    "vitest": "^3.2.4",
-    "@vitest/browser": "3.2.4",
-    "playwright": "^1.53.1"
+    "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@types/react-router-dom": "^5.3.3",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.2"
   }
 }

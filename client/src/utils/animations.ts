@@ -27,6 +27,7 @@ export const ANIMATION_CLASSES = {
   BOUNCE: 'animate-bounce',
   FLIP_CARD: 'animate-flip-card',
   STAGGER_REVEAL: 'animate-stagger-reveal',
+  BUTTON_PRESS: 'animate-button-press',
 } as const;
 
 // Utility function to add staggered animation delays to elements

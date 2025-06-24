@@ -168,3 +168,22 @@ This document is a practical guide to the testing patterns and tools used in the
     }
     ```
 This pattern provides a rock-solid, non-flaky way to test our concurrent actors and is the standard we will use going forward.
+
+---
+
+## 5. End-to-End (E2E) Testing Tools
+
+*   **What is it?** A testing practice where we validate a complete user flow through the entire system, from the client UI to the database and back.
+
+*   **Why do we use it?** E2E tests are the ultimate confidence check. They verify that all the isolated components (frontend, actors, database) work together correctly. They are essential for catching regressions in the client-server contract.
+
+*   **How do we use it?**
+    *   **Test Runner:** We use **Python** with the `pytest` framework and `websocket-client` library. This allows us to write clean, imperative test scripts that mimic real user behavior.
+    *   **Execution Environment:** E2E tests are run against a **live, fully-composed application instance**, typically started with `docker-compose.dev.yml`. This ensures the test environment is identical to a real deployment.
+    *   **Example Flow (`tests/e2e/test_lobby.py`):**
+        1.  The test script makes a `POST` request to `/api/games` to create a lobby.
+        2.  It parses the `game_id` and `session_token` from the response.
+        3.  It uses these credentials to establish a real WebSocket connection to the running server.
+        4.  It listens for the expected `LOBBY_STATE_UPDATE` event on the WebSocket.
+        5.  It asserts that the payload of the event is correct.
+    *   **CI Integration:** A dedicated GitHub Actions workflow (`e2e-tests.yml`) is responsible for building the Docker images, running `docker-compose up`, and then executing the `pytest` suite.

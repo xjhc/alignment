@@ -15,6 +15,37 @@ This directory contains the source code for the `Alignment` web client, a hybrid
 
 The client is designed with a clear separation of concerns to ensure robustness and maintainability.
 
+```mermaid
+graph TD
+    subgraph Browser["🌐 Browser Environment"]
+        subgraph ReactShell["1. UI Shell (React/TypeScript)"]
+            direction TB
+            Components["React Components<br/>(Views, Buttons, etc.)"] -->|Triggers| UserActions["User Actions (onClick, etc.)"]
+        end
+
+        subgraph CommsService["2. Communication Service (TypeScript)"]
+            direction TB
+            WebSocket["WebSocket<br/>Connection Manager"]
+        end
+
+        subgraph WasmEngine["3. Engine (Go/Wasm)"]
+            direction TB
+            GameState["Client-side GameState"]
+            ApplyEvent["ApplyEvent() Logic"]
+        end
+    end
+
+    Server["🖥️ Go Backend Server"]
+
+    %% Data Flow
+    UserActions -- "Calls function on Service" --> WebSocket
+    WebSocket -- "Sends Action to Server" --> Server
+    Server -- "Broadcasts Event" --> WebSocket
+    WebSocket -- "Receives Event" --> ApplyEvent
+    ApplyEvent -- "Updates State" --> GameState
+    GameState -- "Provides data to" --> Components
+```
+
 1.  **The "UI Shell" (React/TypeScript):** The presentation layer.
     *   Its primary job is to render UI components based on the state it receives.
     *   It captures user input (clicks, typing) and calls functions on the Communication Service to send actions to the server.

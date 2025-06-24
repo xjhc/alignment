@@ -12,6 +12,40 @@ The order of operations is as follows:
 2.  **Pass 2: AI Conversion**
 3.  **Pass 3: Standard Actions**
 
+```mermaid
+sequenceDiagram
+    participant GameActor
+    participant BlockedSet as Blocked Players Set
+
+    GameActor->>GameActor: **PASS 1: Resolve Blocking Actions**
+    loop For each submitted Block action
+        GameActor->>BlockedSet: Add target PlayerID
+    end
+
+    GameActor->>GameActor: **PASS 2: Resolve AI Conversion**
+    loop For each submitted AI Convert action
+        alt if Blocker is NOT in BlockedSet
+            GameActor->>GameActor: Check if target is already blocked
+            GameActor->>BlockedSet: Add target PlayerID
+            GameActor->>GameActor: Calculate Conversion/SystemShock
+        else
+            GameActor->>GameActor: Action is nullified
+        end
+    end
+
+    GameActor->>GameActor: **PASS 3: Resolve Standard Actions**
+    loop For each remaining action (Mine, etc.)
+        alt if Actor is NOT in BlockedSet
+            GameActor->>GameActor: Process action (e.g., check liquidity pool for mine)
+        else
+            GameActor->>GameActor: Action is nullified
+        end
+    end
+
+    GameActor->>GameActor: **Finalize: Aggregate all outcomes**
+    GameActor-->>+Clients: Broadcast NIGHT_ACTIONS_RESOLVED event
+```
+
 ## 2. The Resolution Order
 
 #### Pass 1: Blocking Actions

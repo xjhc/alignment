@@ -7,22 +7,22 @@ import { AbilityCard } from './AbilityCard';
 import styles from './PlayerHUD.module.css';
 
 export const PlayerHUD: React.FC = () => {
-  const { gameState, localPlayer } = useGameContext();
+  const { gameState, viewedPlayer } = useGameContext();
 
-  if (!localPlayer) {
+  if (!viewedPlayer) {
     return null;
   }
-  const aiEquity = localPlayer.aiEquity || 0;
+  const aiEquity = viewedPlayer.aiEquity || 0;
 
   return (
     <aside className={styles.panelRight}>
-      <IdentityCard localPlayer={localPlayer} />
+      <IdentityCard localPlayer={viewedPlayer} />
 
       <div className={styles.hudContentSingle}>
         {/* Only show threat meter if player is Human */}
-        {localPlayer.alignment === 'HUMAN' && (
+        {viewedPlayer.alignment === 'HUMAN' && (
           <ThreatMeter
-            tokens={localPlayer.tokens}
+            tokens={viewedPlayer.tokens}
             aiEquity={aiEquity}
           />
         )}
@@ -34,20 +34,20 @@ export const PlayerHUD: React.FC = () => {
 
           <ObjectiveCard
             type="Team Objective"
-            name={localPlayer.alignment === 'HUMAN' ? "Containment Protocol" : "Achieve Singularity"}
-            description={localPlayer.alignment === 'HUMAN'
+            name={viewedPlayer.alignment === 'HUMAN' ? "Containment Protocol" : "Achieve Singularity"}
+            description={viewedPlayer.alignment === 'HUMAN'
               ? "Identify and vote to deactivate the Original AI."
               : "Convert enough humans to achieve AI dominance."
             }
           />
 
-          {localPlayer.personalKPI && (
+          {viewedPlayer.personalKPI && (
             <ObjectiveCard
               type="Personal KPI"
-              name={localPlayer.personalKPI.type}
-              description={localPlayer.personalKPI.description}
+              name={viewedPlayer.personalKPI.type}
+              description={viewedPlayer.personalKPI.description}
               progressText={
-                `Progress: ${localPlayer.personalKPI.progress || 0}/${localPlayer.personalKPI.target || 1} ${localPlayer.personalKPI.isCompleted ? '✓' : ''}`
+                `Progress: ${viewedPlayer.personalKPI.progress || 0}/${viewedPlayer.personalKPI.target || 1} ${viewedPlayer.personalKPI.isCompleted ? '✓' : ''}`
               }
               isPrivate={true}
             />
@@ -62,9 +62,9 @@ export const PlayerHUD: React.FC = () => {
           )}
         </div>
 
-        <AbilityCard localPlayer={localPlayer} />
+        <AbilityCard localPlayer={viewedPlayer} />
 
-        {localPlayer.lastNightAction && (
+        {viewedPlayer.lastNightAction && (
           <div className={styles.hudSection}>
             <div className={styles.sectionHeader}>
               <span className={styles.sectionTitle}>🌙 LAST NIGHT'S ACTION</span>
@@ -72,10 +72,10 @@ export const PlayerHUD: React.FC = () => {
             <div className={styles.actionsList}>
               <div className={`${styles.actionItem} ${styles.ability} ${styles.selected}`}>
                 <span className={styles.actionIcon}>➡️</span>
-                <span className={styles.actionName}>{localPlayer.lastNightAction.type}</span>
-                {localPlayer.lastNightAction.targetId && (
+                <span className={styles.actionName}>{viewedPlayer.lastNightAction.type}</span>
+                {viewedPlayer.lastNightAction.targetId && (
                   <span className={styles.actionTarget}>
-                    TARGET: {gameState.players.find(p => p.id === localPlayer.lastNightAction?.targetId)?.name || 'Unknown'}
+                    TARGET: {gameState.players.find(p => p.id === viewedPlayer.lastNightAction?.targetId)?.name || 'Unknown'}
                   </span>
                 )}
               </div>

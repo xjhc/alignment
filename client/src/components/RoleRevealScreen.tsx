@@ -1,19 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Role, PersonalKPI } from '../types';
 import styles from './RoleRevealScreen.module.css';
-
-interface RoleAssignment {
-  role: Role;
-  alignment: string;
-  personalKPI: PersonalKPI | null;
-}
+import { useSessionContext } from '../contexts/SessionContext';
 
 interface RoleRevealScreenProps {
   onEnterGame: () => void;
-  assignment: RoleAssignment | null;
 }
 
-export function RoleRevealScreen({ onEnterGame, assignment }: RoleRevealScreenProps) {
+export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
+  const { roleAssignment: assignment } = useSessionContext();
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {

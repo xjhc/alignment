@@ -1,38 +1,14 @@
 import styles from './WaitingScreen.module.css';
+import { useSessionContext } from '../contexts/SessionContext';
 
-interface PlayerLobbyInfo {
-  id: string;
-  name: string;
-  avatar: string;
-}
-
-interface LobbyState {
-  playerInfos: PlayerLobbyInfo[];
-  isHost: boolean;
-  canStart: boolean;
-  hostId: string;
-  lobbyName: string;
-  maxPlayers: number;
-  connectionError: string | null;
-}
-
-interface WaitingScreenProps {
-  gameId: string;
-  playerId?: string;
-  lobbyState: LobbyState;
-  isConnected: boolean;
-  onStartGame: () => void;
-  onLeaveLobby: () => void;
-}
-
-export function WaitingScreen({
-  gameId,
-  playerId,
-  lobbyState,
-  isConnected,
-  onStartGame,
-  onLeaveLobby
-}: WaitingScreenProps) {
+export function WaitingScreen() {
+  const { 
+    appState, 
+    lobbyState, 
+    isConnected, 
+    onStartGame, 
+    onLeaveLobby 
+  } = useSessionContext();
   // All state is now managed by App.tsx - this is a pure presentation component
   const {
     playerInfos,
@@ -96,7 +72,7 @@ export function WaitingScreen({
         <h2>WAITING IN LOBBY...</h2>
         <p className={styles.gameIdInfo}>
           Lobby: <strong>{lobbyName || 'Loading...'}</strong><br />
-          Game ID: <code>{formatGameId(gameId)}</code><br />
+          Game ID: <code>{formatGameId(appState.gameId || 'unknown')}</code><br />
           Share this ID with other personnel.
         </p>
 
@@ -122,7 +98,7 @@ export function WaitingScreen({
                   <span className={styles.playerName}>
                     {playerInfo.name}
                     {playerInfo.id === hostId && ' (Host)'}
-                    {playerInfo.id === playerId && ' (You)'}
+                    {playerInfo.id === appState.playerId && ' (You)'}
                   </span>
                   <span className={styles.playerJob}>
                     Personnel

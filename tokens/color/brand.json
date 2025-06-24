@@ -1,0 +1,25 @@
+{
+  "brand": {
+    "accent": {
+      "primary": { "value": "#f59e0b" },
+      "amber": { "value": "#f59e0b" },
+      "amber-light": { "value": "#fbbf24" },
+      "amber-dark": { "value": "#d97706" },
+      "cyan": { "value": "#06b6d4" },
+      "cyan-light": { "value": "#22d3ee" },
+      "cyan-dark": { "value": "#0891b2" },
+      "red": { "value": "#ef4444" },
+      "red-light": { "value": "#f87171" },
+      "red-dark": { "value": "#dc2626" },
+      "magenta": { "value": "#ec4899" },
+      "magenta-light": { "value": "#f472b6" },
+      "magenta-dark": { "value": "#db2777" },
+      "green": { "value": "#10b981" },
+      "green-light": { "value": "#34d399" },
+      "green-dark": { "value": "#059669" },
+      "blue": { "value": "#3b82f6" },
+      "blue-light": { "value": "#60a5fa" },
+      "blue-dark": { "value": "#2563eb" }
+    }
+  }
+}

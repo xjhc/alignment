@@ -1,0 +1,17 @@
+{
+  "semantic": {
+    "game": {
+      "human": { "value": "{brand.accent.amber}" },
+      "aligned": { "value": "{brand.accent.cyan}" },
+      "ai": { "value": "{brand.accent.magenta}" },
+      "success": { "value": "{brand.accent.green}" },
+      "danger": { "value": "{brand.accent.red}" },
+      "warning": { "value": "{brand.accent.amber}" },
+      "info": { "value": "{brand.accent.blue}" }
+    },
+    "component": {
+      "focus": { "value": "{brand.accent.blue}" },
+      "active": { "value": "{brand.accent.primary}" }
+    }
+  }
+}

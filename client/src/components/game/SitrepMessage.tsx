@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChatMessage, GameState } from '../../types';
+import styles from './CommsPanel.module.css';
 
 interface SitrepMessageProps {
   message: ChatMessage;
@@ -17,11 +18,11 @@ export const SitrepMessage: React.FC<SitrepMessageProps> = ({ message, gameState
   const crisisEvent = metadata?.crisisEvent || gameState.crisisEvent;
 
   return (
-    <div className="chat-message-compact">
-      <div className="message-avatar loebmate">🤖</div>
-      <div className="message-content">
-        <span className="message-author loebmate-name">Loebmate</span>
-        <div className="message-body loebmate-message">
+    <div className={styles.chatMessageCompact}>
+      <div className={`${styles.messageAvatar} ${styles.loebmate}`}>🤖</div>
+      <div className={styles.messageContent}>
+        <span className={`${styles.messageAuthor} ${styles.loebmateName}`}>Loebmate</span>
+        <div className={`${styles.messageBody} ${styles.loebmateMessage}`}>
           <strong>Good morning, team. Here's the SITREP.</strong><br/><br/>
           
           <strong>NIGHT {gameState.dayNumber - 1} ACTIVITY LOG:</strong><br/>
@@ -47,7 +48,7 @@ export const SitrepMessage: React.FC<SitrepMessageProps> = ({ message, gameState
           {crisisEvent && (
             <>
               <strong>INCIDENT: {crisisEvent.title}</strong><br/>
-              • <span className="high-alert">[HIGH ALERT]</span> {crisisEvent.description}<br/>
+              • <span className={styles.highAlert}>[HIGH ALERT]</span> {crisisEvent.description}<br/>
             </>
           )}
         </div>

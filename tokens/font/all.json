@@ -1,0 +1,31 @@
+{
+  "font": {
+    "family": {
+      "sans": { "value": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
+      "mono": { "value": "'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace" }
+    },
+    "weight": {
+      "light": { "value": "300" },
+      "normal": { "value": "400" },
+      "medium": { "value": "500" },
+      "semibold": { "value": "600" },
+      "bold": { "value": "700" },
+      "extrabold": { "value": "800" }
+    },
+    "size": {
+      "xs": { "value": "10px" },
+      "sm": { "value": "11px" },
+      "base": { "value": "12px" },
+      "md": { "value": "13px" },
+      "lg": { "value": "14px" },
+      "xl": { "value": "16px" },
+      "2xl": { "value": "18px" },
+      "3xl": { "value": "20px" }
+    },
+    "lineHeight": {
+      "tight": { "value": "1.2" },
+      "normal": { "value": "1.4" },
+      "relaxed": { "value": "1.6" }
+    }
+  }
+}

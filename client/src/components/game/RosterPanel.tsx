@@ -1,10 +1,12 @@
 import React from 'react';
 import { useGameContext } from '../../contexts/GameContext';
+import { useTheme } from '../../hooks/useTheme';
 import { PlayerCard } from './PlayerCard';
 import styles from './RosterPanel.module.css';
 
 export const RosterPanel: React.FC = () => {
-  const { gameState, localPlayerId, localPlayer } = useGameContext();
+  const { gameState, localPlayerId, localPlayer, viewedPlayerId, setViewedPlayer } = useGameContext();
+  const { theme, toggleTheme } = useTheme();
   const players = gameState.players;
 
   const getPlayerCounts = () => {
@@ -25,7 +27,13 @@ export const RosterPanel: React.FC = () => {
         </div>
         <div className={styles.headerControls}>
           <button className={styles.headerBtn} title="Settings">⚙️</button>
-          <button className={styles.headerBtn} title="Toggle Theme">🌙</button>
+          <button 
+            className={styles.headerBtn} 
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+            onClick={toggleTheme}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
         </div>
       </header>
 
@@ -69,6 +77,8 @@ export const RosterPanel: React.FC = () => {
             key={player.id}
             player={player}
             isSelf={player.id === localPlayerId}
+            isSelected={player.id === viewedPlayerId}
+            onSelect={setViewedPlayer}
           />
         ))}
       </div>
