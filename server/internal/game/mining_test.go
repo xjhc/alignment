@@ -3,12 +3,13 @@ package game
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/xjhc/alignment/core"
 )
 
 func TestMiningManager_ValidateMiningRequest(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 	gameState.Phase.Type = core.PhaseNight
 
 	// Add test players
@@ -140,7 +141,7 @@ func TestMiningManager_CalculateLiquidityPool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gameState := core.NewGameState("test-game")
+			gameState := core.NewGameState("test-game", time.Now())
 
 			// Add the specified number of living humans
 			for i := 0; i < tt.livingHumans; i++ {
@@ -164,7 +165,7 @@ func TestMiningManager_CalculateLiquidityPool(t *testing.T) {
 
 	// Test with crisis event modifier
 	t.Run("crisis modifier", func(t *testing.T) {
-		gameState := core.NewGameState("test-game")
+		gameState := core.NewGameState("test-game", time.Now())
 
 		// Add 4 living humans
 		for i := 0; i < 4; i++ {
@@ -190,7 +191,7 @@ func TestMiningManager_CalculateLiquidityPool(t *testing.T) {
 }
 
 func TestMiningManager_ResolveMining(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	gameState.Players["alice"] = &core.Player{
@@ -288,7 +289,7 @@ func TestMiningManager_ResolveMining(t *testing.T) {
 }
 
 func TestMiningManager_UpdatePlayerTokens(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	gameState.Players["alice"] = &core.Player{

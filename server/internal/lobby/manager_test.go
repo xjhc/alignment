@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/mocks"
 )
@@ -183,13 +185,14 @@ func TestLobby_StateUpdateBroadcast(t *testing.T) {
 	// Host should receive update
 	select {
 	case msg := <-hostActor.Messages:
-		update, ok := msg.(LobbyStateUpdate)
-		if !ok {
-			t.Errorf("Expected LobbyStateUpdate, got %T", msg)
-		}
-		if len(update.Players) != 2 {
-			t.Errorf("Expected 2 players in state update, got %d", len(update.Players))
-		}
+		event, ok := msg.(core.Event)
+		assert.True(t, ok, "Expected message to be of type core.Event, got %T", msg)
+		assert.Equal(t, core.EventType("LOBBY_STATE_UPDATE"), event.Type)
+		
+		// Check the event payload
+		players, ok := event.Payload["players"].([]PlayerInfo)
+		assert.True(t, ok, "Expected payload to contain a slice of PlayerInfo")
+		assert.Len(t, players, 2, "Expected 2 players in the state update")
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Host did not receive state update")
 	}
@@ -197,13 +200,13 @@ func TestLobby_StateUpdateBroadcast(t *testing.T) {
 	// New player should also receive update
 	select {
 	case msg := <-player2.Messages:
-		update, ok := msg.(LobbyStateUpdate)
-		if !ok {
-			t.Errorf("Expected LobbyStateUpdate, got %T", msg)
-		}
-		if len(update.Players) != 2 {
-			t.Errorf("Expected 2 players in state update, got %d", len(update.Players))
-		}
+		event, ok := msg.(core.Event)
+		assert.True(t, ok, "Expected message to be of type core.Event, got %T", msg)
+		assert.Equal(t, core.EventType("LOBBY_STATE_UPDATE"), event.Type)
+		
+		players, ok := event.Payload["players"].([]PlayerInfo)
+		assert.True(t, ok, "Expected payload to contain a slice of PlayerInfo")
+		assert.Len(t, players, 2, "Expected 2 players in the state update")
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("New player did not receive state update")
 	}
@@ -214,13 +217,13 @@ func TestLobby_StateUpdateBroadcast(t *testing.T) {
 	// Host should receive update
 	select {
 	case msg := <-hostActor.Messages:
-		update, ok := msg.(LobbyStateUpdate)
-		if !ok {
-			t.Errorf("Expected LobbyStateUpdate, got %T", msg)
-		}
-		if len(update.Players) != 1 {
-			t.Errorf("Expected 1 player in state update after removal, got %d", len(update.Players))
-		}
+		event, ok := msg.(core.Event)
+		assert.True(t, ok, "Expected message to be of type core.Event, got %T", msg)
+		assert.Equal(t, core.EventType("LOBBY_STATE_UPDATE"), event.Type)
+		
+		players, ok := event.Payload["players"].([]PlayerInfo)
+		assert.True(t, ok, "Expected payload to contain a slice of PlayerInfo")
+		assert.Len(t, players, 1, "Expected 1 player after removal")
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Host did not receive state update after removal")
 	}

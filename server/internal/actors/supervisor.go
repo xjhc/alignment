@@ -77,6 +77,19 @@ func (s *Supervisor) CreateGameWithPlayers(gameID string, players map[string]*co
 
 	actorCtx, actorCancel := context.WithCancel(s.ctx)
 	actor := NewGameActor(actorCtx, actorCancel, gameID, players)
+	
+	// Set up event callback for timer-generated events
+	actor.SetEventCallback(func(gameID string, events []core.Event) {
+		// Broadcast events to players using the supervisor's broadcaster
+		for _, event := range events {
+			if event.PlayerID != "" { // Private event
+				s.broadcaster.SendToPlayer(gameID, event.PlayerID, event)
+			} else { // Public event
+				s.broadcaster.BroadcastToGame(gameID, event)
+			}
+		}
+	})
+	
 	s.actors[gameID] = actor
 
 	go func() {

@@ -33,15 +33,14 @@ type GameState struct {
 }
 
 // NewGameState creates a new game state
-func NewGameState(id string) *GameState {
-	now := time.Now()
+func NewGameState(id string, currentTime time.Time) *GameState {
 	return &GameState{
 		ID:           id,
-		Phase:        Phase{Type: PhaseLobby, StartTime: now, Duration: 0},
+		Phase:        Phase{Type: PhaseLobby, StartTime: currentTime, Duration: 0},
 		DayNumber:    0,
 		Players:      make(map[string]*Player),
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		CreatedAt:    currentTime,
+		UpdatedAt:    currentTime,
 		ChatMessages: make([]ChatMessage, 0),
 		NightActions: make(map[string]*SubmittedNightAction),
 		Settings: GameSettings{
@@ -1043,7 +1042,7 @@ func (gs *GameState) applySystemShockApplied(event Event) {
 		shock := SystemShock{
 			Type:        ShockType(shockType),
 			Description: description,
-			ExpiresAt:   time.Now().Add(time.Duration(durationHours) * time.Hour),
+			ExpiresAt:   event.Timestamp.Add(time.Duration(durationHours) * time.Hour),
 			IsActive:    true,
 		}
 
@@ -1130,4 +1129,321 @@ func (gs *GameState) applyEquityThreshold(event Event) {
 		// Track equity threshold events for AI conversion logic
 		player.StatusMessage = fmt.Sprintf("AI Equity threshold %d reached - %s", threshold, action)
 	}
+}
+
+// ProcessPlayerAction is the formal Action-to-Event translation layer
+// This function takes the current state and a player's desired action,
+// performs all necessary validation, and returns the list of Events that should result.
+// It does NOT modify the state itself - that is done by ApplyEvent.
+func ProcessPlayerAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	// Validate basic action requirements
+	if err := validateActionBasics(gameState, action, currentTime); err != nil {
+		return nil, err
+	}
+
+	// Route to specific action handlers
+	switch action.Type {
+	case ActionSubmitVote:
+		return processVoteAction(gameState, action, currentTime)
+	case ActionSubmitNightAction:
+		return processNightAction(gameState, action, currentTime)
+	case ActionMineTokens:
+		return processMiningAction(gameState, action, currentTime)
+	case ActionSendMessage:
+		return processChatAction(gameState, action, currentTime)
+	case ActionLeaveGame:
+		return processLeaveGameAction(gameState, action, currentTime)
+	case ActionUseAbility:
+		return processAbilityAction(gameState, action, currentTime)
+	
+	// Role-specific actions
+	case ActionRunAudit, ActionOverclockServers, ActionIsolateNode, ActionPerformanceReview, ActionReallocateBudget, ActionPivot, ActionDeployHotfix:
+		return processRoleAction(gameState, action, currentTime)
+	
+	default:
+		return nil, fmt.Errorf("unknown action type: %s", action.Type)
+	}
+}
+
+// validateActionBasics performs common validation for all actions
+func validateActionBasics(gameState GameState, action Action, currentTime time.Time) error {
+	// Check if player exists
+	player, exists := gameState.Players[action.PlayerID]
+	if !exists {
+		return fmt.Errorf("player %s not found", action.PlayerID)
+	}
+
+	// Check if player is alive (most actions require this)
+	if !player.IsAlive && action.Type != ActionLeaveGame {
+		return fmt.Errorf("player %s is not alive", action.PlayerID)
+	}
+
+	// Validate game ID matches
+	if action.GameID != gameState.ID {
+		return fmt.Errorf("action game ID %s does not match current game %s", action.GameID, gameState.ID)
+	}
+
+	return nil
+}
+
+// processVoteAction handles voting actions
+func processVoteAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+	
+	// Check if player can vote in current phase
+	if !CanPlayerVote(*player, gameState.Phase.Type, currentTime) {
+		return nil, fmt.Errorf("player %s cannot vote in phase %s", action.PlayerID, gameState.Phase.Type)
+	}
+
+	// Extract vote target from payload
+	targetPlayerID, ok := action.Payload["target_player_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid target_player_id in vote action")
+	}
+
+	// Validate target exists and is alive
+	targetPlayer, exists := gameState.Players[targetPlayerID]
+	if !exists {
+		return nil, fmt.Errorf("vote target %s not found", targetPlayerID)
+	}
+	if !targetPlayer.IsAlive {
+		return nil, fmt.Errorf("cannot vote for eliminated player %s", targetPlayerID)
+	}
+
+	// Generate vote cast event
+	events := []Event{
+		{
+			ID:        fmt.Sprintf("vote_%s_%s_%d", action.PlayerID, targetPlayerID, currentTime.UnixNano()),
+			Type:      EventVoteCast,
+			PlayerID:  action.PlayerID,
+			GameID:    gameState.ID,
+			Timestamp: currentTime,
+			Payload: map[string]interface{}{
+				"target_player_id": targetPlayerID,
+				"vote_type":        gameState.Phase.Type,
+				"token_weight":     player.Tokens + 1, // Base weight of 1 + token bonus
+			},
+		},
+	}
+
+	return events, nil
+}
+
+// processMiningAction handles token mining actions
+func processMiningAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+
+	// Check if player can use night actions (mining is a night action)
+	if !CanPlayerUseNightAction(*player, ActionMine, currentTime) {
+		return nil, fmt.Errorf("player %s cannot mine tokens at this time", action.PlayerID)
+	}
+
+	// Extract beneficiary from payload
+	beneficiaryID, ok := action.Payload["beneficiary_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid beneficiary_id in mining action")
+	}
+
+	// Enforce selfless mining rule
+	if beneficiaryID == action.PlayerID {
+		return nil, fmt.Errorf("players cannot mine tokens for themselves")
+	}
+
+	// Validate beneficiary exists and is alive
+	beneficiary, exists := gameState.Players[beneficiaryID]
+	if !exists {
+		return nil, fmt.Errorf("mining beneficiary %s not found", beneficiaryID)
+	}
+	if !beneficiary.IsAlive {
+		return nil, fmt.Errorf("cannot mine for eliminated player %s", beneficiaryID)
+	}
+
+	// Generate mining attempt event
+	events := []Event{
+		{
+			ID:        fmt.Sprintf("mining_%s_%s_%d", action.PlayerID, beneficiaryID, currentTime.UnixNano()),
+			Type:      EventMiningAttempted,
+			PlayerID:  action.PlayerID,
+			GameID:    gameState.ID,
+			Timestamp: currentTime,
+			Payload: map[string]interface{}{
+				"beneficiary_id": beneficiaryID,
+				"difficulty":     0.2, // Standard mining difficulty
+			},
+		},
+	}
+
+	return events, nil
+}
+
+// processChatAction handles chat message actions
+func processChatAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+
+	// Check if player can send messages
+	if !CanPlayerSendMessage(*player, currentTime) {
+		return nil, fmt.Errorf("player %s cannot send messages at this time", action.PlayerID)
+	}
+
+	// Extract message content
+	content, ok := action.Payload["content"].(string)
+	if !ok || content == "" {
+		return nil, fmt.Errorf("missing or empty message content")
+	}
+
+	// Check for message corruption
+	isCorrupted := IsMessageCorrupted(*player, content, currentTime)
+
+	// Generate chat message event
+	events := []Event{
+		{
+			ID:        fmt.Sprintf("chat_%s_%d", action.PlayerID, currentTime.UnixNano()),
+			Type:      EventChatMessage,
+			PlayerID:  action.PlayerID,
+			GameID:    gameState.ID,
+			Timestamp: currentTime,
+			Payload: map[string]interface{}{
+				"content":     content,
+				"is_private":  false,
+				"corrupted":   isCorrupted,
+			},
+		},
+	}
+
+	return events, nil
+}
+
+// processNightAction handles night action submissions
+func processNightAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+
+	// Extract night action details
+	actionType, ok := action.Payload["action_type"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing action_type in night action")
+	}
+
+	nightActionType := NightActionType(actionType)
+
+	// Check if player can use this night action
+	if !CanPlayerUseNightAction(*player, nightActionType, currentTime) {
+		return nil, fmt.Errorf("player %s cannot use night action %s", action.PlayerID, actionType)
+	}
+
+	// Validate target if provided
+	if targetID, hasTarget := action.Payload["target_id"].(string); hasTarget {
+		if targetPlayer, exists := gameState.Players[targetID]; !exists || !targetPlayer.IsAlive {
+			return nil, fmt.Errorf("invalid night action target %s", targetID)
+		}
+		if !IsValidNightActionTarget(*player, *gameState.Players[targetID], nightActionType) {
+			return nil, fmt.Errorf("invalid target for night action %s", actionType)
+		}
+	}
+
+	// Generate night action submitted event
+	events := []Event{
+		{
+			ID:        fmt.Sprintf("night_action_%s_%s_%d", action.PlayerID, actionType, currentTime.UnixNano()),
+			Type:      EventNightActionSubmitted,
+			PlayerID:  action.PlayerID,
+			GameID:    gameState.ID,
+			Timestamp: currentTime,
+			Payload:   action.Payload, // Pass through the action payload
+		},
+	}
+
+	return events, nil
+}
+
+// processLeaveGameAction handles player leaving the game
+func processLeaveGameAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	// Generate player left event
+	events := []Event{
+		{
+			ID:        fmt.Sprintf("leave_%s_%d", action.PlayerID, currentTime.UnixNano()),
+			Type:      EventPlayerLeft,
+			PlayerID:  action.PlayerID,
+			GameID:    gameState.ID,
+			Timestamp: currentTime,
+			Payload:   map[string]interface{}{},
+		},
+	}
+
+	return events, nil
+}
+
+// processAbilityAction handles role ability usage
+func processAbilityAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+
+	// Check if player has a role and can use abilities
+	if player.Role == nil || !player.Role.IsUnlocked || player.HasUsedAbility {
+		return nil, fmt.Errorf("player %s cannot use role abilities", action.PlayerID)
+	}
+
+	// Extract ability details
+	abilityType, ok := action.Payload["ability_type"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing ability_type in ability action")
+	}
+
+	// Generate ability used event
+	events := []Event{
+		{
+			ID:        fmt.Sprintf("ability_%s_%s_%d", action.PlayerID, abilityType, currentTime.UnixNano()),
+			Type:      EventRoleAbilityUnlocked,
+			PlayerID:  action.PlayerID,
+			GameID:    gameState.ID,
+			Timestamp: currentTime,
+			Payload:   action.Payload,
+		},
+	}
+
+	return events, nil
+}
+
+// processRoleAction handles role-specific actions
+func processRoleAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+
+	// Validate player has appropriate role
+	if player.Role == nil || !player.Role.IsUnlocked {
+		return nil, fmt.Errorf("player %s does not have an unlocked role", action.PlayerID)
+	}
+
+	// Map action types to role types and generate appropriate events
+	var eventType EventType
+	switch action.Type {
+	case ActionRunAudit:
+		if player.Role.Type != RoleCTO {
+			return nil, fmt.Errorf("only CTO can run audits")
+		}
+		eventType = EventRunAudit
+	case ActionOverclockServers:
+		if player.Role.Type != RoleCTO {
+			return nil, fmt.Errorf("only CTO can overclock servers")
+		}
+		eventType = EventOverclockServers
+	case ActionIsolateNode:
+		if player.Role.Type != RoleCTO {
+			return nil, fmt.Errorf("only CTO can isolate nodes")
+		}
+		eventType = EventIsolateNode
+	default:
+		return nil, fmt.Errorf("unsupported role action: %s", action.Type)
+	}
+
+	// Generate role action event
+	events := []Event{
+		{
+			ID:        fmt.Sprintf("role_%s_%s_%d", action.PlayerID, action.Type, currentTime.UnixNano()),
+			Type:      eventType,
+			PlayerID:  action.PlayerID,
+			GameID:    gameState.ID,
+			Timestamp: currentTime,
+			Payload:   action.Payload,
+		},
+	}
+
+	return events, nil
 }

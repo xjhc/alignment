@@ -10,7 +10,7 @@ import (
 
 // TestNightResolutionManager_CrisisEventIntegration tests how crisis events affect night resolution
 func TestNightResolutionManager_CrisisEventIntegration(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 	gameState.DayNumber = 1
 
 	// Add test players
@@ -77,7 +77,7 @@ func TestNightResolutionManager_CrisisEventIntegration(t *testing.T) {
 
 // TestNightResolutionManager_CorporateMandateIntegration tests corporate mandate effects
 func TestNightResolutionManager_CorporateMandateIntegration(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 	gameState.DayNumber = 1 // Odd night
 
 	// Add test players
@@ -145,7 +145,7 @@ func TestNightResolutionManager_CorporateMandateIntegration(t *testing.T) {
 
 // TestNightResolutionManager_ComplexInteractions tests multiple interactions in one night
 func TestNightResolutionManager_ComplexInteractions(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 	gameState.DayNumber = 1
 	gameState.Phase.Type = core.PhaseNight
 
@@ -250,7 +250,7 @@ func TestNightResolutionManager_ComplexInteractions(t *testing.T) {
 
 // TestNightResolutionManager_MiningWithCrisis tests mining with crisis event modifiers
 func TestNightResolutionManager_MiningWithCrisis(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 	gameState.DayNumber = 1
 
 	// Add test players (8 total for testing liquidity pool)
@@ -318,7 +318,7 @@ func TestNightResolutionManager_MiningWithCrisis(t *testing.T) {
 
 // TestNightResolutionManager_AIEquityBonus tests crisis AI equity bonus
 func TestNightResolutionManager_AIEquityBonus(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 	gameState.DayNumber = 1
 
 	// Add test players

@@ -521,13 +521,39 @@ func (glm *GameLifecycleManager) SendActionToGame(gameID string, action core.Act
 		return fmt.Errorf("game not found: %s", gameID)
 	}
 
-	// Send action to GameActor (this returns a channel, but we don't wait for the result)
+	// Post the action and get the response channel (non-blocking)
 	resultChan := gameActor.PostAction(action)
 	go func() {
 		// Handle the result asynchronously to prevent blocking
 		result := <-resultChan
 		if result.Error != nil {
 			log.Printf("GameLifecycleManager: Error processing action in game %s: %v", gameID, result.Error)
+			// In a real scenario, you might want to send an error back to the originating player.
+			// For now, we just log and stop.
+			return
+		}
+
+		// Get the players to broadcast to
+		glm.mutex.RLock()
+		playerActors, sessionExists := glm.gameSessions[gameID]
+		glm.mutex.RUnlock()
+
+		if !sessionExists {
+			log.Printf("GameLifecycleManager: Could not find session for game %s to broadcast events", gameID)
+			return
+		}
+
+		// Broadcast events to players in the game session
+		for _, event := range result.Events {
+			if event.PlayerID != "" { // Private event for a specific player
+				if actor, ok := playerActors[event.PlayerID]; ok {
+					actor.SendServerMessage(event)
+				}
+			} else { // Public event for all players in the game
+				for _, actor := range playerActors {
+					actor.SendServerMessage(event)
+				}
+			}
 		}
 	}()
 

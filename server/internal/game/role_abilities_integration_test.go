@@ -9,7 +9,7 @@ import (
 
 // TestRoleAbilityManager_CorporateMandateIntegration tests how corporate mandates affect role abilities
 func TestRoleAbilityManager_CorporateMandateIntegration(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create player with insufficient milestones normally
 	gameState.Players["player"] = &core.Player{
@@ -71,7 +71,7 @@ func TestRoleAbilityManager_CorporateMandateIntegration(t *testing.T) {
 
 // TestRoleAbilityManager_SystemShockRecovery tests system shock expiration
 func TestRoleAbilityManager_SystemShockRecovery(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create player with expired system shock
 	gameState.Players["player"] = &core.Player{
@@ -124,7 +124,7 @@ func TestRoleAbilityManager_SystemShockRecovery(t *testing.T) {
 
 // TestRoleAbilityManager_AlignedVsHumanAbilities tests how alignment affects role abilities
 func TestRoleAbilityManager_AlignedVsHumanAbilities(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create human CISO
 	gameState.Players["human_ciso"] = &core.Player{
@@ -207,7 +207,7 @@ func TestRoleAbilityManager_AlignedVsHumanAbilities(t *testing.T) {
 
 // TestRoleAbilityManager_CTOOverclockDifferentAlignments tests CTO overclock with different alignments
 func TestRoleAbilityManager_CTOOverclockDifferentAlignments(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create human CTO
 	gameState.Players["human_cto"] = &core.Player{
@@ -309,7 +309,7 @@ func TestRoleAbilityManager_CTOOverclockDifferentAlignments(t *testing.T) {
 
 // TestRoleAbilityManager_CFOBudgetReallocation tests CFO budget reallocation edge cases
 func TestRoleAbilityManager_CFOBudgetReallocation(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create CFO
 	gameState.Players["cfo"] = &core.Player{
@@ -391,7 +391,7 @@ func TestRoleAbilityManager_CFOBudgetReallocation(t *testing.T) {
 
 // TestRoleAbilityManager_AbilityAlreadyUsed tests one-time use restriction
 func TestRoleAbilityManager_AbilityAlreadyUsed(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create player with ability
 	gameState.Players["player"] = &core.Player{

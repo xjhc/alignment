@@ -21,14 +21,14 @@ func CanPlayerAffordAbility(player Player, ability Ability) bool {
 }
 
 // CanPlayerVote checks if a player is eligible to vote
-func CanPlayerVote(player Player, phase PhaseType) bool {
+func CanPlayerVote(player Player, phase PhaseType, currentTime time.Time) bool {
 	if !player.IsAlive {
 		return false
 	}
 	
 	// Check if player is silenced by system shock
 	for _, shock := range player.SystemShocks {
-		if shock.IsActive && shock.Type == ShockForcedSilence && time.Now().Before(shock.ExpiresAt) {
+		if shock.IsActive && shock.Type == ShockForcedSilence && currentTime.Before(shock.ExpiresAt) {
 			return false
 		}
 	}
@@ -38,14 +38,14 @@ func CanPlayerVote(player Player, phase PhaseType) bool {
 }
 
 // CanPlayerSendMessage checks if a player can send chat messages
-func CanPlayerSendMessage(player Player) bool {
+func CanPlayerSendMessage(player Player, currentTime time.Time) bool {
 	if !player.IsAlive {
 		return false
 	}
 	
 	// Check if player is silenced by system shock
 	for _, shock := range player.SystemShocks {
-		if shock.IsActive && shock.Type == ShockForcedSilence && time.Now().Before(shock.ExpiresAt) {
+		if shock.IsActive && shock.Type == ShockForcedSilence && currentTime.Before(shock.ExpiresAt) {
 			return false
 		}
 	}
@@ -54,14 +54,14 @@ func CanPlayerSendMessage(player Player) bool {
 }
 
 // CanPlayerUseNightAction checks if a player can submit night actions
-func CanPlayerUseNightAction(player Player, actionType NightActionType) bool {
+func CanPlayerUseNightAction(player Player, actionType NightActionType, currentTime time.Time) bool {
 	if !player.IsAlive {
 		return false
 	}
 	
 	// Check if player is blocked by system shock
 	for _, shock := range player.SystemShocks {
-		if shock.IsActive && shock.Type == ShockActionLock && time.Now().Before(shock.ExpiresAt) {
+		if shock.IsActive && shock.Type == ShockActionLock && currentTime.Before(shock.ExpiresAt) {
 			return false
 		}
 	}
@@ -332,10 +332,10 @@ func CalculateTokenReward(actionType EventType, player Player, gameState GameSta
 }
 
 // IsMessageCorrupted checks if a message should be corrupted by system shock
-// Uses deterministic pseudo-random based on player ID and current time
-func IsMessageCorrupted(player Player, messageContent string) bool {
+// Uses deterministic pseudo-random based on player ID and message content
+func IsMessageCorrupted(player Player, messageContent string, currentTime time.Time) bool {
 	for _, shock := range player.SystemShocks {
-		if shock.IsActive && shock.Type == ShockMessageCorruption && time.Now().Before(shock.ExpiresAt) {
+		if shock.IsActive && shock.Type == ShockMessageCorruption && currentTime.Before(shock.ExpiresAt) {
 			// 25% chance of corruption
 			// Use message content hash for deterministic corruption
 			hash := hashStringWithID(messageContent, player.ID)

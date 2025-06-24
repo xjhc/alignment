@@ -1,0 +1,39 @@
+{
+  "total_runs": 50,
+  "successful_runs": 50,
+  "failed_runs": 0,
+  "human_wins": 0,
+  "ai_wins": 0,
+  "human_win_rate": 0,
+  "ai_win_rate": 0,
+  "average_game_days": 1,
+  "average_duration": 0,
+  "wins_by_condition": {
+    "UNKNOWN": 50
+  },
+  "persona_stats": {
+    "aggressive_human": {
+      "total_games": 120,
+      "wins": 0,
+      "win_rate": 0,
+      "average_survival_rate": 1,
+      "average_tokens": 1,
+      "average_milestones": 0
+    },
+    "cautious_human": {
+      "total_games": 180,
+      "wins": 0,
+      "win_rate": 0,
+      "average_survival_rate": 1,
+      "average_tokens": 1,
+      "average_milestones": 0
+    }
+  },
+  "balance_metrics": {
+    "is_balanced": false,
+    "win_rate_deviation": 0.5,
+    "duration_consistency": 0,
+    "persona_balance": false,
+    "recommended_adjustment": ""
+  }
+}

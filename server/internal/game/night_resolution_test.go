@@ -8,7 +8,7 @@ import (
 )
 
 func TestNightResolutionManager_ResolveNightActions(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 	gameState.DayNumber = 1
 
 	// Add test players
@@ -99,7 +99,7 @@ func TestNightResolutionManager_ResolveNightActions(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveBlockActions(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	gameState.Players["alice"] = &core.Player{
@@ -149,7 +149,7 @@ func TestNightResolutionManager_ResolveBlockActions(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveMiningActions(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	gameState.Players["alice"] = &core.Player{
@@ -216,7 +216,7 @@ func TestNightResolutionManager_ResolveMiningActions(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	gameState.Players["ai"] = &core.Player{
@@ -290,7 +290,7 @@ func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveProtectAction(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	gameState.Players["protector"] = &core.Player{
@@ -329,7 +329,7 @@ func TestNightResolutionManager_ResolveProtectAction(t *testing.T) {
 }
 
 func TestNightResolutionManager_ResolveInvestigateAction(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	gameState.Players["investigator"] = &core.Player{

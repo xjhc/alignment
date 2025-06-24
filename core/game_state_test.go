@@ -6,7 +6,7 @@ import (
 )
 
 func TestApplyEvent_PlayerJoined(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	now := time.Now()
 
 	event := Event{
@@ -51,7 +51,7 @@ func TestApplyEvent_PlayerJoined(t *testing.T) {
 }
 
 func TestApplyEvent_VoteCast(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	
 	// Add two players
 	gameState.Players["player-1"] = &Player{
@@ -104,7 +104,7 @@ func TestApplyEvent_VoteCast(t *testing.T) {
 }
 
 func TestApplyEvent_TokensAwarded(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{
 		ID:     "player-1",
 		Name:   "Alice",
@@ -132,7 +132,7 @@ func TestApplyEvent_TokensAwarded(t *testing.T) {
 }
 
 func TestApplyEvent_PlayerEliminated(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{
 		ID:        "player-1",
 		Name:      "Alice",
@@ -167,7 +167,7 @@ func TestApplyEvent_PlayerEliminated(t *testing.T) {
 }
 
 func TestApplyEvent_RoleAssigned(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{
 		ID:      "player-1",
 		Name:    "Alice",
@@ -215,7 +215,7 @@ func TestApplyEvent_RoleAssigned(t *testing.T) {
 }
 
 func TestApplyEvent_NightActionSubmitted(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{
 		ID:      "player-1",
 		Name:    "Alice",
@@ -265,7 +265,7 @@ func TestApplyEvent_NightActionSubmitted(t *testing.T) {
 }
 
 func TestApplyEvent_AIConversionSuccess(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{
 		ID:        "player-1",
 		Name:      "Alice",
@@ -298,7 +298,7 @@ func TestApplyEvent_AIConversionSuccess(t *testing.T) {
 }
 
 func TestApplyEvent_SystemShockApplied(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{
 		ID:      "player-1",
 		Name:    "Alice",
@@ -338,7 +338,7 @@ func TestApplyEvent_SystemShockApplied(t *testing.T) {
 }
 
 func TestApplyEvent_NightActionsResolved(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{
 		ID:     "player-1",
 		Name:   "Alice",
@@ -413,7 +413,7 @@ func TestApplyEvent_NightActionsResolved(t *testing.T) {
 }
 
 func TestApplyEvent_PhaseTransition(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 	gameState.DayNumber = 1
 
 	event := Event{
@@ -443,7 +443,7 @@ func TestApplyEvent_PhaseTransition(t *testing.T) {
 }
 
 func TestApplyEvent_VictoryCondition(t *testing.T) {
-	gameState := NewGameState("test-game")
+	gameState := NewGameState("test-game", time.Now())
 
 	event := Event{
 		ID:        "event-1",
@@ -510,7 +510,7 @@ func TestApplyEvent_RoleAbilities(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			gameState := NewGameState("test-game")
+			gameState := NewGameState("test-game", time.Now())
 			gameState.Players["player-1"] = &Player{
 				ID:      "player-1",
 				Name:    "Alice",

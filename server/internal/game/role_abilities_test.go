@@ -8,7 +8,7 @@ import (
 )
 
 func TestRoleAbilityManager_UseRunAudit(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create VP Ethics with unlocked ability
 	gameState.Players["auditor"] = &core.Player{
@@ -75,7 +75,7 @@ func TestRoleAbilityManager_UseRunAudit(t *testing.T) {
 }
 
 func TestRoleAbilityManager_UseOverclockServers(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create CTO with unlocked ability
 	gameState.Players["cto"] = &core.Player{
@@ -134,7 +134,7 @@ func TestRoleAbilityManager_UseOverclockServers(t *testing.T) {
 }
 
 func TestRoleAbilityManager_UseIsolateNode(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create CISO with unlocked ability
 	gameState.Players["ciso"] = &core.Player{
@@ -182,7 +182,7 @@ func TestRoleAbilityManager_UseIsolateNode(t *testing.T) {
 }
 
 func TestRoleAbilityManager_UseIsolateNode_AlignedCISO(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create ALIGNED CISO with unlocked ability
 	gameState.Players["ciso"] = &core.Player{
@@ -234,7 +234,7 @@ func TestRoleAbilityManager_UseIsolateNode_AlignedCISO(t *testing.T) {
 }
 
 func TestRoleAbilityManager_UseReallocateBudget(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Create CFO with unlocked ability
 	gameState.Players["cfo"] = &core.Player{
@@ -294,7 +294,7 @@ func TestRoleAbilityManager_UseReallocateBudget(t *testing.T) {
 }
 
 func TestRoleAbilityManager_CanUseAbility(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Player with unlocked ability
 	gameState.Players["ready"] = &core.Player{
@@ -365,7 +365,7 @@ func TestRoleAbilityManager_CanUseAbility(t *testing.T) {
 }
 
 func TestRoleAbilityManager_SystemShockPrevention(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Player with action lock shock
 	gameState.Players["shocked"] = &core.Player{

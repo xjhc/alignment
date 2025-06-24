@@ -70,7 +70,7 @@ func TestCanPlayerVote(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := CanPlayerVote(tc.player, tc.phase)
+			result := CanPlayerVote(tc.player, tc.phase, time.Now())
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
@@ -116,7 +116,7 @@ func TestCanPlayerSendMessage(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := CanPlayerSendMessage(tc.player)
+			result := CanPlayerSendMessage(tc.player, time.Now())
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
@@ -202,7 +202,7 @@ func TestCanPlayerUseNightAction(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := CanPlayerUseNightAction(tc.player, tc.actionType)
+			result := CanPlayerUseNightAction(tc.player, tc.actionType, time.Now())
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
@@ -777,7 +777,7 @@ func TestIsMessageCorrupted(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := IsMessageCorrupted(tc.player, tc.messageContent)
+			result := IsMessageCorrupted(tc.player, tc.messageContent, time.Now())
 			// For active shocks, result is deterministic based on hash
 			// For expired/no shocks, should always be false
 			if len(tc.player.SystemShocks) == 0 || time.Now().After(tc.player.SystemShocks[0].ExpiresAt) {

@@ -56,7 +56,7 @@ func createGame(this js.Value, args []js.Value) interface{} {
 	}
 	
 	gameID := args[0].String()
-	gameState = core.NewGameState(gameID)
+	gameState = core.NewGameState(gameID, time.Now())
 	
 	return js.ValueOf(map[string]interface{}{
 		"success": true,
@@ -173,7 +173,7 @@ func canPlayerVote(this js.Value, args []js.Value) interface{} {
 		return js.ValueOf(false)
 	}
 	
-	return js.ValueOf(core.CanPlayerVote(*player, phaseType))
+	return js.ValueOf(core.CanPlayerVote(*player, phaseType, time.Now()))
 }
 
 // canPlayerAffordAbility checks if a player can afford their ability

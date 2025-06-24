@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/ai"
@@ -22,7 +23,7 @@ type GameManager struct {
 
 // NewGameManager creates a fully integrated game manager
 func NewGameManager(gameID string) *GameManager {
-	gameState := core.NewGameState(gameID)
+	gameState := core.NewGameState(gameID, time.Now())
 
 	return &GameManager{
 		GameState:          gameState,

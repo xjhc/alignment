@@ -2,6 +2,7 @@ import React from 'react';
 import { GameState, Player } from '../../types';
 import { VoteUI } from './VoteUI';
 import { NightActionSelection } from './NightActionSelection';
+import { PulseCheckInput } from './PulseCheckInput';
 
 interface ContextualInputAreaProps {
   gameState: GameState;
@@ -47,6 +48,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = ({
   setSelectedVote,
   handleNominate,
   handleVote,
+  handlePulseCheck,
   conversionTarget,
   setConversionTarget,
   miningTarget,
@@ -87,6 +89,14 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = ({
           handleUseAbility={handleUseAbility}
           canPlayerAffordAbility={canPlayerAffordAbility}
           isValidNightActionTarget={isValidNightActionTarget}
+        />
+      );
+
+    case 'PULSE_CHECK':
+      return (
+        <PulseCheckInput
+          handlePulseCheck={handlePulseCheck}
+          localPlayerName={localPlayer.name}
         />
       );
 

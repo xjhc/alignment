@@ -42,6 +42,9 @@ type actorRequest struct {
 	responseChan chan interfaces.ProcessActionResult
 }
 
+// EventCallback is called when events are generated (especially from timers)
+type EventCallback func(gameID string, events []core.Event)
+
 // GameActor represents a pure game simulation engine
 type GameActor struct {
 	gameID  string
@@ -61,11 +64,14 @@ type GameActor struct {
 	scheduler          *game.Scheduler
 	aiManager          *ai.AIManager
 	rng                *rand.Rand
+	
+	// Callback for event notifications (especially for timer-generated events)
+	eventCallback EventCallback
 }
 
 // NewGameActor creates a new game actor with empty state - call Initialize() after creation
 func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string, players map[string]*core.Player) *GameActor {
-	state := core.NewGameState(gameID)
+	state := core.NewGameState(gameID, time.Now())
 	// Pre-populate with players from the lobby. This is safe as it happens before the actor starts.
 	state.Players = players
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -119,6 +125,11 @@ func (ga *GameActor) Stop() {
 	ga.scheduler.Stop()
 
 	ga.cancel()
+}
+
+// SetEventCallback sets the callback function for event notifications
+func (ga *GameActor) SetEventCallback(callback EventCallback) {
+	ga.eventCallback = callback
 }
 
 // GetGameID returns the game's ID
@@ -181,8 +192,7 @@ func (ga *GameActor) HandleTimer(timer game.Timer) {
 		Payload:   timer.Action.Payload,
 	}
 
-	// For internal timer actions, we don't need a response channel
-	// Create a dummy channel that we'll discard
+	// Create response channel to handle timer-generated events
 	responseChan := make(chan interfaces.ProcessActionResult, 1)
 	request := actorRequest{
 		action:       action,
@@ -192,6 +202,23 @@ func (ga *GameActor) HandleTimer(timer game.Timer) {
 	// Send to mailbox directly (internal timer actions)
 	select {
 	case ga.mailbox <- request:
+		// Wait for the result asynchronously to avoid blocking the timer
+		go func() {
+			select {
+			case result := <-responseChan:
+				if result.Error != nil {
+					log.Printf("[GameActor/%s] Error processing timer action: %v", ga.gameID, result.Error)
+					return
+				}
+				
+				// Use the event callback to notify about timer-generated events
+				if ga.eventCallback != nil {
+					ga.eventCallback(ga.gameID, result.Events)
+				}
+			case <-ga.ctx.Done():
+				log.Printf("[GameActor/%s] Context canceled while waiting for timer result", ga.gameID)
+			}
+		}()
 	case <-ga.ctx.Done():
 		log.Printf("[GameActor/%s] Context canceled, dropping timer action", ga.gameID)
 	}

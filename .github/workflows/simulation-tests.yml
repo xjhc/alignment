@@ -1,0 +1,138 @@
+name: Game Balance Simulation Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'core/**'
+      - 'simulator/**'
+      - 'cmd/simulator/**'
+      - '.github/workflows/simulation-tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'core/**'
+      - 'simulator/**'
+      - 'cmd/simulator/**'
+      - '.github/workflows/simulation-tests.yml'
+
+jobs:
+  simulation-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-simulation-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-simulation-
+
+    - name: Build simulation runner
+      run: make build-simulator
+
+    - name: Run balance simulation tests
+      run: make test-simulation
+
+    - name: Upload simulation results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: simulation-results
+        path: simulation-results.json
+        retention-days: 30
+
+    - name: Comment on PR with simulation results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          // Check if simulation results file exists
+          if (!fs.existsSync('simulation-results.json')) {
+            console.log('No simulation results file found');
+            return;
+          }
+          
+          const results = JSON.parse(fs.readFileSync('simulation-results.json', 'utf8'));
+          
+          const comment = `
+          ## 🎮 Game Balance Simulation Results
+          
+          **Runs Completed:** ${results.successful_runs}/${results.total_runs}
+          **Human Win Rate:** ${(results.human_win_rate * 100).toFixed(1)}%
+          **AI Win Rate:** ${(results.ai_win_rate * 100).toFixed(1)}%
+          **Average Game Length:** ${results.average_game_days.toFixed(1)} days
+          
+          **Balance Status:** ${results.balance_metrics.is_balanced ? '✅ Balanced' : '⚠️ Issues Detected'}
+          ${results.balance_metrics.recommended_adjustment ? `\n**Recommendation:** ${results.balance_metrics.recommended_adjustment}` : ''}
+          
+          ### Win Conditions
+          ${Object.entries(results.wins_by_condition).map(([condition, count]) => 
+            `- **${condition}:** ${count} (${((count / results.successful_runs) * 100).toFixed(1)}%)`
+          ).join('\n')}
+          
+          ### Persona Performance
+          ${Object.entries(results.persona_stats).map(([persona, stats]) => 
+            `- **${persona}:** Win Rate ${(stats.win_rate * 100).toFixed(1)}%, Survival ${(stats.average_survival * 100).toFixed(1)}%`
+          ).join('\n')}
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  extended-simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Build simulation runner
+      run: make build-simulator
+
+    - name: Run extended simulation (1000 games)
+      run: |
+        ./cmd/simulator/simulator -runs=1000 -output=extended-simulation-results.json
+        
+    - name: Upload extended simulation results
+      uses: actions/upload-artifact@v3
+      with:
+        name: extended-simulation-results
+        path: extended-simulation-results.json
+        retention-days: 90
+
+    - name: Check for balance regressions
+      run: |
+        # Compare with previous results if they exist
+        if [ -f "previous-simulation-results.json" ]; then
+          echo "Comparing with previous results..."
+          # This could be enhanced with a proper comparison script
+          ./cmd/simulator/simulator -runs=1000 -ci
+        else
+          echo "No previous results to compare against"
+        fi

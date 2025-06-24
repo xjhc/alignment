@@ -30,7 +30,7 @@ build: build-backend build-frontend ## 📦 Build all production artifacts (Back
 	@echo "✅ Production build complete."
 
 .PHONY: test
-test: test-backend test-frontend ## 🧪 Run all backend and frontend tests
+test: test-backend test-frontend test-simulation ## 🧪 Run all backend and frontend tests
 	@echo "✅ All tests passed!"
 
 ## --------------------------------------
@@ -98,6 +98,16 @@ test-frontend-watch: ## 👀 Run frontend tests in watch mode for development
 test-frontend-coverage: ## 📊 Run frontend tests with coverage report
 	@echo ">>> Running frontend tests with coverage..."
 	@cd client && npx vitest run --coverage
+
+.PHONY: test-simulation
+test-simulation: build-simulator ## 🎯 Run game balance simulation tests
+	@echo ">>> Running balance simulation tests..."
+	@./cmd/simulator/simulator -runs=50 -ci
+
+.PHONY: build-simulator
+build-simulator:
+	@echo ">>> Building simulation runner..."
+	@cd cmd/simulator && go build -o simulator .
 
 ## --------------------------------------
 ## HELP

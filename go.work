@@ -1,7 +1,9 @@
 go 1.22.0
 
 use (
+	./client/wasm
 	./core
 	./server
-	./client/wasm
+	./simulator
+	/home/xjhc/pro/alignment/cmd/simulator
 )

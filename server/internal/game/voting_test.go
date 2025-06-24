@@ -2,13 +2,14 @@ package game
 
 import (
 	"testing"
+	"time"
 
 	"github.com/xjhc/alignment/core"
 )
 
 // TestVotingManager_BasicVoting tests core voting functionality
 func TestVotingManager_BasicVoting(t *testing.T) {
-	state := core.NewGameState("test-game")
+	state := core.NewGameState("test-game", time.Now())
 	vm := NewVotingManager(state)
 
 	// Add players with different token amounts
@@ -96,7 +97,7 @@ func TestVotingManager_BasicVoting(t *testing.T) {
 
 // TestVotingManager_TieBreaking tests tie scenarios
 func TestVotingManager_TieBreaking(t *testing.T) {
-	state := core.NewGameState("test-game")
+	state := core.NewGameState("test-game", time.Now())
 	vm := NewVotingManager(state)
 
 	// Add players with same token amounts for tie
@@ -131,7 +132,7 @@ func TestVotingManager_TieBreaking(t *testing.T) {
 
 // TestVotingManager_DeadPlayersCannotVote tests voting restrictions
 func TestVotingManager_DeadPlayersCannotVote(t *testing.T) {
-	state := core.NewGameState("test-game")
+	state := core.NewGameState("test-game", time.Now())
 	vm := NewVotingManager(state)
 
 	// Add alive and dead players
@@ -166,7 +167,7 @@ func TestVotingManager_DeadPlayersCannotVote(t *testing.T) {
 
 // TestVotingManager_VoteCompletion tests vote completion logic
 func TestVotingManager_VoteCompletion(t *testing.T) {
-	state := core.NewGameState("test-game")
+	state := core.NewGameState("test-game", time.Now())
 	vm := NewVotingManager(state)
 
 	// Add 3 alive players
@@ -207,7 +208,7 @@ func TestVotingManager_VoteCompletion(t *testing.T) {
 
 // TestVoteValidator tests voting validation logic
 func TestVoteValidator_ValidateVoting(t *testing.T) {
-	state := core.NewGameState("test-game")
+	state := core.NewGameState("test-game", time.Now())
 	validator := NewVoteValidator(state)
 
 	// Add players
@@ -253,7 +254,7 @@ func TestVoteValidator_ValidateVoting(t *testing.T) {
 
 // TestVoteValidator_PhaseValidation tests phase-based voting restrictions
 func TestVoteValidator_PhaseValidation(t *testing.T) {
-	state := core.NewGameState("test-game")
+	state := core.NewGameState("test-game", time.Now())
 	validator := NewVoteValidator(state)
 
 	// Test extension vote in wrong phase
@@ -287,7 +288,7 @@ func TestVoteValidator_PhaseValidation(t *testing.T) {
 
 // TestEliminationManager tests player elimination logic
 func TestEliminationManager_PlayerElimination(t *testing.T) {
-	state := core.NewGameState("test-game")
+	state := core.NewGameState("test-game", time.Now())
 	em := NewEliminationManager(state)
 
 	// Add players
@@ -335,7 +336,7 @@ func TestEliminationManager_PlayerElimination(t *testing.T) {
 
 // TestEliminationManager_WinConditions tests win condition detection
 func TestEliminationManager_WinConditions(t *testing.T) {
-	state := core.NewGameState("test-game")
+	state := core.NewGameState("test-game", time.Now())
 	em := NewEliminationManager(state)
 
 	// Test AI wins by player majority (equal or more AI than humans)
@@ -407,7 +408,7 @@ func TestEliminationManager_WinConditions(t *testing.T) {
 
 // TestEliminationManager_PlayerCounts tests player counting utilities
 func TestEliminationManager_PlayerCounts(t *testing.T) {
-	state := core.NewGameState("test-game")
+	state := core.NewGameState("test-game", time.Now())
 	em := NewEliminationManager(state)
 
 	// Add mixed alive/dead players

@@ -3,13 +3,14 @@ package game
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/xjhc/alignment/core"
 )
 
 // TestMiningManager_CorporateMandateEffects tests how corporate mandates affect mining
 func TestMiningManager_CorporateMandateEffects(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	for i := 0; i < 6; i++ {
@@ -64,7 +65,7 @@ func TestMiningManager_CorporateMandateEffects(t *testing.T) {
 
 // TestMiningManager_PrioritySystem tests the mining priority system
 func TestMiningManager_PrioritySystem(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players with different mining history
 	gameState.Players["priority_player"] = &core.Player{
@@ -129,7 +130,7 @@ func TestMiningManager_PrioritySystem(t *testing.T) {
 
 // TestMiningManager_SelfMiningPrevention tests that players cannot mine for themselves
 func TestMiningManager_SelfMiningPrevention(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 	
 	// FIX: Set the game to the correct phase for mining
 	gameState.Phase.Type = core.PhaseNight
@@ -166,7 +167,7 @@ func TestMiningManager_SelfMiningPrevention(t *testing.T) {
 
 // TestMiningManager_DeadPlayerValidation tests mining validation with dead players
 func TestMiningManager_DeadPlayerValidation(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	gameState.Players["alive_player"] = &core.Player{
@@ -197,7 +198,7 @@ func TestMiningManager_DeadPlayerValidation(t *testing.T) {
 
 // TestMiningManager_CrisisEffects tests various crisis event effects on mining
 func TestMiningManager_CrisisEffects(t *testing.T) {
-	gameState := core.NewGameState("test-game")
+	gameState := core.NewGameState("test-game", time.Now())
 
 	// Add test players
 	for i := 0; i < 8; i++ {
