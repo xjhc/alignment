@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LoginScreen } from '../LoginScreen'
+import styles from '../LoginScreen.module.css'
 
 describe('LoginScreen', () => {
   it('renders login form with correct elements', () => {
@@ -28,7 +29,7 @@ describe('LoginScreen', () => {
     render(<LoginScreen onLogin={mockOnLogin} />)
 
     const firstAvatar = screen.getByRole('button', { name: '👤' })
-    expect(firstAvatar).toHaveClass('selected')
+    expect(firstAvatar).toHaveClass(styles.selected)
   })
 
   it('allows avatar selection', async () => {
@@ -39,8 +40,8 @@ describe('LoginScreen', () => {
     const robotAvatar = screen.getByRole('button', { name: '🤖' })
     await user.click(robotAvatar)
 
-    expect(robotAvatar).toHaveClass('selected')
-    expect(screen.getByRole('button', { name: '👤' })).not.toHaveClass('selected')
+    expect(robotAvatar).toHaveClass(styles.selected)
+    expect(screen.getByRole('button', { name: '👤' })).not.toHaveClass(styles.selected)
   })
 
   it('disables submit button when name is empty', () => {

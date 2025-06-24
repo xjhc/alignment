@@ -231,7 +231,10 @@ export function GameScreen({ gameState, playerId, isChatHistoryLoading = false }
   if (!localPlayer) {
     return (
       <div className={styles.gameScreen}>
-        <div className={styles.loading}>Loading game state...</div>
+        <div className={styles.loading}>
+          <span>Loading game state...</span>
+          <div className="loading-spinner large" style={{ marginLeft: '12px' }}></div>
+        </div>
       </div>
     );
   }

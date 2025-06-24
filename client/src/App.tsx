@@ -6,6 +6,8 @@ import { LobbyListScreen } from './components/LobbyListScreen';
 import { WaitingScreen } from './components/WaitingScreen';
 import { RoleRevealScreen } from './components/RoleRevealScreen';
 import { GameScreen } from './components/GameScreen';
+import { GameOverScreen } from './components/GameOverScreen';
+import { PostGameAnalysis } from './components/PostGameAnalysis';
 import { WasmTestScreen } from './components/WasmTestScreen';
 import { AppState, GameState, Role, PersonalKPI } from './types';
 import { convertToClientTypes } from './utils/coreTypes';
@@ -103,7 +105,13 @@ function App() {
       };
       setRoleAssignment(newAssignment);
     }
-  }, [coreGameState, appState.playerId, lobbyState.playerInfos]);
+    
+    // Check for game over condition
+    if (clientState.winCondition && appState.currentScreen !== 'game-over' && appState.currentScreen !== 'analysis') {
+      console.log(`[App] Game over condition met. Winner: ${clientState.winCondition.winner}. Transitioning.`);
+      setAppState(prev => ({...prev, currentScreen: 'game-over'}));
+    }
+  }, [coreGameState, appState.playerId, lobbyState.playerInfos, appState.currentScreen]);
 
   // Wait for BOTH phase change AND role assignment before transitioning
   useEffect(() => {
@@ -321,13 +329,36 @@ function App() {
     });
   };
 
+  const handlePlayAgain = () => {
+    // End the current session
+    setIsInGameSession(false);
+    disconnect();
+    
+    // Reset state and go back to the lobby list
+    setAppState(prev => ({
+      ...prev,
+      currentScreen: 'lobby-list',
+      gameId: undefined,
+      sessionToken: undefined,
+    }));
+    setRoleAssignment(null);
+  };
+
+  const handleViewAnalysis = () => {
+    setAppState(prev => ({ ...prev, currentScreen: 'analysis' }));
+  };
+
+  const handleBackToResults = () => {
+    setAppState(prev => ({ ...prev, currentScreen: 'game-over' }));
+  };
+
   // Show loading screen while game engine is loading
   if (gameEngineLoading) {
     return (
-      <div className="launch-screen">
+      <div className="launch-screen screen-transition animate-fade-in">
         <div className="launch-form">
           <h2>Loading game engine...</h2>
-          <div className="loading-spinner">⏳</div>
+          <div className="loading-spinner large"></div>
         </div>
       </div>
     );
@@ -357,52 +388,92 @@ function App() {
   }
 
   // Render the appropriate screen based on current state
+  const screenClass = "screen-transition animate-fade-in";
+  
   switch (appState.currentScreen) {
     case 'login':
-      return <LoginScreen onLogin={handleLogin} />;
+      return (
+        <div className={screenClass}>
+          <LoginScreen onLogin={handleLogin} />
+        </div>
+      );
 
     case 'lobby-list':
       return (
-        <LobbyListScreen
-          playerName={appState.playerName}
-          playerAvatar={appState.playerAvatar}
-          onJoinLobby={handleJoinLobby}
-          onCreateGame={handleCreateGame}
-          onBack={handleBackToLogin}
-        />
+        <div className={screenClass}>
+          <LobbyListScreen
+            playerName={appState.playerName}
+            playerAvatar={appState.playerAvatar}
+            onJoinLobby={handleJoinLobby}
+            onCreateGame={handleCreateGame}
+            onBack={handleBackToLogin}
+          />
+        </div>
       );
 
     case 'waiting':
       return (
-        <WaitingScreen
-          gameId={appState.gameId || 'unknown'}
-          playerId={appState.playerId}
-          lobbyState={lobbyState}
-          isConnected={isConnected}
-          onStartGame={handleStartGameAction}
-          onLeaveLobby={handleLeaveLobby}
-        />
+        <div className={screenClass}>
+          <WaitingScreen
+            gameId={appState.gameId || 'unknown'}
+            playerId={appState.playerId}
+            lobbyState={lobbyState}
+            isConnected={isConnected}
+            onStartGame={handleStartGameAction}
+            onLeaveLobby={handleLeaveLobby}
+          />
+        </div>
       );
 
     case 'role-reveal':
       return (
-        <RoleRevealScreen
-          assignment={roleAssignment}
-          onEnterGame={handleEnterGame}
-        />
+        <div className={screenClass}>
+          <RoleRevealScreen
+            assignment={roleAssignment}
+            onEnterGame={handleEnterGame}
+          />
+        </div>
       );
 
     case 'game':
       return (
-        <GameScreen
-          gameState={gameState}
-          playerId={appState.playerId || 'unknown'}
-          isChatHistoryLoading={false} // Chat history is not yet implemented
-        />
+        <div className={screenClass}>
+          <GameScreen
+            gameState={gameState}
+            playerId={appState.playerId || 'unknown'}
+            isChatHistoryLoading={false} // Chat history is not yet implemented
+          />
+        </div>
+      );
+
+    case 'game-over':
+      return (
+        <div className={screenClass}>
+          <GameOverScreen 
+            gameState={gameState} 
+            onViewAnalysis={handleViewAnalysis}
+            onPlayAgain={handlePlayAgain}
+          />
+        </div>
+      );
+
+    case 'analysis':
+      return (
+        <div className={screenClass}>
+          <PostGameAnalysis 
+            gameState={gameState} 
+            onBackToResults={handleBackToResults}
+            onPlayAgain={handlePlayAgain}
+          />
+        </div>
       );
 
     default:
-      return <LoginScreen onLogin={handleLogin} />;
+      return (
+        <div className={screenClass}>
+          <LoginScreen onLogin={handleLogin} />
+        </div>
+      );
   }
 }
 

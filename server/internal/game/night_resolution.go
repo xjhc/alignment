@@ -538,51 +538,109 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents []core.Event) core.Event {
 	// Analyze the resolved events to create a detailed summary
 	eventCounts := make(map[string]int)
-	blockedPlayers := []string{}
-	convertedPlayers := []string{}
-	eliminatedPlayers := []string{}
-	miningResults := make(map[string]interface{})
+	blockedPlayers := []map[string]interface{}{}
+	convertedPlayers := []map[string]interface{}{}
+	shockedPlayers := []map[string]interface{}{}
+	eliminatedPlayers := []map[string]interface{}{}
+	miningResults := []map[string]interface{}{}
+	roleAbilityResults := []map[string]interface{}{}
 	
 	for _, event := range resolvedEvents {
 		// Count event types
 		eventType := string(event.Type)
 		eventCounts[eventType]++
 		
-		// Extract specific information based on event type
+		// Extract specific information based on event type with player names for UI
 		switch event.Type {
 		case core.EventPlayerBlocked:
 			if targetID, ok := event.Payload["target_id"].(string); ok {
-				blockedPlayers = append(blockedPlayers, targetID)
+				if target := nrm.gameState.Players[targetID]; target != nil {
+					blockedPlayers = append(blockedPlayers, map[string]interface{}{
+						"player_id":   targetID,
+						"player_name": target.Name,
+						"blocked_by":  event.Payload["blocker_id"],
+					})
+				}
 			}
 		case core.EventAIConversionSuccess:
 			if targetID, ok := event.Payload["target_id"].(string); ok {
-				convertedPlayers = append(convertedPlayers, targetID)
+				if target := nrm.gameState.Players[targetID]; target != nil {
+					convertedPlayers = append(convertedPlayers, map[string]interface{}{
+						"player_id":        targetID,
+						"player_name":      target.Name,
+						"ai_equity_gained": event.Payload["ai_equity_gained"],
+						"new_ai_equity":    event.Payload["new_ai_equity"],
+					})
+				}
+			}
+		case core.EventPlayerShocked:
+			if targetID, ok := event.Payload["target_id"].(string); ok {
+				if target := nrm.gameState.Players[targetID]; target != nil {
+					shockedPlayers = append(shockedPlayers, map[string]interface{}{
+						"player_id":      targetID,
+						"player_name":    target.Name,
+						"shock_type":     event.Payload["shock_type"],
+						"shock_duration": event.Payload["shock_duration"],
+						"reason":         event.Payload["reason"],
+					})
+				}
 			}
 		case core.EventPlayerEliminated:
 			if playerID := event.PlayerID; playerID != "" {
-				eliminatedPlayers = append(eliminatedPlayers, playerID)
+				if player := nrm.gameState.Players[playerID]; player != nil {
+					eliminatedPlayers = append(eliminatedPlayers, map[string]interface{}{
+						"player_id":   playerID,
+						"player_name": player.Name,
+						"role_type":   event.Payload["role_type"],
+						"alignment":   event.Payload["alignment"],
+					})
+				}
 			}
 		case core.EventMiningSuccessful:
 			if minerID, ok := event.Payload["miner_id"].(string); ok {
 				if targetID, ok := event.Payload["target_id"].(string); ok {
-					miningResults[minerID] = targetID
+					miner := nrm.gameState.Players[minerID]
+					target := nrm.gameState.Players[targetID]
+					if miner != nil && target != nil {
+						miningResults = append(miningResults, map[string]interface{}{
+							"miner_id":     minerID,
+							"miner_name":   miner.Name,
+							"target_id":    targetID,
+							"target_name":  target.Name,
+							"tokens_mined": event.Payload["amount"],
+						})
+					}
 				}
+			}
+		case core.EventRunAudit, core.EventOverclockServers, core.EventIsolateNode, 
+			 core.EventPerformanceReview, core.EventReallocateBudget, core.EventPivot, core.EventDeployHotfix:
+			if player := nrm.gameState.Players[event.PlayerID]; player != nil {
+				roleAbilityResults = append(roleAbilityResults, map[string]interface{}{
+					"player_id":    event.PlayerID,
+					"player_name":  player.Name,
+					"ability_type": string(event.Type),
+					"target_id":    event.Payload["target_id"],
+					"message":      event.Payload["message"],
+				})
 			}
 		}
 	}
 
-	// Create comprehensive summary payload
+	// Create comprehensive summary payload with human-readable information
 	summary := map[string]interface{}{
-		"night_number":      nrm.gameState.DayNumber,
-		"total_actions":     len(nrm.gameState.NightActions),
-		"resolved_events":   len(resolvedEvents),
-		"event_counts":      eventCounts,
-		"blocked_players":   blockedPlayers,
-		"converted_players": convertedPlayers,
-		"eliminated_players": eliminatedPlayers,
-		"mining_results":    miningResults,
-		"phase_end":         true,
-		"next_phase":        "SITREP",
+		"night_number":         nrm.gameState.DayNumber,
+		"total_actions":        len(nrm.gameState.NightActions),
+		"resolved_events":      len(resolvedEvents),
+		"event_counts":         eventCounts,
+		"blocked_players":      blockedPlayers,
+		"converted_players":    convertedPlayers,
+		"shocked_players":      shockedPlayers,
+		"eliminated_players":   eliminatedPlayers,
+		"mining_results":       miningResults,
+		"role_ability_results": roleAbilityResults,
+		"phase_end":            true,
+		"next_phase":           "SITREP",
+		"summary_message":      nrm.createHumanReadableSummary(blockedPlayers, convertedPlayers, shockedPlayers, miningResults, roleAbilityResults),
 	}
 
 	return core.Event{
@@ -593,6 +651,54 @@ func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents [
 		Timestamp: getCurrentTime(),
 		Payload:   summary,
 	}
+}
+
+// createHumanReadableSummary generates a text summary for display in SITREP
+func (nrm *NightResolutionManager) createHumanReadableSummary(blocked, converted, shocked, mining, abilities []map[string]interface{}) string {
+	summary := fmt.Sprintf("Night %d Summary:\n", nrm.gameState.DayNumber)
+	
+	if len(blocked) > 0 {
+		summary += "• Players blocked from actions: "
+		for i, p := range blocked {
+			if i > 0 {
+				summary += ", "
+			}
+			summary += p["player_name"].(string)
+		}
+		summary += "\n"
+	}
+	
+	if len(converted) > 0 {
+		summary += "• Players converted by AI: "
+		for i, p := range converted {
+			if i > 0 {
+				summary += ", "
+			}
+			summary += p["player_name"].(string)
+		}
+		summary += "\n"
+	}
+	
+	if len(shocked) > 0 {
+		summary += "• Players experienced system shock: "
+		for i, p := range shocked {
+			if i > 0 {
+				summary += ", "
+			}
+			summary += p["player_name"].(string)
+		}
+		summary += "\n"
+	}
+	
+	if len(mining) > 0 {
+		summary += fmt.Sprintf("• %d successful mining operations completed\n", len(mining))
+	}
+	
+	if len(abilities) > 0 {
+		summary += fmt.Sprintf("• %d role abilities were used\n", len(abilities))
+	}
+	
+	return summary
 }
 
 // Helper methods

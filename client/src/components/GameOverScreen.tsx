@@ -26,21 +26,21 @@ export function GameOverScreen({ gameState, onViewAnalysis, onPlayAgain }: GameO
   const getVictoryBadge = () => {
     if (isHumanVictory) {
       return (
-        <div className={`${styles.victoryBadge} ${styles.humanVictory}`}>
-          <div className={styles.victoryIcon}>🛡️</div>
+        <div className={`${styles.victoryBadge} ${styles.humanVictory} animate-scale-in`}>
+          <div className={`${styles.victoryIcon} animate-bounce`} style={{ animationDelay: '0.3s' }}>🛡️</div>
           <div className={styles.victoryText}>
-            <h1 className={styles.victoryTitle}>CONTAINMENT ACHIEVED</h1>
-            <p className={styles.victorySubtitle}>Human Faction Victory</p>
+            <h1 className={`${styles.victoryTitle} animate-slide-in-up`} style={{ animationDelay: '0.5s' }}>CONTAINMENT ACHIEVED</h1>
+            <p className={`${styles.victorySubtitle} animate-slide-in-up`} style={{ animationDelay: '0.7s' }}>Human Faction Victory</p>
           </div>
         </div>
       );
     } else {
       return (
-        <div className={`${styles.victoryBadge} ${styles.aiVictory}`}>
-          <div className={`${styles.victoryIcon} ${styles.glitch}`}>🤖</div>
+        <div className={`${styles.victoryBadge} ${styles.aiVictory} animate-scale-in`}>
+          <div className={`${styles.victoryIcon} ${styles.glitch} animate-shake`} style={{ animationDelay: '0.3s' }}>🤖</div>
           <div className={styles.victoryText}>
-            <h1 className={`${styles.victoryTitle} ${styles.glitch}`}>THE SINGULARITY</h1>
-            <p className={styles.victorySubtitle}>AI Faction Victory</p>
+            <h1 className={`${styles.victoryTitle} ${styles.glitch} animate-slide-in-up`} style={{ animationDelay: '0.5s' }}>THE SINGULARITY</h1>
+            <p className={`${styles.victorySubtitle} animate-slide-in-up`} style={{ animationDelay: '0.7s' }}>AI Faction Victory</p>
           </div>
         </div>
       );
@@ -84,21 +84,34 @@ export function GameOverScreen({ gameState, onViewAnalysis, onPlayAgain }: GameO
           <h2 className={styles.sectionTitle}>📋 FINAL PERSONNEL STATUS</h2>
           
           <div className={styles.personnelGrid}>
-            {sortedPlayers.map((player) => (
-              <FinalPlayerCard 
+            {sortedPlayers.map((player, index) => (
+              <div 
                 key={player.id}
-                player={player}
-                gameState={gameState}
-              />
+                className="animate-stagger-reveal"
+                style={{ animationDelay: `${1000 + (index * 150)}ms` }}
+              >
+                <FinalPlayerCard 
+                  player={player}
+                  gameState={gameState}
+                />
+              </div>
             ))}
           </div>
         </div>
 
         <div className={styles.victoryActions}>
-          <button className={`${styles.btnPrimary} ${styles.analysisBtn}`} onClick={onViewAnalysis}>
+          <button 
+            className={`${styles.btnPrimary} ${styles.analysisBtn} animate-slide-in-up`} 
+            onClick={onViewAnalysis}
+            style={{ animationDelay: `${1000 + (sortedPlayers.length * 150) + 300}ms` }}
+          >
             📊 VIEW ANALYSIS
           </button>
-          <button className={`${styles.btnSecondary} ${styles.playAgainBtn}`} onClick={onPlayAgain}>
+          <button 
+            className={`${styles.btnSecondary} ${styles.playAgainBtn} animate-slide-in-up`} 
+            onClick={onPlayAgain}
+            style={{ animationDelay: `${1000 + (sortedPlayers.length * 150) + 500}ms` }}
+          >
             🔄 PLAY AGAIN
           </button>
         </div>

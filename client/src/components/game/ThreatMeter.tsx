@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import styles from './ThreatMeter.module.css';
 
 interface ThreatMeterProps {
@@ -7,10 +7,44 @@ interface ThreatMeterProps {
 }
 
 export const ThreatMeter: React.FC<ThreatMeterProps> = ({ tokens, aiEquity }) => {
+  const [animatedWidth, setAnimatedWidth] = useState(0);
+  const [previousWidth, setPreviousWidth] = useState(0);
+
   const getBarWidth = () => {
     if (tokens === 0) return 100; // If no tokens, AI would take over immediately
     return Math.min((aiEquity / tokens) * 100, 100);
   };
+
+  const currentWidth = getBarWidth();
+
+  useEffect(() => {
+    // Animate bar width changes
+    if (currentWidth !== previousWidth) {
+      const startTime = Date.now();
+      const startWidth = animatedWidth;
+      const targetWidth = currentWidth;
+      const duration = 500; // 500ms animation
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function for smooth animation
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const newWidth = startWidth + (targetWidth - startWidth) * easeOut;
+        
+        setAnimatedWidth(newWidth);
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          setPreviousWidth(currentWidth);
+        }
+      };
+      
+      requestAnimationFrame(animate);
+    }
+  }, [currentWidth, previousWidth, animatedWidth]);
 
   const getStatusIndicator = () => {
     const percentage = getBarWidth();
@@ -41,7 +75,10 @@ export const ThreatMeter: React.FC<ThreatMeterProps> = ({ tokens, aiEquity }) =>
           <div className={styles.threatBarBg}>
             <div 
               className={styles.threatBarFill} 
-              style={{ width: `${getBarWidth()}%` }}
+              style={{ 
+                width: `${animatedWidth}%`,
+                transition: 'width 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+              }}
             />
           </div>
         </div>

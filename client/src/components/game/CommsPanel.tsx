@@ -119,37 +119,44 @@ export const CommsPanel: React.FC<CommsPanelProps> = ({
             // Render specialized system messages
             if (msg.isSystem && msg.type === 'SITREP') {
               return (
-                <SitrepMessage 
-                  key={msg.id || index} 
-                  message={msg} 
-                  gameState={gameState} 
-                />
+                <div key={msg.id || index} className="animate-slide-in-up" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
+                  <SitrepMessage 
+                    message={msg} 
+                    gameState={gameState} 
+                  />
+                </div>
               );
             }
             
             if (msg.isSystem && msg.type === 'VOTE_RESULT') {
               return (
-                <VoteResultMessage 
-                  key={msg.id || index} 
-                  message={msg} 
-                  gameState={gameState} 
-                />
+                <div key={msg.id || index} className="animate-slide-in-up" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
+                  <VoteResultMessage 
+                    message={msg} 
+                    gameState={gameState} 
+                  />
+                </div>
               );
             }
             
             if (msg.isSystem && msg.type === 'PULSE_CHECK') {
               return (
-                <PulseCheckMessage 
-                  key={msg.id || index} 
-                  message={msg} 
-                  gameState={gameState} 
-                />
+                <div key={msg.id || index} className="animate-slide-in-up" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
+                  <PulseCheckMessage 
+                    message={msg} 
+                    gameState={gameState} 
+                  />
+                </div>
               );
             }
             
             // Default chat message rendering
             return (
-              <div key={msg.id || index} className={`${styles.chatMessageCompact} ${msg.isSystem ? styles.system : ''}`}>
+              <div 
+                key={msg.id || index} 
+                className={`${styles.chatMessageCompact} ${msg.isSystem ? styles.system : ''} animate-slide-in-left`}
+                style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
+              >
                 <div className={`${styles.messageAvatar} ${msg.isSystem ? styles.loebmate : ''}`}>
                   {msg.isSystem ? '🤖' : '👤'}
                 </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Player } from '../../types';
 import styles from './PlayerCard.module.css';
 
@@ -8,6 +8,22 @@ interface PlayerCardProps {
 }
 
 export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf }) => {
+  const [wasAlive, setWasAlive] = useState(player.isAlive);
+  const [showEliminationAnimation, setShowEliminationAnimation] = useState(false);
+
+  useEffect(() => {
+    // Trigger elimination animation when player becomes not alive
+    if (wasAlive && !player.isAlive) {
+      setShowEliminationAnimation(true);
+      // Reset animation after it completes
+      const timer = setTimeout(() => {
+        setShowEliminationAnimation(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+    setWasAlive(player.isAlive);
+  }, [player.isAlive, wasAlive]);
+
   const getPlayerAvatar = (p: Player) => {
     // If the player is not alive, always show the ghost.
     if (!p.isAlive) return '👻';
@@ -23,6 +39,9 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf }) => {
     if (player.alignment === 'AI' || player.alignment === 'ALIGNED') classes.push(styles.aligned);
     if (player.systemShocks?.some(shock => shock.isActive)) {
       classes.push(styles.hasShock);
+    }
+    if (showEliminationAnimation) {
+      classes.push('animate-elimination-fade');
     }
     return classes.join(' ');
   };

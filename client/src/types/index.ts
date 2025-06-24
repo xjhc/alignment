@@ -139,7 +139,7 @@ export interface LobbyInfo {
 
 // Application state
 export interface AppState {
-  currentScreen: 'login' | 'lobby-list' | 'waiting' | 'game' | 'role-reveal';
+  currentScreen: 'login' | 'lobby-list' | 'waiting' | 'game' | 'role-reveal' | 'game-over' | 'analysis';
   playerName: string;
   playerAvatar?: string;
   gameId?: string;

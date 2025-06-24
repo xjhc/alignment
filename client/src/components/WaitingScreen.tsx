@@ -80,6 +80,7 @@ export function WaitingScreen({
         <div className={styles.launchForm}>
           <h2>CONNECTING TO LOBBY...</h2>
           <p>Establishing secure connection...</p>
+          <div className="loading-spinner large" style={{ marginTop: '16px' }}></div>
         </div>
       </div>
     );
@@ -104,8 +105,12 @@ export function WaitingScreen({
             Personnel Connected - {playerInfos.length} / {maxPlayers}
           </div>
 
-          {playerInfos.map((playerInfo) => (
-            <div key={playerInfo.id} className={styles.playerCard}>
+          {playerInfos.map((playerInfo, index) => (
+            <div 
+              key={playerInfo.id} 
+              className={`${styles.playerCard} animate-slide-in-left`}
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
               <div className={styles.playerAvatar}>
                 {playerInfo.avatar || '👤'}
                 {playerInfo.id === hostId && (
@@ -132,7 +137,10 @@ export function WaitingScreen({
 
           {/* Show empty slots */}
           {Array.from({ length: Math.max(0, maxPlayers - playerInfos.length) }).map((_, index) => (
-            <div key={`empty-${index}`} className={`${styles.playerCard} ${styles.empty}`}>
+            <div 
+              key={`empty-${index}`} 
+              className={`${styles.playerCard} ${styles.empty} animate-pulse`}
+            >
               <div className={styles.playerAvatar}>⏳</div>
               <div className={styles.playerContent}>
                 <div className={styles.playerMainInfo}>

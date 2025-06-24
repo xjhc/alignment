@@ -197,11 +197,12 @@ const (
 	PhaseGameOver   PhaseType = "GAME_OVER"
 )
 
-// Player represents a human player
+// Player represents a human or AI player
 type Player struct {
 	ID                string    `json:"id"`
 	Name              string    `json:"name"`
 	JobTitle          string    `json:"jobTitle"`
+	ControlType       string    `json:"controlType"` // "HUMAN" or "AI"
 	IsAlive           bool      `json:"isAlive"`
 	Tokens            int       `json:"tokens"`
 	ProjectMilestones int       `json:"projectMilestones"`

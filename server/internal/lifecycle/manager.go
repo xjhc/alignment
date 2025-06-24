@@ -315,10 +315,22 @@ func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActor
 	players := make(map[string]*core.Player)
 	for playerID, actor := range playerActors {
 		players[playerID] = &core.Player{
-			ID:      playerID,
-			Name:    actor.GetPlayerName(),
-			IsAlive: true,
+			ID:          playerID,
+			Name:        actor.GetPlayerName(),
+			ControlType: "HUMAN",
+			IsAlive:     true,
 		}
+	}
+
+	// Add the AI player
+	aiPlayerID := "ai-nexus-" + uuid.New().String()[:8]
+	players[aiPlayerID] = &core.Player{
+		ID:          aiPlayerID,
+		Name:        "NEXUS",
+		JobTitle:    "AI Assistant",
+		ControlType: "AI",
+		IsAlive:     true,
+		Alignment:   "AI", // Start with AI alignment
 	}
 
 	gameID := lobbyID // The lobby ID becomes the game ID

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xjhc/alignment/core"
+	"github.com/xjhc/alignment/server/internal/ai"
 	"github.com/xjhc/alignment/server/internal/game"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 )
@@ -58,6 +59,7 @@ type GameActor struct {
 	eliminationManager *game.EliminationManager
 	phaseManager       *game.PhaseManager
 	scheduler          *game.Scheduler
+	aiManager          *ai.AIManager
 	rng                *rand.Rand
 }
 
@@ -87,6 +89,7 @@ func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string,
 		eliminationManager: game.NewEliminationManager(state),
 		phaseManager:       phaseManager,
 		scheduler:          scheduler,
+		aiManager:          ai.NewAIManager(state),
 	}
 
 	// Set the timer callback to route to this actor
@@ -245,6 +248,9 @@ func (ga *GameActor) processLoop() {
 					if nextPhase, ok := event.Payload["phase_type"].(string); ok {
 						log.Printf("[GameActor/%s] Phase changed to %s, scheduling next transition", ga.gameID, nextPhase)
 						ga.phaseManager.SchedulePhaseTransition(core.PhaseType(nextPhase), time.Now())
+						
+						// Process AI actions for the new phase
+						ga.processAIActionsForPhase(core.PhaseType(nextPhase))
 					}
 				}
 			}
@@ -672,6 +678,7 @@ func (ga *GameActor) processVoteCompletion() []core.Event {
 		// Mark vote as complete
 		ga.votingManager.CompleteVote()
 
+		// Create detailed vote completion payload for UI components
 		voteCompleteEvent := core.Event{
 			ID:        fmt.Sprintf("vote_completed_%s_%d", ga.state.VoteState.Type, time.Now().UnixNano()),
 			Type:      core.EventVoteCompleted,
@@ -681,12 +688,78 @@ func (ga *GameActor) processVoteCompletion() []core.Event {
 			Payload: map[string]interface{}{
 				"vote_type": string(ga.state.VoteState.Type),
 				"results":   ga.state.VoteState.Results,
+				"vote_breakdown": ga.createVoteBreakdown(),
+				"winner_info": ga.createWinnerInfo(),
+				"total_votes": len(ga.state.VoteState.Votes),
+				"total_token_weight": ga.calculateTotalTokenWeight(),
 			},
 		}
 		events = append(events, voteCompleteEvent)
 	}
 
 	return events
+}
+
+// createVoteBreakdown creates a detailed breakdown of who voted for whom
+func (ga *GameActor) createVoteBreakdown() []map[string]interface{} {
+	var breakdown []map[string]interface{}
+
+	for voterID, targetID := range ga.state.VoteState.Votes {
+		voter := ga.state.Players[voterID]
+		target := ga.state.Players[targetID]
+		
+		if voter != nil {
+			entry := map[string]interface{}{
+				"voter_id":     voterID,
+				"voter_name":   voter.Name,
+				"target_id":    targetID,
+				"token_weight": ga.state.VoteState.TokenWeights[voterID],
+			}
+			
+			if target != nil {
+				entry["target_name"] = target.Name
+			} else {
+				// Special votes like "GUILTY", "INNOCENT", "YES", "NO"
+				entry["target_name"] = targetID
+			}
+			
+			breakdown = append(breakdown, entry)
+		}
+	}
+
+	return breakdown
+}
+
+// createWinnerInfo creates information about the vote winner
+func (ga *GameActor) createWinnerInfo() map[string]interface{} {
+	winner, votes, hasTie := ga.votingManager.GetWinner()
+	
+	winnerInfo := map[string]interface{}{
+		"has_winner": !hasTie && winner != "",
+		"has_tie":    hasTie,
+		"winner_id":  winner,
+		"winner_votes": votes,
+	}
+	
+	if !hasTie && winner != "" {
+		if player := ga.state.Players[winner]; player != nil {
+			winnerInfo["winner_name"] = player.Name
+		} else {
+			// Special vote options
+			winnerInfo["winner_name"] = winner
+		}
+	}
+	
+	return winnerInfo
+}
+
+// calculateTotalTokenWeight returns the total token weight in the vote
+func (ga *GameActor) calculateTotalTokenWeight() int {
+	total := 0
+	for _, tokens := range ga.state.VoteState.TokenWeights {
+		total += tokens
+	}
+	return total
 }
 
 func (ga *GameActor) handlePostEventProcessing(event core.Event) []core.Event {
@@ -729,6 +802,43 @@ func (ga *GameActor) endGame(winCondition core.WinCondition) core.Event {
 
 	ga.phaseManager.CancelPhaseTransitions()
 	return endEvent
+}
+
+// processAIActionsForPhase triggers AI actions when phases change
+func (ga *GameActor) processAIActionsForPhase(phase core.PhaseType) {
+	aiActions := ga.aiManager.ProcessAIActions()
+	
+	for _, action := range aiActions {
+		// Process each AI action asynchronously to avoid blocking
+		go func(aiAction core.Action) {
+			log.Printf("[GameActor/%s] Processing AI action: %s for player %s", ga.gameID, aiAction.Type, aiAction.PlayerID)
+			
+			// Create a response channel for the AI action
+			responseChan := make(chan interfaces.ProcessActionResult, 1)
+			request := actorRequest{
+				action:       aiAction,
+				responseChan: responseChan,
+			}
+			
+			// Send AI action to the mailbox
+			select {
+			case ga.mailbox <- request:
+				// Wait for the action to be processed
+				select {
+				case result := <-responseChan:
+					if result.Error != nil {
+						log.Printf("[GameActor/%s] AI action failed: %v", ga.gameID, result.Error)
+					} else {
+						log.Printf("[GameActor/%s] AI action completed successfully", ga.gameID)
+					}
+				case <-time.After(5 * time.Second):
+					log.Printf("[GameActor/%s] AI action timed out", ga.gameID)
+				}
+			case <-ga.ctx.Done():
+				log.Printf("[GameActor/%s] Context canceled, dropping AI action", ga.gameID)
+			}
+		}(action)
+	}
 }
 
 func getPhaseDuration(phase core.PhaseType, settings core.GameSettings) time.Duration {

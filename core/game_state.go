@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -206,6 +207,20 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 	case EventAIEquityChanged:
 		newState.applyAIEquityChanged(event)
 
+	// Corporate mandate events
+	case EventMandateActivated:
+		newState.applyMandateActivated(event)
+	case EventMandateEffect:
+		newState.applyMandateEffect(event)
+
+	// System shock effect events
+	case EventShockEffectTriggered:
+		newState.applyShockEffectTriggered(event)
+
+	// Equity threshold events
+	case EventEquityThreshold:
+		newState.applyEquityThreshold(event)
+
 	default:
 		// Unknown event type - ignore
 	}
@@ -231,6 +246,7 @@ func (gs *GameState) applyPlayerJoined(event Event) {
 		ID:                playerID,
 		Name:              name,
 		JobTitle:          jobTitle,
+		ControlType:       "HUMAN", // Default control type
 		IsAlive:           true,
 		Tokens:            gs.Settings.StartingTokens,
 		ProjectMilestones: 0,
@@ -1050,5 +1066,68 @@ func (gs *GameState) applyAIEquityChanged(event Event) {
 		} else if newEquity != 0 {
 			player.AIEquity = int(newEquity)
 		}
+	}
+}
+
+// Corporate mandate event handlers
+func (gs *GameState) applyMandateActivated(event Event) {
+	mandateType, _ := event.Payload["mandate_type"].(string)
+	name, _ := event.Payload["name"].(string)
+	description, _ := event.Payload["description"].(string)
+	effects, _ := event.Payload["effects"].(map[string]interface{})
+
+	gs.CorporateMandate = &CorporateMandate{
+		Type:        MandateType(mandateType),
+		Name:        name,
+		Description: description,
+		Effects:     effects,
+		IsActive:    true,
+	}
+}
+
+func (gs *GameState) applyMandateEffect(event Event) {
+	if gs.CorporateMandate == nil {
+		return
+	}
+
+	// Apply ongoing effects of the mandate
+	effects, _ := event.Payload["effects"].(map[string]interface{})
+	if effects != nil {
+		for key, value := range effects {
+			gs.CorporateMandate.Effects[key] = value
+		}
+	}
+}
+
+// System shock effect event handlers
+func (gs *GameState) applyShockEffectTriggered(event Event) {
+	playerID := event.PlayerID
+	effectType, _ := event.Payload["effect_type"].(string)
+	description, _ := event.Payload["description"].(string)
+
+	if player, exists := gs.Players[playerID]; exists {
+		// Apply specific shock effects
+		switch effectType {
+		case "message_corruption":
+			player.StatusMessage = "Message corruption active"
+		case "action_lock":
+			player.StatusMessage = "Action lock in effect"
+		case "forced_silence":
+			player.StatusMessage = "Communication restricted"
+		default:
+			player.StatusMessage = description
+		}
+	}
+}
+
+// Equity threshold event handlers
+func (gs *GameState) applyEquityThreshold(event Event) {
+	playerID := event.PlayerID
+	threshold, _ := event.Payload["threshold"].(int)
+	action, _ := event.Payload["action"].(string)
+
+	if player, exists := gs.Players[playerID]; exists {
+		// Track equity threshold events for AI conversion logic
+		player.StatusMessage = fmt.Sprintf("AI Equity threshold %d reached - %s", threshold, action)
 	}
 }

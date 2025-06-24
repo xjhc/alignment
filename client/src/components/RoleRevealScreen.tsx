@@ -36,7 +36,7 @@ export function RoleRevealScreen({ onEnterGame, assignment }: RoleRevealScreenPr
       <div className={styles.launchScreen}>
         <div className={styles.launchForm}>
           <h2>Assigning roles...</h2>
-          <div className={styles.loadingSpinner}>⏳</div>
+          <div className="loading-spinner large"></div>
           {process.env.NODE_ENV === 'development' && (
             <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
               Debug: assignment={JSON.stringify(assignment)}
@@ -56,7 +56,7 @@ export function RoleRevealScreen({ onEnterGame, assignment }: RoleRevealScreenPr
       <div className={`${styles.launchForm} ${styles.roleReveal}`}>
         <h2 className={styles.revealTitle}>IDENTITY ASSIGNED</h2>
         
-        <div className={styles.identityHeader}>
+        <div className={`${styles.identityHeader} animate-card-flip-in`}>
           <div className={styles.roleAvatar}>
             {getAlignmentIcon(assignment.alignment)}
           </div>
@@ -65,7 +65,7 @@ export function RoleRevealScreen({ onEnterGame, assignment }: RoleRevealScreenPr
         </div>
         
         <div className={styles.personnelFile}>
-          <div className={styles.personnelFileItem}>
+          <div className={`${styles.personnelFileItem} animate-stagger-reveal`}>
             <span className="label">INITIAL ALIGNMENT:</span>
             <span 
               className="value alignment"
@@ -77,20 +77,20 @@ export function RoleRevealScreen({ onEnterGame, assignment }: RoleRevealScreenPr
           
           {showDetails && (
             <>
-              <div className={styles.personnelFileItem}>
+              <div className={`${styles.personnelFileItem} animate-stagger-reveal`} style={{ animationDelay: '0.2s' }}>
                 <span className="label">ROLE TYPE:</span>
                 <span className="value">{assignment.role.type}</span>
               </div>
               
               {assignment.role.ability && (
-                <div className={styles.personnelFileItem}>
+                <div className={`${styles.personnelFileItem} animate-stagger-reveal`} style={{ animationDelay: '0.4s' }}>
                   <span className="label">SPECIAL ABILITY:</span>
                   <span className="value">{assignment.role.ability.name}</span>
                 </div>
               )}
               
               {assignment.personalKPI && (
-                <div className={`${styles.personnelFileItem} ${styles.kpi}`}>
+                <div className={`${styles.personnelFileItem} ${styles.kpi} animate-stagger-reveal`} style={{ animationDelay: '0.6s' }}>
                   <span className="label">PERSONAL KPI:</span>
                   <div className={styles.kpiDetails}>
                     <div className={styles.kpiType}>{assignment.personalKPI.type}</div>
@@ -119,7 +119,11 @@ export function RoleRevealScreen({ onEnterGame, assignment }: RoleRevealScreenPr
         )}
         
         {showDetails && (
-          <button className={styles.btnPrimary} onClick={onEnterGame}>
+          <button 
+            className={`${styles.btnPrimary} animate-bounce`} 
+            onClick={onEnterGame}
+            style={{ animationDelay: '0.8s' }}
+          >
             [ &gt; ENTER WAR ROOM ]
           </button>
         )}

@@ -45,6 +45,10 @@ export const VoteUI: React.FC<VoteUIProps> = ({
                   setSelectedNominee(player.id);
                   handleNominate();
                 }}
+                onMouseDown={(e) => {
+                  e.currentTarget.classList.add('animate-scale-in');
+                  setTimeout(() => e.currentTarget.classList.remove('animate-scale-in'), 150);
+                }}
               >
                 <span className={styles.nomineeEmoji}>
                   {player.jobTitle === 'CISO' ? '👤' :
@@ -112,6 +116,10 @@ export const VoteUI: React.FC<VoteUIProps> = ({
                 setSelectedVote('GUILTY');
                 handleVote();
               }}
+              onMouseDown={(e) => {
+                e.currentTarget.classList.add('animate-bounce');
+                setTimeout(() => e.currentTarget.classList.remove('animate-bounce'), 600);
+              }}
             >
               VOTE
             </button>
@@ -148,6 +156,10 @@ export const VoteUI: React.FC<VoteUIProps> = ({
               onClick={() => {
                 setSelectedVote('INNOCENT');
                 handleVote();
+              }}
+              onMouseDown={(e) => {
+                e.currentTarget.classList.add('animate-bounce');
+                setTimeout(() => e.currentTarget.classList.remove('animate-bounce'), 600);
               }}
             >
               VOTE
