@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Input } from './base';
+import { Button, Input } from './ui';
 
 interface LoginScreenProps {
   onLogin: (playerName: string, avatar: string) => void;

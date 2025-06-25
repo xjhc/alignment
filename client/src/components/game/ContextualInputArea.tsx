@@ -4,7 +4,7 @@ import { useGameActions } from '../../hooks/useGameActions';
 import { VoteUI } from './VoteUI';
 import { NightActionSelection } from './NightActionSelection';
 import { PulseCheckInput } from './PulseCheckInput';
-import styles from './CommsPanel.module.css';
+// import styles from './CommsPanel.module.css';
 
 interface ContextualInputAreaProps {
   // No props needed - everything comes from context
@@ -39,9 +39,9 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
     case 'DISCUSSION':
     default:
       return (
-        <div className={styles.chatInputArea}>
+        <div className="flex-1 flex items-center gap-3 p-3">
           <input
-            className={styles.chatInput}
+            className="flex-1 bg-background-secondary border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
             type="text"
             placeholder={
               !isConnected

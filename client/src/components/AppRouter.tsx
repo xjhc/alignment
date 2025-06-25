@@ -20,7 +20,7 @@ export function AppRouter() {
     onBackToLogin,
     onEnterGame,
   } = useSessionContext();
-  const screenClass = "screen-transition animate-fade-in";
+  const screenClass = "screen-transition animation-fade-in";
 
   // Show WASM test screen if query parameter is present
   if (window.location.search.includes('test=wasm')) {

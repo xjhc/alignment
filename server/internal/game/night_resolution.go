@@ -340,6 +340,8 @@ func (nrm *NightResolutionManager) resolveOtherNightActions() []core.Event {
 			if nrm.canPlayerUseAbility(playerID, "PROTECT") {
 				events = append(events, nrm.resolveProtectAction(playerID, action))
 			}
+		case "PROJECT_MILESTONES":
+			events = append(events, nrm.resolveProjectMilestoneAction(playerID, action))
 		}
 	}
 
@@ -544,6 +546,7 @@ func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents [
 	eliminatedPlayers := []map[string]interface{}{}
 	miningResults := []map[string]interface{}{}
 	roleAbilityResults := []map[string]interface{}{}
+	milestoneResults := []map[string]interface{}{}
 	
 	for _, event := range resolvedEvents {
 		// Count event types
@@ -623,6 +626,16 @@ func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents [
 					"message":      event.Payload["message"],
 				})
 			}
+		case core.EventProjectMilestone:
+			if player := nrm.gameState.Players[event.PlayerID]; player != nil {
+				milestoneResults = append(milestoneResults, map[string]interface{}{
+					"player_id":        event.PlayerID,
+					"player_name":      player.Name,
+					"milestones_count": event.Payload["milestones_count"],
+					"role_unlocked":    event.Payload["role_unlocked"],
+					"message":          event.Payload["message"],
+				})
+			}
 		}
 	}
 
@@ -638,9 +651,10 @@ func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents [
 		"eliminated_players":   eliminatedPlayers,
 		"mining_results":       miningResults,
 		"role_ability_results": roleAbilityResults,
+		"milestone_results":    milestoneResults,
 		"phase_end":            true,
 		"next_phase":           "SITREP",
-		"summary_message":      nrm.createHumanReadableSummary(blockedPlayers, convertedPlayers, shockedPlayers, miningResults, roleAbilityResults),
+		"summary_message":      nrm.createHumanReadableSummary(blockedPlayers, convertedPlayers, shockedPlayers, miningResults, roleAbilityResults, milestoneResults),
 	}
 
 	return core.Event{
@@ -654,7 +668,7 @@ func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents [
 }
 
 // createHumanReadableSummary generates a text summary for display in SITREP
-func (nrm *NightResolutionManager) createHumanReadableSummary(blocked, converted, shocked, mining, abilities []map[string]interface{}) string {
+func (nrm *NightResolutionManager) createHumanReadableSummary(blocked, converted, shocked, mining, abilities, milestones []map[string]interface{}) string {
 	summary := fmt.Sprintf("Night %d Summary:\n", nrm.gameState.DayNumber)
 	
 	if len(blocked) > 0 {
@@ -698,7 +712,66 @@ func (nrm *NightResolutionManager) createHumanReadableSummary(blocked, converted
 		summary += fmt.Sprintf("• %d role abilities were used\n", len(abilities))
 	}
 	
+	if len(milestones) > 0 {
+		summary += "• Project milestone advancement: "
+		rolesUnlocked := 0
+		for i, m := range milestones {
+			if i > 0 {
+				summary += ", "
+			}
+			summary += fmt.Sprintf("%s (%v total)", m["player_name"], m["milestones_count"])
+			if unlocked, ok := m["role_unlocked"].(bool); ok && unlocked {
+				rolesUnlocked++
+			}
+		}
+		summary += "\n"
+		if rolesUnlocked > 0 {
+			summary += fmt.Sprintf("• %d role abilities unlocked!\n", rolesUnlocked)
+		}
+	}
+	
 	return summary
+}
+
+// resolveProjectMilestoneAction handles project milestone advancement
+func (nrm *NightResolutionManager) resolveProjectMilestoneAction(playerID string, action *core.SubmittedNightAction) core.Event {
+	player := nrm.gameState.Players[playerID]
+	if player == nil {
+		return core.Event{}
+	}
+
+	// Increment project milestones
+	player.ProjectMilestones++
+
+	// Check if this unlocks their role ability
+	var roleUnlocked bool
+	if player.Role != nil && player.ProjectMilestones >= 3 && !player.Role.IsUnlocked {
+		player.Role.IsUnlocked = true
+		roleUnlocked = true
+	}
+
+	// Create project milestone event
+	event := core.Event{
+		ID:        fmt.Sprintf("project_milestone_%s_%d", playerID, getCurrentTime().UnixNano()),
+		Type:      core.EventProjectMilestone,
+		GameID:    nrm.gameState.ID,
+		PlayerID:  playerID,
+		Timestamp: getCurrentTime(),
+		Payload: map[string]interface{}{
+			"player_id":           playerID,
+			"player_name":         player.Name,
+			"milestones_count":    player.ProjectMilestones,
+			"role_unlocked":       roleUnlocked,
+			"message":             fmt.Sprintf("%s completed a project milestone (Total: %d)", player.Name, player.ProjectMilestones),
+		},
+	}
+
+	// If role was unlocked, add role unlock event
+	if roleUnlocked {
+		event.Payload["role_unlocked_message"] = fmt.Sprintf("%s has unlocked their %s role ability!", player.Name, nrm.getRoleDisplayName(player.Role.Type))
+	}
+
+	return event
 }
 
 // Helper methods
@@ -736,4 +809,27 @@ func (nrm *NightResolutionManager) isPlayerProtected(playerID string) bool {
 		return false
 	}
 	return nrm.gameState.ProtectedPlayersTonight[playerID]
+}
+
+func (nrm *NightResolutionManager) getRoleDisplayName(roleType core.RoleType) string {
+	switch roleType {
+	case core.RoleCISO:
+		return "CISO"
+	case core.RoleCTO:
+		return "CTO"
+	case core.RoleCOO:
+		return "COO"
+	case core.RoleCFO:
+		return "CFO"
+	case core.RoleCEO:
+		return "CEO"
+	case core.RoleEthics:
+		return "VP Ethics"
+	case core.RolePlatforms:
+		return "VP Platforms"
+	case core.RoleIntern:
+		return "Intern"
+	default:
+		return "Unknown Role"
+	}
 }

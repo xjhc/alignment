@@ -3,7 +3,7 @@ import { useGameContext } from '../../contexts/GameContext';
 import { useGameActions } from '../../hooks/useGameActions';
 import { useSound } from '../../hooks/useSound';
 import { Tooltip } from '../ui/Tooltip';
-import { Button } from '../base';
+import { Button } from '../ui';
 
 interface VoteUIProps {
   // No props needed - everything comes from context

@@ -128,11 +128,12 @@ const baseGameState: GameState = {
 
 const baseSitrepMessage: ChatMessage = {
   id: 'sitrep-1',
-  playerId: 'system',
+  playerID: 'system',
   playerName: 'NEXUS',
   message: 'Good morning, team. Here\'s the SITREP.',
   timestamp: '2024-01-01T09:00:00Z',
   type: 'SITREP',
+  isSystem: true,
   metadata: {
     playerHeadcount: {
       humans: 2,
@@ -160,36 +161,26 @@ export const CrisisActive: Story = {
       metadata: {
         ...baseSitrepMessage.metadata,
         crisisEvent: {
-          id: 'crisis-1',
           type: 'SYSTEM_BREACH',
-          name: 'Security Breach Detected',
+          title: 'Security Breach Detected',
           description: 'Unauthorized access detected in the main database.',
-          severity: 'HIGH',
-          isActive: true,
           effects: {
             tokenLoss: 2,
             communicationDisruption: true,
           },
-          activatedAt: '2024-01-01T08:30:00Z',
-          expiresAt: '2024-01-01T10:30:00Z',
         },
       },
     },
     gameState: {
       ...baseGameState,
       crisisEvent: {
-        id: 'crisis-1',
         type: 'SYSTEM_BREACH',
-        name: 'Security Breach Detected',
+        title: 'Security Breach Detected',
         description: 'Unauthorized access detected in the main database.',
-        severity: 'HIGH',
-        isActive: true,
         effects: {
           tokenLoss: 2,
           communicationDisruption: true,
         },
-        activatedAt: '2024-01-01T08:30:00Z',
-        expiresAt: '2024-01-01T10:30:00Z',
       },
     },
   },

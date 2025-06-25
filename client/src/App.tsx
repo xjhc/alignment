@@ -1,47 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useReducer, useEffect, useCallback } from 'react';
 import { BrowserRouter, useLocation } from 'react-router-dom';
 import { useWebSocketContext } from './contexts/WebSocketContext';
 import { useGameEngineContext } from './contexts/GameEngineContext';
 import { useAppNavigation } from './hooks/useAppNavigation';
-import { AppRouter } from './components/AppRouter';
+import { GuardedAppRouter } from './components/GuardedAppRouter';
 import { SessionProvider } from './contexts/SessionContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { GameProvider } from './contexts/GameContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { GameEngineProvider } from './contexts/GameEngineContext';
-import { AppState, GameState, Role, PersonalKPI } from './types';
 import { convertToClientTypes } from './utils/coreTypes';
+import { appReducer, initialAppState, type RoleAssignment, type PlayerLobbyInfo } from './state/appReducer';
 
-interface RoleAssignment {
-  role: Role;
-  alignment: string;
-  personalKPI: PersonalKPI;
-}
-
-// Centralized lobby state interface
-interface PlayerLobbyInfo {
-  id: string;
-  name: string;
-  avatar: string;
-}
-
-interface LobbyState {
-  playerId?: string;
-  playerInfos: PlayerLobbyInfo[];
-  isHost: boolean;
-  canStart: boolean;
-  hostId: string;
-  lobbyName: string;
-  maxPlayers: number;
-  connectionError: string | null;
-}
 
 function AppContent() {
   const location = useLocation(); // Get location object for route-aware effects
-
-  const [appState, setAppState] = useState<AppState>({
-    playerName: '',
-  });
+  const [state, dispatch] = useReducer(appReducer, initialAppState);
 
   const {
     navigateToLogin,
@@ -53,30 +27,6 @@ function AppContent() {
     navigateToAnalysis
   } = useAppNavigation();
 
-  const [isInGameSession, setIsInGameSession] = useState(false);
-
-  const [gameState, setGameState] = useState<GameState>({
-    id: '',
-    players: [],
-    phase: { type: 'LOBBY', startTime: new Date().toISOString(), duration: 0 },
-    dayNumber: 1,
-    chatMessages: [],
-  });
-
-  const [roleAssignment, setRoleAssignment] = useState<RoleAssignment | null>(null);
-
-  // Centralized lobby state
-  const [lobbyState, setLobbyState] = useState<LobbyState>({
-    playerId: undefined,
-    playerInfos: [],
-    isHost: false,
-    canStart: false,
-    hostId: '',
-    lobbyName: '',
-    maxPlayers: 8,
-    connectionError: null,
-  });
-
   const { connect, disconnect, subscribe, sendAction, isConnected } = useWebSocketContext();
   const {
     isLoading: gameEngineLoading,
@@ -86,7 +36,7 @@ function AppContent() {
 
   // The SINGLE source of truth for UI updates.
   useEffect(() => {
-    if (!coreGameState || !appState.playerId) {
+    if (!coreGameState || !state.appState.playerId) {
       return;
     }
 
@@ -94,35 +44,45 @@ function AppContent() {
 
     // Merge avatar information from lobbyState into players
     const playersWithAvatars = clientState.players.map((player: any) => {
-      const lobbyInfo = lobbyState.playerInfos.find(info => info.id === player.id);
+      const lobbyInfo = state.lobbyState.playerInfos.find(info => info.id === player.id);
       return {
         ...player,
         avatar: lobbyInfo?.avatar
       };
     });
 
-    setGameState({
+    const gameStateWithAvatars = {
       ...clientState,
       players: playersWithAvatars
-    });
+    };
 
-    const localPlayer = clientState.players.find((p: any) => p.id === appState.playerId);
+    const localPlayer = clientState.players.find((p: any) => p.id === state.appState.playerId);
+    let roleAssignment: RoleAssignment | undefined;
+    
     if (localPlayer && localPlayer.role && localPlayer.alignment) {
       // PersonalKPI might be null/undefined, handle gracefully
-      const newAssignment = {
+      roleAssignment = {
         role: localPlayer.role,
         alignment: localPlayer.alignment,
         personalKPI: localPlayer.personalKPI || null
       };
-      setRoleAssignment(newAssignment);
     }
+
+    dispatch({ 
+      type: 'UPDATE_GAME_STATE', 
+      payload: { 
+        gameState: gameStateWithAvatars,
+        roleAssignment
+      } 
+    });
 
     // Check for game over condition
     if (clientState.winCondition) {
       console.log(`[App] Game over condition met. Winner: ${clientState.winCondition.winner}. Transitioning.`);
+      dispatch({ type: 'GAME_OVER', payload: { sessionState: 'POST_GAME' } });
       navigateToGameOver();
     }
-  }, [coreGameState, appState.playerId, lobbyState.playerInfos, navigateToGameOver]);
+  }, [coreGameState, state.appState.playerId, state.lobbyState.playerInfos, navigateToGameOver]);
 
   // Wait for BOTH phase change AND role assignment before transitioning
   useEffect(() => {
@@ -153,23 +113,14 @@ function AppContent() {
       max_players: number
     };
 
-    setLobbyState(prev => ({
-      ...prev,
-      playerInfos: payload.players,
-      hostId: payload.host_id,
-      canStart: payload.can_start,
-      lobbyName: payload.name,
-      maxPlayers: payload.max_players,
-      isHost: prev.playerId === payload.host_id,
-      connectionError: null,
-    }));
-  }, [appState.playerId]); // FIX: Add dependency to prevent stale closure for `isHost` logic
+    dispatch({ type: 'UPDATE_LOBBY_STATE', payload });
+  }, []);
 
 
   const handleSystemMessage = useCallback((event: any) => {
     const payload = event.payload as { message: string, error?: boolean };
     if (payload.error) {
-      setLobbyState(prev => ({ ...prev, connectionError: payload.message }));
+      dispatch({ type: 'SET_CONNECTION_ERROR', payload: { message: payload.message } });
     }
   }, []);
 
@@ -177,19 +128,17 @@ function AppContent() {
     const payload = event.payload as { your_player_id: string };
     const playerId = payload.your_player_id;
 
-    // Update both appState and lobbyState synchronously
-    setAppState(prev => ({ ...prev, playerId }));
-    setLobbyState(prev => ({ ...prev, playerId }));
+    dispatch({ type: 'CLIENT_IDENTIFIED', payload: { playerId } });
   }, []);
 
   // Listen for our new private event to get the player ID
   useEffect(() => {
-    if (isInGameSession) {
+    if (state.isInGameSession) {
       const unsubscribe = subscribe('CLIENT_IDENTIFIED', handleClientIdentified);
       return unsubscribe;
     }
     return () => { };
-  }, [isInGameSession, subscribe, handleClientIdentified]);
+  }, [state.isInGameSession, subscribe, handleClientIdentified]);
 
   // Centralized lobby event management
   useEffect(() => {
@@ -201,15 +150,7 @@ function AppContent() {
       ];
 
       // Reset lobby state when entering waiting screen (preserve playerId)
-      setLobbyState(prev => ({
-        ...prev,
-        playerInfos: [],
-        isHost: false,
-        canStart: false,
-        hostId: '',
-        lobbyName: '',
-        connectionError: null,
-      }));
+      dispatch({ type: 'RESET_LOBBY_STATE' });
 
       return () => {
         unsubscribers.forEach(unsub => unsub());
@@ -222,8 +163,8 @@ function AppContent() {
 
   // Centralized WebSocket connection logic based on session state
   useEffect(() => {
-    if (isInGameSession && appState.gameId && appState.playerId && appState.sessionToken) {
-      connect(appState.gameId, appState.playerId, appState.sessionToken)
+    if (state.isInGameSession && state.appState.gameId && state.appState.playerId && state.appState.sessionToken) {
+      connect(state.appState.gameId, state.appState.playerId, state.appState.sessionToken)
         .catch(error => {
           console.error('Failed to connect to WebSocket:', error);
         });
@@ -234,119 +175,85 @@ function AppContent() {
       };
     }
   }, [
-    isInGameSession, // The primary trigger
-    appState.gameId,
-    appState.playerId,
-    appState.sessionToken,
+    state.isInGameSession, // The primary trigger
+    state.appState.gameId,
+    state.appState.playerId,
+    state.appState.sessionToken,
     connect,
     disconnect
   ]);
 
   const handleLogin = (playerName: string, avatar: string) => {
-    setAppState(prev => ({
-      ...prev,
-      playerName,
-      playerAvatar: avatar
-    }));
-    setIsInGameSession(false); // Ensure session is not active
+    dispatch({ 
+      type: 'LOGIN', 
+      payload: { 
+        playerName, 
+        playerAvatar: avatar 
+      } 
+    });
     navigateToLobbyList();
   };
 
   const handleJoinLobby = (gameId: string, playerId: string, sessionToken: string) => {
-    setAppState(prev => ({
-      ...prev,
-      gameId,
-      playerId,
-      sessionToken
-    }));
-    setLobbyState(prev => ({ ...prev, playerId }));
-    setIsInGameSession(true); // START the session
+    dispatch({ 
+      type: 'JOIN_LOBBY', 
+      payload: { gameId, playerId, sessionToken } 
+    });
     navigateToWaiting();
   };
 
   const handleCreateGame = (gameId: string, playerId: string, sessionToken: string) => {
-    setAppState(prev => ({
-      ...prev,
-      gameId,
-      playerId,
-      sessionToken
-    }));
-    setLobbyState(prev => ({ ...prev, playerId }));
-    setIsInGameSession(true); // START the session
+    dispatch({ 
+      type: 'CREATE_GAME', 
+      payload: { gameId, playerId, sessionToken } 
+    });
     navigateToWaiting();
   };
 
 
   const handleEnterGame = () => {
+    dispatch({ type: 'ENTER_GAME' });
     navigateToGame();
   };
 
   // Lobby action handlers
   const handleStartGameAction = useCallback(() => {
-    if (lobbyState.isHost && lobbyState.canStart && isConnected && appState.gameId) {
+    if (state.lobbyState.isHost && state.lobbyState.canStart && isConnected && state.appState.gameId) {
       try {
         // Simply send the action. The server will handle the connection handoff.
         sendAction({
           type: 'START_GAME',
           payload: {
-            game_id: appState.gameId
+            game_id: state.appState.gameId
           }
         });
       } catch (error) {
         console.error('Failed to start game:', error);
-        setLobbyState(prev => ({ ...prev, connectionError: 'Failed to start game' }));
+        dispatch({ type: 'SET_CONNECTION_ERROR', payload: { message: 'Failed to start game' } });
       }
     }
-  }, [lobbyState.isHost, lobbyState.canStart, isConnected, appState.gameId, sendAction]);
+  }, [state.lobbyState.isHost, state.lobbyState.canStart, isConnected, state.appState.gameId, sendAction]);
 
   const handleLeaveLobby = useCallback(() => {
     // Explicitly disconnect first
     disconnect();
 
     // Then update state which will prevent a reconnect attempt
-    setIsInGameSession(false);
-
-    setAppState(prev => ({
-      ...prev,
-      gameId: undefined,
-      playerId: undefined,
-      joinToken: undefined,
-      sessionToken: undefined
-    }));
-    // Reset lobby state completely when leaving
-    setLobbyState({
-      playerId: undefined,
-      playerInfos: [],
-      isHost: false,
-      canStart: false,
-      hostId: '',
-      lobbyName: '',
-      maxPlayers: 8,
-      connectionError: null,
-    });
+    dispatch({ type: 'LEAVE_LOBBY' });
     navigateToLobbyList();
   }, [disconnect]);
 
   const handleBackToLogin = () => {
-    setIsInGameSession(false); // END the session
-    setAppState({
-      playerName: '',
-    });
+    dispatch({ type: 'BACK_TO_LOGIN' });
     navigateToLogin();
   };
 
   const handlePlayAgain = () => {
     // End the current session
-    setIsInGameSession(false);
     disconnect();
 
     // Reset state and go back to the lobby list
-    setAppState(prev => ({
-      ...prev,
-      gameId: undefined,
-      sessionToken: undefined,
-    }));
-    setRoleAssignment(null);
+    dispatch({ type: 'PLAY_AGAIN' });
     navigateToLobbyList();
   };
 
@@ -361,7 +268,7 @@ function AppContent() {
   // Show loading screen while game engine is loading
   if (gameEngineLoading) {
     return (
-      <div className="launch-screen screen-transition animate-fade-in">
+      <div className="launch-screen screen-transition animation-fade-in">
         <div className="launch-form">
           <h2>Loading game engine...</h2>
           <div className="loading-spinner large"></div>
@@ -389,10 +296,11 @@ function AppContent() {
   }
 
   const sessionContextValue = {
-    appState,
-    lobbyState,
-    gameState,
-    roleAssignment,
+    appState: state.appState,
+    sessionState: state.sessionState,
+    lobbyState: state.lobbyState,
+    gameState: state.gameState,
+    roleAssignment: state.roleAssignment,
     isConnected,
     onLogin: handleLogin,
     onJoinLobby: handleJoinLobby,
@@ -407,8 +315,8 @@ function AppContent() {
   };
   return (
     <SessionProvider value={sessionContextValue}>
-      <GameProvider gameState={gameState} localPlayerId={appState.playerId || ''}>
-        <AppRouter />
+      <GameProvider gameState={state.gameState} localPlayerId={state.appState.playerId || ''}>
+        <GuardedAppRouter />
       </GameProvider>
     </SessionProvider>
   );

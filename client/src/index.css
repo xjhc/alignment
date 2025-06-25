@@ -1,13 +1,56 @@
+/* Import generated design tokens first */
+@import './styles/generated/_variables.css';
+
 /* Import Tailwind CSS */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Import generated design tokens */
-@import './styles/generated/_variables.css';
-
 /* Custom base layer styles */
 @layer base {
+  :root {
+    /* Motion System Tokens */
+    /* Duration Tokens */
+    --duration-fast: 150ms;
+    --duration-medium: 300ms;
+    --duration-slow: 500ms;
+    
+    /* Easing Tokens */
+    --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --ease-in: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+    --ease-in-out: cubic-bezier(0.445, 0.05, 0.55, 0.95);
+    --ease-feedback: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  /* Theme variable definitions */
+  html[data-theme='light'] {
+    --bg-primary: var(--theme-light-bg-primary);
+    --bg-secondary: var(--theme-light-bg-secondary);
+    --bg-tertiary: var(--theme-light-bg-tertiary);
+    --bg-quaternary: var(--theme-light-bg-quaternary);
+    --bg-hover: var(--theme-light-bg-hover);
+    --bg-mention: var(--theme-light-bg-mention);
+    --text-primary: var(--theme-light-text-primary);
+    --text-secondary: var(--theme-light-text-secondary);
+    --text-muted: var(--theme-light-text-muted);
+    --border: var(--theme-light-border);
+    --shadow: var(--theme-light-shadow);
+  }
+
+  html[data-theme='dark'] {
+    --bg-primary: var(--theme-dark-bg-primary);
+    --bg-secondary: var(--theme-dark-bg-secondary);
+    --bg-tertiary: var(--theme-dark-bg-tertiary);
+    --bg-quaternary: var(--theme-dark-bg-quaternary);
+    --bg-hover: var(--theme-dark-bg-hover);
+    --bg-mention: var(--theme-dark-bg-mention);
+    --text-primary: var(--theme-dark-text-primary);
+    --text-secondary: var(--theme-dark-text-secondary);
+    --text-muted: var(--theme-dark-text-muted);
+    --border: var(--theme-dark-border);
+    --shadow: var(--theme-dark-shadow);
+  }
+
   /* CSS Reset and Base Styles */
   * {
     margin: 0;
@@ -95,7 +138,128 @@
   }
 }
 
-/* Custom keyframes for animations */
+/* Motion System Keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slideInUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(16px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes slideInDown {
+  from { 
+    opacity: 0; 
+    transform: translateY(-16px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes slideInLeft {
+  from { 
+    opacity: 0; 
+    transform: translateX(-16px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes slideInRight {
+  from { 
+    opacity: 0; 
+    transform: translateX(16px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes slideOutUp {
+  from { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+  to { 
+    opacity: 0; 
+    transform: translateY(-16px); 
+  }
+}
+
+@keyframes slideOutDown {
+  from { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+  to { 
+    opacity: 0; 
+    transform: translateY(16px); 
+  }
+}
+
+@keyframes slideOutLeft {
+  from { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+  to { 
+    opacity: 0; 
+    transform: translateX(-16px); 
+  }
+}
+
+@keyframes slideOutRight {
+  from { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+  to { 
+    opacity: 0; 
+    transform: translateX(16px); 
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
+@keyframes scaleOut {
+  from { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+  to { 
+    opacity: 0; 
+    transform: scale(0.95); 
+  }
+}
+
+/* Game-specific animations */
 @keyframes glitch {
   0%, 100% {
     transform: translate(0, 0);
@@ -119,89 +283,9 @@
   }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
-}
-
-@keyframes bounce {
-  0%, 20%, 53%, 80%, 100% {
-    transform: translate3d(0, 0, 0);
-  }
-  40%, 43% {
-    transform: translate3d(0, -8px, 0);
-  }
-  70% {
-    transform: translate3d(0, -4px, 0);
-  }
-  90% {
-    transform: translate3d(0, -2px, 0);
-  }
 }
 
 @keyframes shake {
@@ -214,33 +298,6 @@
   0% { transform: perspective(1000px) rotateY(0); }
   50% { transform: perspective(1000px) rotateY(90deg); }
   100% { transform: perspective(1000px) rotateY(0); }
-}
-
-@keyframes staggerReveal {
-  0% {
-    opacity: 0;
-    transform: translateY(10px) scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes buttonPress {
-  0% { transform: scale(1); }
-  50% { transform: scale(0.95); }
-  100% { transform: scale(1); }
-}
-
-@keyframes loadingSpinner {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-@keyframes progressBarFill {
-  0% { width: 0%; }
-  100% { width: var(--target-width, 100%); }
 }
 
 @keyframes cardFlipIn {
@@ -269,5 +326,132 @@
   100% {
     filter: hue-rotate(60deg) saturate(0.3) brightness(0.6);
     transform: scale(0.98);
+  }
+}
+
+@keyframes loadingSpinner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes progressBarFill {
+  0% { width: 0%; }
+  100% { width: var(--target-width, 100%); }
+}
+
+/* Motion System Animation Classes */
+@layer utilities {
+  /* Fade Animations */
+  .animation-fade-in {
+    animation: fadeIn var(--duration-medium) var(--ease-out) forwards;
+  }
+  
+  .animation-fade-out {
+    animation: fadeOut var(--duration-medium) var(--ease-in) forwards;
+  }
+  
+  /* Slide In Animations */
+  .animation-slide-in-up {
+    animation: slideInUp var(--duration-medium) var(--ease-out) forwards;
+  }
+  
+  .animation-slide-in-down {
+    animation: slideInDown var(--duration-medium) var(--ease-out) forwards;
+  }
+  
+  .animation-slide-in-left {
+    animation: slideInLeft var(--duration-medium) var(--ease-out) forwards;
+  }
+  
+  .animation-slide-in-right {
+    animation: slideInRight var(--duration-medium) var(--ease-out) forwards;
+  }
+  
+  /* Slide Out Animations */
+  .animation-slide-out-up {
+    animation: slideOutUp var(--duration-medium) var(--ease-in) forwards;
+  }
+  
+  .animation-slide-out-down {
+    animation: slideOutDown var(--duration-medium) var(--ease-in) forwards;
+  }
+  
+  .animation-slide-out-left {
+    animation: slideOutLeft var(--duration-medium) var(--ease-in) forwards;
+  }
+  
+  .animation-slide-out-right {
+    animation: slideOutRight var(--duration-medium) var(--ease-in) forwards;
+  }
+  
+  /* Scale Animations */
+  .animation-scale-in {
+    animation: scaleIn var(--duration-medium) var(--ease-out) forwards;
+  }
+  
+  .animation-scale-out {
+    animation: scaleOut var(--duration-medium) var(--ease-in) forwards;
+  }
+  
+  /* Stagger Animation Base Class */
+  .stagger-child {
+    opacity: 0;
+    animation: slideInUp var(--duration-medium) var(--ease-out) forwards;
+  }
+  
+  /* Fast Duration Variants */
+  .animation-fade-in-fast {
+    animation: fadeIn var(--duration-fast) var(--ease-out) forwards;
+  }
+  
+  .animation-slide-in-up-fast {
+    animation: slideInUp var(--duration-fast) var(--ease-out) forwards;
+  }
+  
+  .animation-scale-in-fast {
+    animation: scaleIn var(--duration-fast) var(--ease-out) forwards;
+  }
+  
+  /* Slow Duration Variants */
+  .animation-fade-in-slow {
+    animation: fadeIn var(--duration-slow) var(--ease-out) forwards;
+  }
+  
+  .animation-slide-in-up-slow {
+    animation: slideInUp var(--duration-slow) var(--ease-out) forwards;
+  }
+  
+  .animation-scale-in-slow {
+    animation: scaleIn var(--duration-slow) var(--ease-out) forwards;
+  }
+  
+  /* Feedback Variants */
+  .animation-scale-in-feedback {
+    animation: scaleIn var(--duration-medium) var(--ease-feedback) forwards;
+  }
+  
+  /* Game-specific animation classes */
+  .animation-glitch {
+    animation: glitch var(--duration-fast) var(--ease-in-out) infinite;
+  }
+  
+  .animation-pulse {
+    animation: pulse 2s var(--ease-in-out) infinite;
+  }
+  
+  .animation-shake {
+    animation: shake var(--duration-fast) var(--ease-in-out);
+  }
+  
+  .animation-flip-card {
+    animation: flipCard var(--duration-slow) var(--ease-in-out);
+  }
+  
+  .animation-card-flip-in {
+    animation: cardFlipIn var(--duration-slow) var(--ease-out) forwards;
+  }
+  
+  .animation-elimination-fade {
+    animation: eliminationFade var(--duration-slow) var(--ease-in-out) forwards;
   }
 }

@@ -56,14 +56,17 @@ type GameActor struct {
 	cancel context.CancelFunc
 
 	// Game managers (domain experts)
-	votingManager      VotingManager
-	miningManager      MiningManager
-	roleAbilityManager RoleAbilityManager
-	eliminationManager *game.EliminationManager
-	phaseManager       *game.PhaseManager
-	scheduler          *game.Scheduler
-	aiManager          *ai.AIManager
-	rng                *rand.Rand
+	votingManager           VotingManager
+	miningManager           MiningManager
+	roleAbilityManager      RoleAbilityManager
+	eliminationManager      *game.EliminationManager
+	phaseManager            *game.PhaseManager
+	scheduler               *game.Scheduler
+	aiManager               *ai.AIManager
+	corporateMandateManager *game.CorporateMandateManager
+	kpiManager              *game.KPIManager
+	liaisonProtocolManager  *game.LiaisonProtocolManager
+	rng                     *rand.Rand
 	
 	// Callback for event notifications (especially for timer-generated events)
 	eventCallback EventCallback
@@ -89,13 +92,16 @@ func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string,
 		rng:     rng,
 
 		// Initialize managers with shared state
-		votingManager:      game.NewVotingManager(state),
-		miningManager:      game.NewMiningManager(state),
-		roleAbilityManager: game.NewRoleAbilityManager(state),
-		eliminationManager: game.NewEliminationManager(state),
-		phaseManager:       phaseManager,
-		scheduler:          scheduler,
-		aiManager:          ai.NewAIManager(state),
+		votingManager:           game.NewVotingManager(state),
+		miningManager:           game.NewMiningManager(state),
+		roleAbilityManager:      game.NewRoleAbilityManager(state),
+		eliminationManager:      game.NewEliminationManager(state),
+		phaseManager:            phaseManager,
+		scheduler:               scheduler,
+		aiManager:               ai.NewAIManager(state),
+		corporateMandateManager: game.NewCorporateMandateManager(state),
+		kpiManager:              game.NewKPIManager(state),
+		liaisonProtocolManager:  game.NewLiaisonProtocolManager(state),
 	}
 
 	// Set the timer callback to route to this actor
@@ -308,10 +314,125 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 		return ga.miningManager.HandleMineAction(action)
 	case core.ActionSendMessage:
 		return ga.validateAndGenerateChatMessage(action)
+	case core.ActionSubmitPulseCheck:
+		return ga.handlePulseCheckSubmission(action)
 	case core.ActionType("PHASE_TRANSITION"):
 		return ga.handlePhaseTransition(action)
 	default:
 		return nil, fmt.Errorf("unknown action type: %s", action.Type)
+	}
+}
+
+// handlePulseCheckSubmission processes pulse check responses
+func (ga *GameActor) handlePulseCheckSubmission(action core.Action) ([]core.Event, error) {
+	// Validate player and phase
+	player := ga.state.Players[action.PlayerID]
+	if player == nil || !player.IsAlive {
+		return nil, fmt.Errorf("invalid or dead player submitting pulse check")
+	}
+
+	if ga.state.Phase.Type != core.PhasePulseCheck {
+		return nil, fmt.Errorf("pulse check submissions only allowed during PULSE_CHECK phase")
+	}
+
+	// Extract response from action payload
+	response, ok := action.Payload["response"].(string)
+	if !ok || response == "" {
+		return nil, fmt.Errorf("invalid pulse check response")
+	}
+
+	// Validate response values
+	validResponses := map[string]bool{
+		"NOMINAL":   true,
+		"ELEVATED":  true,
+		"CRITICAL":  true,
+	}
+	if !validResponses[response] {
+		return nil, fmt.Errorf("invalid pulse check response: %s", response)
+	}
+
+	// Generate pulse check submitted event
+	event := core.Event{
+		ID:        fmt.Sprintf("pulse_check_submitted_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventPulseCheckSubmitted,
+		GameID:    ga.gameID,
+		PlayerID:  action.PlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"player_id": action.PlayerID,
+			"response":  response,
+		},
+	}
+
+	return []core.Event{event}, nil
+}
+
+// generatePulseCheckQuestion creates a pulse check question based on current game state
+func (ga *GameActor) generatePulseCheckQuestion() string {
+	questions := []string{
+		"How would you assess the current threat level to the organization?",
+		"Rate your confidence in the security of our systems:",
+		"How stable do you feel the operational environment is?",
+		"Assess the current risk level for system compromises:",
+		"How would you rate the overall organizational health?",
+		"What's your assessment of current security protocols?",
+		"Rate the stability of our current corporate structure:",
+		"How confident are you in our current operational security?",
+	}
+	
+	// Select question based on day number to ensure some variety
+	index := (ga.state.DayNumber - 1) % len(questions)
+	return questions[index]
+}
+
+// generatePulseCheckRevelation creates an event revealing all pulse check responses
+func (ga *GameActor) generatePulseCheckRevelation() core.Event {
+	if ga.state.PulseCheckResponses == nil || len(ga.state.PulseCheckResponses) == 0 {
+		return core.Event{} // Return empty event if no responses
+	}
+	
+	// Count responses
+	responseCounts := map[string]int{
+		"NOMINAL":   0,
+		"ELEVATED":  0,
+		"CRITICAL":  0,
+	}
+	
+	responseDetails := []map[string]interface{}{}
+	
+	for playerID, response := range ga.state.PulseCheckResponses {
+		responseCounts[response]++
+		
+		player := ga.state.Players[playerID]
+		if player != nil {
+			responseDetails = append(responseDetails, map[string]interface{}{
+				"player_id":   playerID,
+				"player_name": player.Name,
+				"response":    response,
+			})
+		}
+	}
+	
+	// Generate formatted summary
+	totalResponses := len(ga.state.PulseCheckResponses)
+	summary := fmt.Sprintf("Pulse Check Results (%d responses):\n", totalResponses)
+	summary += fmt.Sprintf("• NOMINAL: %d\n", responseCounts["NOMINAL"])
+	summary += fmt.Sprintf("• ELEVATED: %d\n", responseCounts["ELEVATED"])
+	summary += fmt.Sprintf("• CRITICAL: %d", responseCounts["CRITICAL"])
+	
+	return core.Event{
+		ID:        fmt.Sprintf("pulse_check_revealed_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
+		Type:      core.EventPulseCheckRevealed,
+		GameID:    ga.gameID,
+		PlayerID:  "",
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"response_counts":  responseCounts,
+			"response_details": responseDetails,
+			"total_responses":  totalResponses,
+			"summary":          summary,
+			"message":          summary,
+		},
 	}
 }
 
@@ -325,6 +446,7 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 		// Create a ROLE_ASSIGNED event for each player.
 		// These events will be applied internally to build the correct server state
 		// before generating the player-specific snapshots.
+		// Create role assignment event  
 		roleAssignedEvent := core.Event{
 			ID:        fmt.Sprintf("role_assigned_%s", playerID),
 			Type:      core.EventRoleAssigned,
@@ -335,12 +457,48 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 				"role_type":        string(assignment.RoleType),
 				"role_name":        assignment.RoleName,
 				"role_description": assignment.RoleDescription,
-				"kpi_type":         string(assignment.KPIType),
-				"kpi_description":  assignment.KPIDescription,
 				"alignment":        assignment.Alignment,
 			},
 		}
 		events = append(events, roleAssignedEvent)
+
+		// Create separate KPI assignment event for human players only
+		if assignment.Alignment == "human" && assignment.KPIType != "" {
+			kpiAssignedEvent := core.Event{
+				ID:        fmt.Sprintf("kpi_assigned_%s", playerID),
+				Type:      core.EventKPIAssigned,
+				GameID:    ga.gameID,
+				PlayerID:  playerID, // Private event for this player
+				Timestamp: time.Now(),
+				Payload: map[string]interface{}{
+					"kpi_type":    string(assignment.KPIType),
+					"description": assignment.KPIDescription,
+					"target":      ga.getKPITarget(assignment.KPIType),
+					"reward":      ga.getKPIReward(assignment.KPIType),
+				},
+			}
+			events = append(events, kpiAssignedEvent)
+		}
+	}
+
+	// Assign a random corporate mandate to modify the game rules
+	mandate := ga.corporateMandateManager.AssignRandomMandate()
+	if mandate != nil {
+		log.Printf("[GameActor/%s] Corporate mandate assigned: %s", ga.gameID, mandate.Name)
+		mandateEvent := core.Event{
+			ID:        fmt.Sprintf("mandate_activated_%s", ga.gameID),
+			Type:      core.EventMandateActivated,
+			GameID:    ga.gameID,
+			PlayerID:  "", // Public event
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"mandate_type": string(mandate.Type),
+				"name":         mandate.Name,
+				"description":  mandate.Description,
+				"effects":      mandate.Effects,
+			},
+		}
+		events = append(events, mandateEvent)
 	}
 
 	// Add the game started event, which transitions the phase
@@ -391,25 +549,48 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 		return nil, fmt.Errorf("invalid or missing message in payload")
 	}
 
+	// Check if this is a private message
+	targetID, isPrivate := action.Payload["target_id"].(string)
+
+	// Check mandate restrictions for private messages
+	if isPrivate && targetID != "" {
+		if ga.corporateMandateManager.IsMandateActive() {
+			_, noDirectMessages := ga.corporateMandateManager.CheckCommunicationRestrictions()
+			if noDirectMessages {
+				return nil, fmt.Errorf("private messaging suspended due to Total Transparency Initiative")
+			}
+		}
+	}
+
 	// Basic message validation
 	if len(message) > 500 {
 		return nil, fmt.Errorf("message too long (max 500 characters)")
 	}
 
 	// Create chat message event
+	eventPlayerID := "" // Public event by default
+	payload := map[string]interface{}{
+		"sender_id":   action.PlayerID,
+		"sender_name": player.Name,
+		"message":     message,
+		"phase":       string(ga.state.Phase.Type),
+		"day_number":  ga.state.DayNumber,
+	}
+
+	// Handle private message targeting
+	if isPrivate && targetID != "" {
+		payload["target_id"] = targetID
+		payload["is_private"] = true
+		// Private messages are sent to specific recipients via filtering, not via PlayerID
+	}
+
 	event := core.Event{
 		ID:        fmt.Sprintf("chat_%s_%d", action.PlayerID, time.Now().UnixNano()),
 		Type:      core.EventChatMessage,
 		GameID:    ga.gameID,
-		PlayerID:  "", // Public event - broadcast to all players
+		PlayerID:  eventPlayerID,
 		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"sender_id":   action.PlayerID,
-			"sender_name": player.Name,
-			"message":     message,
-			"phase":       string(ga.state.Phase.Type),
-			"day_number":  ga.state.DayNumber,
-		},
+		Payload:   payload,
 	}
 
 	return []core.Event{event}, nil
@@ -491,6 +672,8 @@ func getRoleName(roleType core.RoleType) string {
 		return "Chief Operating Officer"
 	case core.RoleCFO:
 		return "Chief Financial Officer"
+	case core.RoleCEO:
+		return "Chief Executive Officer"
 	case core.RoleEthics:
 		return "VP, Ethics & Alignment"
 	case core.RolePlatforms:
@@ -565,6 +748,9 @@ func (ga *GameActor) handleNightAction(action core.Action) ([]core.Event, error)
 	case "MINE_TOKENS", "MINE":
 		return ga.miningManager.HandleMineAction(action)
 	case "ATTEMPT_CONVERSION":
+		// Store the night action for later resolution
+		return ga.storeNightAction(action)
+	case "PROJECT_MILESTONES":
 		// Store the night action for later resolution
 		return ga.storeNightAction(action)
 	default:
@@ -671,6 +857,50 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 		}
 		// Increment day number
 		ga.state.DayNumber++
+		
+		// Generate SITREP message
+		sitrepGenerator := game.NewSitrepGenerator(ga.state)
+		sitrep := sitrepGenerator.GenerateDailySitrep()
+		
+		sitrepEvent := core.Event{
+			ID:        fmt.Sprintf("sitrep_generated_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
+			Type:      core.EventSystemMessage,
+			GameID:    ga.gameID,
+			PlayerID:  "",
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"message_type": "SITREP",
+				"sitrep_data":  sitrep,
+				"message":      sitrep.Summary,
+			},
+		}
+		events = append(events, sitrepEvent)
+		
+	case core.PhasePulseCheck:
+		// Generate pulse check question
+		question := ga.generatePulseCheckQuestion()
+		
+		pulseCheckEvent := core.Event{
+			ID:        fmt.Sprintf("pulse_check_started_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
+			Type:      core.EventPulseCheckStarted,
+			GameID:    ga.gameID,
+			PlayerID:  "",
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"question": question,
+				"day_number": ga.state.DayNumber,
+			},
+		}
+		events = append(events, pulseCheckEvent)
+		
+	case core.PhaseDiscussion:
+		// Reveal pulse check results if transitioning from PULSE_CHECK phase
+		if ga.state.Phase.Type == core.PhasePulseCheck {
+			pulseCheckRevealed := ga.generatePulseCheckRevelation()
+			if pulseCheckRevealed.Type != "" {
+				events = append(events, pulseCheckRevealed)
+			}
+		}
 	}
 
 	// Create the main phase transition event
@@ -792,6 +1022,40 @@ func (ga *GameActor) calculateTotalTokenWeight() int {
 func (ga *GameActor) handlePostEventProcessing(event core.Event) []core.Event {
 	var additionalEvents []core.Event
 
+	// Track KPI progress based on different events
+	switch event.Type {
+	case core.EventPlayerEliminated:
+		// Track KPI progress for elimination-related objectives
+		if eliminatedPlayerID := event.PlayerID; eliminatedPlayerID != "" {
+			kpiEvents := ga.kpiManager.TrackPlayerEliminated(eliminatedPlayerID)
+			additionalEvents = append(additionalEvents, kpiEvents...)
+
+			// Check for Scapegoat KPI (unanimous elimination)
+			scapegoatEvents := ga.kpiManager.TrackUnanimousElimination(eliminatedPlayerID)
+			additionalEvents = append(additionalEvents, scapegoatEvents...)
+		}
+
+	case core.EventDayStarted:
+		// Clear LIAISON Protocol flag from previous night
+		ga.liaisonProtocolManager.ClearProtocolFlag()
+
+		// Track Guardian KPI (CISO survival)
+		guardianEvents := ga.kpiManager.TrackNightSurvival()
+		additionalEvents = append(additionalEvents, guardianEvents...)
+
+		// Check LIAISON Protocol trigger
+		if ga.liaisonProtocolManager.CheckProtocolTrigger() {
+			liaisonEvents := ga.liaisonProtocolManager.ActivateProtocol()
+			additionalEvents = append(additionalEvents, liaisonEvents...)
+		}
+
+	case core.EventGameEnded:
+		// Check game-end KPIs (Capitalist, Succession Planner)
+		gameEndKPIEvents := ga.kpiManager.CheckGameEndKPIs()
+		additionalEvents = append(additionalEvents, gameEndKPIEvents...)
+	}
+
+	// Check win conditions
 	isGameEndingEvent := false
 	switch event.Type {
 	case core.EventPlayerEliminated, core.EventAIConversionSuccess, core.EventNightActionsResolved:
@@ -800,6 +1064,10 @@ func (ga *GameActor) handlePostEventProcessing(event core.Event) []core.Event {
 
 	if isGameEndingEvent {
 		if ga.state.DayNumber > 0 && ga.state.Phase.Type != core.PhaseLobby {
+			// Check game-end KPIs before determining winner
+			gameEndKPIEvents := ga.kpiManager.CheckGameEndKPIs()
+			additionalEvents = append(additionalEvents, gameEndKPIEvents...)
+
 			if winCondition := core.CheckWinCondition(*ga.state); winCondition != nil {
 				endEvent := ga.endGame(*winCondition)
 				additionalEvents = append(additionalEvents, endEvent)
@@ -920,4 +1188,40 @@ func (ga *GameActor) createPlayerSpecificGameView(playerID string) *core.GameSta
 	}
 
 	return snapshotState
+}
+
+// getKPITarget returns the target value for a given KPI type
+func (ga *GameActor) getKPITarget(kpiType core.KPIType) int {
+	switch kpiType {
+	case core.KPIInquisitor:
+		return 3 // Vote correctly 3 times
+	case core.KPIGuardian:
+		return 4 // Keep CISO alive to Day 4
+	case core.KPISuccessionPlanner:
+		return 2 // End with exactly 2 humans
+	case core.KPICapitalist:
+		return 1 // End with most tokens (relative target)
+	case core.KPIScapegoat:
+		return 1 // Get eliminated unanimously
+	default:
+		return 1
+	}
+}
+
+// getKPIReward returns the reward description for a given KPI type
+func (ga *GameActor) getKPIReward(kpiType core.KPIType) string {
+	switch kpiType {
+	case core.KPIInquisitor:
+		return "Gain 2 extra tokens for each correct vote"
+	case core.KPIGuardian:
+		return "Win if CISO survives to Day 4, regardless of faction victory"
+	case core.KPISuccessionPlanner:
+		return "Win if exactly 2 humans remain at game end"
+	case core.KPICapitalist:
+		return "Win if you have the most tokens at game end"
+	case core.KPIScapegoat:
+		return "Win if you are eliminated by unanimous vote"
+	default:
+		return "Complete objective for bonus rewards"
+	}
 }

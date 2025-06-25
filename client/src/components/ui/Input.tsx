@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string;
   error?: string;
   helperText?: string;
@@ -9,6 +9,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   fullWidth?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  hasError?: boolean;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(({
@@ -20,12 +21,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   fullWidth = false,
   leftIcon,
   rightIcon,
+  hasError = false,
   className = '',
   id,
   ...props
 }, ref) => {
   const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
-  const hasError = Boolean(error);
+  
+  // hasError prop takes precedence, but fallback to error prop for backward compatibility
+  const showError = hasError || Boolean(error);
 
   const wrapperClasses = [
     'flex flex-col gap-1',
@@ -62,7 +66,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
     'placeholder:text-text-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-background-secondary',
     sizeClasses[size],
     variantClasses[variant],
-    hasError ? '!border-danger !shadow-[0_0_0_3px_rgba(239,68,68,0.1)]' : '',
+    showError ? '!border-danger !shadow-[0_0_0_3px_rgba(239,68,68,0.1)]' : '',
     iconPadding.left,
     iconPadding.right,
     className,
@@ -98,7 +102,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
       </div>
       
       {(error || helperText) && (
-        <div className={`text-xs mt-1 ${hasError ? 'text-danger' : 'text-text-secondary'}`}>
+        <div className={`text-xs mt-1 ${showError ? 'text-danger' : 'text-text-secondary'}`}>
           {error || helperText}
         </div>
       )}

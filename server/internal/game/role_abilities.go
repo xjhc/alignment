@@ -44,6 +44,11 @@ func (ram *RoleAbilityManager) UseRoleAbility(action RoleAbilityAction) (*RoleAb
 		return nil, fmt.Errorf("player not found")
 	}
 
+	// Check if player is alive
+	if !player.IsAlive {
+		return nil, fmt.Errorf("dead players cannot use abilities")
+	}
+
 	if player.Role == nil || !player.Role.IsUnlocked {
 		return nil, fmt.Errorf("role ability not unlocked")
 	}
@@ -56,6 +61,42 @@ func (ram *RoleAbilityManager) UseRoleAbility(action RoleAbilityAction) (*RoleAb
 	for _, shock := range player.SystemShocks {
 		if shock.Type == core.ShockActionLock && shock.IsActive && time.Now().Before(shock.ExpiresAt) {
 			return nil, fmt.Errorf("system shock prevents ability use")
+		}
+	}
+
+	// Validate target if required
+	if action.TargetID != "" {
+		target := ram.gameState.Players[action.TargetID]
+		if target == nil {
+			return nil, fmt.Errorf("target player not found")
+		}
+		
+		// Check if target is alive
+		if !target.IsAlive {
+			return nil, fmt.Errorf("cannot target dead players")
+		}
+		
+		// Prevent self-targeting for most abilities (except where explicitly allowed)
+		if action.TargetID == action.PlayerID && !allowsSelfTargeting(player.Role.Type) {
+			return nil, fmt.Errorf("cannot target yourself")
+		}
+	}
+	
+	// Validate second target for CFO (Reallocate Budget)
+	if action.SecondTargetID != "" {
+		secondTarget := ram.gameState.Players[action.SecondTargetID]
+		if secondTarget == nil {
+			return nil, fmt.Errorf("second target player not found")
+		}
+		
+		// Check if second target is alive
+		if !secondTarget.IsAlive {
+			return nil, fmt.Errorf("cannot target dead players")
+		}
+		
+		// For CFO, ensure source and destination are different
+		if action.TargetID == action.SecondTargetID {
+			return nil, fmt.Errorf("source and destination must be different")
 		}
 	}
 
@@ -89,6 +130,16 @@ func (ram *RoleAbilityManager) UseRoleAbility(action RoleAbilityAction) (*RoleAb
 	player.HasUsedAbility = true
 
 	return result, nil
+}
+
+// allowsSelfTargeting determines if a role can target itself with its ability
+func allowsSelfTargeting(roleType core.RoleType) bool {
+	switch roleType {
+	case core.RoleCTO: // CTO can enhance themselves with Overclock Servers
+		return true
+	default:
+		return false
+	}
 }
 
 // useRunAudit implements VP Ethics & Alignment ability

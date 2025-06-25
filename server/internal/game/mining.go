@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"log"
 	"sort"
 
 	"github.com/xjhc/alignment/core"
@@ -139,6 +140,16 @@ func (mm *MiningManager) calculateLiquidityPool() int {
 		if reducedVal, exists := mm.gameState.CorporateMandate.Effects["reduced_mining_slots"]; exists {
 			if reduced, ok := reducedVal.(bool); ok && reduced {
 				baseSlots-- // Aggressive Growth Quarter reduces by 1
+			}
+		}
+	}
+
+	// Apply LIAISON Protocol bonus if active
+	if mm.gameState.Settings.CustomSettings != nil {
+		if active, exists := mm.gameState.Settings.CustomSettings["liaison_protocol_active"]; exists {
+			if isActive, ok := active.(bool); ok && isActive {
+				baseSlots += 2 // +2 mining slots from LIAISON Protocol
+				log.Printf("[MiningManager] LIAISON Protocol bonus applied: +2 mining slots")
 			}
 		}
 	}

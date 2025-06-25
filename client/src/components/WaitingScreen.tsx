@@ -1,5 +1,5 @@
 import { useSessionContext } from '../contexts/SessionContext';
-import { Button } from './base';
+import { Button } from './ui';
 
 export function WaitingScreen() {
   const { 

@@ -58,7 +58,7 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
         </div>
         
         <div className="w-full mb-4 text-left">
-          <div className="flex justify-between items-start px-3 py-2 bg-background-secondary rounded mb-1 animate-stagger-reveal">
+          <div className="flex justify-between items-start px-3 py-2 bg-background-secondary rounded mb-1 stagger-child">
             <span className="text-xs font-bold text-text-muted uppercase tracking-[0.5px]">INITIAL ALIGNMENT:</span>
             <span 
               className="font-bold text-text-primary"
@@ -70,20 +70,20 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
           
           {showDetails && (
             <>
-              <div className="flex justify-between items-start px-3 py-2 bg-background-secondary rounded mb-1 animate-stagger-reveal" style={{ animationDelay: '0.2s' }}>
+              <div className="flex justify-between items-start px-3 py-2 bg-background-secondary rounded mb-1 stagger-child" style={{ animationDelay: '0.2s' }}>
                 <span className="text-xs font-bold text-text-muted uppercase tracking-[0.5px]">ROLE TYPE:</span>
                 <span className="font-semibold text-text-primary">{assignment.role.type}</span>
               </div>
               
               {assignment.role.ability && (
-                <div className="flex justify-between items-start px-3 py-2 bg-background-secondary rounded mb-1 animate-stagger-reveal" style={{ animationDelay: '0.4s' }}>
+                <div className="flex justify-between items-start px-3 py-2 bg-background-secondary rounded mb-1 stagger-child" style={{ animationDelay: '0.4s' }}>
                   <span className="text-xs font-bold text-text-muted uppercase tracking-[0.5px]">SPECIAL ABILITY:</span>
                   <span className="font-semibold text-text-primary">{assignment.role.ability.name}</span>
                 </div>
               )}
               
               {assignment.personalKPI && (
-                <div className="flex flex-col items-start px-3 py-2 bg-background-secondary rounded mb-1 animate-stagger-reveal" style={{ animationDelay: '0.6s' }}>
+                <div className="flex flex-col items-start px-3 py-2 bg-background-secondary rounded mb-1 stagger-child" style={{ animationDelay: '0.6s' }}>
                   <span className="text-xs font-bold text-text-muted uppercase tracking-[0.5px]">PERSONAL KPI:</span>
                   <div className="mt-2 w-full">
                     <div className="font-semibold text-text-primary mb-1">{assignment.personalKPI.type}</div>
@@ -113,7 +113,7 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
         
         {showDetails && (
           <button 
-            className="w-full px-6 py-3 text-base font-semibold text-black bg-amber rounded transition-colors duration-200 cursor-pointer border-none hover:bg-amber-light disabled:opacity-50 disabled:cursor-not-allowed animate-bounce" 
+            className="w-full px-6 py-3 text-base font-semibold text-black bg-amber rounded transition-colors duration-200 cursor-pointer border-none hover:bg-amber-light disabled:opacity-50 disabled:cursor-not-allowed animation-pulse" 
             onClick={onEnterGame}
             style={{ animationDelay: '0.8s' }}
           >

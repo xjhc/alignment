@@ -1,6 +1,5 @@
 import React from 'react';
 import { ChatMessage, GameState } from '../../types';
-import styles from './CommsPanel.module.css';
 
 interface PulseCheckMessageProps {
   message: ChatMessage;
@@ -12,13 +11,13 @@ export const PulseCheckMessage: React.FC<PulseCheckMessageProps> = ({ message })
   const question = message.message;
 
   return (
-    <div className={styles.pulseCheck}>
-      <div className={styles.pulseHeader}>💭 PULSE CHECK</div>
-      <div className={styles.pulseQuestion}>"{question}"</div>
-      <div className={styles.pulseResponses}>
+    <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 mb-3">
+      <div className="text-blue-400 font-mono font-bold text-sm mb-2">💭 PULSE CHECK</div>
+      <div className="text-text-primary font-medium mb-3 italic">"{question}"</div>
+      <div className="space-y-2">
         {Object.entries(pulseCheckResponses).map(([playerName, response]) => (
-          <div key={playerName} className={styles.pulseResponse}>
-            <strong>{playerName}:</strong> "{response}"
+          <div key={playerName} className="bg-background-secondary/50 border border-border/30 rounded px-3 py-2 text-sm">
+            <strong className="text-primary">{playerName}:</strong> <span className="text-text-secondary">"{response}"</span>
           </div>
         ))}
       </div>

@@ -84,7 +84,7 @@ export const CommsPanel: React.FC = () => {
             // Render specialized system messages
             if (msg.isSystem && msg.type === 'SITREP') {
               return (
-                <div key={msg.id || index} className="animate-slide-in-up" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
+                <div key={msg.id || index} className="stagger-child" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
                   <SitrepMessage 
                     message={msg} 
                     gameState={gameState} 
@@ -95,7 +95,7 @@ export const CommsPanel: React.FC = () => {
             
             if (msg.isSystem && msg.type === 'VOTE_RESULT') {
               return (
-                <div key={msg.id || index} className="animate-slide-in-up" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
+                <div key={msg.id || index} className="stagger-child" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
                   <VoteResultMessage 
                     message={msg} 
                     gameState={gameState} 
@@ -106,7 +106,7 @@ export const CommsPanel: React.FC = () => {
             
             if (msg.isSystem && msg.type === 'PULSE_CHECK') {
               return (
-                <div key={msg.id || index} className="animate-slide-in-up" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
+                <div key={msg.id || index} className="stagger-child" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
                   <PulseCheckMessage 
                     message={msg} 
                     gameState={gameState} 
@@ -128,7 +128,7 @@ export const CommsPanel: React.FC = () => {
                 key={msg.id || index} 
                 className={`flex items-start gap-2.5 px-2 py-1.5 rounded-md transition-all duration-150 mb-0.5 hover:bg-gray-700 hover:translate-x-0.5 ${
                   msg.isSystem ? 'border-l-2 border-blue-500 bg-blue-500/5 pl-3' : ''
-                } animate-slide-in-left`}
+                } animation-slide-in-left`}
                 style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
               >
                 <div className={`w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-sm flex-shrink-0 border border-gray-600 shadow-sm ${

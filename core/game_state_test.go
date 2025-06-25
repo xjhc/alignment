@@ -476,6 +476,77 @@ func TestApplyEvent_VictoryCondition(t *testing.T) {
 	}
 }
 
+func TestApplyEvent_ProjectMilestone(t *testing.T) {
+	gameState := NewGameState("test-game", time.Now())
+	gameState.Players["player-1"] = &Player{
+		ID:                "player-1",
+		Name:              "Alice",
+		IsAlive:           true,
+		ProjectMilestones: 2,
+		Role: &Role{
+			Type:       RoleCISO,
+			Name:       "Chief Information Security Officer",
+			IsUnlocked: false,
+		},
+	}
+
+	event := Event{
+		ID:        "event-1",
+		Type:      EventProjectMilestone,
+		GameID:    "test-game",
+		PlayerID:  "player-1",
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"milestone": float64(3),
+		},
+	}
+
+	newState := ApplyEvent(*gameState, event)
+
+	player := newState.Players["player-1"]
+	if player.ProjectMilestones != 3 {
+		t.Errorf("Expected 3 project milestones, got %d", player.ProjectMilestones)
+	}
+
+	// Role should be unlocked when reaching 3 milestones
+	if player.Role == nil || !player.Role.IsUnlocked {
+		t.Error("Expected role to be unlocked at 3 milestones")
+	}
+
+	// Test milestone without role unlock (when already unlocked)
+	gameState.Players["player-2"] = &Player{
+		ID:                "player-2",
+		Name:              "Bob",
+		IsAlive:           true,
+		ProjectMilestones: 1,
+		Role: &Role{
+			Type:       RoleCTO,
+			Name:       "Chief Technology Officer",
+			IsUnlocked: true, // Already unlocked
+		},
+	}
+
+	event2 := Event{
+		ID:        "event-2",
+		Type:      EventProjectMilestone,
+		GameID:    "test-game",
+		PlayerID:  "player-2",
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"milestone": float64(2),
+		},
+	}
+
+	newState2 := ApplyEvent(newState, event2)
+	player2 := newState2.Players["player-2"]
+	if player2.ProjectMilestones != 2 {
+		t.Errorf("Expected 2 project milestones for player-2, got %d", player2.ProjectMilestones)
+	}
+	if !player2.Role.IsUnlocked {
+		t.Error("Expected role to remain unlocked for player-2")
+	}
+}
+
 // Test table-driven approach for role abilities
 func TestApplyEvent_RoleAbilities(t *testing.T) {
 	testCases := []struct {

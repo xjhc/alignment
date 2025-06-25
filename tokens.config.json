@@ -16,6 +16,22 @@
         "destination": "tokens.js",
         "format": "javascript/es6"
       }]
+    },
+    "ts": {
+      "transformGroup": "js",
+      "buildPath": "client/src/styles/generated/",
+      "files": [{
+        "destination": "tokens.ts",
+        "format": "javascript/es6"
+      }]
+    },
+    "json": {
+      "transformGroup": "js",
+      "buildPath": "client/src/styles/generated/",
+      "files": [{
+        "destination": "tokens.json",
+        "format": "json/nested"
+      }]
     }
   }
 }

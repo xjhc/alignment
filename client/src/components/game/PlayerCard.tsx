@@ -56,7 +56,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
     }
     
     if (showEliminationAnimation) {
-      classes.push('animate-elimination-fade');
+      classes.push('animation-elimination-fade');
     }
     
     return classes.join(' ');

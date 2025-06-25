@@ -1,33 +1,11 @@
 import { createContext, useContext, ReactNode } from 'react';
-import { AppState, GameState, Role, PersonalKPI } from '../types';
-
-// Centralized lobby state interface
-interface PlayerLobbyInfo {
-  id: string;
-  name: string;
-  avatar: string;
-}
-
-interface LobbyState {
-  playerId?: string;
-  playerInfos: PlayerLobbyInfo[];
-  isHost: boolean;
-  canStart: boolean;
-  hostId: string;
-  lobbyName: string;
-  maxPlayers: number;
-  connectionError: string | null;
-}
-
-interface RoleAssignment {
-  role: Role;
-  alignment: string;
-  personalKPI: PersonalKPI | null;
-}
+import { AppState, GameState } from '../types';
+import { SessionState, LobbyState, RoleAssignment } from '../state/appReducer';
 
 // Define the shape of the context data
-interface SessionContextType {
+export interface SessionContextType {
     appState: AppState;
+    sessionState: SessionState;
     lobbyState: LobbyState;
     gameState: GameState;
     roleAssignment: RoleAssignment | null;

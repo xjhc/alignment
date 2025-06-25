@@ -13,7 +13,7 @@
   },
   "persona_stats": {
     "aggressive_human": {
-      "total_games": 108,
+      "total_games": 126,
       "wins": 0,
       "win_rate": 0,
       "average_survival_rate": 1,
@@ -21,7 +21,7 @@
       "average_milestones": 0
     },
     "cautious_human": {
-      "total_games": 192,
+      "total_games": 174,
       "wins": 0,
       "win_rate": 0,
       "average_survival_rate": 1,

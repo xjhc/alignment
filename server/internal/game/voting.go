@@ -395,5 +395,62 @@ func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, err
 	}
 	events = append(events, voteCastEvent)
 
+	// Cast the vote internally
+	if err := vm.CastVote(action.PlayerID, targetID); err != nil {
+		return nil, fmt.Errorf("failed to cast vote: %w", err)
+	}
+
+	// Generate vote tally updated event with mandate effects
+	voteTallyEvent := vm.generateVoteTallyEvent(voteType)
+	if voteTallyEvent != nil {
+		events = append(events, *voteTallyEvent)
+	}
+
 	return events, nil
+}
+
+// generateVoteTallyEvent creates a vote tally updated event with mandate effects
+func (vm *VotingManager) generateVoteTallyEvent(voteType core.VoteType) *core.Event {
+	if vm.gameState.VoteState == nil {
+		return nil
+	}
+
+	// Check if Total Transparency mandate is active
+	publicVotingOnly := vm.checkTransparencyMandate()
+
+	// Build the payload with vote results
+	payload := map[string]interface{}{
+		"vote_type": string(voteType),
+		"results":   vm.gameState.VoteState.Results,
+	}
+
+	// Include voter identities if transparency mandate is active
+	if publicVotingOnly {
+		payload["public_voting"] = true
+		payload["voter_choices"] = vm.gameState.VoteState.Votes
+	}
+
+	return &core.Event{
+		ID:        fmt.Sprintf("vote_tally_updated_%s_%d", voteType, getCurrentTime().UnixNano()),
+		Type:      core.EventVoteTallyUpdated,
+		GameID:    vm.gameState.ID,
+		PlayerID:  "", // Public event
+		Timestamp: getCurrentTime(),
+		Payload:   payload,
+	}
+}
+
+// checkTransparencyMandate checks if Total Transparency mandate is active
+func (vm *VotingManager) checkTransparencyMandate() bool {
+	if vm.gameState.CorporateMandate == nil || !vm.gameState.CorporateMandate.IsActive {
+		return false
+	}
+
+	if publicVal, exists := vm.gameState.CorporateMandate.Effects["public_voting_only"]; exists {
+		if public, ok := publicVal.(bool); ok {
+			return public
+		}
+	}
+
+	return false
 }

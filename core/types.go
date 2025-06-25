@@ -108,6 +108,7 @@ const (
 	EventPartingShotSet     EventType = "PARTING_SHOT_SET"
 
 	// Personal KPI events
+	EventKPIAssigned  EventType = "KPI_ASSIGNED"
 	EventKPIProgress  EventType = "KPI_PROGRESS"
 	EventKPICompleted EventType = "KPI_COMPLETED"
 
@@ -371,18 +372,19 @@ type WinCondition struct {
 
 // GameSettings contains game configuration
 type GameSettings struct {
-	MaxPlayers         int           `json:"maxPlayers"`
-	MinPlayers         int           `json:"minPlayers"`
-	SitrepDuration     time.Duration `json:"sitrepDuration"`
-	PulseCheckDuration time.Duration `json:"pulseCheckDuration"`
-	DiscussionDuration time.Duration `json:"discussionDuration"`
-	ExtensionDuration  time.Duration `json:"extensionDuration"`
-	NominationDuration time.Duration `json:"nominationDuration"`
-	TrialDuration      time.Duration `json:"trialDuration"`
-	VerdictDuration    time.Duration `json:"verdictDuration"`
-	NightDuration      time.Duration `json:"nightDuration"`
-	StartingTokens     int           `json:"startingTokens"`
-	VotingThreshold    float64       `json:"votingThreshold"`
+	MaxPlayers         int                    `json:"maxPlayers"`
+	MinPlayers         int                    `json:"minPlayers"`
+	SitrepDuration     time.Duration          `json:"sitrepDuration"`
+	PulseCheckDuration time.Duration          `json:"pulseCheckDuration"`
+	DiscussionDuration time.Duration          `json:"discussionDuration"`
+	ExtensionDuration  time.Duration          `json:"extensionDuration"`
+	NominationDuration time.Duration          `json:"nominationDuration"`
+	TrialDuration      time.Duration          `json:"trialDuration"`
+	VerdictDuration    time.Duration          `json:"verdictDuration"`
+	NightDuration      time.Duration          `json:"nightDuration"`
+	StartingTokens     int                    `json:"startingTokens"`
+	VotingThreshold    float64                `json:"votingThreshold"`
+	CustomSettings     map[string]interface{} `json:"customSettings,omitempty"`
 }
 
 // SubmittedNightAction represents an action submitted during the night phase

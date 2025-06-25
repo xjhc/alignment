@@ -2,133 +2,93 @@
  * Do not edit directly, this file was auto-generated.
  */
 
-export const tokens = {
-  border: {
-    radius: {
-      sm: '3px',
-      base: '4px',
-      md: '6px',
-      lg: '8px',
-      xl: '12px',
-      '2xl': '16px',
-      full: '50%',
-    },
-  },
-  brand: {
-    accent: {
-      primary: '#f59e0b',
-      amber: '#f59e0b',
-      amberLight: '#fbbf24',
-      amberDark: '#d97706',
-      cyan: '#06b6d4',
-      cyanLight: '#22d3ee',
-      cyanDark: '#0891b2',
-      red: '#ef4444',
-      redLight: '#f87171',
-      redDark: '#dc2626',
-      magenta: '#ec4899',
-      magentaLight: '#f472b6',
-      magentaDark: '#db2777',
-      green: '#10b981',
-      greenLight: '#34d399',
-      greenDark: '#059669',
-      blue: '#3b82f6',
-      blueLight: '#60a5fa',
-      blueDark: '#2563eb',
-    },
-  },
-  semantic: {
-    game: {
-      human: '#f59e0b',
-      aligned: '#06b6d4',
-      ai: '#ec4899',
-      success: '#10b981',
-      danger: '#ef4444',
-      warning: '#f59e0b',
-      info: '#3b82f6',
-    },
-    component: {
-      focus: '#3b82f6',
-      active: '#f59e0b',
-    },
-  },
-  theme: {
-    light: {
-      bg: {
-        primary: '#ffffff',
-        secondary: '#f8fafc',
-        tertiary: '#f1f5f9',
-        quaternary: '#e2e8f0',
-        hover: '#f1f5f9',
-        mention: 'rgba(245, 158, 11, 0.2)',
-      },
-      text: {
-        primary: '#0f172a',
-        secondary: '#475569',
-        muted: '#64748b',
-      },
-      border: '#e2e8f0',
-      shadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-    },
-    dark: {
-      bg: {
-        primary: '#0f172a',
-        secondary: '#1e293b',
-        tertiary: '#334155',
-        quaternary: '#475569',
-        hover: '#334155',
-        mention: 'rgba(251, 191, 36, 0.4)',
-      },
-      text: {
-        primary: '#f8fafc',
-        secondary: '#cbd5e1',
-        muted: '#94a3b8',
-      },
-      border: '#334155',
-      shadow: '0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3)',
-    },
-  },
-  font: {
-    family: {
-      sans: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      mono: "'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace",
-    },
-    weight: {
-      light: '300',
-      normal: '400',
-      medium: '500',
-      semibold: '600',
-      bold: '700',
-      extrabold: '800',
-    },
-    size: {
-      xs: '10px',
-      sm: '11px',
-      base: '12px',
-      md: '13px',
-      lg: '14px',
-      xl: '16px',
-      '2xl': '18px',
-      '3xl': '20px',
-    },
-    lineHeight: {
-      tight: '1.2',
-      normal: '1.4',
-      relaxed: '1.6',
-    },
-  },
-  spacing: {
-    1: '4px',
-    2: '8px',
-    3: '12px',
-    4: '16px',
-    5: '20px',
-    6: '24px',
-    8: '32px',
-    10: '40px',
-    12: '48px',
-    16: '64px',
-  },
-} as const;
-
-export type TokensType = typeof tokens;
+export const BorderRadiusSm = "3px";
+export const BorderRadiusBase = "4px";
+export const BorderRadiusMd = "6px";
+export const BorderRadiusLg = "8px";
+export const BorderRadiusXl = "12px";
+export const BorderRadius2xl = "16px";
+export const BorderRadiusFull = "50%";
+export const BrandAccentPrimary = "#f59e0b";
+export const BrandAccentAmber = "#f59e0b";
+export const BrandAccentAmberLight = "#fbbf24";
+export const BrandAccentAmberDark = "#d97706";
+export const BrandAccentCyan = "#06b6d4";
+export const BrandAccentCyanLight = "#22d3ee";
+export const BrandAccentCyanDark = "#0891b2";
+export const BrandAccentRed = "#ef4444";
+export const BrandAccentRedLight = "#f87171";
+export const BrandAccentRedDark = "#dc2626";
+export const BrandAccentMagenta = "#ec4899";
+export const BrandAccentMagentaLight = "#f472b6";
+export const BrandAccentMagentaDark = "#db2777";
+export const BrandAccentGreen = "#10b981";
+export const BrandAccentGreenLight = "#34d399";
+export const BrandAccentGreenDark = "#059669";
+export const BrandAccentBlue = "#3b82f6";
+export const BrandAccentBlueLight = "#60a5fa";
+export const BrandAccentBlueDark = "#2563eb";
+export const SemanticGameHuman = "#f59e0b";
+export const SemanticGameAligned = "#06b6d4";
+export const SemanticGameAi = "#ec4899";
+export const SemanticGameSuccess = "#10b981";
+export const SemanticGameDanger = "#ef4444";
+export const SemanticGameWarning = "#f59e0b";
+export const SemanticGameInfo = "#3b82f6";
+export const SemanticComponentFocus = "#3b82f6";
+export const SemanticComponentActive = "#f59e0b";
+export const ThemeLightBgPrimary = "#ffffff";
+export const ThemeLightBgSecondary = "#f8fafc";
+export const ThemeLightBgTertiary = "#f1f5f9";
+export const ThemeLightBgQuaternary = "#e2e8f0";
+export const ThemeLightBgHover = "#f1f5f9";
+export const ThemeLightBgMention = "rgba(245, 158, 11, 0.2)";
+export const ThemeLightTextPrimary = "#0f172a";
+export const ThemeLightTextSecondary = "#475569";
+export const ThemeLightTextMuted = "#64748b";
+export const ThemeLightBorder = "#e2e8f0";
+export const ThemeLightShadow =
+  "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)";
+export const ThemeDarkBgPrimary = "#0f172a";
+export const ThemeDarkBgSecondary = "#1e293b";
+export const ThemeDarkBgTertiary = "#334155";
+export const ThemeDarkBgQuaternary = "#475569";
+export const ThemeDarkBgHover = "#334155";
+export const ThemeDarkBgMention = "rgba(251, 191, 36, 0.4)";
+export const ThemeDarkTextPrimary = "#f8fafc";
+export const ThemeDarkTextSecondary = "#cbd5e1";
+export const ThemeDarkTextMuted = "#94a3b8";
+export const ThemeDarkBorder = "#334155";
+export const ThemeDarkShadow =
+  "0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3)";
+export const FontFamilySans =
+  "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+export const FontFamilyMono =
+  "'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace";
+export const FontWeightLight = "300";
+export const FontWeightNormal = "400";
+export const FontWeightMedium = "500";
+export const FontWeightSemibold = "600";
+export const FontWeightBold = "700";
+export const FontWeightExtrabold = "800";
+export const FontSizeXs = "10px";
+export const FontSizeSm = "11px";
+export const FontSizeBase = "12px";
+export const FontSizeMd = "13px";
+export const FontSizeLg = "14px";
+export const FontSizeXl = "16px";
+export const FontSize2xl = "18px";
+export const FontSize3xl = "20px";
+export const FontLineHeightTight = "1.2";
+export const FontLineHeightNormal = "1.4";
+export const FontLineHeightRelaxed = "1.6";
+export const Spacing1 = "4px";
+export const Spacing2 = "8px";
+export const Spacing3 = "12px";
+export const Spacing4 = "16px";
+export const Spacing5 = "20px";
+export const Spacing6 = "24px";
+export const Spacing8 = "32px";
+export const Spacing10 = "40px";
+export const Spacing12 = "48px";
+export const Spacing16 = "64px";

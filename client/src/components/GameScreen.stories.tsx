@@ -1,20 +1,31 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import React from 'react';
 import { GameScreen } from './GameScreen';
+import { GameProvider } from '../contexts/GameContext';
+import { WebSocketProvider } from '../contexts/WebSocketContext';
 import { GameState, Player, Phase, ChatMessage } from '../types';
 
-const meta: Meta<typeof GameScreen> = {
+// Create a wrapper component that provides contexts
+const GameScreenWrapper: React.FC<{ gameState: GameState; playerID: string }> = ({ gameState, playerID }) => (
+  <WebSocketProvider>
+    <GameProvider gameState={gameState} localPlayerId={playerID}>
+      <GameScreen />
+    </GameProvider>
+  </WebSocketProvider>
+);
+
+const meta: Meta<typeof GameScreenWrapper> = {
   title: 'Core/GameScreen',
-  component: GameScreen,
+  component: GameScreenWrapper,
   parameters: {
     layout: 'fullscreen',
   },
   tags: ['autodocs'],
   argTypes: {
     gameState: { control: 'object' },
-    playerId: { control: 'text' },
-    isChatHistoryLoading: { control: 'boolean' },
+    playerID: { control: 'text' },
   },
-} satisfies Meta<typeof GameScreen>;
+} satisfies Meta<typeof GameScreenWrapper>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -151,27 +162,30 @@ const basePlayers: Player[] = [
 const baseChatMessages: ChatMessage[] = [
   {
     id: 'c-1',
-    playerId: 'p-1',
+    playerID: 'p-1',
     playerName: 'Alice',
     message: 'Good morning everyone! Ready to start the workday?',
     timestamp: '2024-01-01T09:00:00Z',
     type: 'REGULAR',
+    isSystem: false,
   },
   {
     id: 'c-2',
-    playerId: 'p-2',
+    playerID: 'p-2',
     playerName: 'Bob',
     message: 'Just finished my coffee. Let\'s do this!',
     timestamp: '2024-01-01T09:01:00Z',
     type: 'REGULAR',
+    isSystem: false,
   },
   {
     id: 'c-3',
-    playerId: 'system',
+    playerID: 'system',
     playerName: 'NEXUS',
     message: 'SITREP: All systems operational. Day 1 commencing.',
     timestamp: '2024-01-01T09:02:00Z',
     type: 'SITREP',
+    isSystem: true,
     metadata: {
       playerHeadcount: {
         humans: 3,
@@ -203,8 +217,7 @@ const baseGameState: GameState = {
 export const Discussion: Story = {
   args: {
     gameState: baseGameState,
-    playerId: 'p-1',
-    isChatHistoryLoading: false,
+    playerID: 'p-1',
   },
 };
 
@@ -218,8 +231,7 @@ export const NightPhase: Story = {
         duration: 120000000000, // 2 minutes in nanoseconds
       },
     },
-    playerId: 'p-1',
-    isChatHistoryLoading: false,
+    playerID: 'p-1',
   },
 };
 
@@ -233,14 +245,14 @@ export const NominationPhase: Story = {
         duration: 180000000000, // 3 minutes in nanoseconds
       },
       voteState: {
-        phase: 'NOMINATION',
-        nominees: [],
+        type: 'NOMINATION',
         votes: {},
-        deadline: '2024-01-01T12:03:00Z',
+        tokenWeights: {},
+        results: {},
+        isComplete: false,
       },
     },
-    playerId: 'p-1',
-    isChatHistoryLoading: false,
+    playerID: 'p-1',
   },
 };
 
@@ -255,14 +267,14 @@ export const TrialPhase: Story = {
       },
       nominatedPlayer: 'p-3',
       voteState: {
-        phase: 'TRIAL',
-        nominees: ['p-3'],
+        type: 'TRIAL',
         votes: {},
-        deadline: '2024-01-01T12:07:00Z',
+        tokenWeights: {},
+        results: {},
+        isComplete: false,
       },
     },
-    playerId: 'p-1',
-    isChatHistoryLoading: false,
+    playerID: 'p-1',
   },
 };
 
@@ -279,32 +291,30 @@ export const PulseCheckPhase: Story = {
         ...baseChatMessages,
         {
           id: 'c-4',
-          playerId: 'system',
+          playerID: 'system',
           playerName: 'NEXUS',
           message: 'PULSE CHECK: Respond with your current status.',
           timestamp: '2024-01-01T11:00:00Z',
           type: 'PULSE_CHECK',
+          isSystem: true,
         },
       ],
     },
-    playerId: 'p-1',
-    isChatHistoryLoading: false,
+    playerID: 'p-1',
   },
 };
 
 export const AsAIPlayer: Story = {
   args: {
     gameState: baseGameState,
-    playerId: 'p-3', // Eve (AI-aligned player)
-    isChatHistoryLoading: false,
+    playerID: 'p-3', // Eve (AI-aligned player)
   },
 };
 
 export const AsDeadPlayer: Story = {
   args: {
     gameState: baseGameState,
-    playerId: 'p-4', // Charlie (dead player)
-    isChatHistoryLoading: false,
+    playerID: 'p-4', // Charlie (dead player)
   },
 };
 
@@ -313,22 +323,16 @@ export const WithCrisisEvent: Story = {
     gameState: {
       ...baseGameState,
       crisisEvent: {
-        id: 'crisis-1',
         type: 'SYSTEM_BREACH',
-        name: 'Security Breach Detected',
+        title: 'Security Breach Detected',
         description: 'Unauthorized access detected in the main database.',
-        severity: 'HIGH',
-        isActive: true,
         effects: {
           tokenLoss: 2,
           communicationDisruption: true,
         },
-        activatedAt: '2024-01-01T10:30:00Z',
-        expiresAt: '2024-01-01T11:30:00Z',
       },
     },
-    playerId: 'p-1',
-    isChatHistoryLoading: false,
+    playerID: 'p-1',
   },
 };
 
@@ -357,8 +361,7 @@ export const WithPrivateNotifications: Story = {
         },
       ],
     },
-    playerId: 'p-1',
-    isChatHistoryLoading: false,
+    playerID: 'p-1',
   },
 };
 
@@ -368,8 +371,7 @@ export const ChatHistoryLoading: Story = {
       ...baseGameState,
       chatMessages: [],
     },
-    playerId: 'p-1',
-    isChatHistoryLoading: true,
+    playerID: 'p-1',
   },
 };
 
@@ -383,13 +385,11 @@ export const GameOver: Story = {
         duration: 0,
       },
       winCondition: {
-        type: 'AI_VICTORY',
+        winner: 'AI',
+        condition: 'AI_TAKEOVER',
         description: 'The AI has successfully converted enough humans to take control.',
-        winningPlayers: ['p-3'],
-        gameEndReason: 'AI_TAKEOVER',
       },
     },
-    playerId: 'p-1',
-    isChatHistoryLoading: false,
+    playerID: 'p-1',
   },
 };

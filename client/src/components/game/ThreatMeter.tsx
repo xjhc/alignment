@@ -56,7 +56,7 @@ export const ThreatMeter: React.FC<ThreatMeterProps> = ({ tokens, aiEquity }) =>
   const status = getStatusIndicator();
 
   return (
-    <div className="animate-fade-in">
+    <div className="animation-fade-in">
       <div className="flex justify-between items-center mb-2">
         <span className="text-[11px] font-bold text-text-muted uppercase">🌀 ALIGNMENT</span>
       </div>

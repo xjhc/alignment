@@ -5,7 +5,22 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
+  isLoading?: boolean;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
 }
+
+const LoadingSpinner: React.FC<{ size: 'sm' | 'md' | 'lg' }> = ({ size }) => {
+  const sizeClasses = {
+    sm: 'w-3 h-3',
+    md: 'w-4 h-4',
+    lg: 'w-5 h-5',
+  };
+
+  return (
+    <div className={`animate-spin rounded-full border-2 border-current border-t-transparent ${sizeClasses[size]}`} />
+  );
+};
 
 export const Button: React.FC<ButtonProps> = ({
   children,
@@ -13,6 +28,9 @@ export const Button: React.FC<ButtonProps> = ({
   size = 'md',
   fullWidth = false,
   disabled = false,
+  isLoading = false,
+  leftIcon,
+  rightIcon,
   className = '',
   ...props
 }) => {
@@ -42,13 +60,23 @@ export const Button: React.FC<ButtonProps> = ({
     className,
   ].filter(Boolean).join(' ');
 
+  const isDisabled = disabled || isLoading;
+
   return (
     <button
       {...props}
-      disabled={disabled}
+      disabled={isDisabled}
       className={classes}
     >
-      {children}
+      {isLoading ? (
+        <LoadingSpinner size={size} />
+      ) : (
+        <>
+          {leftIcon && <span className="flex-shrink-0">{leftIcon}</span>}
+          <span className={leftIcon || rightIcon ? 'flex-1' : ''}>{children}</span>
+          {rightIcon && <span className="flex-shrink-0">{rightIcon}</span>}
+        </>
+      )}
     </button>
   );
 };

@@ -89,12 +89,12 @@ export const Modal: React.FC<ModalProps> & {
 
   const modalContent = (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in p-4 md:items-start md:pt-8" 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animation-fade-in p-4 md:items-start md:pt-8" 
       onClick={handleOverlayClick}
     >
       <div
         ref={modalRef}
-        className={`bg-background-primary rounded-lg shadow-xl relative w-full max-h-[90vh] overflow-y-auto animate-slide-in border border-border ${getSizeClasses()} md:max-w-full ${className}`}
+        className={`bg-background-primary rounded-lg shadow-xl relative w-full max-h-[90vh] overflow-y-auto animation-slide-in-up border border-border ${getSizeClasses()} md:max-w-full ${className}`}
         role="dialog"
         aria-modal="true"
       >

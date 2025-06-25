@@ -10,7 +10,7 @@ export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer }) => {
   
   if (!ability) {
     return (
-      <div className="animate-fade-in">
+      <div className="animation-fade-in">
         <div className="flex justify-between items-center mb-2">
           <span className="text-[11px] font-bold text-text-muted uppercase">🎯 ABILITY</span>
           <span className="bg-text-muted text-white px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase">
@@ -29,7 +29,7 @@ export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer }) => {
   const status = isReady ? 'READY' : 'LOCKED';
 
   return (
-    <div className="animate-fade-in">
+    <div className="animation-fade-in">
       <div className="flex justify-between items-center mb-2">
         <span className="text-[11px] font-bold text-text-muted uppercase">🎯 ABILITY</span>
         <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase text-white ${

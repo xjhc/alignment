@@ -193,6 +193,8 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 		newState.applyPartingShotSet(event)
 
 	// KPI events
+	case EventKPIAssigned:
+		newState.applyKPIAssigned(event)
 	case EventKPIProgress:
 		newState.applyKPIProgress(event)
 	case EventKPICompleted:
@@ -1014,6 +1016,25 @@ func (gs *GameState) applyPartingShotSet(event Event) {
 }
 
 // KPI event handlers
+func (gs *GameState) applyKPIAssigned(event Event) {
+	playerID := event.PlayerID
+	kpiType, _ := event.Payload["kpi_type"].(string)
+	description, _ := event.Payload["description"].(string)
+	target, _ := event.Payload["target"].(float64)
+	reward, _ := event.Payload["reward"].(string)
+
+	if player, exists := gs.Players[playerID]; exists {
+		player.PersonalKPI = &PersonalKPI{
+			Type:        KPIType(kpiType),
+			Description: description,
+			Progress:    0,
+			Target:      int(target),
+			IsCompleted: false,
+			Reward:      reward,
+		}
+	}
+}
+
 func (gs *GameState) applyKPIProgress(event Event) {
 	playerID := event.PlayerID
 	progress, _ := event.Payload["progress"].(float64)

@@ -109,6 +109,67 @@ This codebase prioritizes **maintainability and performance** through clean, idi
 -   No Technical Debt: We adhere to the "Boy Scout Rule"—always leave the code cleaner than you found it. Do not defer refactoring or implement temporary hacks. Choose the correct, maintainable solution now, even if it takes longer.
 -   Documentation as Code: Documentation must be kept up-to-date. If a code change alters a feature, API, or architectural pattern, the corresponding documentation in the `/docs` directory must be updated within the same commit or pull request. Treat documentation with the same rigor as source code.
 
+## Frontend Styling Guidelines
+
+This project uses **Tailwind CSS** as the primary styling framework, integrated with our design token system to ensure consistency and maintain our design system constraints.
+
+### Styling Approach
+
+-   **Tailwind Utility Classes**: Use Tailwind utility classes directly in component JSX. Avoid writing custom CSS unless absolutely necessary.
+-   **Design Token Integration**: Tailwind is configured to use our design tokens as the single source of truth. Colors, spacing, typography, and other design elements are automatically available as Tailwind classes.
+-   **Theme Support**: For dynamic theming (light/dark mode), use CSS custom properties through our `background-*`, `text-*`, and `border` color classes.
+-   **Component Composition**: Build complex layouts by composing Tailwind utility classes rather than creating custom CSS classes.
+
+### Tailwind Configuration
+
+The `tailwind.config.js` file is configured to:
+-   Import design tokens from `src/styles/generated/tokens.js`
+-   Map token values to Tailwind's theme configuration
+-   Include custom animation utilities that match our existing animations
+-   Support CSS custom properties for theme switching
+
+### Available Design Token Classes
+
+Our design tokens are available as Tailwind classes:
+
+**Colors**: `bg-primary`, `text-primary`, `border-primary`, `bg-background-primary`, `text-text-primary`, etc.
+**Spacing**: `p-4`, `m-2`, `gap-3` (based on our spacing scale)
+**Typography**: `text-xs`, `text-sm`, `font-medium`, `font-mono`
+**Border Radius**: `rounded`, `rounded-md`, `rounded-lg`
+**Custom Colors**: `bg-human`, `bg-aligned`, `bg-ai`, `bg-success`, `bg-danger`
+
+### Development Workflow
+
+1. **Use Tailwind First**: Always attempt to solve styling needs with Tailwind utility classes
+2. **Reference Design Tokens**: Prefer classes that map to our design tokens over arbitrary values
+3. **Component Patterns**: For reusable patterns, create TypeScript utility functions that return class strings
+4. **Avoid CSS Modules**: Do not create new `.module.css` files; use Tailwind classes instead
+
+### Motion System
+
+This project implements a formal **Motion System** for consistent, purposeful animations. All animations follow the principles defined in `docs/development/05-motion-system.md`.
+
+**Animation Guidelines:**
+-   **Use Motion System Classes**: Always use the standardized `animation-*` classes (e.g., `animation-fade-in`, `animation-slide-in-up`) instead of ad-hoc animations
+-   **Import from Utils**: Use animation constants from `src/utils/animations.ts` to avoid magic strings (e.g., `FADE_IN`, `SLIDE_IN_UP`)
+-   **Respect Timing**: Use the defined duration tokens (`--duration-fast`, `--duration-medium`, `--duration-slow`) and easing curves (`--ease-out`, `--ease-in`, `--ease-feedback`)
+-   **Staggered Animations**: Use the `applyStaggeredAnimation()` helper function for sequential list reveals
+
+**Available Animation Classes:**
+- **Fade**: `animation-fade-in`, `animation-fade-out`
+- **Slide**: `animation-slide-in-up`, `animation-slide-in-down`, `animation-slide-in-left`, `animation-slide-in-right`
+- **Scale**: `animation-scale-in`, `animation-scale-in-feedback`
+- **Stagger**: `stagger-child` for sequential list animations
+- **Game-specific**: `animation-glitch`, `animation-pulse`, `animation-shake`, `animation-elimination-fade`
+
+### Migration Status
+
+The project is currently migrating from CSS Modules to Tailwind CSS. As components are refactored:
+-   Remove CSS Module imports and corresponding `.module.css` files
+-   Replace CSS Module classes with equivalent Tailwind utility classes
+-   Replace old `animate-*` classes with new Motion System `animation-*` classes
+-   Maintain visual consistency during the transition
+
 ## Key Architectural Patterns
 
 -   **Actor Model:** Each game runs in a dedicated goroutine (`GameActor`) with its own in-memory `GameState`. All actions are processed serially through a Go channel, eliminating locks.

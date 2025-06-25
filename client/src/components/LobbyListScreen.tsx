@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button } from './base';
+import { Button } from './ui';
 
 interface LobbyInfo {
   id: string;

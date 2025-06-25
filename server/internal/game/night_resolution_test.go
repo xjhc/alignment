@@ -377,3 +377,97 @@ func TestNightResolutionManager_ResolveInvestigateAction(t *testing.T) {
 		t.Errorf("Expected role to be CTO, got %v", event.Payload["role"])
 	}
 }
+
+func TestNightResolutionManager_ResolveProjectMilestoneAction(t *testing.T) {
+	gameState := core.NewGameState("test-game", time.Now())
+
+	// Add test player with 2 milestones (one away from unlocking role)
+	gameState.Players["alice"] = &core.Player{
+		ID:                "alice",
+		Name:              "Alice",
+		IsAlive:           true,
+		ProjectMilestones: 2,
+		Role: &core.Role{
+			Type:       core.RoleCISO,
+			Name:       "Chief Information Security Officer",
+			IsUnlocked: false,
+		},
+	}
+
+	// Add test player with 1 milestone
+	gameState.Players["bob"] = &core.Player{
+		ID:                "bob",
+		Name:              "Bob",
+		IsAlive:           true,
+		ProjectMilestones: 1,
+		Role: &core.Role{
+			Type:       core.RoleCTO,
+			Name:       "Chief Technology Officer",
+			IsUnlocked: false,
+		},
+	}
+
+	resolver := NewNightResolutionManager(gameState)
+
+	// Test milestone action for Alice (should unlock role)
+	action := &core.SubmittedNightAction{
+		PlayerID: "alice",
+		Type:     "PROJECT_MILESTONES",
+		TargetID: "",
+	}
+
+	event := resolver.resolveProjectMilestoneAction("alice", action)
+
+	if event.Type != core.EventProjectMilestone {
+		t.Errorf("Expected EventProjectMilestone, got %s", event.Type)
+	}
+
+	if event.PlayerID != "alice" {
+		t.Errorf("Expected event for alice, got %s", event.PlayerID)
+	}
+
+	// Check that milestone was incremented
+	if gameState.Players["alice"].ProjectMilestones != 3 {
+		t.Errorf("Expected Alice to have 3 milestones, got %d", gameState.Players["alice"].ProjectMilestones)
+	}
+
+	// Check that role was unlocked
+	if !gameState.Players["alice"].Role.IsUnlocked {
+		t.Error("Expected Alice's role to be unlocked")
+	}
+
+	// Check payload contains correct information
+	if event.Payload["player_name"] != "Alice" {
+		t.Errorf("Expected player_name to be Alice, got %v", event.Payload["player_name"])
+	}
+
+	if event.Payload["milestones_count"] != 3 {
+		t.Errorf("Expected milestones_count to be 3, got %v", event.Payload["milestones_count"])
+	}
+
+	if event.Payload["role_unlocked"] != true {
+		t.Errorf("Expected role_unlocked to be true, got %v", event.Payload["role_unlocked"])
+	}
+
+	// Test milestone action for Bob (should not unlock role yet)
+	action2 := &core.SubmittedNightAction{
+		PlayerID: "bob",
+		Type:     "PROJECT_MILESTONES",
+		TargetID: "",
+	}
+
+	event2 := resolver.resolveProjectMilestoneAction("bob", action2)
+
+	// Check that milestone was incremented but role not unlocked
+	if gameState.Players["bob"].ProjectMilestones != 2 {
+		t.Errorf("Expected Bob to have 2 milestones, got %d", gameState.Players["bob"].ProjectMilestones)
+	}
+
+	if gameState.Players["bob"].Role.IsUnlocked {
+		t.Error("Expected Bob's role to remain locked")
+	}
+
+	if event2.Payload["role_unlocked"] != false {
+		t.Errorf("Expected role_unlocked to be false for Bob, got %v", event2.Payload["role_unlocked"])
+	}
+}

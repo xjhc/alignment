@@ -22,7 +22,7 @@ export function GameScreen() {
   }
 
   return (
-    <div className="w-screen h-screen grid grid-cols-[260px_1fr_320px] gap-px bg-border overflow-hidden lg:grid-cols-[260px_1fr_320px] md:grid-cols-[220px_1fr_280px] sm:flex sm:flex-col sm:gap-0">
+    <div className="w-screen h-screen grid grid-cols-[260px_1fr_320px] gap-px bg-border overflow-hidden">
       {/* Private Notifications Overlay */}
       {gameState.privateNotifications && (
         <PrivateNotifications

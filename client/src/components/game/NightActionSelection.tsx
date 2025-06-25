@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useGameContext } from '../../contexts/GameContext';
 import { useGameActions } from '../../hooks/useGameActions';
 import { Player } from '../../types';
-import { Button } from '../base';
+import { Button } from '../ui';
 
 interface NightActionSelectionProps {
   // No props needed - everything comes from context
