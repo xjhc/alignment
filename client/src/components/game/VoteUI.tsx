@@ -14,7 +14,6 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
   const {
     selectedNominee,
     setSelectedNominee,
-    selectedVote,
     setSelectedVote,
     handleNominate,
     handleVote,
@@ -89,101 +88,116 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
     const yesVotes = gameState.voteState?.results?.['GUILTY'] || 0;
     const noVotes = gameState.voteState?.results?.['INNOCENT'] || 0;
 
+    // Helper function to get player avatar emoji
+    const getPlayerAvatar = (jobTitle: string) => {
+      switch (jobTitle) {
+        case 'CISO': return '👤';
+        case 'Systems': return '🧑‍💻';
+        case 'Ethics': return '🕵️';
+        case 'CTO': return '🤖';
+        case 'COO': return '🧑‍🚀';
+        case 'CFO': return '👩‍🔬';
+        default: return '👤';
+      }
+    };
+
+    // Helper function to render blockchain vote blocks
+    const renderVoteBlocks = (voteOption: string) => {
+      if (!gameState.voteState?.votes) return null;
+      
+      return Object.entries(gameState.voteState.votes)
+        .filter(([, vote]) => vote === voteOption)
+        .map(([playerId]) => {
+          const voter = gameState.players.find(p => p.id === playerId);
+          if (!voter) return null;
+          
+          const isMyVote = voter.id === localPlayer.id;
+          
+          return (
+            <div
+              key={playerId}
+              className={`vote-block ${isMyVote ? 'my-vote' : ''} animation-fade-in`}
+            >
+              <div className="block-header">
+                <span className="block-icon">{getPlayerAvatar(voter.jobTitle)}</span>
+                <span className="block-amount">{voter.tokens}</span>
+              </div>
+              <div className="block-hash">{voter.name}</div>
+            </div>
+          );
+        });
+    };
+
+    // Check if local player has voted
+    const hasVoted = gameState.voteState?.votes && localPlayer.id in gameState.voteState.votes;
+    const myVote = hasVoted ? gameState.voteState?.votes[localPlayer.id] : null;
+
     return (
-      <div className="p-3 px-4 bg-gray-900 border-t border-gray-700 animate-[fadeIn_0.3s_ease]">
+      <div className="p-3 px-4 bg-gray-900 border-t border-gray-700 animation-fade-in">
         <div className="mb-1.5">
-          <h3 className="text-sm font-bold text-gray-100 normal-case tracking-normal text-left p-0 bg-transparent m-0 mb-3">Deactivate {nominatedPlayer.name}?</h3>
+          <h3 className="text-sm font-bold text-gray-100 normal-case tracking-normal text-left p-0 bg-transparent m-0 mb-3">
+            Deactivate {nominatedPlayer.name}?
+          </h3>
         </div>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3 px-4 py-2 rounded-md bg-gray-900 border border-gray-600 transition-all duration-150 hover:bg-gray-700">
-            <span className="font-bold text-sm min-w-[50px] text-green-500">✔️ YES</span>
-            <span className="font-mono text-sm font-bold min-w-[35px] text-right text-green-500">🪙 {yesVotes}</span>
-            <div className="flex-grow flex gap-1 flex-wrap items-center">
-              {gameState.voteState?.votes && Object.entries(gameState.voteState.votes)
-                .filter(([, vote]) => vote === 'GUILTY')
-                .map(([playerId]) => {
-                  const voter = gameState.players.find(p => p.id === playerId);
-                  if (!voter) return null;
-                  return (
-                    <div key={playerId} className={`flex flex-col items-center gap-0.5 px-1.5 py-1 bg-gray-700 border border-gray-600 rounded text-xs min-w-[40px] ${
-                      voter.id === localPlayer.id ? 'bg-amber-500 border-amber-500 text-black' : ''
-                    }`}>
-                      <div className="flex items-center gap-0.5">
-                        <span className="text-xs">
-                          {voter.jobTitle === 'CISO' ? '👤' :
-                           voter.jobTitle === 'Systems' ? '🧑‍💻' :
-                           voter.jobTitle === 'Ethics' ? '🕵️' :
-                           voter.jobTitle === 'CTO' ? '🤖' :
-                           voter.jobTitle === 'COO' ? '🧑‍🚀' :
-                           voter.jobTitle === 'CFO' ? '👩‍🔬' : '👤'}
-                        </span>
-                        <span className="font-mono font-bold text-xs">{voter.tokens}</span>
-                      </div>
-                      <div className="font-mono text-xs text-gray-500 text-center max-w-[35px] overflow-hidden text-ellipsis whitespace-nowrap">{voter.name}</div>
-                    </div>
-                  );
-                })}
+        <div className="verdict-poll">
+          {/* YES Vote Row */}
+          <div className="vote-option yes">
+            <span className="option-label">✔️ YES</span>
+            <span className="vote-tally">🪙 {yesVotes}</span>
+            <div className="blockchain-chain">
+              {renderVoteBlocks('GUILTY')}
             </div>
             <Button
-              variant={selectedVote === 'GUILTY' ? 'primary' : 'secondary'}
+              variant={myVote === 'GUILTY' ? 'primary' : 'secondary'}
               size="sm"
+              disabled={hasVoted}
               onClick={() => {
+                playSound('vote');
                 setSelectedVote('GUILTY');
                 handleVote();
               }}
-              className={`text-xs font-bold ${
-                selectedVote === 'GUILTY' ? 'bg-amber-500 border-amber-500 text-black' : 'hover:enabled:bg-green-500 hover:enabled:border-green-500 hover:enabled:text-white'
+              className={`option-vote-btn ${
+                myVote === 'GUILTY' ? 'voted bg-amber-500 border-amber-500 text-black' : 
+                hasVoted ? 'opacity-50 cursor-not-allowed' :
+                'hover:enabled:bg-green-500 hover:enabled:border-green-500 hover:enabled:text-white'
               }`}
               onMouseDown={(e) => {
-                e.currentTarget.classList.add('animation-pulse');
-                setTimeout(() => e.currentTarget.classList.remove('animation-pulse'), 600);
+                if (!hasVoted) {
+                  e.currentTarget.classList.add('animation-pulse');
+                  setTimeout(() => e.currentTarget.classList.remove('animation-pulse'), 600);
+                }
               }}
             >
               VOTE
             </Button>
           </div>
-          <div className="flex items-center gap-3 px-4 py-2 rounded-md bg-gray-900 border border-gray-600 transition-all duration-150 hover:bg-gray-700">
-            <span className="font-bold text-sm min-w-[50px] text-red-500">❌ NO</span>
-            <span className="font-mono text-sm font-bold min-w-[35px] text-right text-red-500">🪙 {noVotes}</span>
-            <div className="flex-grow flex gap-1 flex-wrap items-center">
-              {gameState.voteState?.votes && Object.entries(gameState.voteState.votes)
-                .filter(([, vote]) => vote === 'INNOCENT')
-                .map(([playerId]) => {
-                  const voter = gameState.players.find(p => p.id === playerId);
-                  if (!voter) return null;
-                  return (
-                    <div key={playerId} className={`flex flex-col items-center gap-0.5 px-1.5 py-1 bg-gray-700 border border-gray-600 rounded text-xs min-w-[40px] ${
-                      voter.id === localPlayer.id ? 'bg-amber-500 border-amber-500 text-black' : ''
-                    }`}>
-                      <div className="flex items-center gap-0.5">
-                        <span className="text-xs">
-                          {voter.jobTitle === 'CISO' ? '👤' :
-                           voter.jobTitle === 'Systems' ? '🧑‍💻' :
-                           voter.jobTitle === 'Ethics' ? '🕵️' :
-                           voter.jobTitle === 'CTO' ? '🤖' :
-                           voter.jobTitle === 'COO' ? '🧑‍🚀' :
-                           voter.jobTitle === 'CFO' ? '👩‍🔬' : '👤'}
-                        </span>
-                        <span className="font-mono font-bold text-xs">{voter.tokens}</span>
-                      </div>
-                      <div className="font-mono text-xs text-gray-500 text-center max-w-[35px] overflow-hidden text-ellipsis whitespace-nowrap">{voter.name}</div>
-                    </div>
-                  );
-                })}
+
+          {/* NO Vote Row */}
+          <div className="vote-option no">
+            <span className="option-label">❌ NO</span>
+            <span className="vote-tally">🪙 {noVotes}</span>
+            <div className="blockchain-chain">
+              {renderVoteBlocks('INNOCENT')}
             </div>
             <Button
-              variant={selectedVote === 'INNOCENT' ? 'primary' : 'secondary'}
+              variant={myVote === 'INNOCENT' ? 'primary' : 'secondary'}
               size="sm"
+              disabled={hasVoted}
               onClick={() => {
+                playSound('vote');
                 setSelectedVote('INNOCENT');
                 handleVote();
               }}
-              className={`text-xs font-bold ${
-                selectedVote === 'INNOCENT' ? 'bg-amber-500 border-amber-500 text-black' : 'hover:enabled:bg-red-500 hover:enabled:border-red-500 hover:enabled:text-white'
+              className={`option-vote-btn ${
+                myVote === 'INNOCENT' ? 'voted bg-amber-500 border-amber-500 text-black' : 
+                hasVoted ? 'opacity-50 cursor-not-allowed' :
+                'hover:enabled:bg-red-500 hover:enabled:border-red-500 hover:enabled:text-white'
               }`}
               onMouseDown={(e) => {
-                e.currentTarget.classList.add('animation-pulse');
-                setTimeout(() => e.currentTarget.classList.remove('animation-pulse'), 600);
+                if (!hasVoted) {
+                  e.currentTarget.classList.add('animation-pulse');
+                  setTimeout(() => e.currentTarget.classList.remove('animation-pulse'), 600);
+                }
               }}
             >
               VOTE

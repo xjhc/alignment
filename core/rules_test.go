@@ -380,11 +380,11 @@ func TestCalculateAIConversionSuccess(t *testing.T) {
 
 func TestCheckWinCondition(t *testing.T) {
 	testCases := []struct {
-		name            string
-		gameState       GameState
-		expectedWinner  string
+		name              string
+		gameState         GameState
+		expectedWinner    string
 		expectedCondition string
-		shouldWin       bool
+		shouldWin         bool
 	}{
 		{
 			name: "Humans win by containment",
@@ -395,9 +395,9 @@ func TestCheckWinCondition(t *testing.T) {
 					"ai-1":    {IsAlive: false, Alignment: "ALIGNED"},
 				},
 			},
-			expectedWinner:   "HUMANS",
+			expectedWinner:    "HUMANS",
 			expectedCondition: "CONTAINMENT",
-			shouldWin:        true,
+			shouldWin:         true,
 		},
 		{
 			name: "AI wins by singularity",
@@ -408,9 +408,9 @@ func TestCheckWinCondition(t *testing.T) {
 					"ai-2":    {IsAlive: true, Alignment: "ALIGNED"},
 				},
 			},
-			expectedWinner:   "AI",
+			expectedWinner:    "AI",
 			expectedCondition: "SINGULARITY",
-			shouldWin:        true,
+			shouldWin:         true,
 		},
 		{
 			name: "Succession Planner KPI win",
@@ -427,9 +427,9 @@ func TestCheckWinCondition(t *testing.T) {
 					"ai-1":    {IsAlive: false, Alignment: "ALIGNED"},
 				},
 			},
-			expectedWinner:   "HUMANS",
+			expectedWinner:    "HUMANS",
 			expectedCondition: "SUCCESSION_PLANNER",
-			shouldWin:        true,
+			shouldWin:         true,
 		},
 		{
 			name: "Game continues - no win condition",
@@ -454,9 +454,9 @@ func TestCheckWinCondition(t *testing.T) {
 					"ai-1":    {IsAlive: true, Alignment: "ALIGNED"},
 				},
 			},
-			expectedWinner:   "HUMANS",
+			expectedWinner:    "HUMANS",
 			expectedCondition: "CONTAINMENT",
-			shouldWin:        true,
+			shouldWin:         true,
 		},
 	}
 
@@ -642,10 +642,10 @@ func TestCalculateTokenReward(t *testing.T) {
 
 func TestCheckScapegoatKPI(t *testing.T) {
 	testCases := []struct {
-		name              string
-		eliminatedPlayer  Player
-		voteState         VoteState
-		expected          bool
+		name             string
+		eliminatedPlayer Player
+		voteState        VoteState
+		expected         bool
 	}{
 		{
 			name: "Successful scapegoat - unanimous elimination",
@@ -729,9 +729,9 @@ func TestCheckScapegoatKPI(t *testing.T) {
 
 func TestIsMessageCorrupted(t *testing.T) {
 	testCases := []struct {
-		name           string
-		player         Player
-		messageContent string
+		name             string
+		player           Player
+		messageContent   string
 		expectCorruption bool
 	}{
 		{
@@ -795,7 +795,7 @@ func TestHashFunctions(t *testing.T) {
 	// Test that hash functions are deterministic
 	hash1 := hashPlayerAction("player-1", 1, "MINE")
 	hash2 := hashPlayerAction("player-1", 1, "MINE")
-	
+
 	if hash1 != hash2 {
 		t.Error("hashPlayerAction should be deterministic")
 	}
@@ -814,7 +814,7 @@ func TestHashFunctions(t *testing.T) {
 	// Test string hash function
 	stringHash1 := hashStringWithID("hello", "player-1")
 	stringHash2 := hashStringWithID("hello", "player-1")
-	
+
 	if stringHash1 != stringHash2 {
 		t.Error("hashStringWithID should be deterministic")
 	}
@@ -822,5 +822,98 @@ func TestHashFunctions(t *testing.T) {
 	stringHash3 := hashStringWithID("hello", "player-2")
 	if stringHash1 == stringHash3 {
 		t.Error("Different player IDs should produce different string hashes")
+	}
+}
+func TestCanPlayerSendMessageInChannel(t *testing.T) {
+	testCases := []struct {
+		name      string
+		player    Player
+		channelID string
+		phase     PhaseType
+		expected  bool
+	}{
+		{
+			name: "War room allowed during SITREP",
+			player: Player{
+				ID:      "player-1",
+				IsAlive: true,
+			},
+			channelID: "#war-room",
+			phase:     PhaseSitrep,
+			expected:  true,
+		},
+		{
+			name: "War room blocked during PULSE_CHECK before submission",
+			player: Player{
+				ID:                     "player-1",
+				IsAlive:                true,
+				HasSubmittedPulseCheck: false,
+			},
+			channelID: "#war-room",
+			phase:     PhasePulseCheck,
+			expected:  false,
+		},
+		{
+			name: "War room allowed during PULSE_CHECK after submission",
+			player: Player{
+				ID:                     "player-1",
+				IsAlive:                true,
+				HasSubmittedPulseCheck: true,
+			},
+			channelID: "#war-room",
+			phase:     PhasePulseCheck,
+			expected:  true,
+		},
+		{
+			name: "War room blocked during NIGHT",
+			player: Player{
+				ID:      "player-1",
+				IsAlive: true,
+			},
+			channelID: "#war-room",
+			phase:     PhaseNight,
+			expected:  false,
+		},
+		{
+			name: "Aligned channel allowed for AI during NIGHT",
+			player: Player{
+				ID:        "player-1",
+				IsAlive:   true,
+				Alignment: "ALIGNED",
+			},
+			channelID: "#aligned",
+			phase:     PhaseNight,
+			expected:  true,
+		},
+		{
+			name: "Aligned channel blocked for humans",
+			player: Player{
+				ID:        "player-1",
+				IsAlive:   true,
+				Alignment: "HUMAN",
+			},
+			channelID: "#aligned",
+			phase:     PhaseDiscussion,
+			expected:  false,
+		},
+		{
+			name: "Invalid channel blocked",
+			player: Player{
+				ID:      "player-1",
+				IsAlive: true,
+			},
+			channelID: "#invalid",
+			phase:     PhaseDiscussion,
+			expected:  false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := CanPlayerSendMessageInChannel(tc.player, tc.channelID, tc.phase, time.Now())
+			if result != tc.expected {
+				t.Errorf("Expected %v, got %v", tc.expected, result)
+			}
+		})
 	}
 }

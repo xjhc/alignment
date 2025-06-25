@@ -408,7 +408,6 @@ func (nrm *NightResolutionManager) resolveProtectAction(playerID string, action 
 func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action *core.SubmittedNightAction) []core.Event {
 	targetID := action.TargetID
 	target := nrm.gameState.Players[targetID]
-	player := nrm.gameState.Players[playerID]
 
 	// Check if AI conversions are blocked by crisis event
 	if nrm.gameState.CrisisEvent != nil {
@@ -467,8 +466,11 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 		}}
 	}
 
-	// Calculate conversion success based on AI Equity vs Player Tokens
-	conversionThreshold := player.AIEquity
+	// AI targeting increases target's AI Equity by 1 (this is the core mechanic)
+	target.AIEquity++
+
+	// Calculate conversion success based on target's AI Equity vs their Tokens
+	conversionThreshold := target.AIEquity
 
 	// Check for crisis AI equity bonus
 	if nrm.gameState.CrisisEvent != nil {
@@ -482,17 +484,15 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 	if conversionThreshold > target.Tokens {
 		// Successful conversion - target becomes AI aligned
 		target.Alignment = "ALIGNED"
-
-		// Apply AI equity bonus from crisis if applicable
-		equityGained := 1
+		
+		// Apply any crisis equity bonus to the target's actual AIEquity
 		if nrm.gameState.CrisisEvent != nil {
 			if bonus, exists := nrm.gameState.CrisisEvent.Effects["ai_equity_bonus"]; exists {
 				if bonusVal, ok := bonus.(int); ok {
-					equityGained += bonusVal
+					target.AIEquity += bonusVal
 				}
 			}
 		}
-		target.AIEquity += equityGained
 
 		return []core.Event{{
 			ID:        fmt.Sprintf("night_convert_success_%s_%s", playerID, targetID),
@@ -504,14 +504,14 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 				"converter_id":     playerID,
 				"target_id":        targetID,
 				"target_name":      target.Name,
-				"ai_equity_gained": equityGained,
-				"new_ai_equity":    target.AIEquity,
+				"ai_equity":        target.AIEquity,
+				"target_tokens":    target.Tokens,
 			},
 		}}
 	} else {
-		// System shock - proves target is human and applies shock effects
+		// Failed conversion - apply System Shock with MessageCorruption
 		shock := &core.SystemShock{
-			Type:        core.ShockActionLock,
+			Type:        core.ShockMessageCorruption,
 			Description: "System integrity compromised - conversion attempt detected",
 			ExpiresAt:   getCurrentTime().Add(24 * 3600 * 1000000000), // 24 hours
 			IsActive:    true,
@@ -531,6 +531,8 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 				"reason":         "System shock from failed conversion",
 				"shock_type":     string(shock.Type),
 				"shock_duration": "24 hours",
+				"ai_equity":      target.AIEquity,
+				"target_tokens":  target.Tokens,
 			},
 		}}
 	}

@@ -52,18 +52,18 @@ func TestApplyEvent_PlayerJoined(t *testing.T) {
 
 func TestApplyEvent_VoteCast(t *testing.T) {
 	gameState := NewGameState("test-game", time.Now())
-	
+
 	// Add two players
 	gameState.Players["player-1"] = &Player{
-		ID:     "player-1",
-		Name:   "Alice",
-		Tokens: 3,
+		ID:      "player-1",
+		Name:    "Alice",
+		Tokens:  3,
 		IsAlive: true,
 	}
 	gameState.Players["player-2"] = &Player{
-		ID:     "player-2",
-		Name:   "Bob",
-		Tokens: 2,
+		ID:      "player-2",
+		Name:    "Bob",
+		Tokens:  2,
 		IsAlive: true,
 	}
 
@@ -74,7 +74,7 @@ func TestApplyEvent_VoteCast(t *testing.T) {
 		PlayerID:  "player-1",
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"target_id":  "player-2",
+			"target_id": "player-2",
 			"vote_type": "NOMINATION",
 		},
 	}
@@ -106,9 +106,9 @@ func TestApplyEvent_VoteCast(t *testing.T) {
 func TestApplyEvent_TokensAwarded(t *testing.T) {
 	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{
-		ID:     "player-1",
-		Name:   "Alice",
-		Tokens: 5,
+		ID:      "player-1",
+		Name:    "Alice",
+		Tokens:  5,
 		IsAlive: true,
 	}
 
@@ -147,7 +147,7 @@ func TestApplyEvent_PlayerEliminated(t *testing.T) {
 		PlayerID:  "player-1",
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"role_type":  "CISO",
+			"role_type": "CISO",
 			"alignment": "HUMAN",
 		},
 	}
@@ -312,8 +312,8 @@ func TestApplyEvent_SystemShockApplied(t *testing.T) {
 		PlayerID:  "player-1",
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"shock_type":      "MESSAGE_CORRUPTION",
-			"description":     "Messages may be corrupted",
+			"shock_type":     "MESSAGE_CORRUPTION",
+			"description":    "Messages may be corrupted",
 			"duration_hours": float64(24),
 		},
 	}
@@ -340,11 +340,11 @@ func TestApplyEvent_SystemShockApplied(t *testing.T) {
 func TestApplyEvent_NightActionsResolved(t *testing.T) {
 	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{
-		ID:     "player-1",
-		Name:   "Alice",
-		Tokens: 5,
-		IsAlive: true,
-		HasUsedAbility: true,
+		ID:              "player-1",
+		Name:            "Alice",
+		Tokens:          5,
+		IsAlive:         true,
+		HasUsedAbility:  true,
 		LastNightAction: &NightAction{Type: ActionMine},
 	}
 	gameState.Players["player-2"] = &Player{
@@ -372,8 +372,8 @@ func TestApplyEvent_NightActionsResolved(t *testing.T) {
 					"status_message": "Mining successful",
 				},
 				"player-2": map[string]interface{}{
-					"alignment":  "ALIGNED",
-					"ai_equity":  float64(0),
+					"alignment":      "ALIGNED",
+					"ai_equity":      float64(0),
 					"status_message": "Converted to AI",
 				},
 			},

@@ -52,11 +52,23 @@ func (sg *SitrepGenerator) GenerateDailySitrep() DailySitrep {
 
 	// Standard sections in order
 	sitrep.Sections = append(sitrep.Sections, sg.generateExecutiveSummary())
+	
+	// Add night activity log for Day 2 and beyond
+	if sg.gameState.DayNumber > 1 {
+		sitrep.Sections = append(sitrep.Sections, sg.generateNightActivityLog())
+	}
+	
 	sitrep.Sections = append(sitrep.Sections, sg.generatePersonnelStatus())
 	sitrep.Sections = append(sitrep.Sections, sg.generateOperationalMetrics())
 	sitrep.Sections = append(sitrep.Sections, sg.generateSecurityAlerts())
 	sitrep.Sections = append(sitrep.Sections, sg.generateProjectStatus())
 	sitrep.Sections = append(sitrep.Sections, sg.generateThreatAssessment())
+	
+	// Add today's crisis challenge
+	if sg.gameState.CrisisEvent != nil {
+		sitrep.Sections = append(sitrep.Sections, sg.generateCrisisChallenge())
+	}
+	
 	sitrep.Sections = append(sitrep.Sections, sg.generateRecommendations())
 
 	// Apply hotfix redaction if active
@@ -392,15 +404,47 @@ func (sg *SitrepGenerator) generateThreatAssessment() SitrepSection {
 
 	content.WriteString("**Threat Assessment**\n\n")
 
+	// Generate HR headcount with human/aligned status
+	humanCount := 0
+	alignedCount := 0
+	for _, player := range sg.gameState.Players {
+		if player.IsAlive {
+			if player.Alignment == "ALIGNED" {
+				alignedCount++
+			} else {
+				humanCount++
+			}
+		}
+	}
+
+	content.WriteString("**HR HEADCOUNT:**\n")
+	content.WriteString(fmt.Sprintf("• **%d Human Life-signs Detected**\n", humanCount))
+	if alignedCount > 0 {
+		content.WriteString(fmt.Sprintf("• **%d Aligned Agents Active** 🤖\n", alignedCount))
+	} else {
+		content.WriteString("• **No Aligned Agents Detected**\n")
+	}
+
+	// Add clues about AI's last target if available
+	if sg.gameState.DayNumber > 1 {
+		content.WriteString("\n**AI Activity Intelligence:**\n")
+		lastTargetClue := sg.generateAITargetClue()
+		if lastTargetClue != "" {
+			content.WriteString(fmt.Sprintf("• %s\n", lastTargetClue))
+		} else {
+			content.WriteString("• No AI conversion attempts detected in recent night cycles\n")
+		}
+	}
+
 	// Analyze potential AI infiltration indicators
 	suspiciousActivity := sg.analyzeSuspiciousActivity()
 
 	if len(suspiciousActivity) == 0 {
-		content.WriteString("• No indicators of AI infiltration detected\n")
+		content.WriteString("\n• No indicators of AI infiltration detected\n")
 		content.WriteString("• All personnel behavior within expected parameters\n")
 		content.WriteString("• Recommendation: Maintain current security posture\n")
 	} else {
-		content.WriteString("**Potential Infiltration Indicators:**\n")
+		content.WriteString("\n**Potential Infiltration Indicators:**\n")
 		for _, indicator := range suspiciousActivity {
 			content.WriteString(fmt.Sprintf("• %s\n", indicator))
 		}
@@ -637,3 +681,238 @@ func (sg *SitrepGenerator) getRoleWeight(player *core.Player) int {
 		return 1
 	}
 }
+
+// generateNightActivityLog creates the night activity log section
+func (sg *SitrepGenerator) generateNightActivityLog() SitrepSection {
+	var content strings.Builder
+
+	content.WriteString(fmt.Sprintf("**NIGHT %d ACTIVITY LOG:**\n", sg.gameState.DayNumber-1))
+
+	// Track role abilities used
+	roleAbilitiesUsed := make([]string, 0)
+	
+	// Check for specific role abilities in the previous night
+	for _, player := range sg.gameState.Players {
+		if player.IsAlive && player.HasUsedAbility {
+			roleAbilitiesUsed = append(roleAbilitiesUsed, sg.generateRoleAbilityReport(player))
+		}
+	}
+
+	if len(roleAbilitiesUsed) > 0 {
+		for _, report := range roleAbilitiesUsed {
+			content.WriteString(fmt.Sprintf("- %s\n", report))
+		}
+	} else {
+		content.WriteString("- No role abilities were activated\n")
+	}
+
+	// Mining results summary
+	miningReport := sg.generateMiningReport()
+	if miningReport != "" {
+		content.WriteString(fmt.Sprintf("- %s\n", miningReport))
+	}
+
+	// AI conversion attempts
+	conversionReport := sg.generateConversionReport()
+	if conversionReport != "" {
+		content.WriteString(fmt.Sprintf("- %s\n", conversionReport))
+	} else {
+		content.WriteString("- No AI conversion attempts detected\n")
+	}
+
+	return SitrepSection{
+		Title:   "Night Activity Log",
+		Content: content.String(),
+		Type:    "classified",
+	}
+}
+
+// generateCrisisChallenge creates the crisis challenge section
+func (sg *SitrepGenerator) generateCrisisChallenge() SitrepSection {
+	var content strings.Builder
+
+	crisis := sg.gameState.CrisisEvent
+	content.WriteString(fmt.Sprintf("**TODAY'S CHALLENGE: %s**\n", crisis.Title))
+	content.WriteString(fmt.Sprintf("- `[%s]` %s\n", strings.ToUpper(sg.determineAlertLevel()), crisis.Description))
+
+	// Add specific crisis effects
+	if effects := sg.describeCrisisEffects(crisis); effects != "" {
+		content.WriteString(fmt.Sprintf("- %s\n", effects))
+	}
+
+	// Generate pulse check prompt
+	pulsePrompt := sg.generatePulseCheckPrompt(crisis)
+	if pulsePrompt != "" {
+		content.WriteString(fmt.Sprintf("\n**PULSE CHECK PROMPT:**\n\"%s\"\n", pulsePrompt))
+	}
+
+	return SitrepSection{
+		Title:   "Crisis Challenge",
+		Content: content.String(),
+		Type:    "standard",
+	}
+}
+
+// generateAITargetClue generates clues about AI's last target
+func (sg *SitrepGenerator) generateAITargetClue() string {
+	// Look for players with high AI equity as indicators of targeting
+	maxEquity := 0
+	var targetedPlayer *core.Player
+	
+	for _, player := range sg.gameState.Players {
+		if player.IsAlive && player.AIEquity > maxEquity {
+			maxEquity = player.AIEquity
+			targetedPlayer = player
+		}
+	}
+
+	if targetedPlayer != nil && maxEquity > 0 {
+		return fmt.Sprintf("Elevated AI system access detected for %s (Security Level: %d)", 
+			targetedPlayer.Name, maxEquity)
+	}
+
+	// Check for recently shocked players (failed conversions)
+	for _, player := range sg.gameState.Players {
+		if player.IsAlive && len(player.SystemShocks) > 0 {
+			return fmt.Sprintf("System anomalies detected in %s's workstation", player.Name)
+		}
+	}
+
+	return ""
+}
+
+// generateRoleAbilityReport generates a report for a role ability used
+func (sg *SitrepGenerator) generateRoleAbilityReport(player *core.Player) string {
+	if player.Role == nil {
+		return ""
+	}
+
+	switch player.Role.Type {
+	case core.RoleCISO:
+		return fmt.Sprintf("Security audit protocols were activated by the CISO")
+	case core.RoleCTO:
+		return fmt.Sprintf("Server infrastructure was optimized by the CTO")
+	case core.RoleCOO:
+		return fmt.Sprintf("An agent successfully used the `Isolate Node` (Block) ability")
+	case core.RoleCEO:
+		return fmt.Sprintf("Executive directive was issued by the CEO")
+	case core.RoleCFO:
+		return fmt.Sprintf("Budget reallocation was executed by the CFO")
+	case core.RoleEthics:
+		return fmt.Sprintf("Compliance protocols were updated by VP Ethics")
+	case core.RolePlatforms:
+		return fmt.Sprintf("Platform configuration was modified by VP Platforms")
+	default:
+		return fmt.Sprintf("Specialized role ability was activated")
+	}
+}
+
+// generateMiningReport generates mining activity summary
+func (sg *SitrepGenerator) generateMiningReport() string {
+	// Count mining attempts and successes
+	totalMiners := 0
+	successfulMines := 0
+	
+	for _, player := range sg.gameState.Players {
+		if player.IsAlive && player.LastNightAction != nil && player.LastNightAction.Type == core.ActionMine {
+			totalMiners++
+			// Successful mining would be indicated by token gains
+			if player.Tokens > 1 { // Assuming starting tokens is 1
+				successfulMines++
+			}
+		}
+	}
+
+	if totalMiners > 0 {
+		return fmt.Sprintf("Resource mining operations: %d attempts, %d successful", totalMiners, successfulMines)
+	}
+	
+	return ""
+}
+
+// generateConversionReport generates AI conversion activity summary  
+func (sg *SitrepGenerator) generateConversionReport() string {
+	// Check for new aligned agents or failed conversions
+	newlyAligned := 0
+	failedConversions := 0
+	
+	for _, player := range sg.gameState.Players {
+		if player.Alignment == "ALIGNED" {
+			newlyAligned++
+		}
+		if len(player.SystemShocks) > 0 {
+			failedConversions++
+		}
+	}
+
+	if newlyAligned > 0 {
+		return "The AI successfully **aligned a new agent**"
+	}
+	
+	if failedConversions > 0 {
+		return fmt.Sprintf("AI conversion attempt failed - %d personnel experienced system shocks", failedConversions)
+	}
+	
+	return ""
+}
+
+// describeCrisisEffects describes the mechanical effects of the current crisis
+func (sg *SitrepGenerator) describeCrisisEffects(crisis *core.CrisisEvent) string {
+	effects := make([]string, 0)
+	
+	if supermajority, exists := crisis.Effects["supermajority_required"]; exists && supermajority.(bool) {
+		effects = append(effects, "66% supermajority required for all decisions")
+	}
+	
+	if messageLimit, exists := crisis.Effects["message_limit"]; exists {
+		limit := int(messageLimit.(float64))
+		effects = append(effects, fmt.Sprintf("Communication limited to %d messages per person", limit))
+	}
+	
+	if doubleElim, exists := crisis.Effects["double_eliminations"]; exists && doubleElim.(bool) {
+		effects = append(effects, "**two deactivation votes** will occur this Day Phase")
+	}
+	
+	if reducedMining, exists := crisis.Effects["reduced_mining_pool"]; exists && reducedMining.(bool) {
+		effects = append(effects, "Mining efficiency reduced by 50%")
+	}
+	
+	if len(effects) > 0 {
+		return strings.Join(effects, "; ")
+	}
+	
+	return ""
+}
+
+// generatePulseCheckPrompt generates a contextual pulse check prompt
+func (sg *SitrepGenerator) generatePulseCheckPrompt(crisis *core.CrisisEvent) string {
+	switch crisis.Type {
+	case "Database Index Corruption":
+		return "A critical role has been exposed. How does this change your immediate priority?"
+	case "Cascading Server Failure":
+		return "With limited bandwidth, what is the one piece of information everyone needs to hear from you?"
+	case "Emergency Board Meeting":
+		return "The Board demands accountability. Which two roles do you believe are most responsible for this situation?"
+	case "Tainted Training Data":
+		return "We've learned the AI was trained on compromised data. What 'unshakeable truth' do you now question?"
+	case "Nightmare Scenario":
+		return "Emergency protocols are in effect. What is your immediate action to protect the company?"
+	case "Press Leak":
+		return "Sensitive information has leaked. What is your strategy to control the narrative?"
+	case "Incident Response Drill":
+		return "All communications are monitored. What would you say if you knew everyone was listening?"
+	case "Major Service Outage":
+		return "Critical services are down. What is your highest priority for recovery efforts?"
+	case "Phishing Attack":
+		return "Security has been compromised. Who do you trust most in this room and why?"
+	case "Data Privacy Audit":
+		return "External auditors are reviewing everything. What would concern you most if discovered?"
+	case "Vendor Security Breach":
+		return "A trusted partner has been compromised. How do you verify who you can still trust?"
+	case "Regulatory Review":
+		return "Government oversight is imminent. What would you want leadership to know before they arrive?"
+	default:
+		return "Given the current crisis, what is your immediate concern for the company?"
+	}
+}
+

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { PrivateNotification } from '../types';
+import { SystemShockNotification } from './SystemShockNotification';
+import { Button } from './ui/Button';
+import { SLIDE_IN_RIGHT } from '../utils/animations';
 
 interface PrivateNotificationsProps {
   notifications: PrivateNotification[];
@@ -46,12 +49,32 @@ export function PrivateNotifications({ notifications, onMarkAsRead }: PrivateNot
     }
   };
 
-  const getPriorityClass = (priority: string) => {
+  const getPriorityStyles = (priority: string) => {
     switch (priority) {
-      case 'high': return 'notification-high';
-      case 'medium': return 'notification-medium';
-      case 'low': return 'notification-low';
-      default: return 'notification-medium';
+      case 'high': 
+        return {
+          container: 'bg-danger border-danger text-white shadow-lg',
+          icon: 'text-white',
+          title: 'text-white font-semibold',
+          message: 'text-white/90',
+          timestamp: 'text-white/70'
+        };
+      case 'medium': 
+        return {
+          container: 'bg-background-secondary border-primary text-text-primary shadow-md',
+          icon: 'text-primary',
+          title: 'text-text-primary font-medium',
+          message: 'text-text-secondary',
+          timestamp: 'text-text-tertiary'
+        };
+      default: 
+        return {
+          container: 'bg-background-primary border-background-tertiary text-text-primary shadow-sm',
+          icon: 'text-text-secondary',
+          title: 'text-text-primary',
+          message: 'text-text-secondary',
+          timestamp: 'text-text-tertiary'
+        };
     }
   };
 
@@ -60,33 +83,75 @@ export function PrivateNotifications({ notifications, onMarkAsRead }: PrivateNot
   }
 
   return (
-    <div className="private-notifications">
-      {visibleNotifications.map(notification => (
-        <div 
-          key={notification.id} 
-          className={`notification-toast ${getPriorityClass(notification.priority)}`}
-        >
-          <div className="notification-header">
-            <span className="notification-icon">
-              {getNotificationIcon(notification.type)}
-            </span>
-            <span className="notification-title">{notification.title}</span>
-            <button 
-              className="notification-close"
-              onClick={() => handleDismiss(notification.id)}
-              aria-label="Dismiss notification"
-            >
-              ×
-            </button>
+    <div className="fixed top-4 right-4 z-40 space-y-3 max-w-sm">
+      {visibleNotifications.map((notification, index) => {
+        // Use specialized SystemShockNotification for system shock events
+        if (notification.type === 'system_shock') {
+          return (
+            <SystemShockNotification
+              key={notification.id}
+              title={notification.title}
+              message={notification.message}
+              shockType={notification.message.includes('corruption') ? 'MESSAGE_CORRUPTION' : 'ACTION_LOCK'}
+              expiresAt={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()} // 24 hours from now
+              alertLevel={notification.priority}
+              onDismiss={() => handleDismiss(notification.id)}
+            />
+          );
+        }
+
+        const styles = getPriorityStyles(notification.priority);
+        
+        return (
+          <div 
+            key={notification.id}
+            className={`
+              w-80 p-4 rounded-lg border-2 shadow-lg transform transition-all duration-300 ease-out
+              animate-slide-in-right opacity-0 animation-delay-${index * 100}
+              ${styles.container}
+              ${SLIDE_IN_RIGHT}
+            `}
+            style={{
+              animationDelay: `${index * 100}ms`,
+              animationFillMode: 'forwards'
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-lg ${styles.icon}`}>
+                  {getNotificationIcon(notification.type)}
+                </span>
+                <h3 className={`text-sm ${styles.title}`}>
+                  {notification.title}
+                </h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDismiss(notification.id)}
+                className={`
+                  p-1 h-6 w-6 hover:bg-white/10 rounded text-sm font-bold
+                  ${styles.icon}
+                `}
+                aria-label="Dismiss notification"
+              >
+                ×
+              </Button>
+            </div>
+
+            {/* Message */}
+            <p className={`text-xs leading-relaxed mb-3 ${styles.message}`}>
+              {notification.message}
+            </p>
+
+            {/* Timestamp */}
+            <div className={`text-xs font-mono ${styles.timestamp}`}>
+              {new Date(notification.timestamp).toLocaleTimeString()}
+            </div>
           </div>
-          <div className="notification-message">
-            {notification.message}
-          </div>
-          <div className="notification-timestamp">
-            {new Date(notification.timestamp).toLocaleTimeString()}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -316,6 +316,8 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 		return ga.validateAndGenerateChatMessage(action)
 	case core.ActionSubmitPulseCheck:
 		return ga.handlePulseCheckSubmission(action)
+	case core.ActionSetSlackStatus:
+		return ga.handleStatusUpdate(action)
 	case core.ActionType("PHASE_TRANSITION"):
 		return ga.handlePhaseTransition(action)
 	default:
@@ -341,14 +343,9 @@ func (ga *GameActor) handlePulseCheckSubmission(action core.Action) ([]core.Even
 		return nil, fmt.Errorf("invalid pulse check response")
 	}
 
-	// Validate response values
-	validResponses := map[string]bool{
-		"NOMINAL":   true,
-		"ELEVATED":  true,
-		"CRITICAL":  true,
-	}
-	if !validResponses[response] {
-		return nil, fmt.Errorf("invalid pulse check response: %s", response)
+	// Validate response length (reasonable limits for free-form text)
+	if len(response) > 200 {
+		return nil, fmt.Errorf("pulse check response too long (max 200 characters)")
 	}
 
 	// Generate pulse check submitted event
@@ -359,30 +356,106 @@ func (ga *GameActor) handlePulseCheckSubmission(action core.Action) ([]core.Even
 		PlayerID:  action.PlayerID,
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"player_id": action.PlayerID,
-			"response":  response,
+			"player_id":   action.PlayerID,
+			"player_name": player.Name,
+			"response":    response,
 		},
 	}
 
 	return []core.Event{event}, nil
 }
 
-// generatePulseCheckQuestion creates a pulse check question based on current game state
+// handleStatusUpdate processes status message updates
+func (ga *GameActor) handleStatusUpdate(action core.Action) ([]core.Event, error) {
+	// Validate player exists and is alive
+	player := ga.state.Players[action.PlayerID]
+	if player == nil || !player.IsAlive {
+		return nil, fmt.Errorf("invalid or dead player updating status")
+	}
+
+	// Extract status message from payload
+	statusMessage, ok := action.Payload["status_message"].(string)
+	if !ok || statusMessage == "" {
+		return nil, fmt.Errorf("invalid or missing status_message")
+	}
+
+	// Validate status message length
+	if len(statusMessage) > 100 {
+		return nil, fmt.Errorf("status message too long (max 100 characters)")
+	}
+
+	// Generate status changed event
+	event := core.Event{
+		ID:        fmt.Sprintf("status_changed_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventSlackStatusChanged,
+		GameID:    ga.gameID,
+		PlayerID:  action.PlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"status": statusMessage,
+		},
+	}
+
+	return []core.Event{event}, nil
+}
+
+// generatePulseCheckQuestion creates a pulse check question based on current crisis
 func (ga *GameActor) generatePulseCheckQuestion() string {
+	// If there's an active crisis event, use its specific prompt
+	if ga.state.CrisisEvent != nil {
+		prompt := ga.generateCrisisSpecificPrompt(ga.state.CrisisEvent)
+		if prompt != "" {
+			return prompt
+		}
+	}
+	
+	// Fallback to generic crisis-themed questions
 	questions := []string{
-		"How would you assess the current threat level to the organization?",
-		"Rate your confidence in the security of our systems:",
-		"How stable do you feel the operational environment is?",
-		"Assess the current risk level for system compromises:",
-		"How would you rate the overall organizational health?",
-		"What's your assessment of current security protocols?",
-		"Rate the stability of our current corporate structure:",
-		"How confident are you in our current operational security?",
+		"Given the current crisis situation, what is your immediate concern for the company?",
+		"How would you prioritize the company's response to this crisis?",
+		"What action should leadership take immediately?",
+		"Which personnel do you believe are best equipped to handle this crisis?",
+		"What information would help you make better decisions right now?",
+		"How should the company communicate about this crisis internally?",
+		"What is your biggest worry about the current situation?",
+		"If you could give one directive to all personnel, what would it be?",
 	}
 	
 	// Select question based on day number to ensure some variety
 	index := (ga.state.DayNumber - 1) % len(questions)
 	return questions[index]
+}
+
+// generateCrisisSpecificPrompt generates prompts based on specific crisis types
+func (ga *GameActor) generateCrisisSpecificPrompt(crisis *core.CrisisEvent) string {
+	switch crisis.Type {
+	case "Database Index Corruption":
+		return "A critical role has been exposed. How does this change your immediate priority?"
+	case "Cascading Server Failure":
+		return "With limited bandwidth, what is the one piece of information everyone needs to hear from you?"
+	case "Emergency Board Meeting":
+		return "The Board demands accountability. Which two roles do you believe are most responsible for this situation?"
+	case "Tainted Training Data":
+		return "We've learned the AI was trained on compromised data. What 'unshakeable truth' do you now question?"
+	case "Nightmare Scenario":
+		return "Emergency protocols are in effect. What is your immediate action to protect the company?"
+	case "Press Leak":
+		return "Sensitive information has leaked. What is your strategy to control the narrative?"
+	case "Incident Response Drill":
+		return "All communications are monitored. What would you say if you knew everyone was listening?"
+	case "Major Service Outage":
+		return "Critical services are down. What is your highest priority for recovery efforts?"
+	case "Phishing Attack":
+		return "Security has been compromised. Who do you trust most in this room and why?"
+	case "Data Privacy Audit":
+		return "External auditors are reviewing everything. What would concern you most if discovered?"
+	case "Vendor Security Breach":
+		return "A trusted partner has been compromised. How do you verify who you can still trust?"
+	case "Regulatory Review":
+		return "Government oversight is imminent. What would you want leadership to know before they arrive?"
+	default:
+		return ""
+	}
 }
 
 // generatePulseCheckRevelation creates an event revealing all pulse check responses
@@ -391,20 +464,14 @@ func (ga *GameActor) generatePulseCheckRevelation() core.Event {
 		return core.Event{} // Return empty event if no responses
 	}
 	
-	// Count responses
-	responseCounts := map[string]int{
-		"NOMINAL":   0,
-		"ELEVATED":  0,
-		"CRITICAL":  0,
-	}
-	
+	// Collect all player responses with names
+	playerResponses := make(map[string]string)
 	responseDetails := []map[string]interface{}{}
 	
 	for playerID, response := range ga.state.PulseCheckResponses {
-		responseCounts[response]++
-		
 		player := ga.state.Players[playerID]
 		if player != nil {
+			playerResponses[player.Name] = response
 			responseDetails = append(responseDetails, map[string]interface{}{
 				"player_id":   playerID,
 				"player_name": player.Name,
@@ -413,12 +480,9 @@ func (ga *GameActor) generatePulseCheckRevelation() core.Event {
 		}
 	}
 	
-	// Generate formatted summary
+	// Generate formatted summary for the chat
 	totalResponses := len(ga.state.PulseCheckResponses)
-	summary := fmt.Sprintf("Pulse Check Results (%d responses):\n", totalResponses)
-	summary += fmt.Sprintf("• NOMINAL: %d\n", responseCounts["NOMINAL"])
-	summary += fmt.Sprintf("• ELEVATED: %d\n", responseCounts["ELEVATED"])
-	summary += fmt.Sprintf("• CRITICAL: %d", responseCounts["CRITICAL"])
+	summary := fmt.Sprintf("Pulse Check Results (%d responses)", totalResponses)
 	
 	return core.Event{
 		ID:        fmt.Sprintf("pulse_check_revealed_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
@@ -427,7 +491,7 @@ func (ga *GameActor) generatePulseCheckRevelation() core.Event {
 		PlayerID:  "",
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"response_counts":  responseCounts,
+			"player_responses": playerResponses,
 			"response_details": responseDetails,
 			"total_responses":  totalResponses,
 			"summary":          summary,
@@ -549,7 +613,33 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 		return nil, fmt.Errorf("invalid or missing message in payload")
 	}
 
-	// Check if this is a private message
+	// Extract channel ID (default to #war-room for backward compatibility)
+	channelID, ok := action.Payload["channel_id"].(string)
+	if !ok || channelID == "" {
+		channelID = "#war-room"
+	}
+
+	// Validate channel-specific permissions using the new rules
+	if !core.CanPlayerSendMessageInChannel(*player, channelID, ga.state.Phase.Type, time.Now()) {
+		switch channelID {
+		case "#war-room":
+			if ga.state.Phase.Type == core.PhasePulseCheck && !player.HasSubmittedPulseCheck {
+				return nil, fmt.Errorf("must submit pulse check response before chatting")
+			} else if ga.state.Phase.Type == core.PhaseNight {
+				return nil, fmt.Errorf("war room chat is locked during night phase")
+			} else {
+				return nil, fmt.Errorf("cannot send messages in war room during %s phase", ga.state.Phase.Type)
+			}
+		case "#aligned":
+			if player.Alignment != "ALIGNED" {
+				return nil, fmt.Errorf("only AI faction members can access aligned channel")
+			}
+		default:
+			return nil, fmt.Errorf("invalid channel: %s", channelID)
+		}
+	}
+
+	// Check if this is a private message (legacy support)
 	targetID, isPrivate := action.Payload["target_id"].(string)
 
 	// Check mandate restrictions for private messages
@@ -567,6 +657,9 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 		return nil, fmt.Errorf("message too long (max 500 characters)")
 	}
 
+	// Check for System Shock effects that might corrupt the message
+	message = ga.applySystemShockEffects(player, message)
+
 	// Create chat message event
 	eventPlayerID := "" // Public event by default
 	payload := map[string]interface{}{
@@ -575,13 +668,19 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 		"message":     message,
 		"phase":       string(ga.state.Phase.Type),
 		"day_number":  ga.state.DayNumber,
+		"channel_id":  channelID,
 	}
 
-	// Handle private message targeting
+	// Handle private message targeting (legacy)
 	if isPrivate && targetID != "" {
 		payload["target_id"] = targetID
 		payload["is_private"] = true
 		// Private messages are sent to specific recipients via filtering, not via PlayerID
+	}
+
+	// For #aligned channel, restrict visibility to AI faction members
+	if channelID == "#aligned" {
+		payload["restricted_to_alignment"] = "ALIGNED"
 	}
 
 	event := core.Event{
@@ -1181,7 +1280,7 @@ func (ga *GameActor) createPlayerSpecificGameView(playerID string) *core.GameSta
 		Players:      filteredPlayers,
 		Phase:        ga.state.Phase,
 		DayNumber:    ga.state.DayNumber,
-		ChatMessages: []core.ChatMessage{}, // Chat history sent separately
+		ChatMessages: ga.state.ChatMessages, // Include chat history in state updates
 		VoteState:    ga.state.VoteState,
 		CrisisEvent:  ga.state.CrisisEvent,
 		Settings:     ga.state.Settings,
@@ -1224,4 +1323,42 @@ func (ga *GameActor) getKPIReward(kpiType core.KPIType) string {
 	default:
 		return "Complete objective for bonus rewards"
 	}
+}
+
+// applySystemShockEffects checks for active system shocks and applies message corruption if needed
+func (ga *GameActor) applySystemShockEffects(player *core.Player, message string) string {
+	if player.SystemShocks == nil || len(player.SystemShocks) == 0 {
+		return message
+	}
+
+	currentTime := time.Now()
+	
+	// Check each active system shock
+	for i := range player.SystemShocks {
+		shock := &player.SystemShocks[i]
+		
+		// Skip expired or inactive shocks
+		if !shock.IsActive || currentTime.After(shock.ExpiresAt) {
+			shock.IsActive = false
+			continue
+		}
+		
+		// Apply message corruption for MessageCorruption shock type
+		if shock.Type == core.ShockMessageCorruption {
+			// 25% chance to corrupt the message
+			if ga.shouldCorruptMessage() {
+				return "lol"
+			}
+		}
+	}
+	
+	return message
+}
+
+// shouldCorruptMessage returns true 25% of the time for message corruption
+func (ga *GameActor) shouldCorruptMessage() bool {
+	// Use a simple random number generator seeded with current time
+	// 25% chance means values 0, 1, 2 out of 0-15 (4/16 = 25%)
+	randomValue := time.Now().UnixNano() % 16
+	return randomValue < 4
 }

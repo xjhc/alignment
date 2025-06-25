@@ -41,6 +41,7 @@ export interface CorePlayer {
   aiEquity?: number;
   hasUsedAbility?: boolean;
   lastNightAction?: CoreNightAction;
+  hasSubmittedPulseCheck?: boolean;
   slackStatus?: string;
   partingShot?: string;
   systemShocks?: CoreSystemShock[];
@@ -88,6 +89,7 @@ export interface CoreChatMessage {
   message: string;
   timestamp: string;
   isSystem: boolean;
+  channelID?: string; // "#war-room" or "#aligned"
 }
 
 export interface CoreGameSettings {

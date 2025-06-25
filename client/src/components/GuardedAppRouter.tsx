@@ -13,12 +13,12 @@ import { WasmTestScreen } from './WasmTestScreen';
 
 
 export function GuardedAppRouter() {
-  const { 
-    sessionState, 
-    appState, 
-    onLogin, 
-    onBackToLogin, 
-    onJoinLobby, 
+  const {
+    sessionState,
+    appState,
+    onLogin,
+    onBackToLogin,
+    onJoinLobby,
     onCreateGame,
     onEnterGame
   } = useSessionContext();
@@ -27,6 +27,13 @@ export function GuardedAppRouter() {
   // Show WASM test screen if query parameter is present
   if (window.location.search.includes('test=wasm')) {
     return <WasmTestScreen />;
+  }
+
+  // --- Authentication Guardian ---
+  // If the user has no name (is not logged in) and is not on the login page,
+  // force them back to the login page. This is the highest priority rule.
+  if (!appState.playerName && location.pathname !== '/login') {
+    return <Navigate to="/login" replace />;
   }
 
   // --- The "State Guardian" Logic ---
@@ -42,22 +49,22 @@ export function GuardedAppRouter() {
 
   // If the user is in post-game state, they should not be able to navigate to active game URLs
   if (sessionState === 'POST_GAME') {
-    if (location.pathname.startsWith('/login') || 
-        location.pathname.startsWith('/lobby-list') ||
-        location.pathname.startsWith('/waiting') ||
-        location.pathname.startsWith('/role-reveal') ||
-        location.pathname === '/game') {
+    if (location.pathname.startsWith('/login') ||
+      location.pathname.startsWith('/lobby-list') ||
+      location.pathname.startsWith('/waiting') ||
+      location.pathname.startsWith('/role-reveal') ||
+      location.pathname === '/game') {
       // The state says we're in post-game, redirect to game over
       return <Navigate to="/game-over" replace />;
     }
   }
-  
+
   // If the user is NOT in a session, they should not be able to access game URLs.
   if (sessionState === 'IDLE') {
-    if (location.pathname.startsWith('/waiting') || 
-        location.pathname.startsWith('/role-reveal') || 
-        location.pathname.startsWith('/game') ||
-        location.pathname.startsWith('/analysis')) {
+    if (location.pathname.startsWith('/waiting') ||
+      location.pathname.startsWith('/role-reveal') ||
+      location.pathname.startsWith('/game') ||
+      location.pathname.startsWith('/analysis')) {
       // The URL is for a game, but our state says we're not in one.
       // The state wins. Force redirect back to the lobby list.
       return <Navigate to="/lobby-list" replace />;
@@ -69,8 +76,8 @@ export function GuardedAppRouter() {
     <div className="screen-transition animation-fade-in">
       <Routes>
         <Route path="/login" element={<LoginScreen onLogin={onLogin} />} />
-        <Route 
-          path="/lobby-list" 
+        <Route
+          path="/lobby-list"
           element={
             <LobbyListScreen
               playerName={appState.playerName}
@@ -79,14 +86,14 @@ export function GuardedAppRouter() {
               onCreateGame={onCreateGame}
               onBack={onBackToLogin}
             />
-          } 
+          }
         />
         <Route path="/waiting" element={<WaitingScreen />} />
         <Route path="/role-reveal" element={<RoleRevealScreen onEnterGame={onEnterGame} />} />
         <Route path="/game" element={<GameScreen />} />
         <Route path="/game-over" element={<GameOverScreen />} />
         <Route path="/analysis" element={<PostGameAnalysis />} />
-        
+
         {/* Default route */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />

@@ -19,7 +19,7 @@ export interface ClientAction extends WebSocketMessage {
 // Server-to-client events
 export interface ServerEvent extends WebSocketMessage {
   type: 'PLAYER_JOINED' | 'PLAYER_LEFT' | 'PLAYER_DEACTIVATED' |
-  'PHASE_CHANGED' | 'CHAT_MESSAGE_POSTED' | 'CHAT_MESSAGE' | 'PULSE_CHECK_SUBMITTED' |
+  'PHASE_CHANGED' | 'CHAT_MESSAGE' | 'PULSE_CHECK_SUBMITTED' |
   'NIGHT_ACTIONS_RESOLVED' | 'GAME_ENDED' | 'GAME_STARTED' | 'SYNC_COMPLETE' |
   'PRIVATE_NOTIFICATION' | 'LOBBY_STATE_UPDATE' | 'GAME_STATE_UPDATE' |
   'CHAT_HISTORY_SNAPSHOT' | 'CLIENT_IDENTIFIED' | 'SYSTEM_MESSAGE' |
@@ -64,6 +64,9 @@ export interface ChatMessage extends CoreTypes.CoreChatMessage {
       };
     };
     pulseCheckResponses?: Record<string, string>;
+    player_responses?: Record<string, string>;
+    question?: string;
+    total_responses?: number;
   };
 }
 export type Phase = CoreTypes.CorePhase;

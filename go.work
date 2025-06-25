@@ -4,6 +4,4 @@ use (
 	./client/wasm
 	./core
 	./server
-	./simulator
-	/home/xjhc/pro/alignment/cmd/simulator
 )

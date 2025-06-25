@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSessionContext } from '../contexts/SessionContext';
-
+import { Button } from './ui';
 
 // Mock data for analysis - in a real implementation, this would come from the server
 const mockAnalysisData = {
@@ -184,35 +184,33 @@ const mockAnalysisData = {
 
 function SummaryTab() {
   return (
-    <div className="hud-pane active">
-      <div className="mvp-section">
-        <div className="mvp-card">
-          <div className="mvp-title">🏆 Most Valuable Personnel</div>
-          <div className="mvp-player">
-            <div className="player-avatar">{mockAnalysisData.mvp.avatar}</div>
-            <div className="mvp-name">{mockAnalysisData.mvp.player}</div>
+    <div className="p-6 animate-fade-in">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="bg-gradient-to-br from-human to-amber-light text-white p-5 rounded-xl text-center">
+          <div className="text-xs font-bold uppercase tracking-wider mb-2 opacity-90">🏆 Most Valuable Personnel</div>
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <div className="w-10 h-10 text-xl border-2 border-white rounded-full flex items-center justify-center">{mockAnalysisData.mvp.avatar}</div>
+            <div className="text-xl font-bold">{mockAnalysisData.mvp.player}</div>
           </div>
-          <div className="mvp-reason">
-            {mockAnalysisData.mvp.reason}
-          </div>
+          <div className="text-sm opacity-90 leading-snug">{mockAnalysisData.mvp.reason}</div>
         </div>
         
-        <div className="key-moment-card">
-          <div className="moment-title">{mockAnalysisData.keyMoment.title}</div>
-          <div className="moment-description">
+        <div className="bg-background-secondary border border-border border-l-4 border-l-info p-5 rounded-lg">
+          <div className="text-info font-bold text-xs uppercase tracking-wider mb-2">{mockAnalysisData.keyMoment.title}</div>
+          <div className="text-text-primary leading-snug">
             {mockAnalysisData.keyMoment.description}
           </div>
         </div>
       </div>
       
-      <h3 className="hud-section-title">💬 Parting Shots</h3>
-      <div className="parting-shots-grid">
+      <h3 className="text-lg font-bold text-text-primary mb-4">💬 Parting Shots</h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {mockAnalysisData.partingShots.map((shot, index) => (
-          <div key={index} className="parting-shot-item">
-            <div className="player-avatar">{shot.avatar}</div>
-            <div className="parting-shot-content">
-              <div className="parting-shot-name">{shot.player}</div>
-              <div className="parting-shot-message">{shot.message}</div>
+          <div key={index} className="bg-background-secondary border border-border p-4 rounded-lg flex items-center gap-4">
+            <div className="w-8 h-8 text-base bg-background-tertiary rounded-full flex items-center justify-center flex-shrink-0">{shot.avatar}</div>
+            <div className="flex-1">
+              <div className="font-semibold text-text-primary mb-1">{shot.player}</div>
+              <div className="text-xs text-text-secondary italic">{shot.message}</div>
             </div>
           </div>
         ))}
@@ -222,16 +220,26 @@ function SummaryTab() {
 }
 
 function TimelineTab() {
+  const getIconBgClass = (type: string) => {
+    switch (type) {
+      case 'elimination': return 'bg-gradient-to-br from-danger to-red-light border-danger';
+      case 'conversion': return 'bg-gradient-to-br from-aligned to-cyan-light border-aligned';
+      case 'ability': return 'bg-gradient-to-br from-info to-blue-light border-info';
+      default: return 'bg-background-tertiary border-border';
+    }
+  };
+
   return (
-    <div className="hud-pane active">
-      <h3 className="hud-section-title">📅 Complete Event Timeline</h3>
-      <div className="analysis-timeline">
+    <div className="p-6 animate-fade-in">
+      <h3 className="text-lg font-bold text-text-primary mb-6">📅 Complete Event Timeline</h3>
+      <div className="relative pl-8">
+        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border/50"></div>
         {mockAnalysisData.timeline.map((event, index) => (
-          <div key={index} className={`timeline-item ${event.iconClass}`}>
-            <div className="timeline-icon">{event.icon}</div>
-            <div className="timeline-content">
-              <div className="day">{event.day}</div>
-              <div className="desc" dangerouslySetInnerHTML={{ __html: event.description }}></div>
+          <div key={index} className="relative mb-8">
+            <div className={`absolute -left-3 top-0 w-12 h-12 rounded-full flex items-center justify-center text-xl text-white border-4 border-background-primary ${getIconBgClass(event.type)}`}>{event.icon}</div>
+            <div className="ml-12 bg-background-secondary p-4 rounded-lg border border-border">
+              <div className="font-bold text-human text-xs uppercase tracking-wider mb-1">{event.day}</div>
+              <div className="text-text-primary leading-snug" dangerouslySetInnerHTML={{ __html: event.description }}></div>
             </div>
           </div>
         ))}
@@ -241,43 +249,47 @@ function TimelineTab() {
 }
 
 function AnalyticsTab() {
+  const getAlignmentClass = (alignment: string) => {
+    switch (alignment) {
+      case 'human': return 'bg-human text-white';
+      case 'ai': return 'bg-ai text-white';
+      case 'aligned': return 'bg-aligned text-white';
+      default: return 'bg-background-tertiary text-text-secondary';
+    }
+  };
+
   return (
-    <div className="hud-pane active">
-      <h3 className="hud-section-title">📈 Personnel Performance Analytics</h3>
-      <div className="analytics-grid">
+    <div className="p-6 animate-fade-in">
+      <h3 className="text-lg font-bold text-text-primary mb-6">📈 Personnel Performance Analytics</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {mockAnalysisData.playerStats.map((player, index) => (
-          <div key={index} className="analytics-card">
-            <div className="analytics-card-header">
-              <div className="player-avatar">{player.avatar}</div>
-              <div className="analytics-player-info">
-                <div className="analytics-player-name">{player.name}</div>
-                <div className="analytics-player-role">{player.role}</div>
+          <div key={index} className="bg-background-secondary border border-border rounded-xl p-4 transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
+            <div className="flex items-center gap-4 pb-3 mb-3 border-b border-border">
+              <div className="w-12 h-12 text-xl bg-background-tertiary rounded-full flex items-center justify-center">{player.avatar}</div>
+              <div className="flex-1">
+                <div className="font-bold text-text-primary">{player.name}</div>
+                <div className="text-xs text-text-secondary uppercase tracking-wider">{player.role}</div>
               </div>
-              <div className={`analytics-player-alignment ${player.alignment}`}>
-                {player.alignment === 'human' ? 'Human' : 
-                 player.alignment === 'ai' ? 'Original AI' : 'Aligned'}
+              <div className={`text-xs font-bold uppercase px-2 py-1 rounded-full ${getAlignmentClass(player.alignment)}`}>
+                {player.alignment}
               </div>
             </div>
-            <div className="analytics-stats">
-              <div className="analytics-stat-item">
-                <div className="analytics-stat-value">{player.stats.tokensMined}</div>
-                <div className="analytics-stat-label">Tokens Mined</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="text-center bg-background-tertiary p-2 rounded-md">
+                <div className="font-mono font-bold text-xl text-text-primary">{player.stats.tokensMined}</div>
+                <div className="text-xs text-text-secondary uppercase">Tokens Mined</div>
               </div>
-              <div className="analytics-stat-item">
-                <div className="analytics-stat-value">
-                  {player.stats.correctVotes || player.stats.conversions || 0}
-                </div>
-                <div className="analytics-stat-label">
-                  {player.alignment === 'ai' ? 'Conversion' : 'Correct Votes'}
-                </div>
+              <div className="text-center bg-background-tertiary p-2 rounded-md">
+                <div className="font-mono font-bold text-xl text-text-primary">{player.stats.correctVotes || player.stats.conversions || 0}</div>
+                <div className="text-xs text-text-secondary uppercase">{player.alignment === 'ai' ? 'Conversions' : 'Correct Votes'}</div>
               </div>
-              <div className="analytics-stat-item">
-                <div className="analytics-stat-value">{player.stats.nominations}</div>
-                <div className="analytics-stat-label">Nominations</div>
+              <div className="text-center bg-background-tertiary p-2 rounded-md">
+                <div className="font-mono font-bold text-xl text-text-primary">{player.stats.nominations}</div>
+                <div className="text-xs text-text-secondary uppercase">Nominations</div>
               </div>
-              <div className="analytics-stat-item">
-                <div className="analytics-stat-value">{player.stats.daysSurvived}</div>
-                <div className="analytics-stat-label">Days Survived</div>
+              <div className="text-center bg-background-tertiary p-2 rounded-md">
+                <div className="font-mono font-bold text-xl text-text-primary">{player.stats.daysSurvived}</div>
+                <div className="text-xs text-text-secondary uppercase">Days Survived</div>
               </div>
             </div>
           </div>
@@ -291,63 +303,61 @@ function HighlightsTab() {
   const { mostReacted, notableQuotes, stats } = mockAnalysisData.communicationHighlights;
   
   return (
-    <div className="hud-pane active">
-      <div className="highlights-section">
-        <div className="highlight-card">
-          <div className="highlight-title">🔥 Most Reacted-To Message</div>
-          <div className="message-highlight">
-            <div className="message-meta">
-              <div className="player-avatar">{mostReacted.avatar}</div>
-              <span className="message-author-name">{mostReacted.player}</span>
-              <span className="message-timestamp">{mostReacted.timestamp}</span>
+    <div className="p-6 animate-fade-in">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-background-secondary border border-border rounded-xl p-5">
+            <h4 className="font-bold text-text-primary mb-3">🔥 Most Reacted-To Message</h4>
+            <div className="bg-background-tertiary p-4 rounded-lg border-l-4 border-l-info">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 text-sm bg-background-primary rounded-full flex items-center justify-center">{mostReacted.avatar}</div>
+                <div>
+                  <span className="font-semibold text-text-primary">{mostReacted.player}</span>
+                  <span className="text-xs text-text-muted ml-2 font-mono">{mostReacted.timestamp}</span>
+                </div>
+              </div>
+              <p className="text-text-primary italic mb-3">"{mostReacted.message}"</p>
+              <div className="flex gap-2">
+                {mostReacted.reactions.map((reaction, index) => (
+                  <span key={index} className="bg-background-primary border border-border px-2 py-1 rounded-full text-xs">
+                    {reaction.emoji} {reaction.count}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="message-text">
-              {mostReacted.message}
-            </div>
-            <div className="message-reactions-display">
-              {mostReacted.reactions.map((reaction, index) => (
-                <span key={index} className="reaction-display">
-                  {reaction.emoji} {reaction.count}
-                </span>
+          </div>
+
+          <div className="bg-background-secondary border border-border rounded-xl p-5">
+            <h4 className="font-bold text-text-primary mb-3">💎 Notable Quotes</h4>
+            <div className="space-y-4">
+              {notableQuotes.map((quote, index) => (
+                <div key={index} className="border-l-4 border-l-success pl-4">
+                  <p className="italic text-text-primary">"{quote.message}"</p>
+                  <footer className="text-xs text-text-secondary mt-1">— {quote.player} ({quote.timestamp})</footer>
+                </div>
               ))}
             </div>
           </div>
         </div>
-        
-        <div className="highlight-card">
-          <div className="highlight-title">💎 Notable Quotes</div>
-          <div className="quote-grid">
-            {notableQuotes.map((quote, index) => (
-              <div key={index} className="quote-item">
-                <div className="message-meta">
-                  <div className="player-avatar">{quote.avatar}</div>
-                  <span className="message-author-name">{quote.player}</span>
-                  <span className="message-timestamp">{quote.timestamp}</span>
-                </div>
-                <div className="message-text">{quote.message}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="highlight-card">
-          <div className="highlight-title">📊 Communication Stats</div>
-          <div className="analytics-stats">
-            <div className="analytics-stat-item">
-              <div className="analytics-stat-value">{stats.totalMessages}</div>
-              <div className="analytics-stat-label">Total Messages</div>
+
+        <div className="bg-background-secondary border border-border rounded-xl p-5">
+          <h4 className="font-bold text-text-primary mb-3">📊 Communication Stats</h4>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center bg-background-tertiary p-3 rounded-md">
+              <span className="text-sm text-text-secondary">Total Messages</span>
+              <span className="font-mono font-bold text-lg text-text-primary">{stats.totalMessages}</span>
             </div>
-            <div className="analytics-stat-item">
-              <div className="analytics-stat-value">{stats.emojiReactions}</div>
-              <div className="analytics-stat-label">Emoji Reactions</div>
+            <div className="flex justify-between items-center bg-background-tertiary p-3 rounded-md">
+              <span className="text-sm text-text-secondary">Emoji Reactions</span>
+              <span className="font-mono font-bold text-lg text-text-primary">{stats.emojiReactions}</span>
             </div>
-            <div className="analytics-stat-item">
-              <div className="analytics-stat-value">{stats.directAccusations}</div>
-              <div className="analytics-stat-label">Direct Accusations</div>
+            <div className="flex justify-between items-center bg-background-tertiary p-3 rounded-md">
+              <span className="text-sm text-text-secondary">Direct Accusations</span>
+              <span className="font-mono font-bold text-lg text-text-primary">{stats.directAccusations}</span>
             </div>
-            <div className="analytics-stat-item">
-              <div className="analytics-stat-value">{stats.correctAIIdentifications}</div>
-              <div className="analytics-stat-label">Correct AI IDs</div>
+            <div className="flex justify-between items-center bg-background-tertiary p-3 rounded-md">
+              <span className="text-sm text-text-secondary">Correct AI IDs</span>
+              <span className="font-mono font-bold text-lg text-text-primary">{stats.correctAIIdentifications}</span>
             </div>
           </div>
         </div>
@@ -376,12 +386,13 @@ export function PostGameAnalysis() {
   };
 
   return (
-    <div className="analysis-container">
-      <header className="analysis-header">
-        <div className="company-logo">LOEBIAN</div>
-        <div className="header-controls">
-          <button 
-            className="header-btn" 
+    <div className="min-h-screen bg-background-primary text-text-primary flex flex-col">
+      <header className="p-3 px-4 border-b border-border flex justify-between items-center bg-background-secondary">
+        <div className="font-mono font-bold text-base tracking-[1.5px]">LOEBIAN</div>
+        <div className="flex gap-2">
+          <Button 
+            variant="secondary"
+            size="sm"
             title="Toggle Theme"
             onClick={() => {
               const currentTheme = document.documentElement.getAttribute('data-theme');
@@ -390,54 +401,54 @@ export function PostGameAnalysis() {
             }}
           >
             🌙
-          </button>
+          </Button>
         </div>
       </header>
       
-      <div className="analysis-title-section">
-        <h1 className="analysis-main-title">📊 POST-GAME ANALYSIS</h1>
-        <p className="analysis-subtitle">Comprehensive review of operational events during the SEV-1 incident</p>
+      <div className="text-center py-6 bg-background-secondary border-b border-border">
+        <h1 className="font-mono text-3xl font-extrabold tracking-wider">📊 POST-GAME ANALYSIS</h1>
+        <p className="text-text-secondary mt-2">Comprehensive review of operational events during the SEV-1 incident</p>
       </div>
 
-      <div className="analysis-content">
-        <div className="hud-tabs">
+      <div className="flex-1 max-w-7xl mx-auto w-full">
+        <div className="border-b border-border flex justify-center">
           <button 
-            className={`hud-tab ${activeTab === 'summary' ? 'active' : ''}`}
+            className={`px-4 py-3 text-sm font-semibold uppercase tracking-wider transition-colors duration-200 border-b-2 ${activeTab === 'summary' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary'}`}
             onClick={() => setActiveTab('summary')}
           >
             Summary
           </button>
           <button 
-            className={`hud-tab ${activeTab === 'timeline' ? 'active' : ''}`}
+            className={`px-4 py-3 text-sm font-semibold uppercase tracking-wider transition-colors duration-200 border-b-2 ${activeTab === 'timeline' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary'}`}
             onClick={() => setActiveTab('timeline')}
           >
             Event Timeline
           </button>
           <button 
-            className={`hud-tab ${activeTab === 'analytics' ? 'active' : ''}`}
+            className={`px-4 py-3 text-sm font-semibold uppercase tracking-wider transition-colors duration-200 border-b-2 ${activeTab === 'analytics' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary'}`}
             onClick={() => setActiveTab('analytics')}
           >
             Personnel Analytics
           </button>
           <button 
-            className={`hud-tab ${activeTab === 'highlights' ? 'active' : ''}`}
+            className={`px-4 py-3 text-sm font-semibold uppercase tracking-wider transition-colors duration-200 border-b-2 ${activeTab === 'highlights' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary'}`}
             onClick={() => setActiveTab('highlights')}
           >
             Comms Highlights
           </button>
         </div>
-        <div className="hud-content">
+        <div className="bg-background-primary">
           {renderTabContent()}
         </div>
       </div>
       
-      <div className="bottom-actions">
-        <button className="btn-secondary" onClick={onBackToResults}>
+      <div className="p-4 border-t border-border bg-background-secondary flex justify-center gap-4">
+        <Button variant="secondary" onClick={onBackToResults}>
           ← Back to Results
-        </button>
-        <button className="btn-primary" onClick={onPlayAgain}>
+        </Button>
+        <Button variant="primary" onClick={onPlayAgain}>
           🔄 Play Again
-        </button>
+        </Button>
       </div>
     </div>
   );

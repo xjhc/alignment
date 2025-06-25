@@ -455,3 +455,133 @@
     animation: eliminationFade var(--duration-slow) var(--ease-in-out) forwards;
   }
 }
+
+/* Blockchain Voting UI Styles */
+@layer components {
+  /* Verdict poll container */
+  .verdict-poll {
+    @apply flex flex-col gap-2;
+  }
+
+  /* Vote option rows */
+  .vote-option {
+    @apply flex items-center gap-3 px-4 py-2 rounded-md border transition-all duration-150;
+    @apply bg-[var(--bg-primary)] border-[var(--border)];
+  }
+
+  .vote-option:hover {
+    @apply bg-[var(--bg-tertiary)];
+  }
+
+  .vote-option.yes .option-label,
+  .vote-option.yes .vote-tally {
+    @apply text-green-500;
+  }
+
+  .vote-option.no .option-label,
+  .vote-option.no .vote-tally {
+    @apply text-red-500;
+  }
+
+  .option-label {
+    @apply font-bold text-sm min-w-[50px];
+  }
+
+  .vote-tally {
+    @apply font-mono text-sm font-bold min-w-[35px] text-right;
+  }
+
+  /* Blockchain chain container */
+  .blockchain-chain {
+    @apply flex-grow flex gap-4 items-center justify-start overflow-x-auto py-2;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .blockchain-chain::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Individual vote blocks */
+  .vote-block {
+    @apply min-w-[80px] flex-shrink-0 p-2 rounded-md text-center relative transition-all duration-200;
+    @apply bg-white border border-gray-300 shadow-sm;
+  }
+
+  html[data-theme='dark'] .vote-block {
+    @apply bg-[var(--bg-primary)] border-[var(--border)];
+  }
+
+  .vote-block:hover {
+    @apply transform -translate-y-0.5 shadow-md;
+  }
+
+  /* Chain connectors */
+  .vote-block:not(:last-child)::after {
+    content: '';
+    @apply absolute top-1/2 -right-2 w-1.5 h-0.5 bg-gray-400 rounded-sm transform -translate-y-1/2;
+  }
+
+  html[data-theme='dark'] .vote-block:not(:last-child)::after {
+    @apply bg-gray-600;
+  }
+
+  /* Block header (icon + token amount) */
+  .block-header {
+    @apply flex items-center justify-center gap-1 font-bold text-xs mb-1;
+    @apply text-[var(--text-primary)];
+  }
+
+  .block-icon {
+    @apply text-sm leading-none;
+  }
+
+  .block-amount {
+    @apply font-mono text-xs font-bold;
+  }
+
+  /* Block hash (player name) */
+  .block-hash {
+    @apply font-sans text-xs font-medium leading-tight;
+    @apply text-[var(--text-secondary)];
+  }
+
+  /* Highlight for user's own vote */
+  .vote-block.my-vote {
+    @apply bg-amber-400 border-amber-500 shadow-amber-200;
+  }
+
+  html[data-theme='dark'] .vote-block.my-vote {
+    @apply bg-amber-500 border-amber-600 shadow-amber-900/50;
+  }
+
+  .vote-block.my-vote .block-header {
+    @apply text-amber-900;
+  }
+
+  .vote-block.my-vote .block-hash {
+    @apply text-amber-800;
+  }
+
+  /* Vote buttons */
+  .option-vote-btn {
+    @apply text-xs font-bold px-3 py-1.5 rounded border transition-all duration-150 min-w-[60px];
+    @apply bg-[var(--bg-tertiary)] border-[var(--border)];
+  }
+
+  .option-vote-btn.voted {
+    @apply bg-amber-500 border-amber-500 text-black;
+  }
+
+  .vote-option.yes .option-vote-btn:hover:not(.voted):not(:disabled) {
+    @apply bg-green-500 border-green-500 text-white transform scale-105;
+  }
+
+  .vote-option.no .option-vote-btn:hover:not(.voted):not(:disabled) {
+    @apply bg-red-500 border-red-500 text-white transform scale-105;
+  }
+
+  .option-vote-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+}

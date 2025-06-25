@@ -210,8 +210,9 @@ export class WebSocketClient {
         // Granular events - apply to game engine if available
         if (gameEngine.isReady()) {
           console.log(`Applying granular event ${event.type} to game engine`);
+          
           // Convert ServerEvent to CoreEvent format
-          const coreEvent = {
+          let coreEvent = {
             id: event.id || `event_${Date.now()}`,
             type: event.type,
             gameId: event.gameId || event.game_id || '',
@@ -219,6 +220,17 @@ export class WebSocketClient {
             timestamp: event.timestamp || new Date().toISOString(),
             payload: event.payload || {}
           };
+
+          // Special handling for chat messages to ensure proper format
+          if (event.type === 'CHAT_MESSAGE') {
+            // Backend sends chat messages with this payload structure:
+            // payload: { sender_id, sender_name, message, phase, day_number, channel_id }
+            // We need to make sure the playerId is set from sender_id
+            if (event.payload?.sender_id) {
+              coreEvent.playerId = event.payload.sender_id;
+            }
+          }
+
           gameEngine.applyEvent(coreEvent)
             .catch(err => console.error(`Failed to apply event ${event.type}:`, err));
         } else {

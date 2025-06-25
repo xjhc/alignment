@@ -50,7 +50,7 @@ func (lpm *LiaisonProtocolManager) CheckProtocolTrigger() bool {
 func (lpm *LiaisonProtocolManager) ActivateProtocol() []core.Event {
 	var events []core.Event
 
-	log.Printf("[LiaisonProtocol] LIAISON Protocol activated - AI faction at 40%+ of living players")
+	log.Printf("[LiaisonProtocol] LIAISON Protocol activated - AI faction at 40%% of living players")
 
 	// 1. Generate system alert message
 	alertEvent := core.Event{

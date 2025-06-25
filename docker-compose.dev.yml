@@ -28,6 +28,8 @@ services:
     volumes:
       - ./client:/app/client
       - ./core:/app/core
+      - ./tokens.config.json:/app/tokens.config.json
+      - ./tokens:/app/tokens
     ports:
       - "5173:5173"
     environment:

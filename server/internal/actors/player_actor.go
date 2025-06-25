@@ -534,6 +534,8 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 	switch action.Type {
 	case "POST_CHAT_MESSAGE":
 		actionType = core.ActionSendMessage
+	case "UPDATE_STATUS":
+		actionType = core.ActionSetSlackStatus
 	}
 
 	// List of valid game actions that should be forwarded to the SessionManager

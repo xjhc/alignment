@@ -2,16 +2,13 @@ import type { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
 import { GameScreen } from './GameScreen';
 import { GameProvider } from '../contexts/GameContext';
-import { WebSocketProvider } from '../contexts/WebSocketContext';
 import { GameState, Player, Phase, ChatMessage } from '../types';
 
 // Create a wrapper component that provides contexts
 const GameScreenWrapper: React.FC<{ gameState: GameState; playerID: string }> = ({ gameState, playerID }) => (
-  <WebSocketProvider>
-    <GameProvider gameState={gameState} localPlayerId={playerID}>
-      <GameScreen />
-    </GameProvider>
-  </WebSocketProvider>
+  <GameProvider gameState={gameState} localPlayerId={playerID}>
+    <GameScreen />
+  </GameProvider>
 );
 
 const meta: Meta<typeof GameScreenWrapper> = {
@@ -273,6 +270,88 @@ export const TrialPhase: Story = {
         results: {},
         isComplete: false,
       },
+    },
+    playerID: 'p-1',
+  },
+};
+
+export const VerdictPhase: Story = {
+  args: {
+    gameState: {
+      ...baseGameState,
+      phase: {
+        type: 'VERDICT',
+        startTime: '2024-01-01T12:10:00Z',
+        duration: 60000000000, // 1 minute in nanoseconds
+      },
+      nominatedPlayer: 'p-3',
+      voteState: {
+        type: 'VERDICT',
+        votes: {
+          'p-1': 'GUILTY',
+          'p-2': 'INNOCENT',
+        },
+        tokenWeights: {
+          'p-1': 8,
+          'p-2': 5,
+        },
+        results: {
+          GUILTY: 8,
+          INNOCENT: 5,
+        },
+        isComplete: false,
+      },
+    },
+    playerID: 'p-1',
+  },
+};
+
+export const VerdictComplete: Story = {
+  args: {
+    gameState: {
+      ...baseGameState,
+      players: basePlayers.map(p => p.id === 'p-3' ? { ...p, isAlive: false } : p),
+      phase: {
+        type: 'DISCUSSION',
+        startTime: '2024-01-01T12:11:00Z',
+        duration: 300000000000,
+      },
+      chatMessages: [
+        ...baseChatMessages,
+        {
+          id: 'c-4',
+          playerID: 'system',
+          playerName: 'NEXUS',
+          message: 'Vote result for deactivating Eve',
+          timestamp: '2024-01-01T12:11:00Z',
+          type: 'VOTE_RESULT',
+          isSystem: true,
+          metadata: {
+            voteResult: {
+              question: 'Deactivate Eve?',
+              outcome: 'Eve has been deactivated.',
+              votes: {
+                'p-1': 'GUILTY',
+                'p-2': 'GUILTY',
+              },
+              tokenWeights: {
+                'p-1': 8,
+                'p-2': 5,
+              },
+              results: {
+                GUILTY: 13,
+                INNOCENT: 0,
+              },
+              eliminatedPlayer: {
+                id: 'p-3',
+                name: 'Eve',
+                role: 'Chief Operating Officer',
+                alignment: 'AI',
+              },
+            },
+          },
+        },
+      ],
     },
     playerID: 'p-1',
   },

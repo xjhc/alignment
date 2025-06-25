@@ -1,6 +1,7 @@
 import React from 'react';
 import { useGameContext } from '../../contexts/GameContext';
 import { usePhaseTimer } from '../../hooks/usePhaseTimer';
+import { useGameActions } from '../../hooks/useGameActions';
 import { ContextualInputArea } from './ContextualInputArea';
 import { SitrepMessage } from './SitrepMessage';
 import { VoteResultMessage } from './VoteResultMessage';
@@ -9,6 +10,7 @@ import { PulseCheckMessage } from './PulseCheckMessage';
 export const CommsPanel: React.FC = () => {
   const { gameState, localPlayer } = useGameContext();
   const timeRemaining = usePhaseTimer(gameState.phase);
+  const { startReply } = useGameActions();
 
   if (!localPlayer) {
     return <div>Loading...</div>;
@@ -56,18 +58,38 @@ export const CommsPanel: React.FC = () => {
     }
   }, [gameState.chatMessages]);
 
+  const parseMessageContent = (message: string) => {
+    const quoteRegex = /[\[]quote=([^\]]+)[\]]([^[]*)[\[][\/]quote[\]]\n?(.*)/s;
+    const match = message.match(quoteRegex);
+    
+    if (match) {
+      const [, quotedPlayerName, quotedMessage, replyContent] = match;
+      return {
+        hasQuote: true,
+        quotedPlayerName,
+        quotedMessage: quotedMessage.trim(),
+        replyContent: replyContent.trim(),
+      };
+    }
+    
+    return {
+      hasQuote: false,
+      replyContent: message,
+    };
+  };
+
   return (
-    <section className="bg-gray-900 flex flex-col">
-      <header className="px-4 py-3 border-b border-gray-700 flex justify-between items-center bg-gray-900 flex-shrink-0">
+    <section className="bg-background-primary flex flex-col">
+      <header className="px-4 py-3 border-b border-border flex justify-between items-center flex-shrink-0">
         <div className="flex flex-col gap-0.5">
-          <span className="font-mono font-bold text-gray-100 text-sm">#war-room</span>
-          <span className="text-xs text-gray-500">Emergency ops • All comms logged</span>
+          <span className="font-mono font-bold text-text-primary text-sm">#war-room</span>
+          <span className="text-xs text-text-secondary">Emergency ops • All comms logged</span>
         </div>
         <div className="flex flex-col items-end gap-1">
           <div className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${getPhaseClass(gameState.phase.type)}`}>{phaseName}</div>
           <div className="flex items-center gap-1">
-            <div className="text-xs text-gray-500 uppercase">ENDS IN</div>
-            <div className="font-mono font-bold text-gray-100 text-sm animate-pulse">{timeRemaining}</div>
+            <div className="text-xs text-text-muted uppercase">ENDS IN</div>
+            <div className="font-mono font-bold text-text-primary text-sm animate-pulse">{timeRemaining}</div>
           </div>
         </div>
       </header>
@@ -75,7 +97,7 @@ export const CommsPanel: React.FC = () => {
       <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-2 min-h-0" ref={chatLogRef}>
         {(!gameState.chatMessages || gameState.chatMessages.length === 0) ? (
           <div className="empty-chat-message">
-            <span className="text-gray-500 italic">
+            <span className="text-text-muted italic">
               No messages yet. Waiting for system initialization...
             </span>
           </div>
@@ -99,6 +121,7 @@ export const CommsPanel: React.FC = () => {
                   <VoteResultMessage 
                     message={msg} 
                     gameState={gameState} 
+                    localPlayerId={localPlayer.id}
                   />
                 </div>
               );
@@ -126,23 +149,55 @@ export const CommsPanel: React.FC = () => {
             return (
               <div 
                 key={msg.id || index} 
-                className={`flex items-start gap-2.5 px-2 py-1.5 rounded-md transition-all duration-150 mb-0.5 hover:bg-gray-700 hover:translate-x-0.5 ${
+                className={`group flex items-start gap-2.5 px-2 py-1.5 rounded-md transition-all duration-150 mb-0.5 hover:bg-background-secondary hover:translate-x-0.5 ${
                   msg.isSystem ? 'border-l-2 border-blue-500 bg-blue-500/5 pl-3' : ''
                 } animation-slide-in-left`}
                 style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
               >
-                <div className={`w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-sm flex-shrink-0 border border-gray-600 shadow-sm ${
+                <div className={`w-6 h-6 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border shadow-sm ${
                   msg.isSystem ? 'bg-blue-500 text-white border-blue-500 shadow-blue-500/30' : ''
                 }`}>
                   {getMessageAvatar(msg)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className={`font-semibold text-gray-100 text-sm mb-0.5 inline-block ${
-                    msg.isSystem ? 'text-blue-500 font-bold' : ''
-                  }`}>
-                    {msg.playerName}
-                  </span>
-                  <div className="text-gray-400 text-sm leading-relaxed break-words mt-0.5">{msg.message}</div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className={`font-semibold text-text-primary text-sm ${
+                      msg.isSystem ? 'text-blue-500 font-bold' : ''
+                    }`}>
+                      {msg.playerName}
+                    </span>
+                    {!msg.isSystem && gameState.phase.type === 'DISCUSSION' && (
+                      <button
+                        onClick={() => startReply(msg.id || `${index}`, msg.playerName, msg.message)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-text-muted hover:text-text-primary px-2 py-1 rounded hover:bg-background-tertiary"
+                        title="Reply to this message"
+                      >
+                        ↩️ Reply
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-text-secondary text-sm leading-relaxed break-words mt-0.5">
+                    {(() => {
+                      const parsed = parseMessageContent(msg.message);
+                      return (
+                        <>
+                          {parsed.hasQuote && (
+                            <div className="bg-background-secondary border-l-2 border-border pl-3 py-2 mb-2 rounded-r">
+                              <div className="text-xs text-text-muted font-semibold mb-1">
+                                {parsed.quotedPlayerName}:
+                              </div>
+                              <div className="text-text-secondary text-xs italic">
+                                {parsed.quotedMessage}
+                              </div>
+                            </div>
+                          )}
+                          {parsed.replyContent && (
+                            <div>{parsed.replyContent}</div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
             );

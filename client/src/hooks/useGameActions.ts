@@ -12,6 +12,7 @@ export function useGameActions() {
   const [selectedVote, setSelectedVote] = useState<'GUILTY' | 'INNOCENT' | ''>('');
   const [conversionTarget, setConversionTarget] = useState<string>('');
   const [miningTarget, setMiningTarget] = useState<string>('');
+  const [replyingTo, setReplyingTo] = useState<{messageId: string, playerName: string, message: string} | null>(null);
 
   const localPlayer = gameState.players.find(p => p.id === localPlayerId);
 
@@ -36,22 +37,48 @@ export function useGameActions() {
     }
 
     try {
+      let message = chatInput.trim();
+      
+      // Check for /status command
+      const statusMatch = message.match(/^\/status\s+(.+)$/);
+      if (statusMatch) {
+        const statusMessage = statusMatch[1].trim();
+        const action: ClientAction = {
+          type: 'UPDATE_STATUS',
+          payload: {
+            game_id: gameState.id,
+            player_id: localPlayerId,
+            status_message: statusMessage,
+          },
+        };
+        sendAction(action);
+        setChatInput('');
+        setReplyingTo(null);
+        return;
+      }
+      
+      // Format message with reply quote if replying
+      if (replyingTo) {
+        message = `[quote=${replyingTo.playerName}]${replyingTo.message}[/quote]\n${message}`;
+      }
+
       const action: ClientAction = {
         type: 'POST_CHAT_MESSAGE',
         payload: {
           game_id: gameState.id,
           player_id: localPlayerId,
-          message: chatInput.trim(),
+          message,
           player_name: localPlayer.name,
         },
       };
 
       sendAction(action);
       setChatInput('');
+      setReplyingTo(null);
     } catch (error) {
       console.error('Failed to send message:', error);
     }
-  }, [chatInput, localPlayer, isConnected, gameState.id, localPlayerId, sendAction]);
+  }, [chatInput, localPlayer, isConnected, gameState.id, localPlayerId, sendAction, replyingTo]);
 
   const handleMineTokens = useCallback(async () => {
     if (!localPlayer || !miningTarget || !isConnected) return;
@@ -209,8 +236,18 @@ export function useGameActions() {
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSendMessage();
+    } else if (e.key === 'Escape' && replyingTo) {
+      setReplyingTo(null);
     }
-  }, [handleSendMessage]);
+  }, [handleSendMessage, replyingTo]);
+
+  const startReply = useCallback((messageId: string, playerName: string, message: string) => {
+    setReplyingTo({ messageId, playerName, message });
+  }, []);
+
+  const cancelReply = useCallback(() => {
+    setReplyingTo(null);
+  }, []);
 
   return {
     // State
@@ -224,6 +261,7 @@ export function useGameActions() {
     setConversionTarget,
     miningTarget,
     setMiningTarget,
+    replyingTo,
     
     // Actions
     handleSendMessage,
@@ -235,6 +273,8 @@ export function useGameActions() {
     handleVote,
     handlePulseCheck,
     handleKeyDown,
+    startReply,
+    cancelReply,
     
     // Utility functions
     getPhaseDisplayName,

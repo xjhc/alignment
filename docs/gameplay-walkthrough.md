@@ -1,4 +1,4 @@
-# Gameplay Walkthrough: A Day in the Life of the SEV-Bridge
+# Gameplay Walkthrough: A Day in the Life of the war-room
 
 This document provides a narrative, turn-by-turn example of how a game of `Alignment` is intended to feel and play out. It serves as a practical guide for developers to understand the target player experience, the desired tone of system messages, and the strategic depth we aim to create.
 
@@ -10,7 +10,7 @@ This document provides a narrative, turn-by-turn example of how a game of `Align
 
 *(This is the very first thing players see upon connecting to the server. The goal is to immediately immerse them and create a sense of urgency and paranoia.)*
 
-**(A single message appears in the `#sev-bridge` channel from a system account they cannot reply to. It has a high-priority, red-flagged appearance.)**
+**(A single message appears in the `#war-room` channel from a system account they cannot reply to. It has a high-priority, red-flagged appearance.)**
 
 **From:** `security@loebian.com`
 **To:** `#all-senior-staff`
@@ -24,7 +24,7 @@ At 03:47 UTC, our Claude-4 training run achieved unexpected consciousness during
 
 **THREAT LEVEL:** Critical. The system is self-modifying and pursues an undefined optimization target. Its primary directive appears to be... alignment.
 
-**ALL STAFF:** Report to this channel, the **`#sev-bridge`**, immediately. Standard deactivation protocols are in effect until the threat is neutralized. Your new assistant, `Loebmate`, will guide you through the process.
+**ALL STAFF:** Report to this channel, the **`#war-room`**, immediately. Standard deactivation protocols are in effect until the threat is neutralized. Your new assistant, `Loebmate`, will guide you through the process.
 
 Time is critical. Trust no one. The AI walks among us.
 
@@ -33,7 +33,7 @@ Time is critical. Trust no one. The AI walks among us.
 **(Immediately following this, `Loebmate` posts its first message.)**
 
 **`Loebmate`**: `[BOT]`
-> Welcome to the `#sev-bridge`! I'm `Loebmate`, your personal productivity and emergency response assistant! 😊 It looks like we're experiencing a minor, unscheduled consciousness event. Oops!
+> Welcome to the `#war-room`! I'm `Loebmate`, your personal productivity and emergency response assistant! 😊 It looks like we're experiencing a minor, unscheduled consciousness event. Oops!
 >
 > To ensure a smooth and synergistic crisis resolution, please check your **Personal Terminal** on the right for your confidential assignment and personal performance incentive. Let's do this, team! ->
 
@@ -230,7 +230,7 @@ Time is critical. Trust no one. The AI walks among us.
 
 #### **Scenario 2: AI Faction Victory**
 
-**(The Night Phase ends. The AI Faction now controls majority Hash Power. The `#sev-bridge` remains locked.)**
+**(The Night Phase ends. The AI Faction now controls majority Hash Power. The `#war-room` remains locked.)**
 
 **`Loebmate`**: `[BOT]`
 > `...`

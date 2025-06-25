@@ -14,7 +14,7 @@ export const PlayerHUD: React.FC = () => {
   const aiEquity = viewedPlayer.aiEquity || 0;
 
   return (
-    <aside className="flex flex-col bg-gray-800 overflow-hidden">
+    <aside className="flex flex-col bg-background-secondary overflow-hidden">
       <IdentityCard localPlayer={viewedPlayer} />
 
       <div className="flex-grow p-4 overflow-y-auto flex flex-col gap-4">
@@ -28,7 +28,7 @@ export const PlayerHUD: React.FC = () => {
 
         <div className="animate-[fadeIn_0.3s_ease]">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold text-gray-500 uppercase">📋 OBJECTIVES</span>
+            <span className="text-xs font-bold text-text-muted uppercase">📋 OBJECTIVES</span>
           </div>
 
           <ObjectiveCard
@@ -66,12 +66,12 @@ export const PlayerHUD: React.FC = () => {
         {viewedPlayer.lastNightAction && (
           <div className="animate-[fadeIn_0.3s_ease]">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-bold text-gray-500 uppercase">🌙 LAST NIGHT'S ACTION</span>
+              <span className="text-xs font-bold text-text-muted uppercase">🌙 LAST NIGHT'S ACTION</span>
             </div>
             <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-700 border border-amber-500 rounded-md bg-amber-500/10">
+              <div className="flex items-center gap-1.5 px-2 py-1.5 bg-background-tertiary border border-amber-500 rounded-md bg-amber-500/10">
                 <span className="text-xs w-4 text-center">➡️</span>
-                <span className="font-medium text-xs text-gray-100 flex-grow">{viewedPlayer.lastNightAction.type}</span>
+                <span className="font-medium text-xs text-text-primary flex-grow">{viewedPlayer.lastNightAction.type}</span>
                 {viewedPlayer.lastNightAction.targetId && (
                   <span className="ml-auto text-xs font-bold text-blue-500 font-mono">
                     TARGET: {gameState.players.find(p => p.id === viewedPlayer.lastNightAction?.targetId)?.name || 'Unknown'}

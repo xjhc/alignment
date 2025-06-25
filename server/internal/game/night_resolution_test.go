@@ -223,31 +223,30 @@ func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
 		ID:                "ai",
 		IsAlive:           true,
 		Alignment:         "ALIGNED",
-		AIEquity:          3,
 		ProjectMilestones: 3,
 	}
-	gameState.Players["human"] = &core.Player{
-		ID:                "human",
+	gameState.Players["weak_human"] = &core.Player{
+		ID:                "weak_human",
 		IsAlive:           true,
 		Alignment:         "HUMAN",
-		Tokens:            2, // Less than AI equity
+		Tokens:            0, // Will have 1 AIEquity after targeting, 1 > 0 = success
 		ProjectMilestones: 3,
 	}
 	gameState.Players["strong_human"] = &core.Player{
 		ID:                "strong_human",
 		IsAlive:           true,
 		Alignment:         "HUMAN",
-		Tokens:            5, // More than AI equity
+		Tokens:            5, // Will have 1 AIEquity after targeting, 1 < 5 = failure
 		ProjectMilestones: 3,
 	}
 
 	resolver := NewNightResolutionManager(gameState)
 
-	// Test successful conversion (AI equity > human tokens)
+	// Test successful conversion (target AIEquity after targeting > target tokens)
 	action := &core.SubmittedNightAction{
 		PlayerID: "ai",
 		Type:     "CONVERT",
-		TargetID: "human",
+		TargetID: "weak_human",
 	}
 
 	events := resolver.resolveConvertAction("ai", action)
@@ -260,6 +259,14 @@ func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
 		t.Errorf("Expected EventAIConversionSuccess, got %s", events[0].Type)
 	}
 
+	// Check that target gained AIEquity and was converted
+	if gameState.Players["weak_human"].AIEquity != 1 {
+		t.Errorf("Expected weak_human to have 1 AIEquity, got %d", gameState.Players["weak_human"].AIEquity)
+	}
+	if gameState.Players["weak_human"].Alignment != "ALIGNED" {
+		t.Errorf("Expected weak_human to be ALIGNED, got %s", gameState.Players["weak_human"].Alignment)
+	}
+
 	// Test failed conversion (system shock)
 	action.TargetID = "strong_human"
 	events = resolver.resolveConvertAction("ai", action)
@@ -270,6 +277,22 @@ func TestNightResolutionManager_ResolveConvertAction(t *testing.T) {
 
 	if events[0].Type != core.EventPlayerShocked {
 		t.Errorf("Expected EventPlayerShocked, got %s", events[0].Type)
+	}
+
+	// Check that target gained AIEquity but was not converted
+	if gameState.Players["strong_human"].AIEquity != 1 {
+		t.Errorf("Expected strong_human to have 1 AIEquity, got %d", gameState.Players["strong_human"].AIEquity)
+	}
+	if gameState.Players["strong_human"].Alignment != "HUMAN" {
+		t.Errorf("Expected strong_human to remain HUMAN, got %s", gameState.Players["strong_human"].Alignment)
+	}
+
+	// Check that system shock was applied
+	if len(gameState.Players["strong_human"].SystemShocks) != 1 {
+		t.Errorf("Expected 1 system shock, got %d", len(gameState.Players["strong_human"].SystemShocks))
+	}
+	if gameState.Players["strong_human"].SystemShocks[0].Type != core.ShockMessageCorruption {
+		t.Errorf("Expected MESSAGE_CORRUPTION shock, got %s", gameState.Players["strong_human"].SystemShocks[0].Type)
 	}
 
 	// Test protected player
