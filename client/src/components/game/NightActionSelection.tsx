@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useGameContext } from '../../contexts/GameContext';
 import { useGameActions } from '../../hooks/useGameActions';
 import { Player } from '../../types';
-import styles from './NightActionSelection.module.css';
+import { Button } from '../base';
 
 interface NightActionSelectionProps {
   // No props needed - everything comes from context
@@ -13,13 +13,10 @@ type ActionType = 'mine' | 'project' | 'ability' | null;
 export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
   const { gameState, localPlayer } = useGameContext();
   const {
-    conversionTarget,
-    setConversionTarget,
-    miningTarget,
     setMiningTarget,
-    handleConversionAttempt,
     handleMineTokens,
     handleUseAbility,
+    handleProjectMilestones,
     canPlayerAffordAbility,
     isValidNightActionTarget,
   } = useGameActions();
@@ -39,7 +36,7 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
     
     if (action === 'project') {
       // Project milestones doesn't need a target
-      handleUseAbility();
+      handleProjectMilestones();
       setIsMinimized(true);
     }
   };
@@ -50,6 +47,9 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
     if (selectedAction === 'mine') {
       setMiningTarget(targetId);
       handleMineTokens();
+      setIsMinimized(true);
+    } else if (selectedAction === 'ability') {
+      handleUseAbility(targetId);
       setIsMinimized(true);
     }
   };
@@ -77,23 +77,29 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
 
   if (isMinimized) {
     return (
-      <div className={styles.nightActionPrompt}>
-        <div className={styles.actionSelectionMinimized}>
-          <div className={styles.actionsList}>
-            <div className={`${styles.actionItem} ${styles.available} ${selectedAction === 'mine' ? styles.selected : ''}`} onClick={() => setIsMinimized(false)}>
-              <span className={styles.actionIcon}>⛏️</span>
-              <span className={styles.actionName}>Mine for Player</span>
-              <span className={styles.actionTarget}>{selectedAction === 'mine' && selectedTarget ? 'SELECTED' : ''}</span>
+      <div className="p-3 px-4 bg-gray-900 border-t border-gray-700 animate-[fadeIn_0.3s_ease]">
+        <div className="p-2">
+          <div className="flex flex-col gap-1">
+            <div className={`flex items-center gap-1.5 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded-md cursor-pointer transition-all duration-150 hover:bg-gray-600 border-amber-500 ${
+              selectedAction === 'mine' ? 'bg-amber-500/10 border-amber-500' : ''
+            }`} onClick={() => setIsMinimized(false)}>
+              <span className="text-xs w-4 text-center">⛏️</span>
+              <span className="font-medium text-xs text-gray-100 flex-grow">Mine for Player</span>
+              <span className="ml-auto text-xs font-bold text-blue-500 font-mono">{selectedAction === 'mine' && selectedTarget ? 'SELECTED' : ''}</span>
             </div>
-            <div className={`${styles.actionItem} ${selectedAction === 'project' ? styles.selected : ''}`} onClick={() => handleActionSelect('project')}>
-              <span className={styles.actionIcon}>📈</span>
-              <span className={styles.actionName}>Project Milestones</span>
-              <span className={styles.actionCategory}>Role</span>
+            <div className={`flex items-center gap-1.5 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded-md cursor-pointer transition-all duration-150 hover:bg-gray-600 ${
+              selectedAction === 'project' ? 'bg-amber-500/10 border-amber-500' : ''
+            }`} onClick={() => handleActionSelect('project')}>
+              <span className="text-xs w-4 text-center">📈</span>
+              <span className="font-medium text-xs text-gray-100 flex-grow">Project Milestones</span>
+              <span className="text-xs text-gray-500 bg-gray-900 px-1 py-0.5 rounded-lg font-medium uppercase">Role</span>
             </div>
-            <div className={`${styles.actionItem} ${hasUnlockedAbility && canAffordAbility ? '' : styles.disabled}`}>
-              <span className={styles.actionIcon}>🔒</span>
-              <span className={styles.actionName}>{localPlayer.role?.type || 'Role Ability'}</span>
-              <span className={styles.actionDisabled}>{hasUnlockedAbility ? (canAffordAbility ? 'Ready' : 'No Tokens') : 'Locked'}</span>
+            <div className={`flex items-center gap-1.5 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded-md transition-all duration-150 ${
+              hasUnlockedAbility && canAffordAbility ? 'cursor-pointer hover:bg-gray-600' : 'opacity-60 cursor-not-allowed grayscale-30'
+            }`}>
+              <span className="text-xs w-4 text-center">🔒</span>
+              <span className="font-medium text-xs text-gray-100 flex-grow">{localPlayer.role?.type || 'Role Ability'}</span>
+              <span className="text-xs text-red-500 font-bold">{hasUnlockedAbility ? (canAffordAbility ? 'Ready' : 'No Tokens') : 'Locked'}</span>
             </div>
           </div>
         </div>
@@ -102,112 +108,134 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
   }
 
   return (
-    <div className={styles.nightActionPrompt}>
-      <div className={styles.actionSelectionMenu}>
-        <div className={styles.menuHeader}>
-          <h3>Choose Night Action</h3>
+    <div className="p-3 px-4 bg-gray-900 border-t border-gray-700 animate-[fadeIn_0.3s_ease]">
+      <div className="flex flex-col gap-4">
+        <div className="m-0">
+          <h3 className="text-sm font-bold text-gray-100 m-0 mb-3">Choose Night Action</h3>
         </div>
 
-        <div className={styles.actionOptions}>
+        <div className="flex flex-col gap-2">
           <div 
-            className={`${styles.actionOption} ${selectedAction === 'mine' ? styles.selected : ''}`}
+            className={`px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 cursor-pointer transition-all duration-150 hover:bg-gray-700 hover:-translate-y-0.5 ${
+              selectedAction === 'mine' ? 'border-amber-500 bg-amber-500/10' : ''
+            }`}
             onClick={() => handleActionSelect('mine')}
           >
-            <div className={styles.optionHeader}>
-              <span className={styles.optionIcon}>⛏️</span>
-              <span className={styles.optionName}>Mine for Player</span>
-              <span className={styles.optionSuccess}>{getActionSuccessRate('mine')}</span>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-base w-5 text-center">⛏️</span>
+              <span className="font-semibold text-gray-100 text-sm flex-grow">Mine for Player</span>
+              <span className="text-xs text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded-2xl font-bold">{getActionSuccessRate('mine')}</span>
             </div>
-            <div className={styles.optionDescription}>
+            <div className="text-xs text-gray-400 leading-snug mb-1.5">
               Generate 1 Token for another player. Success depends on liquidity pool (currently 3 
               slots for {alivePlayers.length} players attempting). Cannot mine for yourself.
             </div>
-            <div className={styles.optionUsage}>
-              <strong>Command:</strong> <code>Mine for [Player Name]</code>
+            <div className="text-xs text-gray-500">
+              <strong className="text-gray-100 font-semibold">Command:</strong> <code className="bg-gray-700 px-1 py-0.5 rounded font-mono text-xs">Mine for [Player Name]</code>
             </div>
           </div>
 
           <div 
-            className={`${styles.actionOption} ${selectedAction === 'project' ? styles.selected : ''}`}
+            className={`px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 cursor-pointer transition-all duration-150 hover:bg-gray-700 hover:-translate-y-0.5 ${
+              selectedAction === 'project' ? 'border-amber-500 bg-amber-500/10' : ''
+            }`}
             onClick={() => handleActionSelect('project')}
           >
-            <div className={styles.optionHeader}>
-              <span className={styles.optionIcon}>📈</span>
-              <span className={styles.optionName}>Project Milestones</span>
-              <span className={styles.optionCategory}>Role Ability</span>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-base w-5 text-center">📈</span>
+              <span className="font-semibold text-gray-100 text-sm flex-grow">Project Milestones</span>
+              <span className="text-xs text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded-2xl font-medium uppercase">Role Ability</span>
             </div>
-            <div className={styles.optionDescription}>
+            <div className="text-xs text-gray-400 leading-snug mb-1.5">
               Advance your role's project by 1 point. At 3 points, unlock your powerful role-specific 
               ability for future nights.
             </div>
-            <div className={styles.optionUsage}>
-              <strong>Command:</strong> <code>Project Milestones</code>
+            <div className="text-xs text-gray-500">
+              <strong className="text-gray-100 font-semibold">Command:</strong> <code className="bg-gray-700 px-1 py-0.5 rounded font-mono text-xs">Project Milestones</code>
             </div>
           </div>
 
           <div 
-            className={`${styles.actionOption} ${hasUnlockedAbility && canAffordAbility ? '' : styles.disabled} ${selectedAction === 'ability' ? styles.selected : ''}`}
+            className={`px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 transition-all duration-150 ${
+              hasUnlockedAbility && canAffordAbility 
+                ? `cursor-pointer hover:bg-gray-700 hover:-translate-y-0.5 ${selectedAction === 'ability' ? 'border-amber-500 bg-amber-500/10' : ''}` 
+                : 'opacity-60 cursor-not-allowed grayscale-30'
+            }`}
             onClick={() => hasUnlockedAbility && canAffordAbility && handleActionSelect('ability')}
           >
-            <div className={styles.optionHeader}>
-              <span className={styles.optionIcon}>🔒</span>
-              <span className={styles.optionName}>{localPlayer.role?.type || 'Role Ability'}</span>
-              <span className={styles.optionDisabled}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-base w-5 text-center">🔒</span>
+              <span className="font-semibold text-gray-100 text-sm flex-grow">{localPlayer.role?.type || 'Role Ability'}</span>
+              <span className="text-xs text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded-2xl font-bold">
                 {hasUnlockedAbility ? (canAffordAbility ? 'Ready' : 'No Tokens') : 'Locked'}
               </span>
             </div>
-            <div className={styles.optionDescription}>
+            <div className="text-xs text-gray-400 leading-snug mb-1.5">
               {hasUnlockedAbility 
                 ? `Use your role-specific ability. ${canAffordAbility ? 'Available to use.' : 'Requires more tokens.'}`
                 : 'Role ability requires system access currently unavailable.'
               }
             </div>
-            <div className={styles.optionUsage}>
-              <strong>Status:</strong> {hasUnlockedAbility ? 'System access granted' : 'Network security protocols offline'}
+            <div className="text-xs text-gray-500">
+              <strong className="text-gray-100 font-semibold">Status:</strong> {hasUnlockedAbility ? 'System access granted' : 'Network security protocols offline'}
             </div>
           </div>
         </div>
 
         {selectedAction === 'mine' && (
-          <div className={styles.targetSelection}>
-            <div className={styles.targetHeader}>
-              <h4>Select Mining Target</h4>
+          <div className="pt-3 border-t border-gray-600">
+            <div className="mb-2">
+              <h4 className="text-xs font-semibold text-gray-100 m-0">Select Mining Target</h4>
             </div>
-            <div className={styles.targetGrid}>
+            <div className="flex flex-wrap gap-1.5">
               {alivePlayers.map((player) => (
-                <button
+                <Button
                   key={player.id}
-                  className={`${styles.targetBtn} ${selectedTarget === player.id ? styles.selected : ''} ${player.alignment === 'ALIGNED' ? styles.aligned : ''}`}
+                  variant={selectedTarget === player.id ? 'primary' : 'ghost'}
+                  size="sm"
                   onClick={() => handleTargetSelect(player.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 ${
+                    selectedTarget === player.id ? 'border-amber-500 bg-amber-500/10' : ''
+                  } ${
+                    player.alignment === 'ALIGNED' ? 'bg-cyan-500/5 border-cyan-600' : ''
+                  }`}
                 >
-                  <span className={styles.targetEmoji}>{getPlayerIcon(player)}</span>
-                  <span className={`${styles.targetName} ${player.alignment === 'ALIGNED' ? styles.glitched : ''}`}>
+                  <span className="text-sm leading-none flex-shrink-0">{getPlayerIcon(player)}</span>
+                  <span className={`font-medium text-xs text-gray-100 flex-shrink-0 ${
+                    player.alignment === 'ALIGNED' ? 'text-cyan-600 animate-[glitch_1.5s_infinite]' : ''
+                  }`}>
                     {player.name}
                   </span>
-                  <span className={styles.targetTokens}>🪙 {player.tokens}</span>
-                </button>
+                  <span className="font-mono font-bold text-gray-400 text-xs ml-auto">🪙 {player.tokens}</span>
+                </Button>
               ))}
             </div>
           </div>
         )}
 
         {selectedAction === 'ability' && hasUnlockedAbility && (
-          <div className={styles.targetSelection}>
-            <div className={styles.targetHeader}>
-              <h4>Select Ability Target</h4>
+          <div className="pt-3 border-t border-gray-600">
+            <div className="mb-2">
+              <h4 className="text-xs font-semibold text-gray-100 m-0">Select Ability Target</h4>
             </div>
-            <div className={styles.targetGrid}>
+            <div className="flex flex-wrap gap-1.5">
               {alivePlayers.map((player) => (
-                <button
+                <Button
                   key={player.id}
-                  className={`${styles.targetBtn} ${selectedTarget === player.id ? styles.selected : ''} ${!isValidNightActionTarget(localPlayer.id, player.id, 'ability') ? styles.disabled : ''}`}
-                  onClick={() => isValidNightActionTarget(localPlayer.id, player.id, 'ability') && setSelectedTarget(player.id)}
+                  variant={selectedTarget === player.id ? 'primary' : 'ghost'}
+                  size="sm"
+                  onClick={() => isValidNightActionTarget(localPlayer.id, player.id, 'ability') && handleTargetSelect(player.id)}
                   disabled={!isValidNightActionTarget(localPlayer.id, player.id, 'ability')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 ${
+                    selectedTarget === player.id ? 'border-amber-500 bg-amber-500/10' : ''
+                  } ${
+                    !isValidNightActionTarget(localPlayer.id, player.id, 'ability') ? 'grayscale-50' : ''
+                  }`}
                 >
-                  <span className={styles.targetEmoji}>{getPlayerIcon(player)}</span>
-                  <span className={styles.targetName}>{player.name}</span>
-                  <span className={styles.targetTokens}>🪙 {player.tokens}</span>
-                </button>
+                  <span className="text-sm leading-none flex-shrink-0">{getPlayerIcon(player)}</span>
+                  <span className="font-medium text-xs text-gray-100 flex-shrink-0">{player.name}</span>
+                  <span className="font-mono font-bold text-gray-400 text-xs ml-auto">🪙 {player.tokens}</span>
+                </Button>
               ))}
             </div>
           </div>

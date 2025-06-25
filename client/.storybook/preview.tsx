@@ -1,6 +1,6 @@
 import type { Preview, Decorator } from '@storybook/react-vite'
 import React from 'react';
-import '../src/global.css';
+import '../src/index.css';
 
 // Create a decorator to wrap stories with your app's global context
 const withGlobalStyles: Decorator = (Story) => {

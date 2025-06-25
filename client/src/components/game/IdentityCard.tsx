@@ -1,6 +1,5 @@
 import React from 'react';
 import { Player } from '../../types';
-import styles from './IdentityCard.module.css';
 
 interface IdentityCardProps {
   localPlayer: Player;
@@ -20,16 +19,16 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
   const getAlignmentDisplay = (player: Player) => {
     if (player.alignment === 'AI') {
       return (
-        <span className={`${styles.stat} ${styles.aligned}`}>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-aligned text-white">
           🤖 ALIGNED 
-          <span className={`${styles.visibilityIcon} ${styles.private}`} title="Only you can see this">🔒</span>
+          <span className="text-[8px] opacity-60 cursor-help text-pink-200" title="Only you can see this">🔒</span>
         </span>
       );
     }
     return (
-      <span className={`${styles.stat} ${styles.human}`}>
+      <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-human text-white">
         👤 HUMAN 
-        <span className={`${styles.visibilityIcon} ${styles.private}`} title="Only you can see this">🔒</span>
+        <span className="text-[8px] opacity-60 cursor-help text-pink-200" title="Only you can see this">🔒</span>
       </span>
     );
   };
@@ -49,17 +48,19 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
   };
 
   return (
-    <div className={styles.hudHeader}>
-      <div className={styles.identityCompact}>
-        <div className={`${styles.playerAvatar} ${styles.large}`}>
+    <div className="p-4 border-b border-border bg-background-secondary">
+      <div className="flex gap-2.5 items-center">
+        <div className="w-12 h-12 rounded-full bg-background-tertiary flex items-center justify-center text-2xl flex-shrink-0 border-2 border-border">
           {getPlayerAvatar(localPlayer)}
         </div>
-        <div className={styles.identityInfo}>
-          <h3 className={styles.identityName}>{localPlayer.name}</h3>
-          <p className={styles.identityRole}>{getRoleDisplayName(localPlayer)}</p>
-          <div className={styles.identityStats}>
+        <div className="flex-grow">
+          <h3 className="text-base font-bold text-text-primary m-0">{localPlayer.name}</h3>
+          <p className="text-[11px] text-text-secondary uppercase my-0.5 mt-0.5 mb-1.5">{getRoleDisplayName(localPlayer)}</p>
+          <div className="flex gap-1.5 mt-0">
             {getAlignmentDisplay(localPlayer)}
-            <span className={`${styles.stat} ${styles.tokens}`}>🪙 {localPlayer.tokens}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-background-tertiary border border-border text-text-primary">
+              🪙 {localPlayer.tokens}
+            </span>
           </div>
         </div>
       </div>

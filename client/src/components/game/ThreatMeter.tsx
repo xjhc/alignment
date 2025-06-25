@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import styles from './ThreatMeter.module.css';
 
 interface ThreatMeterProps {
   tokens: number;
@@ -57,35 +56,44 @@ export const ThreatMeter: React.FC<ThreatMeterProps> = ({ tokens, aiEquity }) =>
   const status = getStatusIndicator();
 
   return (
-    <div className={styles.hudSection}>
-      <div className={styles.sectionHeader}>
-        <span className={styles.sectionTitle}>🌀 ALIGNMENT</span>
+    <div className="animate-fade-in">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-[11px] font-bold text-text-muted uppercase">🌀 ALIGNMENT</span>
       </div>
-      <div className={styles.threatMeterCard}>
-        <div className={styles.threatMeterHeader}>
-          <span className={styles.threatLabel}>AI EXPOSURE</span>
+      <div className="bg-background-tertiary border border-border rounded-lg p-2.5 px-3">
+        <div className="flex justify-between items-center mb-1.5">
+          <span className="text-[10px] font-bold text-text-muted uppercase">AI EXPOSURE</span>
           <span 
-            className={`${styles.visibilityIcon} ${styles.private}`}
+            className="text-[8px] opacity-60 cursor-help text-pink-500"
             title="If AI Exposure exceeds your Tokens, you will be Aligned."
           >
             🔒
           </span>
         </div>
-        <div className={styles.threatMeterBar}>
-          <div className={styles.threatBarBg}>
+        <div className="mb-1.5">
+          <div className="w-full h-1.5 bg-background-primary rounded-sm overflow-hidden">
             <div 
-              className={styles.threatBarFill} 
+              className="h-full bg-pink-500 rounded-sm transition-all duration-300 ease-out"
               style={{ 
                 width: `${animatedWidth}%`,
-                transition: 'width 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
               }}
             />
           </div>
         </div>
-        <div className={styles.threatMeterValue}>
+        <div className="flex justify-between items-center font-mono text-[10px] text-text-muted">
           <span>Equity: {aiEquity}</span>
           <span>Tokens: {tokens}</span>
-          <span className={`${styles.statusIndicator} ${styles[status.className]}`}>
+          <span className={`font-bold px-1 py-0.5 rounded text-[9px] ${
+            status.className === 'safe' 
+              ? 'text-success bg-success/10' 
+              : status.className === 'danger'
+              ? 'text-danger bg-danger/10'
+              : status.className === 'critical'
+              ? 'text-danger bg-danger/10 animate-pulse'
+              : status.className === 'aligned'
+              ? 'text-ai bg-ai/10'
+              : ''
+          }`}>
             {status.text}
           </span>
         </div>

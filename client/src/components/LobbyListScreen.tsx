@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import styles from './LobbyListScreen.module.css';
+import { Button } from './base';
 
 interface LobbyInfo {
   id: string;
@@ -110,8 +110,8 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
 
   if (isLoading) {
     return (
-      <div className={styles.launchScreen}>
-        <div className={styles.launchForm}>
+      <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
+        <div className="flex flex-col gap-4 items-center w-80">
           <h2>Loading lobbies...</h2>
         </div>
       </div>
@@ -119,27 +119,31 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
   }
 
   return (
-    <div className={styles.launchScreen}>
-      <h1 className={styles.logo}>
-        LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
+    <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
+      <h1 className="font-mono text-3xl font-semibold tracking-[2px]">
+        LOEBIAN INC. // <span className="inline-block animate-pulse">EMERGENCY BRIDGE</span>
       </h1>
       
-      <div className={styles.lobbyListContainer}>
-        <div className={styles.lobbyListHeader}>
+      <div className="flex flex-col gap-6 max-w-2xl mx-auto">
+        <div className="flex justify-between items-center pb-4 border-b border-border">
           <h2>Game Lobbies</h2>
-          <button className={styles.btnSecondary} onClick={handleCreateGame}>
+          <Button
+            variant="secondary"
+            onClick={handleCreateGame}
+            className="text-sm font-medium"
+          >
             + Create New Game
-          </button>
+          </Button>
         </div>
 
         {error && (
-          <div className={styles.errorMessage}>
+          <div className="text-red my-4 p-2 bg-red/10 rounded">
             {error}
           </div>
         )}
         
-        <div className={styles.lobbyList}>
-          <div className={`${styles.lobbyItem} ${styles.lobbyHeader}`}>
+        <div className="flex flex-col gap-2 bg-background-secondary rounded-lg p-4">
+          <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-text-muted text-xs uppercase bg-transparent">
             <div>Lobby Name</div>
             <div>Players</div>
             <div>Status</div>
@@ -147,36 +151,47 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
           </div>
           
           {lobbies.length === 0 ? (
-            <div className={styles.lobbyItem} style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 bg-background-primary rounded-md transition-all duration-200 hover:bg-background-hover col-span-4 text-center text-text-secondary">
               No active lobbies. Create one to get started!
             </div>
           ) : (
             lobbies.map((lobby) => (
-              <div key={lobby.id} className={styles.lobbyItem}>
-                <div className={styles.lobbyName}>#{lobby.name}</div>
+              <div key={lobby.id} className="grid grid-cols-4 items-center gap-4 px-4 py-3 bg-background-primary rounded-md transition-all duration-200 hover:bg-background-hover">
+                <div className="font-mono text-primary font-semibold">#{lobby.name}</div>
                 <div>{lobby.player_count} / {lobby.max_players}</div>
                 <div>
-                  <span className={`${styles.lobbyStatus} ${styles[lobby.status ? lobby.status.toLowerCase().replace('_', '') : 'unknown']}`}>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${
+                    lobby.status === 'waiting' ? 'bg-human text-background-primary' :
+                    lobby.status === 'in_progress' ? 'bg-danger text-background-primary' :
+                    'bg-text-muted text-background-primary'
+                  }`}>
                     {lobby.status || 'Unknown'}
                   </span>
                 </div>
                 <div>
-                  <button
-                    className={styles.btnSecondary}
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => handleJoinLobby(lobby.id)}
                     disabled={!lobby.can_join}
+                    className="text-sm font-medium"
                   >
                     Join
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))
           )}
         </div>
         
-        <button onClick={onBack} className={styles.backButton}>
+        <Button
+          onClick={onBack}
+          variant="ghost"
+          size="sm"
+          className="self-start mt-4 text-text-muted hover:enabled:text-text-primary"
+        >
           ← Back
-        </button>
+        </Button>
       </div>
     </div>
   );

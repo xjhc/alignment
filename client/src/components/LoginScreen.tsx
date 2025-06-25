@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import styles from './LoginScreen.module.css';
+import { Button, Input } from './base';
 
 interface LoginScreenProps {
   onLogin: (playerName: string, avatar: string) => void;
@@ -19,18 +19,22 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className={styles.launchScreen}>
-      <h1 className={styles.logo}>
-        LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
+    <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
+      <h1 className="font-mono text-3xl font-semibold tracking-[2px]">
+        LOEBIAN INC. // <span className="inline-block animate-pulse">EMERGENCY BRIDGE</span>
       </h1>
       
-      <form className={styles.launchForm} onSubmit={handleSubmit}>
-        <div className={styles.avatarSelector}>
+      <form className="flex flex-col gap-4 items-center w-80" onSubmit={handleSubmit}>
+        <div className="flex gap-2 mb-4 justify-center">
           {avatarOptions.map((avatar) => (
             <button
               key={avatar}
               type="button"
-              className={`${styles.avatarOption} ${selectedAvatar === avatar ? styles.selected : ''}`}
+              className={`w-12 h-12 border-2 bg-background-secondary rounded-lg text-2xl cursor-pointer transition-all duration-200 flex items-center justify-center hover:border-primary hover:scale-105 ${
+                selectedAvatar === avatar 
+                  ? 'border-primary bg-primary shadow-lg shadow-primary/30' 
+                  : 'border-border'
+              }`}
               onClick={() => setSelectedAvatar(avatar)}
             >
               {avatar}
@@ -38,18 +42,29 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           ))}
         </div>
         
-        <input
+        <Input
           type="text"
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
           placeholder="[ENTER YOUR HANDLE]"
           maxLength={20}
           required
+          size="lg"
+          variant="filled"
+          fullWidth
+          className="text-xl text-center"
         />
         
-        <button type="submit" className={styles.btnPrimary} disabled={!playerName.trim()}>
+        <Button 
+          type="submit" 
+          variant="primary"
+          size="lg"
+          fullWidth
+          disabled={!playerName.trim()}
+          className="text-xl font-semibold text-black bg-amber hover:enabled:bg-amber-light"
+        >
           [ &gt; BROWSE LOBBIES ]
-        </button>
+        </Button>
       </form>
     </div>
   );

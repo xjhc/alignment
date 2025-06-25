@@ -1,5 +1,4 @@
 import React from 'react';
-import styles from './ObjectiveCard.module.css';
 
 interface ObjectiveCardProps {
   type: 'Team Objective' | 'Personal KPI' | 'Mandate';
@@ -17,14 +16,14 @@ export const ObjectiveCard: React.FC<ObjectiveCardProps> = ({
   isPrivate = false 
 }) => {
   const getCardClassName = () => {
-    const baseClass = styles.objectiveCard;
+    const baseClass = 'bg-background-tertiary border border-border rounded-lg p-2.5 mb-1.5';
     switch (type) {
       case 'Team Objective':
-        return `${baseClass} ${styles.faction}`;
+        return `${baseClass} border-l-2 border-l-blue-500`;
       case 'Personal KPI':
-        return `${baseClass} ${styles.kpi}`;
+        return `${baseClass} border-l-2 border-l-success`;
       case 'Mandate':
-        return `${baseClass} ${styles.mandate}`;
+        return `${baseClass} border-l-2 border-l-info`;
       default:
         return baseClass;
     }
@@ -32,21 +31,21 @@ export const ObjectiveCard: React.FC<ObjectiveCardProps> = ({
 
   return (
     <div className={getCardClassName()}>
-      <div className={styles.objectiveType}>{type}</div>
-      <div className={styles.objectiveName}>
+      <div className="text-[9px] font-bold uppercase text-text-muted mb-0.5">{type}</div>
+      <div className="font-bold mb-0.5 text-xs flex items-center gap-1">
         {name}
         {isPrivate && (
           <span 
-            className={`${styles.visibilityIcon} ${styles.private}`}
+            className="text-[8px] opacity-60 cursor-help text-pink-500"
             title="Your secret objective"
           >
             🔒
           </span>
         )}
       </div>
-      <div className={styles.objectiveDesc}>{description}</div>
+      <div className="text-text-secondary text-[11px] leading-tight mb-0.5">{description}</div>
       {progressText && (
-        <div className={styles.objectiveProgress}>{progressText}</div>
+        <div className="text-[10px] text-success font-medium">{progressText}</div>
       )}
     </div>
   );

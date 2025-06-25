@@ -5,7 +5,6 @@ import { ContextualInputArea } from './ContextualInputArea';
 import { SitrepMessage } from './SitrepMessage';
 import { VoteResultMessage } from './VoteResultMessage';
 import { PulseCheckMessage } from './PulseCheckMessage';
-import styles from './CommsPanel.module.css';
 
 export const CommsPanel: React.FC = () => {
   const { gameState, localPlayer } = useGameContext();
@@ -34,19 +33,19 @@ export const CommsPanel: React.FC = () => {
   const getPhaseClass = (phaseType: string) => {
     switch (phaseType) {
       case 'DISCUSSION':
-        return styles.discussion;
+        return 'bg-green-500 text-white';
       case 'NOMINATION':
-        return styles.nomination;
+        return 'bg-yellow-500 text-white';
       case 'TRIAL':
-        return styles.trial;
+        return 'bg-red-500 text-white';
       case 'VERDICT':
-        return styles.verdict;
+        return 'bg-red-500 text-white';
       case 'NIGHT':
-        return styles.night;
+        return 'bg-cyan-500 text-white';
       case 'PULSE_CHECK':
-        return styles.pulseCheck;
+        return 'bg-cyan-600 text-white';
       default:
-        return styles.sitrep;
+        return 'bg-blue-500 text-white';
     }
   };
 
@@ -58,25 +57,25 @@ export const CommsPanel: React.FC = () => {
   }, [gameState.chatMessages]);
 
   return (
-    <section className={styles.panelCenter}>
-      <header className={styles.chatHeader}>
-        <div className={styles.channelInfo}>
-          <span className={styles.channelName}>#war-room</span>
-          <span className={styles.channelTopic}>Emergency ops • All comms logged</span>
+    <section className="bg-gray-900 flex flex-col">
+      <header className="px-4 py-3 border-b border-gray-700 flex justify-between items-center bg-gray-900 flex-shrink-0">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono font-bold text-gray-100 text-sm">#war-room</span>
+          <span className="text-xs text-gray-500">Emergency ops • All comms logged</span>
         </div>
-        <div className={styles.timerSection}>
-          <div className={`${styles.phaseIndicator} ${getPhaseClass(gameState.phase.type)}`}>{phaseName}</div>
-          <div className={styles.timerDisplay}>
-            <div className={styles.timerLabel}>ENDS IN</div>
-            <div className={`${styles.timerValue} ${styles.pulse}`}>{timeRemaining}</div>
+        <div className="flex flex-col items-end gap-1">
+          <div className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${getPhaseClass(gameState.phase.type)}`}>{phaseName}</div>
+          <div className="flex items-center gap-1">
+            <div className="text-xs text-gray-500 uppercase">ENDS IN</div>
+            <div className="font-mono font-bold text-gray-100 text-sm animate-pulse">{timeRemaining}</div>
           </div>
         </div>
       </header>
 
-      <div className={styles.chatLog} ref={chatLogRef}>
+      <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-2 min-h-0" ref={chatLogRef}>
         {(!gameState.chatMessages || gameState.chatMessages.length === 0) ? (
           <div className="empty-chat-message">
-            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            <span className="text-gray-500 italic">
               No messages yet. Waiting for system initialization...
             </span>
           </div>
@@ -127,17 +126,23 @@ export const CommsPanel: React.FC = () => {
             return (
               <div 
                 key={msg.id || index} 
-                className={`${styles.chatMessageCompact} ${msg.isSystem ? styles.system : ''} animate-slide-in-left`}
+                className={`flex items-start gap-2.5 px-2 py-1.5 rounded-md transition-all duration-150 mb-0.5 hover:bg-gray-700 hover:translate-x-0.5 ${
+                  msg.isSystem ? 'border-l-2 border-blue-500 bg-blue-500/5 pl-3' : ''
+                } animate-slide-in-left`}
                 style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
               >
-                <div className={`${styles.messageAvatar} ${msg.isSystem ? styles.loebmate : ''}`}>
+                <div className={`w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-sm flex-shrink-0 border border-gray-600 shadow-sm ${
+                  msg.isSystem ? 'bg-blue-500 text-white border-blue-500 shadow-blue-500/30' : ''
+                }`}>
                   {getMessageAvatar(msg)}
                 </div>
-                <div className={styles.messageContent}>
-                  <span className={`${styles.messageAuthor} ${msg.isSystem ? styles.loebmateName : ''}`}>
+                <div className="flex-1 min-w-0">
+                  <span className={`font-semibold text-gray-100 text-sm mb-0.5 inline-block ${
+                    msg.isSystem ? 'text-blue-500 font-bold' : ''
+                  }`}>
                     {msg.playerName}
                   </span>
-                  <div className={styles.messageBody}>{msg.message}</div>
+                  <div className="text-gray-400 text-sm leading-relaxed break-words mt-0.5">{msg.message}</div>
                 </div>
               </div>
             );

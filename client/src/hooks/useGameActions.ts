@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useGameContext } from '../contexts/GameContext';
 import { useGameEngineContext } from '../contexts/GameEngineContext';
-import { ClientAction, Phase } from '../types';
+import { ClientAction } from '../types';
 
 export function useGameActions() {
   const { gameState, localPlayerId, sendAction, isConnected } = useGameContext();
@@ -74,7 +74,7 @@ export function useGameActions() {
     }
   }, [localPlayer, miningTarget, isConnected, gameState.id, localPlayerId, sendAction]);
 
-  const handleUseAbility = useCallback(async () => {
+  const handleUseAbility = useCallback(async (targetId?: string) => {
     if (!localPlayer || !canPlayerAffordAbility(localPlayerId) || !isConnected) {
       return;
     }
@@ -87,6 +87,7 @@ export function useGameActions() {
           player_id: localPlayerId,
           action_type: 'USE_ABILITY',
           ability_type: localPlayer.role?.type || 'UNKNOWN',
+          target_id: targetId,
         },
       };
 
@@ -95,6 +96,27 @@ export function useGameActions() {
       console.error('Failed to use ability:', error);
     }
   }, [localPlayer, canPlayerAffordAbility, localPlayerId, isConnected, gameState.id, sendAction]);
+
+  const handleProjectMilestones = useCallback(async () => {
+    if (!localPlayer || !isConnected) {
+      return;
+    }
+
+    try {
+      const action: ClientAction = {
+        type: 'SUBMIT_NIGHT_ACTION',
+        payload: {
+          game_id: gameState.id,
+          player_id: localPlayerId,
+          action_type: 'PROJECT_MILESTONES',
+        },
+      };
+
+      sendAction(action);
+    } catch (error) {
+      console.error('Failed to submit project milestones:', error);
+    }
+  }, [localPlayer, isConnected, gameState.id, localPlayerId, sendAction]);
 
   const handleConversionAttempt = useCallback(async () => {
     if (!localPlayer || !conversionTarget || !isConnected) return;
@@ -207,6 +229,7 @@ export function useGameActions() {
     handleSendMessage,
     handleMineTokens,
     handleUseAbility,
+    handleProjectMilestones,
     handleConversionAttempt,
     handleNominate,
     handleVote,

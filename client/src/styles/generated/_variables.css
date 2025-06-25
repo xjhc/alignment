@@ -3,17 +3,71 @@
  */
 
 :root {
-  /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+  --border-radius-sm: 3px;
+  --border-radius-base: 4px;
+  --border-radius-md: 6px;
+  --border-radius-lg: 8px;
+  --border-radius-xl: 12px;
+  --border-radius-2xl: 16px;
+  --border-radius-full: 50%;
+  --brand-accent-primary: #f59e0b;
+  --brand-accent-amber: #f59e0b;
+  --brand-accent-amber-light: #fbbf24;
+  --brand-accent-amber-dark: #d97706;
+  --brand-accent-cyan: #06b6d4;
+  --brand-accent-cyan-light: #22d3ee;
+  --brand-accent-cyan-dark: #0891b2;
+  --brand-accent-red: #ef4444;
+  --brand-accent-red-light: #f87171;
+  --brand-accent-red-dark: #dc2626;
+  --brand-accent-magenta: #ec4899;
+  --brand-accent-magenta-light: #f472b6;
+  --brand-accent-magenta-dark: #db2777;
+  --brand-accent-green: #10b981;
+  --brand-accent-green-light: #34d399;
+  --brand-accent-green-dark: #059669;
+  --brand-accent-blue: #3b82f6;
+  --brand-accent-blue-light: #60a5fa;
+  --brand-accent-blue-dark: #2563eb;
+  --semantic-game-human: #f59e0b;
+  --semantic-game-aligned: #06b6d4;
+  --semantic-game-ai: #ec4899;
+  --semantic-game-success: #10b981;
+  --semantic-game-danger: #ef4444;
+  --semantic-game-warning: #f59e0b;
+  --semantic-game-info: #3b82f6;
+  --semantic-component-focus: #3b82f6;
+  --semantic-component-active: #f59e0b;
+  --theme-light-bg-primary: #ffffff;
+  --theme-light-bg-secondary: #f8fafc;
+  --theme-light-bg-tertiary: #f1f5f9;
+  --theme-light-bg-quaternary: #e2e8f0;
+  --theme-light-bg-hover: #f1f5f9;
+  --theme-light-bg-mention: rgba(245, 158, 11, 0.2);
+  --theme-light-text-primary: #0f172a;
+  --theme-light-text-secondary: #475569;
+  --theme-light-text-muted: #64748b;
+  --theme-light-border: #e2e8f0;
+  --theme-light-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --theme-dark-bg-primary: #0f172a;
+  --theme-dark-bg-secondary: #1e293b;
+  --theme-dark-bg-tertiary: #334155;
+  --theme-dark-bg-quaternary: #475569;
+  --theme-dark-bg-hover: #334155;
+  --theme-dark-bg-mention: rgba(251, 191, 36, 0.4);
+  --theme-dark-text-primary: #f8fafc;
+  --theme-dark-text-secondary: #cbd5e1;
+  --theme-dark-text-muted: #94a3b8;
+  --theme-dark-border: #334155;
+  --theme-dark-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
   --font-weight-light: 300;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
   --font-weight-extrabold: 800;
-
-  /* Font Sizes */
   --font-size-xs: 10px;
   --font-size-sm: 11px;
   --font-size-base: 12px;
@@ -22,112 +76,17 @@
   --font-size-xl: 16px;
   --font-size-2xl: 18px;
   --font-size-3xl: 20px;
-
-  /* Line Heights */
-  --line-height-tight: 1.2;
-  --line-height-normal: 1.4;
-  --line-height-relaxed: 1.6;
-
-  /* Spacing */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-  --space-16: 64px;
-
-  /* Border Radius */
-  --radius-sm: 3px;
-  --radius-base: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-2xl: 16px;
-  --radius-full: 50%;
-
-  /* Brand & Accent Colors */
-  --accent-primary: #f59e0b;
-  --accent-primary-rgb: 245, 158, 11;
-  --accent-amber: #f59e0b;
-  --accent-amber-light: #fbbf24;
-  --accent-amber-dark: #d97706;
-  --accent-cyan: #06b6d4;
-  --accent-cyan-light: #22d3ee;
-  --accent-cyan-dark: #0891b2;
-  --accent-red: #ef4444;
-  --accent-red-light: #f87171;
-  --accent-red-dark: #dc2626;
-  --accent-magenta: #ec4899;
-  --accent-magenta-light: #f472b6;
-  --accent-magenta-dark: #db2777;
-  --accent-green: #10b981;
-  --accent-green-light: #34d399;
-  --accent-green-dark: #059669;
-  --accent-blue: #3b82f6;
-  --accent-blue-light: #60a5fa;
-  --accent-blue-dark: #2563eb;
-
-  /* Game Semantic Colors */
-  --color-human: var(--accent-amber);
-  --color-aligned: var(--accent-cyan);
-  --color-ai: var(--accent-magenta);
-  --color-success: var(--accent-green);
-  --color-danger: var(--accent-red);
-  --color-warning: var(--accent-amber);
-  --color-info: var(--accent-blue);
-
-  /* Component State Colors */
-  --color-focus: var(--accent-blue);
-  --color-hover: var(--bg-hover);
-  --color-active: var(--accent-primary);
-  --color-disabled: var(--text-muted);
-
-  /* Set default theme to dark */
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
-  --bg-quaternary: #475569;
-  --bg-hover: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --border: #334155;
-  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-  --bg-mention: rgba(251, 191, 36, 0.4);
-}
-
-/* Light Theme */
-html[data-theme='light'] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-tertiary: #f1f5f9;
-  --bg-quaternary: #e2e8f0;
-  --bg-hover: #f1f5f9;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
-  --border: #e2e8f0;
-  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --bg-mention: rgba(245, 158, 11, 0.2);
-  color-scheme: light;
-}
-
-/* Dark Theme */
-html[data-theme='dark'] {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
-  --bg-quaternary: #475569;
-  --bg-hover: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --border: #334155;
-  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-  --bg-mention: rgba(251, 191, 36, 0.4);
-  color-scheme: dark;
+  --font-line-height-tight: 1.2;
+  --font-line-height-normal: 1.4;
+  --font-line-height-relaxed: 1.6;
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
 }

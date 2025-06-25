@@ -1,5 +1,4 @@
 import { FinalPlayerCard } from './game/FinalPlayerCard';
-import styles from './GameOverScreen.module.css';
 import { useSessionContext } from '../contexts/SessionContext';
 
 export function GameOverScreen() {
@@ -21,21 +20,21 @@ export function GameOverScreen() {
   const getVictoryBadge = () => {
     if (isHumanVictory) {
       return (
-        <div className={`${styles.victoryBadge} ${styles.humanVictory} animate-scale-in`}>
-          <div className={`${styles.victoryIcon} animate-bounce`} style={{ animationDelay: '0.3s' }}>🛡️</div>
-          <div className={styles.victoryText}>
-            <h1 className={`${styles.victoryTitle} animate-slide-in-up`} style={{ animationDelay: '0.5s' }}>CONTAINMENT ACHIEVED</h1>
-            <p className={`${styles.victorySubtitle} animate-slide-in-up`} style={{ animationDelay: '0.7s' }}>Human Faction Victory</p>
+        <div className="inline-flex items-center gap-4 px-8 py-5 rounded-xl mb-4 border-2 border-human bg-gradient-to-br from-human to-amber-light text-white animate-scale-in">
+          <div className="text-5xl animate-bounce" style={{ animationDelay: '0.3s' }}>🛡️</div>
+          <div className="text-left">
+            <h1 className="font-mono text-3xl font-extrabold tracking-[2px] m-0 animate-slide-in-up" style={{ animationDelay: '0.5s' }}>CONTAINMENT ACHIEVED</h1>
+            <p className="text-sm opacity-90 m-0 mt-1 uppercase tracking-[1px] animate-slide-in-up" style={{ animationDelay: '0.7s' }}>Human Faction Victory</p>
           </div>
         </div>
       );
     } else {
       return (
-        <div className={`${styles.victoryBadge} ${styles.aiVictory} animate-scale-in`}>
-          <div className={`${styles.victoryIcon} ${styles.glitch} animate-shake`} style={{ animationDelay: '0.3s' }}>🤖</div>
-          <div className={styles.victoryText}>
-            <h1 className={`${styles.victoryTitle} ${styles.glitch} animate-slide-in-up`} style={{ animationDelay: '0.5s' }}>THE SINGULARITY</h1>
-            <p className={`${styles.victorySubtitle} animate-slide-in-up`} style={{ animationDelay: '0.7s' }}>AI Faction Victory</p>
+        <div className="inline-flex items-center gap-4 px-8 py-5 rounded-xl mb-4 border-2 border-ai bg-gradient-to-br from-ai to-magenta-light text-white animate-scale-in">
+          <div className="text-5xl animate-pulse animate-shake" style={{ animationDelay: '0.3s' }}>🤖</div>
+          <div className="text-left">
+            <h1 className="font-mono text-3xl font-extrabold tracking-[2px] m-0 animate-pulse animate-slide-in-up" style={{ animationDelay: '0.5s' }}>THE SINGULARITY</h1>
+            <p className="text-sm opacity-90 m-0 mt-1 uppercase tracking-[1px] animate-slide-in-up" style={{ animationDelay: '0.7s' }}>AI Faction Victory</p>
           </div>
         </div>
       );
@@ -51,12 +50,12 @@ export function GameOverScreen() {
   };
 
   return (
-    <main className={styles.endgameScreen}>
-      <header className={styles.endgameHeader}>
-        <div className={`${styles.companyLogo} ${!isHumanVictory ? styles.glitch : ''}`}>LOEBIAN</div>
-        <div className={styles.headerControls}>
+    <main className="min-h-screen bg-background-primary flex flex-col">
+      <header className="p-3 px-4 border-b border-border flex justify-between items-center bg-background-secondary">
+        <div className={`font-mono font-bold text-base tracking-[1.5px] ${!isHumanVictory ? 'animate-pulse' : ''}`}>LOEBIAN</div>
+        <div className="flex gap-2">
           <button 
-            className={styles.headerBtn} 
+            className="w-7 h-7 rounded-md bg-background-tertiary text-sm border-none cursor-pointer transition-all duration-200 hover:bg-background-quaternary" 
             title="Toggle Theme"
             onClick={() => {
               const currentTheme = document.documentElement.getAttribute('data-theme');
@@ -69,16 +68,16 @@ export function GameOverScreen() {
         </div>
       </header>
       
-      <div className={styles.endgameContent}>
-        <div className={styles.victoryAnnouncement}>
+      <div className="flex-1 p-6 max-w-5xl mx-auto w-full">
+        <div className="text-center mb-10">
           {getVictoryBadge()}
-          <p className={styles.victoryReason}>{getVictoryReason()}</p>
+          <p className="text-base text-text-secondary max-w-2xl mx-auto leading-relaxed">{getVictoryReason()}</p>
         </div>
 
-        <div className={styles.finalStatusSection}>
-          <h2 className={styles.sectionTitle}>📋 FINAL PERSONNEL STATUS</h2>
+        <div className="mb-10">
+          <h2 className="text-lg font-bold text-text-primary mb-6 text-center uppercase tracking-[1px]">📋 FINAL PERSONNEL STATUS</h2>
           
-          <div className={styles.personnelGrid}>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {sortedPlayers.map((player, index) => (
               <div 
                 key={player.id}
@@ -94,16 +93,16 @@ export function GameOverScreen() {
           </div>
         </div>
 
-        <div className={styles.victoryActions}>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
           <button 
-            className={`${styles.btnPrimary} ${styles.analysisBtn} animate-slide-in-up`} 
+            className="px-6 py-3 text-base font-semibold text-black bg-amber rounded transition-colors duration-200 cursor-pointer border-none hover:bg-amber-light disabled:opacity-50 disabled:cursor-not-allowed animate-slide-in-up" 
             onClick={onViewAnalysis}
             style={{ animationDelay: `${1000 + (sortedPlayers.length * 150) + 300}ms` }}
           >
             📊 VIEW ANALYSIS
           </button>
           <button 
-            className={`${styles.btnSecondary} ${styles.playAgainBtn} animate-slide-in-up`} 
+            className="px-6 py-3 text-base font-semibold bg-background-tertiary text-text-primary border border-border rounded-lg transition-all duration-200 cursor-pointer hover:bg-background-quaternary hover:-translate-y-0.5 animate-slide-in-up" 
             onClick={onPlayAgain}
             style={{ animationDelay: `${1000 + (sortedPlayers.length * 150) + 500}ms` }}
           >

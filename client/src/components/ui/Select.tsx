@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, forwardRef } from 'react';
-import styles from './Select.module.css';
 
 interface Option {
   value: string;
@@ -111,28 +110,35 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(({
   };
 
   const wrapperClasses = [
-    styles.wrapper,
-    fullWidth ? styles.fullWidth : '',
+    'flex flex-col gap-1',
+    fullWidth ? 'w-full' : '',
   ].filter(Boolean).join(' ');
 
+  const sizeClasses = {
+    sm: 'px-3 py-2 text-xs rounded-sm min-h-[32px]',
+    md: 'px-3 py-2 text-sm rounded-md min-h-[40px]',
+    lg: 'px-4 py-3 text-base rounded-md min-h-[48px]',
+  };
+
   const selectClasses = [
-    styles.select,
-    styles[size],
-    hasError ? styles.error : '',
-    isOpen ? styles.open : '',
-    disabled ? styles.disabled : '',
+    'w-full flex items-center justify-between gap-2 font-inherit font-normal text-text-primary bg-background-primary border border-border transition-all duration-150 cursor-pointer text-left',
+    'focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)]',
+    'hover:enabled:border-primary',
+    sizeClasses[size],
+    hasError ? '!border-danger !shadow-[0_0_0_3px_rgba(239,68,68,0.1)]' : '',
+    disabled ? 'opacity-50 cursor-not-allowed bg-background-secondary' : '',
     className,
   ].filter(Boolean).join(' ');
 
   return (
     <div className={wrapperClasses}>
       {label && (
-        <label htmlFor={selectId} className={styles.label}>
+        <label htmlFor={selectId} className="text-sm font-medium text-text-primary mb-1">
           {label}
         </label>
       )}
       
-      <div className={styles.selectContainer}>
+      <div className="relative">
         <button
           ref={ref || selectRef}
           id={selectId}
@@ -144,10 +150,10 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(({
           aria-expanded={isOpen}
           aria-haspopup="listbox"
         >
-          <span className={styles.selectValue}>
+          <span className={`flex-1 overflow-hidden text-ellipsis whitespace-nowrap ${selectedOption ? 'text-text-primary' : 'text-text-muted'}`}>
             {selectedOption ? selectedOption.label : placeholder}
           </span>
-          <div className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ''}`}>
+          <div className={`flex items-center justify-center text-text-muted transition-transform duration-150 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}>
             <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
               <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -157,19 +163,19 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(({
         {isOpen && (
           <ul
             ref={listRef}
-            className={styles.dropdown}
+            className="absolute top-full left-0 right-0 z-[100] bg-background-primary border border-border rounded-md shadow-lg mt-0.5 max-h-[200px] overflow-y-auto list-none py-1"
             role="listbox"
           >
             {options.map((option, index) => (
               <li key={option.value}>
                 <button
                   type="button"
-                  className={`${styles.option} ${
-                    index === focusedIndex ? styles.focused : ''
+                  className={`w-full px-3 py-2 text-inherit font-inherit text-text-primary bg-none border-none cursor-pointer text-left transition-colors duration-150 hover:enabled:bg-background-secondary ${
+                    index === focusedIndex ? '!bg-background-secondary' : ''
                   } ${
-                    option.value === value ? styles.selected : ''
+                    option.value === value ? '!bg-primary !text-background-primary hover:!bg-primary' : ''
                   } ${
-                    option.disabled ? styles.optionDisabled : ''
+                    option.disabled ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                   onClick={() => !option.disabled && handleOptionClick(option.value)}
                   disabled={option.disabled}
@@ -185,7 +191,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(({
       </div>
       
       {(error || helperText) && (
-        <div className={`${styles.helpText} ${hasError ? styles.errorText : ''}`}>
+        <div className={`text-xs mt-1 ${hasError ? 'text-danger' : 'text-text-secondary'}`}>
           {error || helperText}
         </div>
       )}

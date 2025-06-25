@@ -2,7 +2,6 @@ import React from 'react';
 import { useGameContext } from '../../contexts/GameContext';
 import { useTheme } from '../../hooks/useTheme';
 import { PlayerCard } from './PlayerCard';
-import styles from './RosterPanel.module.css';
 
 export const RosterPanel: React.FC = () => {
   const { gameState, localPlayerId, localPlayer, viewedPlayerId, setViewedPlayer } = useGameContext();
@@ -20,15 +19,15 @@ export const RosterPanel: React.FC = () => {
   const isAI = localPlayer?.alignment === 'AI' || localPlayer?.alignment === 'ALIGNED';
 
   return (
-    <aside className={styles.panelLeft}>
-      <header className={styles.header}>
+    <aside className="flex flex-col bg-gray-800 overflow-hidden select-none">
+      <header className="px-4 py-3 border-b border-gray-700 flex justify-between items-center flex-shrink-0 bg-gray-800">
         <div className="header-left">
-          <span className={styles.companyLogo}>LOEBIAN</span>
+          <span className="font-mono font-bold text-base tracking-widest text-gray-100">LOEBIAN</span>
         </div>
-        <div className={styles.headerControls}>
-          <button className={styles.headerBtn} title="Settings">⚙️</button>
+        <div className="flex gap-1">
+          <button className="w-7 h-7 rounded-md flex items-center justify-center bg-gray-700 text-sm transition-all duration-150 hover:bg-gray-600 hover:scale-105 border-0 cursor-pointer" title="Settings">⚙️</button>
           <button 
-            className={styles.headerBtn} 
+            className="w-7 h-7 rounded-md flex items-center justify-center bg-gray-700 text-sm transition-all duration-150 hover:bg-gray-600 hover:scale-105 border-0 cursor-pointer" 
             title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
             onClick={toggleTheme}
           >
@@ -37,32 +36,36 @@ export const RosterPanel: React.FC = () => {
         </div>
       </header>
 
-      <div className={styles.channelList}>
-        <div className={styles.listHeader}>Text Channels</div>
-        <div className={`${styles.channel} ${styles.active}`}>
+      <div className="px-2 py-3 border-b border-gray-700 flex-shrink-0">
+        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1.5 pb-1.5 mb-2 flex justify-between items-center">Text Channels</div>
+        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-gray-400 font-normal cursor-pointer mb-0.5 transition-all duration-150 text-sm bg-amber-500 text-white font-normal hover:bg-gray-600 hover:text-gray-100 hover:translate-x-0.5">
           <span>#</span>
           <span className="channel-name">war-room</span>
         </div>
-        <div className={`${styles.channel} ${styles.aiChannel} ${isAI ? styles.unlocked : ''}`}>
+        <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer mb-0.5 transition-all duration-150 text-sm ${
+          isAI 
+            ? 'text-cyan-600 bg-cyan-500/10 opacity-100' 
+            : 'text-gray-500 opacity-60'
+        } hover:bg-gray-600 hover:text-gray-100 hover:translate-x-0.5`}>
           <span>#</span>
           <span className="channel-name">aligned</span>
-          {!isAI && <span className={styles.channelBlocked}>❌</span>}
+          {!isAI && <span className="ml-auto text-xs opacity-50">❌</span>}
         </div>
         {deactivatedCount > 0 && (
-          <div className={styles.channel}>
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-gray-400 font-normal cursor-pointer mb-0.5 transition-all duration-150 text-sm hover:bg-gray-600 hover:text-gray-100 hover:translate-x-0.5">
             <span>#</span>
             <span className="channel-name">off-boarding</span>
           </div>
         )}
       </div>
 
-      <div className={styles.playerRoster}>
-        <div className={styles.listHeader}>
+      <div className="px-2 py-3 flex-grow overflow-y-auto">
+        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1.5 pb-1.5 mb-2 flex justify-between items-center">
           <span>Personnel</span>
-          <div className={styles.rosterStats}>
-            <span className={`${styles.statItem} ${styles.human}`}>👤 {humanCount}</span>
-            <span className={`${styles.statItem} ${styles.aligned}`}>🤖 {alignedCount}</span>
-            <span className={`${styles.statItem} ${styles.dead}`}>👻 {deactivatedCount}</span>
+          <div className="flex gap-2">
+            <span className="text-xs px-2 py-0.5 rounded-2xl bg-amber-500 text-white font-bold">👤 {humanCount}</span>
+            <span className="text-xs px-2 py-0.5 rounded-2xl bg-cyan-600 text-white font-bold">🤖 {alignedCount}</span>
+            <span className="text-xs px-2 py-0.5 rounded-2xl bg-gray-600 text-gray-500 font-bold">👻 {deactivatedCount}</span>
           </div>
         </div>
 

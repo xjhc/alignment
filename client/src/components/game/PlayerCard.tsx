@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Player } from '../../types';
-import styles from './PlayerCard.module.css';
 
 interface PlayerCardProps {
   player: Player;
@@ -35,17 +34,31 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
   };
 
   const getPlayerClasses = () => {
-    const classes = [styles.playerCardUniform];
-    if (isSelf) classes.push(styles.isMe);
-    if (isSelected) classes.push(styles.isViewed);
-    if (!player.isAlive) classes.push(styles.deactivated);
-    if (player.alignment === 'AI' || player.alignment === 'ALIGNED') classes.push(styles.aligned);
-    if (player.systemShocks?.some(shock => shock.isActive)) {
-      classes.push(styles.hasShock);
+    const classes = [
+      'flex items-start gap-2 p-1.5 px-2 rounded-md cursor-pointer relative mb-0.5 transition-all duration-150 min-h-10 will-change-transform',
+      'hover:bg-background-tertiary hover:translate-x-0.5 hover:scale-[1.01] hover:shadow-sm'
+    ];
+    
+    if (isSelf) {
+      classes.push('bg-background-tertiary border-l-2 border-human');
     }
+    
+    if (isSelected) {
+      classes.push('bg-background-secondary border-l-2 border-blue-500');
+    }
+    
+    if (!player.isAlive) {
+      classes.push('opacity-60 grayscale-[60%]');
+    }
+    
+    if (player.alignment === 'AI' || player.alignment === 'ALIGNED') {
+      classes.push('bg-aligned/5 border-l-2 border-aligned');
+    }
+    
     if (showEliminationAnimation) {
       classes.push('animate-elimination-fade');
     }
+    
     return classes.join(' ');
   };
 
@@ -62,9 +75,10 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
     const icons = [];
     for (let i = 0; i < maxMilestones; i++) {
       const filled = i < player.projectMilestones;
+      const isAligned = player.alignment === 'AI' || player.alignment === 'ALIGNED';
       const progressClass = filled ? 
-        `${styles.progressIcon} ${styles.filled} ${player.alignment === 'AI' || player.alignment === 'ALIGNED' ? styles.aligned : ''}` : 
-        styles.progressIcon;
+        `text-xs transition-all duration-150 ${isAligned ? 'text-aligned' : 'text-human'}` : 
+        'text-xs text-text-muted transition-all duration-150';
       icons.push(
         <span key={i} className={progressClass} title={`Project Progress: ${player.projectMilestones} / ${maxMilestones}`}>
           {filled ? '⬢' : '⬡'}
@@ -84,22 +98,34 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
       onClick={() => onSelect(player.id)}
       title={`View Dossier for ${player.name}`}
     >
-      <div className={styles.playerAvatar}>
+      <div className="w-7 h-7 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border transition-all duration-150 mt-0.5">
         {getPlayerAvatar(player)}
       </div>
-      <div className={styles.playerContent}>
-        <div className={styles.playerMainInfo}>
-          <span className={styles.playerName}>{displayName}</span>
-          <span className={styles.playerJob}>{player.role?.name || player.jobTitle || 'Employee'}</span>
-          <div className={styles.playerTokensProgress}>
-            <span className={styles.playerTokens}>{displayTokens}</span>
-            <div className={styles.playerProgressInline}>
+      <div className="flex-grow flex flex-col justify-center min-h-9">
+        <div className="flex items-center gap-1.5 text-xs leading-tight">
+          <span className={`font-semibold flex-shrink-0 min-w-10 ${isSelf ? 'text-human' : 'text-text-primary'}`}>
+            {displayName}
+          </span>
+          <span className="text-text-secondary font-medium uppercase tracking-wide flex-shrink-0 text-[10px] min-w-7.5">
+            {player.role?.name || player.jobTitle || 'Employee'}
+          </span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className={`font-semibold flex-shrink-0 text-[11px] min-w-6 ${
+              player.alignment === 'AI' || player.alignment === 'ALIGNED' 
+                ? 'text-aligned animate-pulse' 
+                : 'text-human'
+            }`}>
+              {displayTokens}
+            </span>
+            <div className="flex gap-px items-center flex-shrink-0 min-w-6">
               {renderProjectMilestones()}
             </div>
           </div>
         </div>
         {player.statusMessage && (
-          <div className={`${styles.playerStatusLine} ${!player.isAlive ? styles.parting : ''}`}>
+          <div className={`text-[11px] text-text-muted italic mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap leading-tight ${
+            player.systemShocks?.some(shock => shock.isActive) ? 'text-pink-500' : ''
+          } ${!player.isAlive ? 'opacity-80' : ''}`}>
             "{player.statusMessage}"
           </div>
         )}

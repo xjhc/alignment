@@ -15,7 +15,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [actualPosition, setActualPosition] = useState(position);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -102,7 +102,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
       {isVisible && (
         <div
           ref={tooltipRef}
-          className={`absolute z-50 bg-background-quaternary text-text-primary px-3 py-2 rounded-md text-xs font-medium leading-tight whitespace-nowrap max-w-60 border border-border shadow-lg animate-fade-in pointer-events-none ${getPositionClasses()}`}
+          className={`absolute z-50 bg-background-quaternary text-text-primary px-3 py-2 rounded-md text-xs font-medium leading-tight whitespace-nowrap max-w-60 border border-border shadow-lg animation-fade-in pointer-events-none ${getPositionClasses()}`}
           role="tooltip"
         >
           {content}

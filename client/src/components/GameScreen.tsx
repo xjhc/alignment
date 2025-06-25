@@ -3,7 +3,6 @@ import { PrivateNotifications } from './PrivateNotifications';
 import { RosterPanel } from './game/RosterPanel';
 import { CommsPanel } from './game/CommsPanel';
 import { PlayerHUD } from './game/PlayerHUD';
-import styles from './GameScreen.module.css';
 
 export function GameScreen() {
   const { gameState, localPlayer } = useGameContext();
@@ -13,8 +12,8 @@ export function GameScreen() {
 
   if (!localPlayer) {
     return (
-      <div className={styles.gameScreen}>
-        <div className={styles.loading}>
+      <div className="w-screen h-screen flex flex-col bg-background-primary">
+        <div className="flex items-center justify-center text-text-muted text-sm">
           <span>Loading game state...</span>
           <div className="loading-spinner large" style={{ marginLeft: '12px' }}></div>
         </div>
@@ -23,7 +22,7 @@ export function GameScreen() {
   }
 
   return (
-    <div className={`${styles.gameScreen} ${styles.gameLayoutDesktop}`}>
+    <div className="w-screen h-screen grid grid-cols-[260px_1fr_320px] gap-px bg-border overflow-hidden lg:grid-cols-[260px_1fr_320px] md:grid-cols-[220px_1fr_280px] sm:flex sm:flex-col sm:gap-0">
       {/* Private Notifications Overlay */}
       {gameState.privateNotifications && (
         <PrivateNotifications

@@ -1,5 +1,5 @@
-import styles from './WaitingScreen.module.css';
 import { useSessionContext } from '../contexts/SessionContext';
+import { Button } from './base';
 
 export function WaitingScreen() {
   const { 
@@ -27,19 +27,23 @@ export function WaitingScreen() {
   // Show connection error if unable to connect
   if (connectionError) {
     return (
-      <div className={styles.launchScreen}>
-        <h1 className={styles.logo}>
-          LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
+      <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
+        <h1 className="font-mono text-3xl font-semibold tracking-[2px]">
+          LOEBIAN INC. // <span className="inline-block animate-pulse">EMERGENCY BRIDGE</span>
         </h1>
 
-        <div className={styles.launchForm}>
+        <div className="flex flex-col gap-4 items-center w-80">
           <h2>CONNECTION ERROR</h2>
-          <p style={{ color: 'var(--accent-red)', margin: '1rem 0' }}>
+          <p className="text-red my-4">
             {connectionError}
           </p>
-          <button onClick={onLeaveLobby} className={styles.btnSecondary}>
+          <Button
+            onClick={onLeaveLobby}
+            variant="secondary"
+            className="text-sm font-medium"
+          >
             ← Go Back
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -48,63 +52,63 @@ export function WaitingScreen() {
   // Show loading while connecting
   if (!isConnected) {
     return (
-      <div className={styles.launchScreen}>
-        <h1 className={styles.logo}>
-          LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
+      <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
+        <h1 className="font-mono text-3xl font-semibold tracking-[2px]">
+          LOEBIAN INC. // <span className="inline-block animate-pulse">EMERGENCY BRIDGE</span>
         </h1>
 
-        <div className={styles.launchForm}>
+        <div className="flex flex-col gap-4 items-center w-80">
           <h2>CONNECTING TO LOBBY...</h2>
           <p>Establishing secure connection...</p>
-          <div className="loading-spinner large" style={{ marginTop: '16px' }}></div>
+          <div className="loading-spinner large mt-4"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={styles.launchScreen}>
-      <h1 className={styles.logo}>
-        LOEBIAN INC. // <span className={styles.glitch}>EMERGENCY BRIDGE</span>
+    <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
+      <h1 className="font-mono text-3xl font-semibold tracking-[2px]">
+        LOEBIAN INC. // <span className="inline-block animate-pulse">EMERGENCY BRIDGE</span>
       </h1>
 
-      <div className={`${styles.launchForm} ${styles.waitingScreen}`}>
+      <div className="flex flex-col gap-4 items-center w-96 text-center">
         <h2>WAITING IN LOBBY...</h2>
-        <p className={styles.gameIdInfo}>
+        <p className="text-text-secondary mb-6">
           Lobby: <strong>{lobbyName || 'Loading...'}</strong><br />
-          Game ID: <code>{formatGameId(appState.gameId || 'unknown')}</code><br />
+          Game ID: <code className="bg-background-secondary px-1.5 py-0.5 rounded font-mono">{formatGameId(appState.gameId || 'unknown')}</code><br />
           Share this ID with other personnel.
         </p>
 
-        <div className={styles.playerRoster}>
-          <div className={styles.listHeader}>
+        <div className="w-full text-left">
+          <div className="text-xs font-bold text-text-muted uppercase mb-2 text-center tracking-[0.5px]">
             Personnel Connected - {playerInfos.length} / {maxPlayers}
           </div>
 
           {playerInfos.map((playerInfo, index) => (
             <div 
               key={playerInfo.id} 
-              className={`${styles.playerCard} animate-slide-in-left`}
+              className="flex items-start gap-2 p-1.5 px-2 rounded-md cursor-pointer mb-0.5 hover:bg-background-tertiary animation-slide-in-left"
               style={{ animationDelay: `${index * 100}ms` }}
             >
-              <div className={styles.playerAvatar}>
+              <div className="w-7 h-7 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border relative">
                 {playerInfo.avatar || '👤'}
                 {playerInfo.id === hostId && (
-                  <div className={styles.hostCrown}>👑</div>
+                  <div className="absolute -top-1.5 -right-1.5 text-xs bg-amber rounded-full w-4 h-4 flex items-center justify-center border border-background-primary">👑</div>
                 )}
               </div>
-              <div className={styles.playerContent}>
-                <div className={styles.playerMainInfo}>
-                  <span className={styles.playerName}>
+              <div className="flex-1 flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-semibold text-text-primary text-sm">
                     {playerInfo.name}
                     {playerInfo.id === hostId && ' (Host)'}
                     {playerInfo.id === appState.playerId && ' (You)'}
                   </span>
-                  <span className={styles.playerJob}>
+                  <span className="text-xs text-text-secondary uppercase font-medium">
                     Personnel
                   </span>
                 </div>
-                <div className={styles.playerTokens}>
+                <div className="text-amber font-semibold text-sm">
                   🪙0
                 </div>
               </div>
@@ -115,43 +119,50 @@ export function WaitingScreen() {
           {Array.from({ length: Math.max(0, maxPlayers - playerInfos.length) }).map((_, index) => (
             <div 
               key={`empty-${index}`} 
-              className={`${styles.playerCard} ${styles.empty} animate-pulse`}
+              className="flex items-start gap-2 p-1.5 px-2 rounded-md mb-0.5 opacity-50 animate-pulse"
             >
-              <div className={styles.playerAvatar}>⏳</div>
-              <div className={styles.playerContent}>
-                <div className={styles.playerMainInfo}>
-                  <span className={styles.playerName}>Waiting for player...</span>
-                  <span className={styles.playerJob}>-</span>
+              <div className="w-7 h-7 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border">⏳</div>
+              <div className="flex-1 flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-semibold text-text-primary text-sm">Waiting for player...</span>
+                  <span className="text-xs text-text-secondary uppercase font-medium">-</span>
                 </div>
-                <div className={styles.playerTokens}>🪙-</div>
+                <div className="text-amber font-semibold text-sm">🪙-</div>
               </div>
             </div>
           ))}
         </div>
 
         {isHost && (
-          <button
-            className={styles.btnPrimary}
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={onStartGame}
             disabled={!canStart || !isConnected}
-            style={{ marginTop: '24px' }}
+            className="text-base font-semibold text-black bg-amber hover:enabled:bg-amber-light mt-6"
           >
             {canStart
               ? '[ > INITIATE CONTAINMENT PROTOCOL ]'
               : `[ NEED ${Math.max(0, 4 - playerInfos.length)} MORE PLAYERS ]`
             }
-          </button>
+          </Button>
         )}
 
         {!isHost && (
-          <p className={styles.waitingMessage}>
+          <p className="text-text-secondary italic mt-6">
             Waiting for host to start the game...
           </p>
         )}
 
-        <button onClick={onLeaveLobby} className={styles.backButton}>
+        <Button
+          onClick={onLeaveLobby}
+          variant="ghost"
+          size="sm"
+          className="self-start mt-4 text-text-muted hover:enabled:text-text-primary"
+        >
           ← Leave Lobby
-        </button>
+        </Button>
       </div>
     </div>
   );

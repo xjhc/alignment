@@ -1,5 +1,4 @@
 import { Player, GameState } from '../../types';
-import styles from './FinalPlayerCard.module.css';
 
 interface FinalPlayerCardProps {
   player: Player;
@@ -13,63 +12,66 @@ export function FinalPlayerCard({ player }: FinalPlayerCardProps) {
   };
 
   const getCardClasses = () => {
-    const classes = [styles.finalPlayerCard];
+    const baseClasses = 'bg-gray-800 border border-gray-600 rounded-xl p-4 relative transition-all duration-300 opacity-0 translate-y-5 animate-[fadeInUp_0.6s_ease_forwards]';
     
+    let specificClasses = '';
     if (player.isAlive) {
-      classes.push(styles.survivor);
+      specificClasses += ' border-green-500 bg-gradient-to-br from-gray-800 to-green-500/5';
     } else {
-      classes.push(styles.eliminated);
+      specificClasses += ' opacity-70';
     }
 
     // Add alignment classes
-    if (player.alignment === 'HUMAN') {
-      classes.push(styles.human);
-    } else if (player.alignment === 'AI') {
-      classes.push(styles.aiOriginal, styles.defeated);
-    } else if (player.alignment === 'ALIGNED') {
-      classes.push(styles.aligned, styles.defeated);
+    if (player.alignment === 'AI' || player.alignment === 'ALIGNED') {
+      specificClasses += ' border-red-500';
     }
 
-    return classes.join(' ');
+    return baseClasses + specificClasses;
   };
 
   const getStatusBadge = () => {
+    const baseClasses = 'absolute -top-2 right-3 px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider border';
+    
     if (player.isAlive) {
-      return <div className={`${styles.cardStatusBadge} ${styles.survivorBadge}`}>SURVIVOR</div>;
+      return <div className={`${baseClasses} bg-green-500 text-white border-green-500`}>SURVIVOR</div>;
     } else {
       // For eliminated players, we could show what day they were eliminated
       // For now, using generic "ELIMINATED" or specific badges for AI types
       if (player.alignment === 'AI') {
-        return <div className={`${styles.cardStatusBadge} ${styles.aiBadge}`}>DEACTIVATED</div>;
+        return <div className={`${baseClasses} bg-cyan-500 text-white border-cyan-500`}>DEACTIVATED</div>;
       } else if (player.alignment === 'ALIGNED') {
-        return <div className={`${styles.cardStatusBadge} ${styles.alignedBadge}`}>DEACTIVATED</div>;
+        return <div className={`${baseClasses} bg-cyan-600 text-white border-cyan-600`}>DEACTIVATED</div>;
       } else {
-        return <div className={`${styles.cardStatusBadge} ${styles.eliminatedBadge}`}>ELIMINATED</div>;
+        return <div className={`${baseClasses} bg-red-500 text-white border-red-500`}>ELIMINATED</div>;
       }
     }
   };
 
   const getAlignmentDisplay = () => {
+    const baseClasses = 'px-2 py-1 rounded-xl text-xs font-semibold';
+    
     switch (player.alignment) {
       case 'HUMAN':
-        return <span className={`${styles.statItem} ${styles.human}`}>HUMAN</span>;
+        return <span className={`${baseClasses} bg-amber-500 text-white`}>HUMAN</span>;
       case 'AI':
-        return <span className={`${styles.statItem} ${styles.ai}`}>ORIGINAL AI</span>;
+        return <span className={`${baseClasses} bg-cyan-500 text-white`}>ORIGINAL AI</span>;
       case 'ALIGNED':
-        return <span className={`${styles.statItem} ${styles.aligned}`}>ALIGNED</span>;
+        return <span className={`${baseClasses} bg-cyan-600 text-white`}>ALIGNED</span>;
       default:
-        return <span className={styles.statItem}>UNKNOWN</span>;
+        return <span className={`${baseClasses} bg-gray-700 text-gray-300`}>UNKNOWN</span>;
     }
   };
 
   const getTokensDisplay = () => {
+    const baseClasses = 'px-2 py-1 rounded-xl text-xs font-semibold bg-gray-700 text-gray-300';
+    
     if (player.isAlive) {
-      return <span className={styles.statItem}>🪙 {player.tokens}</span>;
+      return <span className={baseClasses}>🪙 {player.tokens}</span>;
     } else {
       if (player.tokens > 0) {
-        return <span className={`${styles.statItem} ${styles.faded}`}>🪙 {player.tokens}</span>;
+        return <span className={`${baseClasses} opacity-50`}>🪙 {player.tokens}</span>;
       } else {
-        return <span className={`${styles.statItem} ${styles.faded}`}>❌</span>;
+        return <span className={`${baseClasses} opacity-50`}>❌</span>;
       }
     }
   };
@@ -99,32 +101,37 @@ export function FinalPlayerCard({ player }: FinalPlayerCardProps) {
   };
 
   const getPartingMessageClass = () => {
-    const classes = [styles.partingMessage];
+    let classes = 'mt-3 px-3 py-2 bg-gray-700 rounded-md text-xs italic text-gray-400 text-center border-l-2 border-gray-600';
     
     if (player.alignment === 'AI') {
-      classes.push(styles.aiMessage);
+      classes = classes.replace('border-gray-600', 'border-cyan-500 text-cyan-500');
     } else if (player.alignment === 'ALIGNED') {
-      classes.push(styles.alignedMessage);
-    } else if (!player.isAlive && player.alignment === 'HUMAN') {
-      // Could add logic to detect if their final message was prescient
-      // For now, just using default styling
+      classes = classes.replace('border-gray-600', 'border-cyan-600 text-cyan-600');
     }
     
-    return classes.join(' ');
+    return classes;
   };
 
   return (
     <div className={getCardClasses()}>
       {getStatusBadge()}
-      <div className={`${styles.playerAvatar} ${styles.large} ${!player.isAlive ? styles.faded : ''} ${player.alignment === 'AI' ? styles.glitch : ''}`}>
+      <div className={`w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-2xl flex-shrink-0 border-2 border-gray-600 mx-auto ${
+        !player.isAlive ? 'opacity-60 grayscale-50' : ''
+      } ${
+        player.alignment === 'AI' ? 'animate-[glitch_5s_infinite_steps(1)]' : ''
+      }`}>
         {getPlayerAvatar(player)}
       </div>
-      <div className={styles.playerInfo}>
-        <h3 className={`${styles.playerName} ${player.alignment === 'AI' ? styles.glitch : ''}`}>
+      <div className="text-center my-3">
+        <h3 className={`text-lg font-bold my-2 text-gray-100 ${
+          player.alignment === 'AI' ? 'animate-[glitch_5s_infinite_steps(1)]' : ''
+        }`}>
           {player.name}
         </h3>
-        <p className={styles.playerRole}>{player.role?.name || player.jobTitle || 'Employee'}</p>
-        <div className={styles.finalStats}>
+        <p className="text-xs text-gray-400 uppercase tracking-wider m-0 mb-2">
+          {player.role?.name || player.jobTitle || 'Employee'}
+        </p>
+        <div className="flex justify-center gap-2 mt-2">
           {getTokensDisplay()}
           {getAlignmentDisplay()}
         </div>
