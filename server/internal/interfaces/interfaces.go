@@ -6,6 +6,7 @@ import "github.com/xjhc/alignment/core"
 type PlayerActorInterface interface {
 	GetPlayerID() string
 	GetPlayerName() string
+	GetPlayerAvatar() string
 	GetSessionToken() string
 	GetState() PlayerState
 	TransitionToLobby(lobbyID string) error

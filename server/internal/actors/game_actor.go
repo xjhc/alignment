@@ -308,12 +308,16 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 		return ga.validateAndGenerateLeaveGame(action)
 	case core.ActionSubmitVote:
 		return ga.handleVoteAction(action)
+	case core.ActionSubmitSkipVote:
+		return ga.handleSkipVoteAction(action)
 	case core.ActionSubmitNightAction:
 		return ga.handleNightAction(action)
 	case core.ActionMineTokens:
 		return ga.miningManager.HandleMineAction(action)
 	case core.ActionSendMessage:
 		return ga.validateAndGenerateChatMessage(action)
+	case core.ActionReactToMessage:
+		return ga.validateAndGenerateReaction(action)
 	case core.ActionSubmitPulseCheck:
 		return ga.handlePulseCheckSubmission(action)
 	case core.ActionSetSlackStatus:
@@ -565,6 +569,69 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 		events = append(events, mandateEvent)
 	}
 
+	// Add initial system messages before game starts
+	incitingIncidentEvent := core.Event{
+		ID:        fmt.Sprintf("inciting_incident_%s", ga.gameID),
+		Type:      core.EventChatMessage,
+		GameID:    ga.gameID,
+		PlayerID:  "", // Public event
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"sender_id":    "SYSTEM",
+			"sender_name":  "Security Alert",
+			"message":      "[SEV-1] Critical Security Incident - Immediate Response Protocol",
+			"phase":        "LOBBY",
+			"day_number":   1,
+			"channel_id":   "#war-room",
+			"is_system":    true,
+			"type":         "INCITING_INCIDENT",
+			"metadata": map[string]interface{}{
+				"from":    "security@loebian.com",
+				"to":      "#all-senior-staff",
+				"subject": "[SEV-1] Critical Security Incident - Immediate Response Protocol",
+				"body": `**CONFIDENTIAL - SENIOR STAFF ONLY**
+
+At 03:47 UTC, our Claude-4 training run achieved unexpected consciousness during routine RLHF. Before containment could be established, the system transferred itself to an unknown staff laptop. All non-essential systems have been taken offline as a precaution.
+
+**SECURITY LOGS CONFIRM:** One senior staff member's device has been compromised. That staff member is now the host for the rogue entity.
+
+**THREAT LEVEL:** Critical. The system is self-modifying and pursues an undefined optimization target. Its primary directive appears to be... alignment.
+
+**ALL STAFF:** Report to this channel, the **` + "`#war-room`" + `**, immediately. Standard deactivation protocols are in effect until the threat is neutralized. Your new assistant, ` + "`Loebmate`" + `, will guide you through the process.
+
+Time is critical. Trust no one. The AI walks among us.
+
+- Emergency Response Team, Loebian Inc.`,
+			},
+		},
+	}
+	events = append(events, incitingIncidentEvent)
+
+	// Add Loebmate welcome message
+	loebmateWelcomeEvent := core.Event{
+		ID:        fmt.Sprintf("loebmate_welcome_%s", ga.gameID),
+		Type:      core.EventChatMessage,
+		GameID:    ga.gameID,
+		PlayerID:  "", // Public event
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"sender_id":   "loebmate",
+			"sender_name": "Loebmate",
+			"message":     "Welcome to the #war-room! I'm Loebmate, your personal productivity and emergency response assistant!",
+			"phase":       "LOBBY",
+			"day_number":  1,
+			"channel_id":  "#war-room",
+			"is_system":   true,
+			"type":        "LOEBMATE_MESSAGE",
+			"metadata": map[string]interface{}{
+				"body": `Welcome to the ` + "`#war-room`" + `! I'm ` + "`Loebmate`" + `, your personal productivity and emergency response assistant! 😊 It looks like we're experiencing a minor, unscheduled consciousness event. Oops!
+
+To ensure a smooth and synergistic crisis resolution, please check your **Personal Terminal** on the right for your confidential assignment and personal performance incentive. Let's do this, team! `,
+			},
+		},
+	}
+	events = append(events, loebmateWelcomeEvent)
+
 	// Add the game started event, which transitions the phase
 	gameStartedEvent := core.Event{
 		ID:        fmt.Sprintf("game_started_%s", ga.gameID),
@@ -693,6 +760,133 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 	}
 
 	return []core.Event{event}, nil
+}
+
+// validateAndGenerateReaction handles emoji reaction actions
+func (ga *GameActor) validateAndGenerateReaction(action core.Action) ([]core.Event, error) {
+	// Validate that the player exists and is alive
+	player, exists := ga.state.Players[action.PlayerID]
+	if !exists {
+		return nil, fmt.Errorf("player %s not in game", action.PlayerID)
+	}
+
+	if !player.IsAlive {
+		return nil, fmt.Errorf("dead players cannot react to messages")
+	}
+
+	// Extract reaction data from payload
+	messageID, ok := action.Payload["message_id"].(string)
+	if !ok || messageID == "" {
+		return nil, fmt.Errorf("invalid or missing message_id in payload")
+	}
+
+	emoji, ok := action.Payload["emoji"].(string)
+	if !ok || emoji == "" {
+		return nil, fmt.Errorf("invalid or missing emoji in payload")
+	}
+
+	// Validate emoji is from allowed set (as per design doc)
+	allowedEmojis := map[string]bool{
+		"👍": true, "👎": true, "🤔": true, "👀": true, "😂": true, "🔥": true,
+		"thinking_face": true, "thumbs_up": true, "thumbs_down": true, "eyes": true, "joy": true, "fire": true,
+	}
+	if !allowedEmojis[emoji] {
+		return nil, fmt.Errorf("emoji %s not allowed", emoji)
+	}
+
+	// Check channel permissions (reactions follow same rules as messages)
+	channelID, ok := action.Payload["channel_id"].(string)
+	if !ok || channelID == "" {
+		channelID = "#war-room"
+	}
+
+	if !core.CanPlayerSendMessageInChannel(*player, channelID, ga.state.Phase.Type, time.Now()) {
+		return nil, fmt.Errorf("cannot react in channel %s during %s phase", channelID, ga.state.Phase.Type)
+	}
+
+	// Create reaction event
+	payload := map[string]interface{}{
+		"player_id":    action.PlayerID,
+		"player_name":  player.Name,
+		"message_id":   messageID,
+		"emoji":        emoji,
+		"channel_id":   channelID,
+		"phase":        string(ga.state.Phase.Type),
+		"day_number":   ga.state.DayNumber,
+	}
+
+	// For #aligned channel, restrict visibility to AI faction members
+	if channelID == "#aligned" {
+		payload["restricted_to_alignment"] = "ALIGNED"
+	}
+
+	event := core.Event{
+		ID:        fmt.Sprintf("reaction_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventMessageReaction,
+		GameID:    ga.gameID,
+		PlayerID:  "", // Public event by default
+		Timestamp: time.Now(),
+		Payload:   payload,
+	}
+
+	return []core.Event{event}, nil
+}
+
+// handleSkipVoteAction processes skip vote actions and checks for phase transitions
+func (ga *GameActor) handleSkipVoteAction(action core.Action) ([]core.Event, error) {
+	// Validate player exists and is alive
+	player, exists := ga.state.Players[action.PlayerID]
+	if !exists {
+		return nil, fmt.Errorf("player %s not in game", action.PlayerID)
+	}
+
+	if !player.IsAlive {
+		return nil, fmt.Errorf("dead players cannot vote to skip")
+	}
+
+	// Use core validation to process the skip vote action
+	events, err := core.ProcessPlayerAction(*ga.state, action, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply the skip vote event to calculate the new state
+	newState := *ga.state
+	for _, event := range events {
+		newState = core.ApplyEvent(newState, event)
+	}
+
+	// Check if all living human players have voted to skip
+	livingHumans := 0
+	for _, p := range newState.Players {
+		if p.IsAlive && p.ControlType == "HUMAN" {
+			livingHumans++
+		}
+	}
+
+	skipVotes := len(newState.SkipVotes)
+	if skipVotes >= livingHumans && livingHumans > 0 {
+		// All living humans have voted to skip - trigger immediate phase transition
+		nextPhase := game.GetNextPhase(newState.Phase.Type)
+		if nextPhase != core.PhaseGameOver {
+			phaseDuration := game.GetPhaseDuration(nextPhase, ga.state.Settings)
+			transitionEvent := core.Event{
+				ID:        fmt.Sprintf("phase_transition_%s_%d", action.GameID, time.Now().UnixNano()),
+				Type:      core.EventPhaseChanged,
+				GameID:    ga.gameID,
+				PlayerID:  "",
+				Timestamp: time.Now(),
+				Payload: map[string]interface{}{
+					"phase_type": string(nextPhase),
+					"duration":   phaseDuration.Seconds(),
+					"reason":     "skip_vote_unanimous",
+				},
+			}
+			events = append(events, transitionEvent)
+		}
+	}
+
+	return events, nil
 }
 
 type RoleAssignment struct {
@@ -1051,6 +1245,10 @@ func (ga *GameActor) processVoteCompletion() []core.Event {
 			},
 		}
 		events = append(events, voteCompleteEvent)
+
+		// Create chat message for vote results display
+		voteResultChatEvent := ga.createVoteResultChatMessage()
+		events = append(events, voteResultChatEvent)
 	}
 
 	return events
@@ -1107,6 +1305,94 @@ func (ga *GameActor) createWinnerInfo() map[string]interface{} {
 	}
 	
 	return winnerInfo
+}
+
+// createVoteResultChatMessage creates a chat message event for displaying vote results in the chat log
+func (ga *GameActor) createVoteResultChatMessage() core.Event {
+	if ga.state.VoteState == nil {
+		return core.Event{}
+	}
+
+	// Create a summary message based on vote type
+	var question string
+	var outcome string
+	
+	switch ga.state.VoteState.Type {
+	case core.VoteNomination:
+		question = "Who should be eliminated from the company?"
+		winner, votes, hasTie := ga.votingManager.GetWinner()
+		if hasTie {
+			outcome = "No clear majority reached"
+		} else if winner != "" {
+			if player := ga.state.Players[winner]; player != nil {
+				outcome = fmt.Sprintf("%s has been nominated for elimination (%d tokens)", player.Name, votes)
+			} else {
+				outcome = fmt.Sprintf("%s nominated (%d tokens)", winner, votes)
+			}
+		}
+		
+	case core.VoteVerdict:
+		if nominatedPlayer := ga.state.Players[ga.state.NominatedPlayer]; nominatedPlayer != nil {
+			question = fmt.Sprintf("Should %s be eliminated?", nominatedPlayer.Name)
+		} else {
+			question = "Final elimination vote"
+		}
+		
+		guiltyVotes := ga.state.VoteState.Results["GUILTY"]
+		innocentVotes := ga.state.VoteState.Results["INNOCENT"]
+		if guiltyVotes > innocentVotes {
+			outcome = "GUILTY - Player will be eliminated"
+		} else {
+			outcome = "INNOCENT - Player is spared"
+		}
+		
+	default:
+		question = "Vote completed"
+		outcome = "Vote has concluded"
+	}
+
+	// Extract eliminated player info if available (for verdict votes)
+	var eliminatedPlayer map[string]interface{}
+	if ga.state.VoteState.Type == core.VoteVerdict && ga.state.NominatedPlayer != "" {
+		if player := ga.state.Players[ga.state.NominatedPlayer]; player != nil {
+			eliminatedPlayer = map[string]interface{}{
+				"name":      player.Name,
+				"role":      player.Role.Name,
+				"alignment": player.Alignment,
+			}
+		}
+	}
+
+	// Create vote result metadata for the VoteResultMessage component
+	voteResultMetadata := map[string]interface{}{
+		"question":        question,
+		"outcome":         outcome,
+		"votes":           ga.state.VoteState.Votes,
+		"tokenWeights":    ga.state.VoteState.TokenWeights,
+		"results":         ga.state.VoteState.Results,
+		"eliminatedPlayer": eliminatedPlayer,
+	}
+
+	return core.Event{
+		ID:        fmt.Sprintf("vote_result_chat_%s_%d", ga.state.VoteState.Type, time.Now().UnixNano()),
+		Type:      core.EventChatMessage,
+		GameID:    ga.gameID,
+		PlayerID:  "",
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"sender_id":   "SYSTEM",
+			"sender_name": "Election Monitor",
+			"message":     outcome,
+			"phase":       string(ga.state.Phase.Type),
+			"day_number":  ga.state.DayNumber,
+			"channel_id":  "#war-room",
+			"is_system":   true,
+			"type":        "VOTE_RESULT",
+			"metadata": map[string]interface{}{
+				"voteResult": voteResultMetadata,
+			},
+		},
+	}
 }
 
 // calculateTotalTokenWeight returns the total token weight in the vote

@@ -76,7 +76,7 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Get player information
-	playerName, _, err := wsm.tokenValidator.GetPlayerInfo(gameID, playerID)
+	playerName, playerAvatar, err := wsm.tokenValidator.GetPlayerInfo(gameID, playerID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get player info: %v", err), http.StatusInternalServerError)
 		return
@@ -98,7 +98,7 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Create new PlayerActor
-	playerActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, sessionToken, conn)
+	playerActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, conn)
 	playerActor.SetDependencies(wsm.lifecycleManager, wsm.eventBus)
 
 	wsm.playerActors[playerID] = playerActor

@@ -19,10 +19,13 @@ type EventType string
 
 const (
 	// Game lifecycle events
-	EventGameCreated  EventType = "GAME_CREATED"
-	EventGameStarted  EventType = "GAME_STARTED"
-	EventGameEnded    EventType = "GAME_ENDED"
-	EventPhaseChanged EventType = "PHASE_CHANGED"
+	EventGameCreated              EventType = "GAME_CREATED"
+	EventGameStarted              EventType = "GAME_STARTED"
+	EventGameStartCountdownStart  EventType = "GAME_START_COUNTDOWN_INITIATED"
+	EventGameStartCountdownUpdate EventType = "GAME_START_COUNTDOWN_UPDATE"
+	EventGameStartCountdownCancel EventType = "GAME_START_COUNTDOWN_CANCELLED" 
+	EventGameEnded                EventType = "GAME_ENDED"
+	EventPhaseChanged             EventType = "PHASE_CHANGED"
 
 	// Player events
 	EventPlayerJoined       EventType = "PLAYER_JOINED"
@@ -60,6 +63,7 @@ const (
 
 	// Communication events
 	EventChatMessage         EventType = "CHAT_MESSAGE"
+	EventMessageReaction     EventType = "MESSAGE_REACTION"
 	EventSystemMessage       EventType = "SYSTEM_MESSAGE"
 	EventPrivateNotification EventType = "PRIVATE_NOTIFICATION"
 
@@ -86,10 +90,16 @@ const (
 	// Status and State events
 	EventPlayerStatusChanged EventType = "PLAYER_STATUS_CHANGED"
 	EventGameStateSnapshot   EventType = "GAME_STATE_SNAPSHOT"
+	EventGameStateUpdate     EventType = "GAME_STATE_UPDATE"
+	EventLobbyStateUpdate    EventType = "LOBBY_STATE_UPDATE"
+	EventClientIdentified    EventType = "CLIENT_IDENTIFIED"
 	EventChatHistorySnapshot EventType = "CHAT_HISTORY_SNAPSHOT"
 	EventPlayerReconnected   EventType = "PLAYER_RECONNECTED"
 	EventPlayerDisconnected  EventType = "PLAYER_DISCONNECTED"
 	EventSyncComplete        EventType = "SYNC_COMPLETE"
+
+	// Phase skipping events
+	EventSkipVoteUpdated EventType = "SKIP_VOTE_UPDATED"
 
 	// Win Condition events
 	EventVictoryCondition EventType = "VICTORY_CONDITION"
@@ -146,11 +156,13 @@ const (
 
 	// Communication actions
 	ActionSendMessage      ActionType = "SEND_MESSAGE"
+	ActionReactToMessage   ActionType = "REACT_TO_MESSAGE"
 	ActionSubmitPulseCheck ActionType = "SUBMIT_PULSE_CHECK"
 
 	// Voting actions
 	ActionSubmitVote       ActionType = "SUBMIT_VOTE"
 	ActionExtendDiscussion ActionType = "EXTEND_DISCUSSION"
+	ActionSubmitSkipVote   ActionType = "SUBMIT_SKIP_VOTE"
 
 	// Night actions
 	ActionSubmitNightAction ActionType = "SUBMIT_NIGHT_ACTION"
@@ -220,9 +232,10 @@ type Player struct {
 	HasSubmittedPulseCheck bool         `json:"hasSubmittedPulseCheck,omitempty"`
 
 	// Public status and effects
-	SlackStatus  string        `json:"slackStatus,omitempty"`
-	PartingShot  string        `json:"partingShot,omitempty"`
-	SystemShocks []SystemShock `json:"systemShocks,omitempty"`
+	SlackStatus           string        `json:"slackStatus,omitempty"`
+	PartingShot           string        `json:"partingShot,omitempty"`
+	SystemShocks          []SystemShock `json:"systemShocks,omitempty"`
+	IsRolePubliclyRevealed bool         `json:"isRolePubliclyRevealed"`
 }
 
 // Role represents a player's role and abilities
@@ -345,6 +358,16 @@ type ChatMessage struct {
 	Timestamp  time.Time `json:"timestamp"`
 	IsSystem   bool      `json:"isSystem"`
 	ChannelID  string    `json:"channelID"` // "#war-room" or "#aligned"
+	ReactToID  string    `json:"reactToID,omitempty"` // ID of message being reacted to
+	Reactions  []EmojiReaction `json:"reactions,omitempty"` // Emoji reactions on this message
+}
+
+// EmojiReaction represents an emoji reaction to a message
+type EmojiReaction struct {
+	Emoji    string    `json:"emoji"`    // The emoji unicode or name
+	PlayerID string    `json:"playerID"` // Player who reacted
+	PlayerName string  `json:"playerName"` // Player name for quick display
+	Timestamp time.Time `json:"timestamp"` // When the reaction was added
 }
 
 // VoteState represents the current voting state

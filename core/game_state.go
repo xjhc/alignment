@@ -27,6 +27,9 @@ type GameState struct {
 	// Daily tracking
 	PulseCheckResponses map[string]string `json:"pulse_check_responses,omitempty"`
 
+	// Phase skipping
+	SkipVotes map[string]bool `json:"skip_votes,omitempty"` // PlayerID -> bool
+
 	// Temporary fields for night resolution (cleared each night)
 	BlockedPlayersTonight   map[string]bool `json:"-"` // Not serialized
 	ProtectedPlayersTonight map[string]bool `json:"-"` // Not serialized
@@ -85,6 +88,8 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 		newState.applyPlayerLeft(event)
 	case EventPlayerEliminated:
 		newState.applyPlayerEliminated(event)
+	case EventPlayerRoleRevealed:
+		newState.applyPlayerRoleRevealed(event)
 	case EventPlayerAligned:
 		newState.applyPlayerAligned(event)
 	case EventPlayerShocked:
@@ -222,6 +227,10 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 	case EventEquityThreshold:
 		newState.applyEquityThreshold(event)
 
+	// Phase skipping events
+	case EventSkipVoteUpdated:
+		newState.applySkipVoteUpdated(event)
+
 	default:
 		// Unknown event type - ignore
 	}
@@ -272,6 +281,9 @@ func (gs *GameState) applyPhaseChanged(event Event) {
 		StartTime: event.Timestamp,
 		Duration:  time.Duration(duration) * time.Second,
 	}
+
+	// Clear skip votes at the start of each new phase
+	gs.SkipVotes = make(map[string]bool)
 
 	// Increment day number when transitioning to SITREP
 	if PhaseType(newPhaseType) == PhaseSitrep {
@@ -357,6 +369,20 @@ func (gs *GameState) applyPlayerEliminated(event Event) {
 		}
 		player.Role.Type = RoleType(roleType)
 		player.Alignment = alignment
+	}
+}
+
+func (gs *GameState) applyPlayerRoleRevealed(event Event) {
+	playerID := event.PlayerID
+	if playerID == "" {
+		// Try to get player ID from payload if not in event
+		if pid, ok := event.Payload["player_id"].(string); ok {
+			playerID = pid
+		}
+	}
+	
+	if player, exists := gs.Players[playerID]; exists {
+		player.IsRolePubliclyRevealed = true
 	}
 }
 
@@ -861,6 +887,7 @@ func (gs *GameState) applyPulseCheckStarted(event Event) {
 func (gs *GameState) applyPulseCheckSubmitted(event Event) {
 	playerID := event.PlayerID
 	response, _ := event.Payload["response"].(string)
+	playerName, _ := event.Payload["player_name"].(string)
 
 	// Store pulse check responses (could be in a separate field)
 	if gs.CrisisEvent == nil {
@@ -877,6 +904,19 @@ func (gs *GameState) applyPulseCheckSubmitted(event Event) {
 	if player := gs.Players[playerID]; player != nil {
 		player.HasSubmittedPulseCheck = true
 	}
+
+	// Create a chat message for the pulse check submission
+	message := ChatMessage{
+		ID:         event.ID + "_chat",
+		PlayerID:   playerID,
+		PlayerName: playerName,
+		Message:    response,
+		Timestamp:  event.Timestamp,
+		IsSystem:   true,
+		ChannelID:  "#war-room",
+	}
+
+	gs.ChatMessages = append(gs.ChatMessages, message)
 }
 
 func (gs *GameState) applyPulseCheckRevealed(event Event) {
@@ -1178,6 +1218,22 @@ func (gs *GameState) applyEquityThreshold(event Event) {
 	}
 }
 
+// applySkipVoteUpdated handles skip vote events
+func (gs *GameState) applySkipVoteUpdated(event Event) {
+	playerID := event.PlayerID
+	hasVoted, _ := event.Payload["has_voted"].(bool)
+
+	if gs.SkipVotes == nil {
+		gs.SkipVotes = make(map[string]bool)
+	}
+
+	if hasVoted {
+		gs.SkipVotes[playerID] = true
+	} else {
+		delete(gs.SkipVotes, playerID)
+	}
+}
+
 // ProcessPlayerAction is the formal Action-to-Event translation layer
 // This function takes the current state and a player's desired action,
 // performs all necessary validation, and returns the list of Events that should result.
@@ -1192,6 +1248,8 @@ func ProcessPlayerAction(gameState GameState, action Action, currentTime time.Ti
 	switch action.Type {
 	case ActionSubmitVote:
 		return processVoteAction(gameState, action, currentTime)
+	case ActionSubmitSkipVote:
+		return processSkipVoteAction(gameState, action, currentTime)
 	case ActionSubmitNightAction:
 		return processNightAction(gameState, action, currentTime)
 	case ActionMineTokens:
@@ -1489,6 +1547,35 @@ func processRoleAction(gameState GameState, action Action, currentTime time.Time
 			GameID:    gameState.ID,
 			Timestamp: currentTime,
 			Payload:   action.Payload,
+		},
+	}
+
+	return events, nil
+}
+
+// processSkipVoteAction handles skip vote actions
+func processSkipVoteAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	// Check if phase allows skipping (exclude TRIAL and GAME_OVER phases)
+	if gameState.Phase.Type == PhaseTrial || gameState.Phase.Type == PhaseGameOver || gameState.Phase.Type == PhaseLobby {
+		return nil, fmt.Errorf("cannot skip phase %s", gameState.Phase.Type)
+	}
+
+	// Check if player already voted to skip
+	if gameState.SkipVotes != nil && gameState.SkipVotes[action.PlayerID] {
+		return nil, fmt.Errorf("player %s has already voted to skip", action.PlayerID)
+	}
+
+	// Generate skip vote updated event
+	events := []Event{
+		{
+			ID:        fmt.Sprintf("skip_vote_%s_%d", action.PlayerID, currentTime.UnixNano()),
+			Type:      EventSkipVoteUpdated,
+			PlayerID:  action.PlayerID,
+			GameID:    gameState.ID,
+			Timestamp: currentTime,
+			Payload: map[string]interface{}{
+				"has_voted": true,
+			},
 		},
 	}
 

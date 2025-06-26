@@ -53,8 +53,9 @@ func (l *Lobby) createStateUpdate_unsafe() LobbyStateUpdate {
 	var infos []PlayerInfo
 	for _, actor := range l.Players {
 		infos = append(infos, PlayerInfo{
-			ID:   actor.GetPlayerID(),
-			Name: actor.GetPlayerName(),
+			ID:     actor.GetPlayerID(),
+			Name:   actor.GetPlayerName(),
+			Avatar: actor.GetPlayerAvatar(),
 		})
 	}
 
@@ -62,7 +63,7 @@ func (l *Lobby) createStateUpdate_unsafe() LobbyStateUpdate {
 		LobbyID:   l.ID,
 		Players:   infos,
 		HostID:    l.HostPlayerID,
-		CanStart:  len(l.Players) >= l.MinPlayers && l.Status == "WAITING",
+		CanStart:  len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN"),
 		LobbyName: l.Name,
 	}
 }
@@ -123,7 +124,7 @@ func (l *Lobby) RemovePlayer(playerID string) {
 func (l *Lobby) CanStart() bool {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
-	return len(l.Players) >= l.MinPlayers && l.Status == "WAITING"
+	return len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN")
 }
 
 // GetPlayerActors returns a copy of the player actors map
@@ -146,8 +147,9 @@ func (l *Lobby) GetPlayerInfos() []PlayerInfo {
 	var infos []PlayerInfo
 	for _, actor := range l.Players {
 		infos = append(infos, PlayerInfo{
-			ID:   actor.GetPlayerID(),
-			Name: actor.GetPlayerName(),
+			ID:     actor.GetPlayerID(),
+			Name:   actor.GetPlayerName(),
+			Avatar: actor.GetPlayerAvatar(),
 		})
 	}
 	return infos
@@ -159,8 +161,9 @@ func (l *Lobby) broadcastStateUpdate() {
 	var playerInfos []PlayerInfo
 	for _, actor := range l.Players {
 		playerInfos = append(playerInfos, PlayerInfo{
-			ID:   actor.GetPlayerID(),
-			Name: actor.GetPlayerName(),
+			ID:     actor.GetPlayerID(),
+			Name:   actor.GetPlayerName(),
+			Avatar: actor.GetPlayerAvatar(),
 		})
 	}
 
@@ -168,7 +171,7 @@ func (l *Lobby) broadcastStateUpdate() {
 		LobbyID:   l.ID,
 		Players:   playerInfos,
 		HostID:    l.HostPlayerID,
-		CanStart:  len(l.Players) >= l.MinPlayers && l.Status == "WAITING",
+		CanStart:  len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN"),
 		LobbyName: l.Name,
 	}
 
@@ -210,8 +213,9 @@ func (l *Lobby) Unlock() {
 
 // PlayerInfo holds basic info for a player in the lobby
 type PlayerInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Avatar string `json:"avatar"`
 }
 
 // Custom errors

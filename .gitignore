@@ -48,6 +48,9 @@ coverage/
 *.cover
 coverage.html
 
+# Generated files
+/client/src/types/generated.ts
+
 # Temporary files
 *.tmp
 *.temp

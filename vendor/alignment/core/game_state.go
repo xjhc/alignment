@@ -276,6 +276,11 @@ func (gs *GameState) applyPhaseChanged(event Event) {
 	// Increment day number when transitioning to SITREP
 	if PhaseType(newPhaseType) == PhaseSitrep {
 		gs.DayNumber++
+
+		// Reset pulse check submission flags for all players at the start of each new day
+		for _, player := range gs.Players {
+			player.HasSubmittedPulseCheck = false
+		}
 	}
 }
 
@@ -365,14 +370,30 @@ func (gs *GameState) applyChatMessage(event Event) {
 		IsSystem:   false,
 	}
 
-	if playerName, ok := event.Payload["player_name"].(string); ok {
+	// Handle backend payload format: sender_name, sender_id, message
+	if senderName, ok := event.Payload["sender_name"].(string); ok {
+		message.PlayerName = senderName
+	} else if playerName, ok := event.Payload["player_name"].(string); ok {
+		// Fallback for legacy format
 		message.PlayerName = playerName
 	}
+
+	if senderID, ok := event.Payload["sender_id"].(string); ok && message.PlayerID == "" {
+		// If event.PlayerID is empty, use sender_id from payload
+		message.PlayerID = senderID
+	}
+
 	if messageText, ok := event.Payload["message"].(string); ok {
 		message.Message = messageText
 	}
+
 	if isSystem, ok := event.Payload["is_system"].(bool); ok {
 		message.IsSystem = isSystem
+	}
+
+	// Handle channel information
+	if channelID, ok := event.Payload["channel_id"].(string); ok {
+		message.ChannelID = channelID
 	}
 
 	gs.ChatMessages = append(gs.ChatMessages, message)
@@ -840,6 +861,7 @@ func (gs *GameState) applyPulseCheckStarted(event Event) {
 func (gs *GameState) applyPulseCheckSubmitted(event Event) {
 	playerID := event.PlayerID
 	response, _ := event.Payload["response"].(string)
+	playerName, _ := event.Payload["player_name"].(string)
 
 	// Store pulse check responses (could be in a separate field)
 	if gs.CrisisEvent == nil {
@@ -851,6 +873,24 @@ func (gs *GameState) applyPulseCheckSubmitted(event Event) {
 
 	responses := gs.CrisisEvent.Effects["pulse_responses"].(map[string]interface{})
 	responses[playerID] = response
+
+	// Mark player as having submitted their pulse check response
+	if player := gs.Players[playerID]; player != nil {
+		player.HasSubmittedPulseCheck = true
+	}
+
+	// Create a chat message for the pulse check submission
+	message := ChatMessage{
+		ID:         event.ID + "_chat",
+		PlayerID:   playerID,
+		PlayerName: playerName,
+		Message:    response,
+		Timestamp:  event.Timestamp,
+		IsSystem:   true,
+		ChannelID:  "#war-room",
+	}
+
+	gs.ChatMessages = append(gs.ChatMessages, message)
 }
 
 func (gs *GameState) applyPulseCheckRevealed(event Event) {
@@ -1176,11 +1216,11 @@ func ProcessPlayerAction(gameState GameState, action Action, currentTime time.Ti
 		return processLeaveGameAction(gameState, action, currentTime)
 	case ActionUseAbility:
 		return processAbilityAction(gameState, action, currentTime)
-	
+
 	// Role-specific actions
 	case ActionRunAudit, ActionOverclockServers, ActionIsolateNode, ActionPerformanceReview, ActionReallocateBudget, ActionPivot, ActionDeployHotfix:
 		return processRoleAction(gameState, action, currentTime)
-	
+
 	default:
 		return nil, fmt.Errorf("unknown action type: %s", action.Type)
 	}
@@ -1210,7 +1250,7 @@ func validateActionBasics(gameState GameState, action Action, currentTime time.T
 // processVoteAction handles voting actions
 func processVoteAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
 	player := gameState.Players[action.PlayerID]
-	
+
 	// Check if player can vote in current phase
 	if !CanPlayerVote(*player, gameState.Phase.Type, currentTime) {
 		return nil, fmt.Errorf("player %s cannot vote in phase %s", action.PlayerID, gameState.Phase.Type)
@@ -1324,9 +1364,9 @@ func processChatAction(gameState GameState, action Action, currentTime time.Time
 			GameID:    gameState.ID,
 			Timestamp: currentTime,
 			Payload: map[string]interface{}{
-				"content":     content,
-				"is_private":  false,
-				"corrupted":   isCorrupted,
+				"content":    content,
+				"is_private": false,
+				"corrupted":  isCorrupted,
 			},
 		},
 	}

@@ -2,28 +2,24 @@
 import * as CoreTypes from '../utils/coreTypes';
 export * from '../utils/coreTypes';
 
+// Re-export generated types
+export * from './generated';
+import { ServerEventType, ClientActionType } from './generated';
+
 // WebSocket message types
 export interface WebSocketMessage {
   type: string;
   payload?: any;
 }
 
-// Client-to-server actions
+// Client-to-server actions using generated enum
 export interface ClientAction extends WebSocketMessage {
-  type: 'RECONNECT' | 'CREATE_GAME' | 'JOIN_GAME' | 'START_GAME' | 'LEAVE_GAME' |
-  'POST_CHAT_MESSAGE' | 'UPDATE_STATUS' | 'SUBMIT_NIGHT_ACTION' |
-  'SUBMIT_VOTE' | 'SUBMIT_PULSE_CHECK' | 'SUBMIT_EXIT_INTERVIEW' |
-  'REQUEST_LOBBY_LIST';
+  type: ClientActionType;
 }
 
-// Server-to-client events
+// Server-to-client events using generated enum
 export interface ServerEvent extends WebSocketMessage {
-  type: 'PLAYER_JOINED' | 'PLAYER_LEFT' | 'PLAYER_DEACTIVATED' |
-  'PHASE_CHANGED' | 'CHAT_MESSAGE' | 'PULSE_CHECK_SUBMITTED' |
-  'NIGHT_ACTIONS_RESOLVED' | 'GAME_ENDED' | 'GAME_STARTED' | 'SYNC_COMPLETE' |
-  'PRIVATE_NOTIFICATION' | 'LOBBY_STATE_UPDATE' | 'GAME_STATE_UPDATE' |
-  'CHAT_HISTORY_SNAPSHOT' | 'CLIENT_IDENTIFIED' | 'SYSTEM_MESSAGE' |
-  'ROLE_ASSIGNED' | 'VOTE_CAST' | 'NIGHT_ACTION_SUBMITTED' | 'PLAYER_ELIMINATED';
+  type: ServerEventType;
   id?: string;        // Event ID for tracking
   game_id?: string;   // Game ID for storage
   gameId?: string;    // Alternative naming for compatibility
@@ -40,9 +36,17 @@ export type Ability = CoreTypes.CoreAbility;
 export type PersonalKPI = CoreTypes.CorePersonalKPI;
 export type SystemShock = CoreTypes.CoreSystemShock;
 export type NightAction = CoreTypes.CoreNightAction;
+// EmojiReaction type - define it here since not yet in core types
+export interface EmojiReaction {
+  emoji: string;
+  playerID: string;
+  playerName: string;
+  timestamp: string;
+}
 // Enhanced ChatMessage with specialized message types
 export interface ChatMessage extends CoreTypes.CoreChatMessage {
-  type?: 'SITREP' | 'VOTE_RESULT' | 'PULSE_CHECK' | 'REGULAR';
+  type?: 'SITREP' | 'VOTE_RESULT' | 'PULSE_CHECK' | 'PULSE_CHECK_SUBMISSION' | 'INCITING_INCIDENT' | 'LOEBMATE_MESSAGE' | 'REGULAR';
+  reactions?: EmojiReaction[];
   metadata?: {
     nightActions?: any[];
     playerHeadcount?: {
@@ -55,6 +59,7 @@ export interface ChatMessage extends CoreTypes.CoreChatMessage {
       question: string;
       outcome: string;
       votes: Record<string, string>;
+      tokenWeights: Record<string, number>;
       results: Record<string, number>;
       eliminatedPlayer?: {
         id: string;
@@ -67,6 +72,13 @@ export interface ChatMessage extends CoreTypes.CoreChatMessage {
     player_responses?: Record<string, string>;
     question?: string;
     total_responses?: number;
+    player_name?: string;
+    response?: string;
+    // New properties for inciting incident messages
+    from?: string;
+    to?: string;
+    subject?: string;
+    body?: string;
   };
 }
 export type Phase = CoreTypes.CorePhase;
@@ -88,6 +100,7 @@ export interface GameState {
   corporateMandate?: CorporateMandate;
   nightActionResults?: NightActionResult[];
   privateNotifications?: PrivateNotification[];
+  skipVotes?: Record<string, boolean>;
 }
 
 // Corporate Mandate information

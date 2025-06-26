@@ -86,6 +86,9 @@ const (
 	// Status and State events
 	EventPlayerStatusChanged EventType = "PLAYER_STATUS_CHANGED"
 	EventGameStateSnapshot   EventType = "GAME_STATE_SNAPSHOT"
+	EventGameStateUpdate     EventType = "GAME_STATE_UPDATE"
+	EventLobbyStateUpdate    EventType = "LOBBY_STATE_UPDATE"
+	EventClientIdentified    EventType = "CLIENT_IDENTIFIED"
 	EventChatHistorySnapshot EventType = "CHAT_HISTORY_SNAPSHOT"
 	EventPlayerReconnected   EventType = "PLAYER_RECONNECTED"
 	EventPlayerDisconnected  EventType = "PLAYER_DISCONNECTED"
@@ -211,12 +214,13 @@ type Player struct {
 	JoinedAt          time.Time `json:"joinedAt"`
 
 	// Private fields (only visible to the player themselves)
-	Alignment       string       `json:"alignment,omitempty"` // "HUMAN" or "ALIGNED"
-	Role            *Role        `json:"role,omitempty"`
-	PersonalKPI     *PersonalKPI `json:"personalKPI,omitempty"`
-	AIEquity        int          `json:"aiEquity,omitempty"` // For alignment conversion
-	HasUsedAbility  bool         `json:"hasUsedAbility,omitempty"`
-	LastNightAction *NightAction `json:"lastNightAction,omitempty"`
+	Alignment              string       `json:"alignment,omitempty"` // "HUMAN" or "ALIGNED"
+	Role                   *Role        `json:"role,omitempty"`
+	PersonalKPI            *PersonalKPI `json:"personalKPI,omitempty"`
+	AIEquity               int          `json:"aiEquity,omitempty"` // For alignment conversion
+	HasUsedAbility         bool         `json:"hasUsedAbility,omitempty"`
+	LastNightAction        *NightAction `json:"lastNightAction,omitempty"`
+	HasSubmittedPulseCheck bool         `json:"hasSubmittedPulseCheck,omitempty"`
 
 	// Public status and effects
 	SlackStatus  string        `json:"slackStatus,omitempty"`
@@ -343,14 +347,15 @@ type ChatMessage struct {
 	Message    string    `json:"message"`
 	Timestamp  time.Time `json:"timestamp"`
 	IsSystem   bool      `json:"isSystem"`
+	ChannelID  string    `json:"channelID"` // "#war-room" or "#aligned"
 }
 
 // VoteState represents the current voting state
 type VoteState struct {
 	Type         VoteType          `json:"type"`
-	Votes        map[string]string `json:"votes"`         // PlayerID -> TargetID
+	Votes        map[string]string `json:"votes"`        // PlayerID -> TargetID
 	TokenWeights map[string]int    `json:"tokenWeights"` // PlayerID -> Token count
-	Results      map[string]int    `json:"results"`       // TargetID -> Total tokens
+	Results      map[string]int    `json:"results"`      // TargetID -> Total tokens
 	IsComplete   bool              `json:"isComplete"`
 }
 

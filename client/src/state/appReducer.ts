@@ -19,6 +19,11 @@ export interface LobbyState {
   lobbyName: string;
   maxPlayers: number;
   connectionError: string | null;
+  countdown: {
+    isActive: boolean;
+    remaining: number;
+    duration: number;
+  } | null;
 }
 
 export interface RoleAssignment {
@@ -59,7 +64,11 @@ export type AppAction =
   | { type: 'CLIENT_IDENTIFIED'; payload: { playerId: string } }
   | { type: 'UPDATE_GAME_STATE'; payload: { gameState: GameState; roleAssignment?: RoleAssignment } }
   | { type: 'GAME_OVER'; payload: { sessionState: SessionState } }
-  | { type: 'RESET_LOBBY_STATE' };
+  | { type: 'RESET_LOBBY_STATE' }
+  | { type: 'COUNTDOWN_START'; payload: { duration: number } }
+  | { type: 'COUNTDOWN_UPDATE'; payload: { remaining: number } }
+  | { type: 'COUNTDOWN_CANCEL' }
+  | { type: 'LOAD_CHAT_HISTORY'; payload: { chatMessages: any[] } };
 
 // Initial state
 export const initialAppState: ConsolidatedAppState = {
@@ -76,6 +85,7 @@ export const initialAppState: ConsolidatedAppState = {
     lobbyName: '',
     maxPlayers: 8,
     connectionError: null,
+    countdown: null,
   },
   gameState: {
     id: '',
@@ -115,6 +125,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         lobbyState: {
           ...state.lobbyState,
           playerId: action.payload.playerId,
+          countdown: null,
         },
         sessionState: 'IN_LOBBY',
         isInGameSession: true,
@@ -132,6 +143,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         lobbyState: {
           ...state.lobbyState,
           playerId: action.payload.playerId,
+          countdown: null,
         },
         sessionState: 'IN_LOBBY',
         isInGameSession: true,
@@ -156,6 +168,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
           lobbyName: '',
           maxPlayers: 8,
           connectionError: null,
+          countdown: null,
         },
         sessionState: 'IDLE',
         isInGameSession: false,
@@ -233,6 +246,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         lobbyState: {
           ...state.lobbyState,
           playerId: action.payload.playerId,
+          countdown: null,
         },
       };
 
@@ -262,6 +276,50 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
           hostId: '',
           lobbyName: '',
           connectionError: null,
+          countdown: null,
+        },
+      };
+
+    case 'COUNTDOWN_START':
+      return {
+        ...state,
+        lobbyState: {
+          ...state.lobbyState,
+          countdown: {
+            isActive: true,
+            remaining: action.payload.duration,
+            duration: action.payload.duration,
+          },
+        },
+      };
+
+    case 'COUNTDOWN_UPDATE':
+      return {
+        ...state,
+        lobbyState: {
+          ...state.lobbyState,
+          countdown: state.lobbyState.countdown ? {
+            ...state.lobbyState.countdown,
+            remaining: action.payload.remaining,
+          } : null,
+        },
+      };
+
+    case 'COUNTDOWN_CANCEL':
+      return {
+        ...state,
+        lobbyState: {
+          ...state.lobbyState,
+          countdown: null,
+        },
+      };
+
+    case 'LOAD_CHAT_HISTORY':
+      return {
+        ...state,
+        gameState: {
+          ...state.gameState,
+          chatMessages: action.payload.chatMessages,
         },
       };
 

@@ -19,6 +19,22 @@ export const VoteResultMessage: React.FC<VoteResultMessageProps> = ({ message, g
   const yesVotes = results['GUILTY'] || results['YES'] || 0;
   const noVotes = results['INNOCENT'] || results['NO'] || 0;
 
+  // Helper function to get player avatar emoji
+  const getPlayerAvatar = (playerId: string) => {
+    const player = gameState.players.find(p => p.id === playerId);
+    if (!player) return '👤';
+    
+    switch (player.jobTitle) {
+      case 'CISO': return '👤';
+      case 'Systems': return '🧑‍💻';
+      case 'Ethics': return '🕵️';
+      case 'CTO': return '🤖';
+      case 'COO': return '🧑‍🚀';
+      case 'CFO': return '👩‍🔬';
+      default: return '👤';
+    }
+  };
+
   const getAlignmentDisplay = (alignment: string) => {
     switch (alignment) {
       case 'HUMAN':
@@ -32,61 +48,62 @@ export const VoteResultMessage: React.FC<VoteResultMessageProps> = ({ message, g
     }
   };
 
-  const renderVoteBlocks = (voteType: 'GUILTY' | 'YES' | 'INNOCENT' | 'NO') => {
-    const relevantVoters = Object.entries(votes)
-      .filter(([, vote]) => vote === voteType || (voteType === 'GUILTY' && vote === 'YES') || (voteType === 'INNOCENT' && vote === 'NO'))
-      .map(([playerId]) => playerId);
-
-    return relevantVoters.map((playerId) => {
-      const tokenWeight = tokenWeights[playerId] || 0;
-      const isLocalPlayer = playerId === localPlayerId;
-
-      const block = (
-        <div key={playerId} className={`bg-background-tertiary border border-border rounded-md p-2 text-center transition-transform duration-200 hover:-translate-y-0.5 ${isLocalPlayer ? 'bg-amber-400/20 border-amber-500' : ''}`}>
-            <div className={`font-mono font-bold text-sm ${isLocalPlayer ? 'text-amber-500' : 'text-text-primary'}`}>{tokenWeight}</div>
-            <div className="text-xs text-text-muted">Tokens</div>
-        </div>
-      );
-
-      if (isLocalPlayer) {
+  // Helper function to render blockchain vote blocks (matching VoteUI structure)
+  const renderVoteBlocks = (voteOption: 'GUILTY' | 'YES' | 'INNOCENT' | 'NO') => {
+    if (!votes) return null;
+    
+    return Object.entries(votes)
+      .filter(([, vote]) => vote === voteOption)
+      .map(([playerId]) => {
+        const tokenWeight = tokenWeights[playerId] || 0;
+        const isMyVote = playerId === localPlayerId;
+        
         return (
-          <Tooltip key={playerId} content="Your Vote (Only you can see this)" position="top">
-            <div className="relative">
-              {block}
-              <span className="absolute -top-1 -right-1 text-xs">🔒</span>
+          <div
+            key={playerId}
+            className={`vote-block ${isMyVote ? 'my-vote' : ''} animation-fade-in`}
+          >
+            <div className="block-header">
+              <span className="block-icon">{getPlayerAvatar(playerId)}</span>
+              <span className="block-amount">{tokenWeight}</span>
             </div>
-          </Tooltip>
+            <div className="block-hash">
+              {isMyVote ? (
+                <div className="flex items-center gap-1">
+                  <span>(YOU)</span>
+                  <Tooltip content="Only you can see this" position="top">
+                    <span className="text-xs">🔒</span>
+                  </Tooltip>
+                </div>
+              ) : (
+                '######'
+              )}
+            </div>
+          </div>
         );
-      }
-
-      return block;
-    });
+      });
   };
 
   return (
     <div className="bg-background-secondary border border-border rounded-lg p-4 my-2">
-      <div className="font-bold text-info text-sm mb-2 uppercase tracking-wider">⚖️ Alignment Achieved</div>
-      <div className="italic text-text-primary mb-4">{question}</div>
+      <div className="font-bold text-info text-sm mb-2 uppercase tracking-wider">⚖️ Vote Complete</div>
+      <div className="italic text-text-primary mb-4">{question || 'Final vote results'}</div>
       
-      <div className="space-y-3">
-        {/* YES VOTES */}
-        <div className="bg-background-primary p-3 rounded-md border border-border">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-bold text-success">✔️ YES</span>
-            <span className="font-mono font-bold text-success">🪙 {yesVotes}</span>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
+      <div className="verdict-poll">
+        {/* YES Vote Row */}
+        <div className="vote-option yes">
+          <span className="option-label">✔️ YES</span>
+          <span className="vote-tally">🪙 {yesVotes}</span>
+          <div className="blockchain-chain">
             {renderVoteBlocks('GUILTY')}
           </div>
         </div>
 
-        {/* NO VOTES */}
-        <div className="bg-background-primary p-3 rounded-md border border-border">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-bold text-danger">❌ NO</span>
-            <span className="font-mono font-bold text-danger">🪙 {noVotes}</span>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
+        {/* NO Vote Row */}
+        <div className="vote-option no">
+          <span className="option-label">❌ NO</span>
+          <span className="vote-tally">🪙 {noVotes}</span>
+          <div className="blockchain-chain">
             {renderVoteBlocks('INNOCENT')}
           </div>
         </div>

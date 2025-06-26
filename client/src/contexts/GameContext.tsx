@@ -9,8 +9,10 @@ interface GameContextType {
   localPlayer: Player | null;
   viewedPlayer: Player | null;
   isConnected: boolean;
+  activeChannel: string;
   sendAction: (action: ClientAction) => void;
   setViewedPlayer: (playerId: string) => void;
+  setActiveChannel: (channelId: string) => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -23,6 +25,7 @@ interface GameProviderProps {
 
 export function GameProvider({ children, gameState, localPlayerId }: GameProviderProps) {
   const [viewedPlayerId, setViewedPlayerId] = useState(localPlayerId);
+  const [activeChannel, setActiveChannel] = useState('#war-room');
   const { isConnected, sendAction } = useWebSocketContext();
   const localPlayer = gameState.players.find(p => p.id === localPlayerId) || null;
   const viewedPlayer = gameState.players.find(p => p.id === viewedPlayerId) || localPlayer;
@@ -38,8 +41,10 @@ export function GameProvider({ children, gameState, localPlayerId }: GameProvide
     localPlayer,
     viewedPlayer,
     isConnected,
+    activeChannel,
     sendAction,
     setViewedPlayer: setViewedPlayerId,
+    setActiveChannel,
   };
 
   return (

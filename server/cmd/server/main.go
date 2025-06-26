@@ -112,6 +112,7 @@ func (s *Server) setupRoutes() {
 	http.HandleFunc("/api/games/", s.gameByIDHandler) // Handle paths with trailing slash
 	http.HandleFunc("/api/games", s.gamesHandler)     // Handle exact match
 	http.HandleFunc("/api/stats", s.statsHandler)
+	http.HandleFunc("/api/debug/event-types", s.debugEventTypesHandler)
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Test endpoint works"))
 	})
@@ -276,6 +277,36 @@ func (s *Server) statsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats)
 }
 
+func (s *Server) debugEventTypesHandler(w http.ResponseWriter, r *http.Request) {
+	// Only allow GET requests
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Convert the core.EventTypeValues to string slice
+	eventTypes := make([]string, len(core.EventTypeValues))
+	for i, eventType := range core.EventTypeValues {
+		eventTypes[i] = string(eventType)
+	}
+
+	// Convert the core.ActionTypeValues to string slice
+	actionTypes := make([]string, len(core.ActionTypeValues))
+	for i, actionType := range core.ActionTypeValues {
+		actionTypes[i] = string(actionType)
+	}
+
+	response := map[string]interface{}{
+		"event_types":  eventTypes,
+		"action_types": actionTypes,
+		"total_events": len(eventTypes),
+		"total_actions": len(actionTypes),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 // handleTimerExpired processes expired timers
 func handleTimerExpired(sessionManager *game.SessionManager, timer game.Timer) {
 	log.Printf("Timer expired: %s for game %s", timer.ID, timer.GameID)
@@ -331,6 +362,7 @@ func main() {
 	fmt.Println("  POST /api/games              - Create lobby")
 	fmt.Println("  POST /api/games/{gameId}/join - Join lobby")
 	fmt.Println("  GET  /api/stats")
+	fmt.Println("  GET  /api/debug/event-types   - List event and action types")
 
 	log.Printf("Server listening on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {

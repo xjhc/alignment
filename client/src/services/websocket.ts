@@ -1,4 +1,4 @@
-import { ClientAction, ServerEvent, ConnectionState } from '../types';
+import { ClientAction, ServerEvent, ConnectionState, ServerEventType } from '../types';
 import { gameEngine } from './gameEngine';
 
 export class WebSocketClient {
@@ -183,9 +183,9 @@ export class WebSocketClient {
   private handleServerEvent(event: ServerEvent): void {
     console.log('Received server event:', event.type, event.payload);
 
-    // Handle events using a switch statement
+    // Handle events using a switch statement with generated enum
     switch (event.type) {
-      case 'GAME_STATE_UPDATE':
+      case ServerEventType.GameStateUpdate:
         // Full state sync - only used for initial game transition
         if (gameEngine.isReady()) {
           const gameState = event.payload?.game_state;
@@ -199,18 +199,21 @@ export class WebSocketClient {
         }
         break;
 
-      case 'ROLE_ASSIGNED':
-      case 'GAME_STARTED':
-      case 'PHASE_CHANGED':
-      case 'CHAT_MESSAGE':
-      case 'VOTE_CAST':
-      case 'NIGHT_ACTION_SUBMITTED':
-      case 'PLAYER_LEFT':
-      case 'PLAYER_ELIMINATED':
+      case ServerEventType.RoleAssigned:
+      case ServerEventType.GameStarted:
+      case ServerEventType.PhaseChanged:
+      case ServerEventType.ChatMessage:
+      case ServerEventType.VoteCast:
+      case ServerEventType.NightActionSubmitted:
+      case ServerEventType.PlayerLeft:
+      case ServerEventType.PlayerEliminated:
+      case ServerEventType.PulseCheckStarted:
+      case ServerEventType.PulseCheckSubmitted:
+      case ServerEventType.MandateActivated:
         // Granular events - apply to game engine if available
         if (gameEngine.isReady()) {
           console.log(`Applying granular event ${event.type} to game engine`);
-          
+
           // Convert ServerEvent to CoreEvent format
           let coreEvent = {
             id: event.id || `event_${Date.now()}`,
@@ -222,7 +225,7 @@ export class WebSocketClient {
           };
 
           // Special handling for chat messages to ensure proper format
-          if (event.type === 'CHAT_MESSAGE') {
+          if (event.type === ServerEventType.ChatMessage) {
             // Backend sends chat messages with this payload structure:
             // payload: { sender_id, sender_name, message, phase, day_number, channel_id }
             // We need to make sure the playerId is set from sender_id
@@ -238,12 +241,14 @@ export class WebSocketClient {
           // Could implement event buffering here if needed
         }
         break;
-      case 'LOBBY_STATE_UPDATE':
-      case 'CLIENT_IDENTIFIED':
-      case 'SYSTEM_MESSAGE':
+        
+      // Events handled directly by UI subscribers
+      case ServerEventType.SystemMessage:
+      case ServerEventType.LobbyStateUpdate:
+      case ServerEventType.ClientIdentified:
+      case ServerEventType.ChatHistorySnapshot:
         // These events are handled directly by UI subscribers in App.tsx.
         // The game engine doesn't need to process them.
-        // We add them here to prevent the "Unknown event" log.
         break;
 
       default:

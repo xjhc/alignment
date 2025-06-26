@@ -131,6 +131,26 @@ function AppContent() {
     dispatch({ type: 'CLIENT_IDENTIFIED', payload: { playerId } });
   }, []);
 
+  const handleCountdownStart = useCallback((event: any) => {
+    const payload = event.payload as { duration: number };
+    dispatch({ type: 'COUNTDOWN_START', payload: { duration: payload.duration } });
+  }, []);
+
+  const handleCountdownUpdate = useCallback((event: any) => {
+    const payload = event.payload as { remaining: number };
+    dispatch({ type: 'COUNTDOWN_UPDATE', payload: { remaining: payload.remaining } });
+  }, []);
+
+  const handleCountdownCancel = useCallback(() => {
+    dispatch({ type: 'COUNTDOWN_CANCEL' });
+  }, []);
+
+  const handleChatHistorySnapshot = useCallback((event: any) => {
+    const payload = event.payload as { chat_messages: any[] };
+    console.log('Received chat history snapshot with', payload.chat_messages?.length || 0, 'messages');
+    dispatch({ type: 'LOAD_CHAT_HISTORY', payload: { chatMessages: payload.chat_messages || [] } });
+  }, []);
+
   // Listen for our new private event to get the player ID
   useEffect(() => {
     if (state.isInGameSession) {
@@ -140,6 +160,15 @@ function AppContent() {
     return () => { };
   }, [state.isInGameSession, subscribe, handleClientIdentified]);
 
+  // Listen for chat history snapshots during reconnection
+  useEffect(() => {
+    if (state.isInGameSession) {
+      const unsubscribe = subscribe('CHAT_HISTORY_SNAPSHOT', handleChatHistorySnapshot);
+      return unsubscribe;
+    }
+    return () => { };
+  }, [state.isInGameSession, subscribe, handleChatHistorySnapshot]);
+
   // Centralized lobby event management
   useEffect(() => {
     // Use location.pathname from the hook, not window.location
@@ -147,6 +176,9 @@ function AppContent() {
       const unsubscribers = [
         subscribe('LOBBY_STATE_UPDATE', handleLobbyStateUpdate),
         subscribe('SYSTEM_MESSAGE', handleSystemMessage),
+        subscribe('GAME_START_COUNTDOWN_INITIATED', handleCountdownStart),
+        subscribe('GAME_START_COUNTDOWN_UPDATE', handleCountdownUpdate),
+        subscribe('GAME_START_COUNTDOWN_CANCELLED', handleCountdownCancel),
       ];
 
       // Reset lobby state when entering waiting screen (preserve playerId)
@@ -158,7 +190,7 @@ function AppContent() {
     }
     return () => { };
     // FIX: Add location.pathname to the dependency array
-  }, [location.pathname, subscribe, handleLobbyStateUpdate, handleSystemMessage]);
+  }, [location.pathname, subscribe, handleLobbyStateUpdate, handleSystemMessage, handleCountdownStart, handleCountdownUpdate, handleCountdownCancel]);
 
 
   // Centralized WebSocket connection logic based on session state
@@ -222,7 +254,7 @@ function AppContent() {
       try {
         // Simply send the action. The server will handle the connection handoff.
         sendAction({
-          type: 'START_GAME',
+          type: 'START_GAME' as any,
           payload: {
             game_id: state.appState.gameId
           }

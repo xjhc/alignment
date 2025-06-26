@@ -141,7 +141,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
       };
 
       return (
-        <div className="flex-shrink-0 border-t border-border bg-background-primary p-3">
+        <div className="border-t border-border bg-background-primary p-3">
           {replyingTo && (
             <div className="flex items-center justify-between bg-background-secondary border border-border rounded-md px-3 py-2 mb-3 text-sm">
               <div className="flex items-center gap-2 text-text-secondary">

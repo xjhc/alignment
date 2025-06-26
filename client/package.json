@@ -4,8 +4,9 @@
   "type": "module",
   "scripts": {
     "build:tokens": "cd .. && ./client/node_modules/.bin/style-dictionary build --config tokens.config.json",
-    "dev": "npm run build:tokens && vite --host",
-    "build": "npm run build:tokens && tsc && vite build",
+    "generate:types": "cd ../tools/generate-types && go run main.go",
+    "dev": "npm run build:tokens && npm run generate:types && vite --host",
+    "build": "npm run build:tokens && npm run generate:types && tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

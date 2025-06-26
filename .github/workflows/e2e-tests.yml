@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       redis:
-        image: redis:6.2-alpine
+        # FIX: Standardize on the same Redis version used in the main CI workflow.
+        image: redis:7-alpine
         ports:
           - 6379:6379
 
@@ -37,12 +38,12 @@ jobs:
       - name: Wait for services to be ready
         run: |
           echo "Waiting for backend..."
-          while ! nc -z localhost 8080; do   
+          while ! nc -z localhost 8080; do
             sleep 1
           done
           echo "Backend is up!"
           echo "Waiting for frontend..."
-          while ! nc -z localhost 5173; do   
+          while ! nc -z localhost 5173; do
             sleep 1
           done
           echo "Frontend is up!"

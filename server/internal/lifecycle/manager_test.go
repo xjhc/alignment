@@ -16,12 +16,14 @@ import (
 type MockPlayerActor struct {
 	PlayerID     string
 	PlayerName   string
+	PlayerAvatar string
 	CurrentState interfaces.PlayerState
 	Messages     chan interface{}
 }
 
 func (m *MockPlayerActor) GetPlayerID() string              { return m.PlayerID }
 func (m *MockPlayerActor) GetPlayerName() string            { return m.PlayerName }
+func (m *MockPlayerActor) GetPlayerAvatar() string          { return m.PlayerAvatar }
 func (m *MockPlayerActor) GetSessionToken() string          { return "test-token" }
 func (m *MockPlayerActor) GetState() interfaces.PlayerState { return m.CurrentState }
 

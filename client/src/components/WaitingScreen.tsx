@@ -17,7 +17,8 @@ export function WaitingScreen() {
     hostId,
     lobbyName,
     maxPlayers,
-    connectionError
+    connectionError,
+    countdown
   } = lobbyState;
 
   const formatGameId = (id: string) => {
@@ -139,10 +140,12 @@ export function WaitingScreen() {
             size="lg"
             fullWidth
             onClick={onStartGame}
-            disabled={!canStart || !isConnected}
+            disabled={!canStart || !isConnected || (countdown?.isActive)}
             className="text-base font-semibold text-black bg-amber hover:enabled:bg-amber-light mt-6"
           >
-            {canStart
+            {countdown?.isActive
+              ? '[ INITIATING PROTOCOL... ]'
+              : canStart
               ? '[ > INITIATE CONTAINMENT PROTOCOL ]'
               : `[ NEED ${Math.max(0, 4 - playerInfos.length)} MORE PLAYERS ]`
             }
@@ -151,7 +154,10 @@ export function WaitingScreen() {
 
         {!isHost && (
           <p className="text-text-secondary italic mt-6">
-            Waiting for host to start the game...
+            {countdown?.isActive 
+              ? 'Protocol initiating...'
+              : 'Waiting for host to start the game...'
+            }
           </p>
         )}
 
@@ -164,6 +170,26 @@ export function WaitingScreen() {
           ← Leave Lobby
         </Button>
       </div>
+
+      {/* Countdown Modal */}
+      {countdown?.isActive && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-background-secondary border border-border rounded-lg p-8 text-center animation-scale-in">
+            <div className="text-amber text-6xl font-mono font-bold mb-4 animation-pulse">
+              {countdown.remaining > 0 ? countdown.remaining : 'GO!'}
+            </div>
+            <div className="text-text-primary text-lg mb-2">
+              INITIATING CONTAINMENT PROTOCOL
+            </div>
+            <div className="text-text-secondary text-sm">
+              {countdown.remaining > 0 
+                ? 'Last chance to leave lobby...'
+                : 'Protocol activated!'
+              }
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

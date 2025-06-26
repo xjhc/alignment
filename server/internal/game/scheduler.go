@@ -187,8 +187,8 @@ func NewPhaseManager(scheduler *Scheduler, gameID string, settings core.GameSett
 
 // SchedulePhaseTransition schedules the next phase transition
 func (pm *PhaseManager) SchedulePhaseTransition(currentPhase core.PhaseType, phaseStartTime time.Time) {
-	duration := getPhaseDuration(currentPhase, pm.settings)
-	nextPhase := getNextPhase(currentPhase)
+	duration := GetPhaseDuration(currentPhase, pm.settings)
+	nextPhase := GetNextPhase(currentPhase)
 
 	if duration == 0 || nextPhase == core.PhaseGameOver {
 		return // Unknown phase or end of game, don't schedule
@@ -206,7 +206,7 @@ func (pm *PhaseManager) SchedulePhaseTransition(currentPhase core.PhaseType, pha
 			Type: core.ActionType("PHASE_TRANSITION"),
 			Payload: map[string]interface{}{
 				"next_phase": string(nextPhase),
-				"duration":   getPhaseDuration(nextPhase, pm.settings).Seconds(),
+				"duration":   GetPhaseDuration(nextPhase, pm.settings).Seconds(),
 			},
 		},
 	}
@@ -219,8 +219,8 @@ func (pm *PhaseManager) CancelPhaseTransitions() {
 	pm.scheduler.CancelGameTimers(pm.gameID)
 }
 
-// getPhaseDuration returns the duration for a specific phase
-func getPhaseDuration(phase core.PhaseType, settings core.GameSettings) time.Duration {
+// GetPhaseDuration returns the duration for a specific phase
+func GetPhaseDuration(phase core.PhaseType, settings core.GameSettings) time.Duration {
 	switch phase {
 	case core.PhaseSitrep:
 		return settings.SitrepDuration
@@ -243,8 +243,8 @@ func getPhaseDuration(phase core.PhaseType, settings core.GameSettings) time.Dur
 	}
 }
 
-// getNextPhase returns the next phase after the current one
-func getNextPhase(currentPhase core.PhaseType) core.PhaseType {
+// GetNextPhase returns the next phase after the current one
+func GetNextPhase(currentPhase core.PhaseType) core.PhaseType {
 	switch currentPhase {
 	case core.PhaseSitrep:
 		return core.PhasePulseCheck
