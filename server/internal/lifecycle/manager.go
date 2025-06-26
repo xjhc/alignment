@@ -27,6 +27,10 @@ type GameLifecycleManager struct {
 	gameSessions map[string]map[string]interfaces.PlayerActorInterface
 	gameActors   map[string]interfaces.GameActorInterface
 
+	// Countdown management
+	countdownTimers map[string]*time.Timer
+	countdownCancel map[string]context.CancelFunc
+
 	// Synchronization
 	mutex sync.RWMutex
 	ctx   context.Context
@@ -51,17 +55,19 @@ func NewGameLifecycleManager(
 	eventBus *events.EventBus,
 ) *GameLifecycleManager {
 	glm := &GameLifecycleManager{
-		lobbies:      make(map[string]*lobby.Lobby),
-		tokens:       make(map[string]*lobby.JoinToken),
-		gameSessions: make(map[string]map[string]interfaces.PlayerActorInterface),
-		gameActors:   make(map[string]interfaces.GameActorInterface),
-		ctx:          ctx,
-		datastore:    datastore,
-		broadcaster:  broadcaster,
-		supervisor:   supervisor,
-		eventBus:     eventBus,
-		eventChannel: make(chan events.Event, 100), // Buffered to prevent blocking
-		stopChannel:  make(chan struct{}),
+		lobbies:         make(map[string]*lobby.Lobby),
+		tokens:          make(map[string]*lobby.JoinToken),
+		gameSessions:    make(map[string]map[string]interfaces.PlayerActorInterface),
+		gameActors:      make(map[string]interfaces.GameActorInterface),
+		countdownTimers: make(map[string]*time.Timer),
+		countdownCancel: make(map[string]context.CancelFunc),
+		ctx:             ctx,
+		datastore:       datastore,
+		broadcaster:     broadcaster,
+		supervisor:      supervisor,
+		eventBus:        eventBus,
+		eventChannel:    make(chan events.Event, 100), // Buffered to prevent blocking
+		stopChannel:     make(chan struct{}),
 	}
 
 	// Subscribe to relevant events
@@ -114,6 +120,9 @@ func (glm *GameLifecycleManager) handlePlayerDisconnected(event events.PlayerDis
 		glm.mutex.RUnlock()
 
 		if exists {
+			// Check if the disconnecting player was the host
+			wasHost := lobby.HostPlayerID == event.PlayerID
+			
 			lobby.RemovePlayer(event.PlayerID)
 
 			// Publish player left event
@@ -122,9 +131,53 @@ func (glm *GameLifecycleManager) handlePlayerDisconnected(event events.PlayerDis
 				LobbyID:  event.LobbyID,
 			})
 
+			// Handle host transfer if needed
+			if wasHost && len(lobby.GetPlayerActors()) > 0 {
+				lobby.Lock()
+				newHostID := lobby.TransferHostToNextPlayer()
+				lobby.Unlock()
+				
+				if newHostID != "" {
+					log.Printf("GameLifecycleManager: Transferred host from %s to %s in lobby %s", event.PlayerID, newHostID, event.LobbyID)
+					
+					// Broadcast host transfer event to all players in lobby
+					hostTransferEvent := core.Event{
+						ID:        uuid.New().String(),
+						Type:      core.EventHostTransferred,
+						GameID:    event.LobbyID,
+						Timestamp: time.Now(),
+						Payload: map[string]interface{}{
+							"previous_host_id": event.PlayerID,
+							"new_host_id":      newHostID,
+						},
+					}
+					
+					playerActors := lobby.GetPlayerActors()
+					for _, actor := range playerActors {
+						actor.SendServerMessage(hostTransferEvent)
+					}
+				}
+			}
+
+			// If countdown is running and lobby can no longer start, cancel countdown
+			glm.mutex.RLock()
+			cancelFunc, countdownRunning := glm.countdownCancel[event.LobbyID]
+			glm.mutex.RUnlock()
+			
+			if countdownRunning && !lobby.CanStart() {
+				log.Printf("GameLifecycleManager: Cancelling countdown for lobby %s due to insufficient players", event.LobbyID)
+				cancelFunc()
+			}
+
 			// Check if lobby is now empty and should be cleaned up
 			glm.mutex.Lock()
 			if len(lobby.GetPlayerActors()) == 0 {
+				// Cancel any running countdown for empty lobby
+				if cancelFunc, exists := glm.countdownCancel[event.LobbyID]; exists {
+					cancelFunc()
+					delete(glm.countdownCancel, event.LobbyID)
+					delete(glm.countdownTimers, event.LobbyID)
+				}
 				delete(glm.lobbies, event.LobbyID)
 				log.Printf("GameLifecycleManager: Cleaned up empty lobby %s", event.LobbyID)
 			}
@@ -202,6 +255,7 @@ func (glm *GameLifecycleManager) CreateLobbyViaHTTP(hostPlayerName, lobbyName, p
 		Name:         lobbyName,
 		HostPlayerID: hostPlayerID,
 		Players:      make(map[string]interfaces.PlayerActorInterface),
+		PlayerJoinTimes: make(map[string]time.Time),
 		MaxPlayers:   8,
 		MinPlayers:   2,
 		CreatedAt:    time.Now(),
@@ -263,9 +317,9 @@ func (glm *GameLifecycleManager) JoinLobbyWithActor(lobbyID string, playerActor 
 	return playerActor.TransitionToLobby(lobbyID)
 }
 
-// StartGame atomically transitions a lobby to an active game
+// StartGame initiates a 3-second countdown before starting the game
 func (glm *GameLifecycleManager) StartGame(lobbyID string, hostPlayerID string) error {
-	log.Printf("GameLifecycleManager: Starting game for lobby %s from host %s", lobbyID, hostPlayerID)
+	log.Printf("GameLifecycleManager: Starting countdown for lobby %s from host %s", lobbyID, hostPlayerID)
 
 	glm.mutex.RLock()
 	lobby, exists := glm.lobbies[lobbyID]
@@ -285,6 +339,173 @@ func (glm *GameLifecycleManager) StartGame(lobbyID string, hostPlayerID string) 
 		return fmt.Errorf("lobby cannot start: not enough players or invalid state")
 	}
 
+	// Check if countdown is already running
+	glm.mutex.Lock()
+	if _, running := glm.countdownTimers[lobbyID]; running {
+		glm.mutex.Unlock()
+		return fmt.Errorf("game start countdown already in progress")
+	}
+	glm.mutex.Unlock()
+
+	// Start the countdown
+	return glm.startCountdown(lobbyID)
+}
+
+// startCountdown begins a 3-second countdown and broadcasts updates
+func (glm *GameLifecycleManager) startCountdown(lobbyID string) error {
+	lobby, exists := glm.lobbies[lobbyID]
+	if !exists {
+		return fmt.Errorf("lobby not found during countdown start")
+	}
+
+	// Set lobby status to countdown
+	lobby.SetStatus("COUNTDOWN")
+
+	// Create countdown context
+	countdownCtx, cancel := context.WithCancel(glm.ctx)
+	
+	glm.mutex.Lock()
+	glm.countdownCancel[lobbyID] = cancel
+	glm.mutex.Unlock()
+
+	// Broadcast countdown initiated event
+	playerActors := lobby.GetPlayerActors()
+	countdownEvent := core.Event{
+		ID:        uuid.New().String(),
+		Type:      core.EventGameStartCountdownStart,
+		GameID:    lobbyID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"duration": 3,
+		},
+	}
+
+	for _, actor := range playerActors {
+		actor.SendServerMessage(countdownEvent)
+	}
+
+	// Start countdown timer in a goroutine
+	go glm.runCountdown(countdownCtx, lobbyID, 3)
+
+	return nil
+}
+
+// runCountdown handles the countdown timer and broadcasts updates
+func (glm *GameLifecycleManager) runCountdown(ctx context.Context, lobbyID string, duration int) {
+	defer func() {
+		glm.mutex.Lock()
+		delete(glm.countdownTimers, lobbyID)
+		delete(glm.countdownCancel, lobbyID)
+		glm.mutex.Unlock()
+	}()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	remaining := duration
+	
+	for remaining > 0 {
+		select {
+		case <-ctx.Done():
+			// Countdown was cancelled
+			log.Printf("GameLifecycleManager: Countdown cancelled for lobby %s", lobbyID)
+			glm.broadcastCountdownCancel(lobbyID)
+			return
+		case <-ticker.C:
+			remaining--
+			
+			// Broadcast countdown update
+			glm.broadcastCountdownUpdate(lobbyID, remaining)
+			
+			if remaining == 0 {
+				// Countdown complete - start the actual game
+				glm.finalizeGameStart(lobbyID)
+				return
+			}
+		}
+	}
+}
+
+// broadcastCountdownUpdate sends countdown update to all players in lobby
+func (glm *GameLifecycleManager) broadcastCountdownUpdate(lobbyID string, remaining int) {
+	glm.mutex.RLock()
+	lobby, exists := glm.lobbies[lobbyID]
+	glm.mutex.RUnlock()
+	
+	if !exists {
+		return
+	}
+
+	updateEvent := core.Event{
+		ID:        uuid.New().String(),
+		Type:      core.EventGameStartCountdownUpdate,
+		GameID:    lobbyID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"remaining": remaining,
+		},
+	}
+
+	playerActors := lobby.GetPlayerActors()
+	for _, actor := range playerActors {
+		actor.SendServerMessage(updateEvent)
+	}
+}
+
+// broadcastCountdownCancel sends countdown cancellation to all players in lobby
+func (glm *GameLifecycleManager) broadcastCountdownCancel(lobbyID string) {
+	glm.mutex.RLock()
+	lobby, exists := glm.lobbies[lobbyID]
+	glm.mutex.RUnlock()
+	
+	if !exists {
+		return
+	}
+
+	// Reset lobby status
+	lobby.SetStatus("WAITING")
+
+	cancelEvent := core.Event{
+		ID:        uuid.New().String(),
+		Type:      core.EventGameStartCountdownCancel,
+		GameID:    lobbyID,
+		Timestamp: time.Now(),
+		Payload:   map[string]interface{}{},
+	}
+
+	playerActors := lobby.GetPlayerActors()
+	for _, actor := range playerActors {
+		actor.SendServerMessage(cancelEvent)
+	}
+}
+
+// finalizeGameStart completes the game start process after countdown
+func (glm *GameLifecycleManager) finalizeGameStart(lobbyID string) {
+	log.Printf("GameLifecycleManager: Finalizing game start for lobby %s", lobbyID)
+
+	glm.mutex.RLock()
+	lobby, exists := glm.lobbies[lobbyID]
+	glm.mutex.RUnlock()
+	
+	if !exists {
+		log.Printf("GameLifecycleManager: Lobby %s not found during finalization", lobbyID)
+		return
+	}
+
+	// Final check - ensure lobby still has enough players
+	playerCount := len(lobby.GetPlayerActors())
+	status := lobby.Status
+	minPlayers := lobby.MinPlayers
+	log.Printf("GameLifecycleManager: Lobby %s final check - players: %d, minPlayers: %d, status: %s", 
+		lobbyID, playerCount, minPlayers, status)
+	
+	if !lobby.CanStart() {
+		log.Printf("GameLifecycleManager: Lobby %s no longer eligible to start (players: %d/%d, status: %s)", 
+			lobbyID, playerCount, minPlayers, status)
+		glm.broadcastCountdownCancel(lobbyID)
+		return
+	}
+
 	// Mark as starting
 	lobby.SetStatus("STARTING")
 
@@ -296,7 +517,8 @@ func (glm *GameLifecycleManager) StartGame(lobbyID string, hostPlayerID string) 
 	if err != nil {
 		// Revert lobby state on failure
 		lobby.SetStatus("WAITING")
-		return fmt.Errorf("failed to create game: %w", err)
+		log.Printf("GameLifecycleManager: Failed to create game for lobby %s: %v", lobbyID, err)
+		return
 	}
 
 	// Remove lobby from manager
@@ -304,7 +526,7 @@ func (glm *GameLifecycleManager) StartGame(lobbyID string, hostPlayerID string) 
 	delete(glm.lobbies, lobbyID)
 	glm.mutex.Unlock()
 
-	return nil
+	log.Printf("GameLifecycleManager: Successfully started game for lobby %s", lobbyID)
 }
 
 // createGameFromLobby handles the atomic transition from lobby to game
@@ -387,25 +609,25 @@ func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActor
 			continue // Skip to next player
 		}
 
+		// Send GAME_STARTED event to signal UI transition
+		gameStartedEvent := core.Event{
+			ID:        uuid.New().String(),
+			Type:      core.EventGameStarted,
+			GameID:    gameID,
+			PlayerID:  playerID, // Private event for this player
+			Timestamp: time.Now(),
+			Payload:   map[string]interface{}{"game_id": gameID},
+		}
+		playerActor.SendServerMessage(gameStartedEvent)
+
 		// Send the correctly initialized snapshot.
 		// This snapshot now contains the correct phase (SITREP) and role data.
 		snapshotEvent := gameActor.CreatePlayerStateUpdateEvent(playerID)
 		playerActor.SendServerMessage(snapshotEvent)
 	}
 
-	// 3. Then broadcast the granular events to the appropriate players.
-	for _, event := range initialEvents {
-		// Private events are sent to a specific player
-		if event.PlayerID != "" {
-			if playerActor, exists := playerActors[event.PlayerID]; exists {
-				playerActor.SendServerMessage(event)
-			}
-		} else { // Public events are broadcast to all players in the game
-			for _, playerActor := range playerActors {
-				playerActor.SendServerMessage(event)
-			}
-		}
-	}
+	// 3. REMOVED: Do not send the granular events again. The snapshot is sufficient.
+	//    The snapshot already contains the state resulting from these events.
 
 	// --- END FIX ---
 

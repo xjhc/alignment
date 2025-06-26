@@ -366,20 +366,86 @@ export const PulseCheckPhase: Story = {
         startTime: '2024-01-01T11:00:00Z',
         duration: 60000000000, // 1 minute in nanoseconds
       },
+      crisisEvent: {
+        type: 'Database Index Corruption',
+        title: 'Critical Database Breach',
+        description: 'Our main database indices have been corrupted, exposing sensitive role information.',
+        effects: {
+          pulse_check_question: 'A critical role has been exposed. How does this change your immediate priority?'
+        }
+      },
+      pulseCheckResponses: {
+        'p-1': 'We need to secure our remaining systems immediately',
+        'p-2': 'I suggest we investigate who had database access',
+        'p-4': 'Focus on damage control and stakeholder communication',
+      },
       chatMessages: [
         ...baseChatMessages,
         {
-          id: 'c-4',
-          playerID: 'system',
+          id: 'pulse_check_announcement_1',
+          playerID: '',
           playerName: 'NEXUS',
-          message: 'PULSE CHECK: Respond with your current status.',
-          timestamp: '2024-01-01T11:00:00Z',
+          message: 'A critical role has been exposed. How does this change your immediate priority?',
+          timestamp: '2024-01-01T11:00:30Z',
           type: 'PULSE_CHECK',
           isSystem: true,
+          metadata: {
+            pulseCheckResponses: {
+              'Alice': 'We need to secure our remaining systems immediately',
+              'Bob': 'I suggest we investigate who had database access',
+              'Diana': 'Focus on damage control and stakeholder communication',
+            },
+            question: 'A critical role has been exposed. How does this change your immediate priority?',
+            total_responses: 3,
+          },
         },
       ],
     },
     playerID: 'p-1',
+  },
+};
+
+export const PulseCheckEarly: Story = {
+  args: {
+    gameState: {
+      ...baseGameState,
+      phase: {
+        type: 'PULSE_CHECK',
+        startTime: '2024-01-01T11:00:00Z',
+        duration: 60000000000, // 1 minute in nanoseconds
+      },
+      crisisEvent: {
+        type: 'Cascading Server Failure',
+        title: 'Critical Infrastructure Failure',
+        description: 'Multiple servers are failing in sequence, threatening system stability.',
+        effects: {
+          pulse_check_question: 'With limited bandwidth, what is the one piece of information everyone needs to hear from you?'
+        }
+      },
+      pulseCheckResponses: {
+        'p-1': 'Prioritize core services - everything else can wait',
+      },
+      chatMessages: [
+        ...baseChatMessages,
+        {
+          id: 'pulse_check_announcement_1',
+          playerID: '',
+          playerName: 'NEXUS',
+          message: 'With limited bandwidth, what is the one piece of information everyone needs to hear from you?',
+          timestamp: '2024-01-01T11:00:30Z',
+          type: 'PULSE_CHECK',
+          isSystem: true,
+          metadata: {
+            pulseCheckResponses: {
+              'Alice': 'Prioritize core services - everything else can wait',
+            },
+            question: 'With limited bandwidth, what is the one piece of information everyone needs to hear from you?',
+            total_responses: 1,
+          },
+        },
+      ],
+    },
+    playerID: 'p-2',
   },
 };
 

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useGameContext } from '../../contexts/GameContext';
 
 interface PulseCheckInputProps {
   handlePulseCheck: (response: string) => Promise<void>;
@@ -11,8 +12,16 @@ export const PulseCheckInput: React.FC<PulseCheckInputProps> = ({
   localPlayerName,
   question = "What is your immediate response to the current crisis?"
 }) => {
+  const { localPlayer } = useGameContext();
   const [response, setResponse] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset submitting state when player successfully submits pulse check
+  useEffect(() => {
+    if (localPlayer?.hasSubmittedPulseCheck && isSubmitting) {
+      setIsSubmitting(false);
+    }
+  }, [localPlayer?.hasSubmittedPulseCheck, isSubmitting]);
 
   const handleSubmit = async () => {
     if (response.trim() && !isSubmitting) {

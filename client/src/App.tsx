@@ -34,7 +34,7 @@ function AppContent() {
     gameState: coreGameState
   } = useGameEngineContext();
 
-  // The SINGLE source of truth for UI updates.
+  // The SINGLE source of truth for game state updates - all UI updates come from the game engine
   useEffect(() => {
     if (!coreGameState || !state.appState.playerId) {
       return;
@@ -84,18 +84,17 @@ function AppContent() {
     }
   }, [coreGameState, state.appState.playerId, state.lobbyState.playerInfos, navigateToGameOver]);
 
-  // Wait for BOTH phase change AND role assignment before transitioning
+  // Handle game start transitions from core game state
   useEffect(() => {
-    // Centralized game start event management
-    // This event is the single trigger to move from Lobby to Role Reveal.
-    const handleGameStarted = () => {
-      console.log('[App] Game has started. Navigating to role reveal.');
+    if (!coreGameState) return;
+    
+    // Check if game has started by examining game state
+    if (coreGameState.phase && coreGameState.phase !== 'LOBBY' && 
+        location.pathname === '/waiting') {
+      console.log('[App] Game has started (detected from core state). Navigating to role reveal.');
       navigateToRoleReveal();
-    };
-
-    const unsubscribe = subscribe('GAME_STARTED', handleGameStarted);
-    return () => unsubscribe();
-  }, [subscribe, navigateToRoleReveal]);
+    }
+  }, [coreGameState, location.pathname, navigateToRoleReveal]);
 
   // Set dark theme by default
   useEffect(() => {
@@ -131,22 +130,49 @@ function AppContent() {
     dispatch({ type: 'CLIENT_IDENTIFIED', payload: { playerId } });
   }, []);
 
-  // Listen for our new private event to get the player ID
-  useEffect(() => {
-    if (state.isInGameSession) {
-      const unsubscribe = subscribe('CLIENT_IDENTIFIED', handleClientIdentified);
-      return unsubscribe;
-    }
-    return () => { };
-  }, [state.isInGameSession, subscribe, handleClientIdentified]);
+  const handleCountdownStart = useCallback((event: any) => {
+    const payload = event.payload as { duration: number };
+    dispatch({ type: 'COUNTDOWN_START', payload: { duration: payload.duration } });
+  }, []);
 
-  // Centralized lobby event management
+  const handleCountdownUpdate = useCallback((event: any) => {
+    const payload = event.payload as { remaining: number };
+    dispatch({ type: 'COUNTDOWN_UPDATE', payload: { remaining: payload.remaining } });
+  }, []);
+
+  const handleCountdownCancel = useCallback(() => {
+    dispatch({ type: 'COUNTDOWN_CANCEL' });
+  }, []);
+
+  const handleHostTransferred = useCallback((event: any) => {
+    const payload = event.payload as { new_host_id: string; previous_host_id: string };
+    dispatch({ 
+      type: 'HOST_TRANSFERRED', 
+      payload: { 
+        newHostId: payload.new_host_id, 
+        previousHostId: payload.previous_host_id 
+      } 
+    });
+  }, []);
+
+  const handleChatHistorySnapshot = useCallback((event: any) => {
+    const payload = event.payload as { chat_messages: any[] };
+    console.log('Received chat history snapshot with', payload.chat_messages?.length || 0, 'messages');
+    dispatch({ type: 'LOAD_CHAT_HISTORY', payload: { chatMessages: payload.chat_messages || [] } });
+  }, []);
+
+  // Handle lobby-specific events that don't go through game engine
   useEffect(() => {
-    // Use location.pathname from the hook, not window.location
     if (location.pathname === '/waiting') {
       const unsubscribers = [
+        subscribe('CLIENT_IDENTIFIED', handleClientIdentified),
+        subscribe('CHAT_HISTORY_SNAPSHOT', handleChatHistorySnapshot),
         subscribe('LOBBY_STATE_UPDATE', handleLobbyStateUpdate),
         subscribe('SYSTEM_MESSAGE', handleSystemMessage),
+        subscribe('GAME_START_COUNTDOWN_INITIATED', handleCountdownStart),
+        subscribe('GAME_START_COUNTDOWN_UPDATE', handleCountdownUpdate),
+        subscribe('GAME_START_COUNTDOWN_CANCELLED', handleCountdownCancel),
+        subscribe('HOST_TRANSFERRED', handleHostTransferred),
       ];
 
       // Reset lobby state when entering waiting screen (preserve playerId)
@@ -157,8 +183,7 @@ function AppContent() {
       };
     }
     return () => { };
-    // FIX: Add location.pathname to the dependency array
-  }, [location.pathname, subscribe, handleLobbyStateUpdate, handleSystemMessage]);
+  }, [location.pathname, subscribe, handleClientIdentified, handleChatHistorySnapshot, handleLobbyStateUpdate, handleSystemMessage, handleCountdownStart, handleCountdownUpdate, handleCountdownCancel, handleHostTransferred]);
 
 
   // Centralized WebSocket connection logic based on session state
@@ -222,7 +247,7 @@ function AppContent() {
       try {
         // Simply send the action. The server will handle the connection handoff.
         sendAction({
-          type: 'START_GAME',
+          type: 'START_GAME' as any,
           payload: {
             game_id: state.appState.gameId
           }

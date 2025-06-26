@@ -338,11 +338,11 @@ func (lm *LobbyManager) GetPlayerInfo(gameID, playerID string) (string, string, 
 	lm.mutex.RLock()
 	defer lm.mutex.RUnlock()
 
-	// For now, we'll need to look up player info from the token
+	// Look up player info from the token
 	for _, token := range lm.tokens {
 		if token.LobbyID == gameID && token.PlayerID == playerID {
-			// Return a default name - in a real implementation this would be stored
-			return fmt.Sprintf("Player_%s", playerID[:8]), "", nil
+			// Return name and avatar from the token
+			return token.PlayerName, token.PlayerAvatar, nil
 		}
 	}
 

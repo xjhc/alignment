@@ -24,6 +24,7 @@ type Lobby struct {
 	Name         string
 	HostPlayerID string
 	Players      map[string]interfaces.PlayerActorInterface // Map of playerID -> PlayerActor
+	PlayerJoinTimes map[string]time.Time // Map of playerID -> join timestamp
 	MaxPlayers   int
 	MinPlayers   int
 	CreatedAt    time.Time
@@ -35,12 +36,16 @@ type Lobby struct {
 func NewLobby(id, name, hostPlayerID string, hostActor interfaces.PlayerActorInterface) *Lobby {
 	players := make(map[string]interfaces.PlayerActorInterface)
 	players[hostPlayerID] = hostActor
+	
+	playerJoinTimes := make(map[string]time.Time)
+	playerJoinTimes[hostPlayerID] = time.Now()
 
 	return &Lobby{
 		ID:           id,
 		Name:         name,
 		HostPlayerID: hostPlayerID,
 		Players:      players,
+		PlayerJoinTimes: playerJoinTimes,
 		MaxPlayers:   8,
 		MinPlayers:   2,
 		CreatedAt:    time.Now(),
@@ -52,9 +57,16 @@ func NewLobby(id, name, hostPlayerID string, hostActor interfaces.PlayerActorInt
 func (l *Lobby) createStateUpdate_unsafe() LobbyStateUpdate {
 	var infos []PlayerInfo
 	for _, actor := range l.Players {
+		playerID := actor.GetPlayerID()
+		joinTime, exists := l.PlayerJoinTimes[playerID]
+		if !exists {
+			joinTime = time.Now() // Fallback to current time if not tracked
+		}
 		infos = append(infos, PlayerInfo{
-			ID:   actor.GetPlayerID(),
-			Name: actor.GetPlayerName(),
+			ID:       playerID,
+			Name:     actor.GetPlayerName(),
+			Avatar:   actor.GetPlayerAvatar(),
+			JoinedAt: joinTime,
 		})
 	}
 
@@ -62,7 +74,7 @@ func (l *Lobby) createStateUpdate_unsafe() LobbyStateUpdate {
 		LobbyID:   l.ID,
 		Players:   infos,
 		HostID:    l.HostPlayerID,
-		CanStart:  len(l.Players) >= l.MinPlayers && l.Status == "WAITING",
+		CanStart:  len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN"),
 		LobbyName: l.Name,
 	}
 }
@@ -97,6 +109,7 @@ func (l *Lobby) AddPlayer(playerActor interfaces.PlayerActorInterface) error {
 
 	playerID := playerActor.GetPlayerID()
 	l.Players[playerID] = playerActor
+	l.PlayerJoinTimes[playerID] = time.Now()
 
 	// Create the update and broadcast it to all players in the lobby
 	l.broadcastStateUpdate()
@@ -114,6 +127,7 @@ func (l *Lobby) RemovePlayer(playerID string) {
 	}
 
 	delete(l.Players, playerID)
+	delete(l.PlayerJoinTimes, playerID)
 
 	// Create the update and broadcast it to all players in the lobby
 	l.broadcastStateUpdate()
@@ -123,7 +137,7 @@ func (l *Lobby) RemovePlayer(playerID string) {
 func (l *Lobby) CanStart() bool {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
-	return len(l.Players) >= l.MinPlayers && l.Status == "WAITING"
+	return len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN")
 }
 
 // GetPlayerActors returns a copy of the player actors map
@@ -145,9 +159,16 @@ func (l *Lobby) GetPlayerInfos() []PlayerInfo {
 
 	var infos []PlayerInfo
 	for _, actor := range l.Players {
+		playerID := actor.GetPlayerID()
+		joinTime, exists := l.PlayerJoinTimes[playerID]
+		if !exists {
+			joinTime = time.Now() // Fallback to current time if not tracked
+		}
 		infos = append(infos, PlayerInfo{
-			ID:   actor.GetPlayerID(),
-			Name: actor.GetPlayerName(),
+			ID:       playerID,
+			Name:     actor.GetPlayerName(),
+			Avatar:   actor.GetPlayerAvatar(),
+			JoinedAt: joinTime,
 		})
 	}
 	return infos
@@ -158,9 +179,16 @@ func (l *Lobby) GetPlayerInfos() []PlayerInfo {
 func (l *Lobby) broadcastStateUpdate() {
 	var playerInfos []PlayerInfo
 	for _, actor := range l.Players {
+		playerID := actor.GetPlayerID()
+		joinTime, exists := l.PlayerJoinTimes[playerID]
+		if !exists {
+			joinTime = time.Now() // Fallback to current time if not tracked
+		}
 		playerInfos = append(playerInfos, PlayerInfo{
-			ID:   actor.GetPlayerID(),
-			Name: actor.GetPlayerName(),
+			ID:       playerID,
+			Name:     actor.GetPlayerName(),
+			Avatar:   actor.GetPlayerAvatar(),
+			JoinedAt: joinTime,
 		})
 	}
 
@@ -168,7 +196,7 @@ func (l *Lobby) broadcastStateUpdate() {
 		LobbyID:   l.ID,
 		Players:   playerInfos,
 		HostID:    l.HostPlayerID,
-		CanStart:  len(l.Players) >= l.MinPlayers && l.Status == "WAITING",
+		CanStart:  len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN"),
 		LobbyName: l.Name,
 	}
 
@@ -208,10 +236,44 @@ func (l *Lobby) Unlock() {
 	 l.mutex.Unlock()
 }
 
+// TransferHostToNextPlayer transfers host to the player who joined earliest (excluding current host)
+// Returns the new host player ID, or empty string if no other players exist
+// NOTE: This method assumes the caller already holds the lobby lock
+func (l *Lobby) TransferHostToNextPlayer() string {
+	if len(l.Players) <= 1 {
+		return "" // No other players to transfer to
+	}
+
+	var earliestJoinTime time.Time
+	var newHostID string
+	
+	// Find the player (excluding current host) who joined earliest
+	for playerID, joinTime := range l.PlayerJoinTimes {
+		if playerID == l.HostPlayerID {
+			continue // Skip current host
+		}
+		if _, exists := l.Players[playerID]; !exists {
+			continue // Skip if player no longer in lobby
+		}
+		if newHostID == "" || joinTime.Before(earliestJoinTime) {
+			earliestJoinTime = joinTime
+			newHostID = playerID
+		}
+	}
+	
+	if newHostID != "" {
+		l.HostPlayerID = newHostID
+	}
+	
+	return newHostID
+}
+
 // PlayerInfo holds basic info for a player in the lobby
 type PlayerInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Avatar   string    `json:"avatar"`
+	JoinedAt time.Time `json:"joinedAt"`
 }
 
 // Custom errors

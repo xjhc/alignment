@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useGameContext } from '../contexts/GameContext';
 import { useGameEngineContext } from '../contexts/GameEngineContext';
-import { ClientAction } from '../types';
+import { ClientAction, ClientActionType } from '../types';
 
 export function useGameActions() {
   const { gameState, localPlayerId, sendAction, isConnected } = useGameContext();
@@ -44,7 +44,7 @@ export function useGameActions() {
       if (statusMatch) {
         const statusMessage = statusMatch[1].trim();
         const action: ClientAction = {
-          type: 'UPDATE_STATUS',
+          type: ClientActionType.SetSlackStatus,
           payload: {
             game_id: gameState.id,
             player_id: localPlayerId,
@@ -63,7 +63,7 @@ export function useGameActions() {
       }
 
       const action: ClientAction = {
-        type: 'POST_CHAT_MESSAGE',
+        type: ClientActionType.SendMessage,
         payload: {
           game_id: gameState.id,
           player_id: localPlayerId,
@@ -85,7 +85,7 @@ export function useGameActions() {
 
     try {
       const action: ClientAction = {
-        type: 'SUBMIT_NIGHT_ACTION',
+        type: ClientActionType.SubmitNightAction,
         payload: {
           game_id: gameState.id,
           player_id: localPlayerId,
@@ -108,7 +108,7 @@ export function useGameActions() {
 
     try {
       const action: ClientAction = {
-        type: 'SUBMIT_NIGHT_ACTION',
+        type: ClientActionType.SubmitNightAction,
         payload: {
           game_id: gameState.id,
           player_id: localPlayerId,
@@ -131,7 +131,7 @@ export function useGameActions() {
 
     try {
       const action: ClientAction = {
-        type: 'SUBMIT_NIGHT_ACTION',
+        type: ClientActionType.SubmitNightAction,
         payload: {
           game_id: gameState.id,
           player_id: localPlayerId,
@@ -156,7 +156,7 @@ export function useGameActions() {
 
     try {
       const action: ClientAction = {
-        type: 'SUBMIT_NIGHT_ACTION',
+        type: ClientActionType.SubmitNightAction,
         payload: {
           game_id: gameState.id,
           player_id: localPlayerId,
@@ -177,7 +177,7 @@ export function useGameActions() {
 
     try {
       const action: ClientAction = {
-        type: 'SUBMIT_VOTE',
+        type: ClientActionType.SubmitVote,
         payload: {
           game_id: gameState.id,
           player_id: localPlayerId,
@@ -198,7 +198,7 @@ export function useGameActions() {
 
     try {
       const action: ClientAction = {
-        type: 'SUBMIT_VOTE',
+        type: ClientActionType.SubmitVote,
         payload: {
           game_id: gameState.id,
           player_id: localPlayerId,
@@ -219,7 +219,7 @@ export function useGameActions() {
 
     try {
       const action: ClientAction = {
-        type: 'SUBMIT_PULSE_CHECK',
+        type: ClientActionType.SubmitPulseCheck,
         payload: {
           game_id: gameState.id,
           player_id: localPlayerId,
@@ -249,6 +249,47 @@ export function useGameActions() {
     setReplyingTo(null);
   }, []);
 
+  const handleSkipPhase = useCallback(async () => {
+    if (!localPlayer || !isConnected) return;
+
+    try {
+      const action: ClientAction = {
+        type: ClientActionType.SubmitSkipVote,
+        payload: {
+          game_id: gameState.id,
+          player_id: localPlayerId,
+        },
+      };
+
+      sendAction(action);
+    } catch (error) {
+      console.error('Failed to vote to skip phase:', error);
+    }
+  }, [localPlayer, isConnected, gameState.id, localPlayerId, sendAction]);
+
+  const handleEmojiReaction = useCallback(async (messageId: string, emoji: string, channelId: string = '#war-room') => {
+    if (!localPlayer || !isConnected) {
+      return;
+    }
+
+    try {
+      const action: ClientAction = {
+        type: ClientActionType.ReactToMessage,
+        payload: {
+          game_id: gameState.id,
+          player_id: localPlayerId,
+          message_id: messageId,
+          emoji: emoji,
+          channel_id: channelId,
+        },
+      };
+
+      sendAction(action);
+    } catch (error) {
+      console.error('Failed to send emoji reaction:', error);
+    }
+  }, [localPlayer, isConnected, gameState.id, localPlayerId, sendAction]);
+
   return {
     // State
     chatInput,
@@ -275,6 +316,8 @@ export function useGameActions() {
     handleKeyDown,
     startReply,
     cancelReply,
+    handleSkipPhase,
+    handleEmojiReaction,
     
     // Utility functions
     getPhaseDisplayName,

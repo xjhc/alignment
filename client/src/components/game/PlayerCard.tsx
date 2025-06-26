@@ -96,7 +96,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
       className={getPlayerClasses()}
       {...getDataAttributes()}
       onClick={() => onSelect(player.id)}
-      title={`View Dossier for ${player.name}`}
+      title={`View Dossier for ${player.name}${player.isRolePubliclyRevealed && !isSelf ? ' (Role Publicly Revealed)' : ''}`}
     >
       <div className="w-7 h-7 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border transition-all duration-150 mt-0.5">
         {getPlayerAvatar(player)}
@@ -106,8 +106,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
           <span className={`font-semibold flex-shrink-0 min-w-10 ${isSelf ? 'text-human' : 'text-text-primary'}`}>
             {displayName}
           </span>
-          <span className="text-text-secondary font-medium uppercase tracking-wide flex-shrink-0 text-[10px] min-w-7.5">
-            {player.role?.name || player.jobTitle || 'Employee'}
+          <span className={`font-medium uppercase tracking-wide flex-shrink-0 text-[10px] min-w-7.5 ${
+            (player.isRolePubliclyRevealed && !isSelf) ? 'text-yellow-500 font-semibold' : 'text-text-secondary'
+          }`}>
+            {(player.isRolePubliclyRevealed && !isSelf) && '🔍 '}
+            {isSelf ? (player.role?.name || player.jobTitle || 'Employee') : 
+             (player.isRolePubliclyRevealed ? player.role?.name || 'Unknown Role' : player.jobTitle || 'Employee')}
           </span>
           <div className="flex items-center gap-1.5 ml-auto">
             <span className={`font-semibold flex-shrink-0 text-[11px] min-w-6 ${

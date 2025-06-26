@@ -220,6 +220,22 @@ func (em *EliminationManager) EliminatePlayer(playerID string) ([]core.Event, er
 	}
 	events = append(events, eliminationEvent)
 
+	// Generate role revelation event for elimination
+	roleRevealedEvent := core.Event{
+		ID:        fmt.Sprintf("role_revealed_%s_%d", playerID, getCurrentTime().UnixNano()),
+		Type:      core.EventPlayerRoleRevealed,
+		GameID:    em.gameState.ID,
+		PlayerID:  playerID,
+		Timestamp: getCurrentTime(),
+		Payload: map[string]interface{}{
+			"player_id": playerID,
+			"role_type": roleType,
+			"alignment": player.Alignment,
+			"reason":    "elimination",
+		},
+	}
+	events = append(events, roleRevealedEvent)
+
 	// Actually eliminate the player
 	player.IsAlive = false
 

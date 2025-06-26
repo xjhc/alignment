@@ -63,18 +63,22 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
       );
 
     case 'PULSE_CHECK':
-      const pulseCheckQuestion = gameState.crisisEvent 
-        ? generateCrisisQuestion(gameState.crisisEvent)
-        : "What is your immediate response to the current crisis?";
-      
-      return (
-        <PulseCheckInput
-          handlePulseCheck={gameActions.handlePulseCheck}
-          localPlayerName={localPlayer.name}
-          question={pulseCheckQuestion}
-        />
-      );
-
+      // Only show pulse check input if player hasn't submitted yet
+      if (!localPlayer?.hasSubmittedPulseCheck) {
+        const pulseCheckQuestion = gameState.crisisEvent 
+          ? generateCrisisQuestion(gameState.crisisEvent)
+          : "What is your immediate response to the current crisis?";
+        
+        return (
+          <PulseCheckInput
+            handlePulseCheck={gameActions.handlePulseCheck}
+            localPlayerName={localPlayer.name}
+            question={pulseCheckQuestion}
+          />
+        );
+      }
+      // If already submitted, fall through to default chat interface
+      // fallthrough
     case 'SITREP':
     case 'DISCUSSION':
     case 'TRIAL':
@@ -141,7 +145,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
       };
 
       return (
-        <div className="flex-shrink-0 border-t border-border bg-background-primary p-3">
+        <div className="border-t border-border bg-background-primary p-3">
           {replyingTo && (
             <div className="flex items-center justify-between bg-background-secondary border border-border rounded-md px-3 py-2 mb-3 text-sm">
               <div className="flex items-center gap-2 text-text-secondary">

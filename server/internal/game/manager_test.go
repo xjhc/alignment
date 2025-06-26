@@ -130,6 +130,7 @@ func TestSessionManager_CreateGameFromLobby(t *testing.T) {
 type MockPlayerActor struct {
 	PlayerID     string
 	PlayerName   string
+	PlayerAvatar string
 	SessionToken string
 	CurrentState interfaces.PlayerState
 	Messages     chan interface{}
@@ -137,6 +138,7 @@ type MockPlayerActor struct {
 
 func (m *MockPlayerActor) GetPlayerID() string              { return m.PlayerID }
 func (m *MockPlayerActor) GetPlayerName() string            { return m.PlayerName }
+func (m *MockPlayerActor) GetPlayerAvatar() string          { return m.PlayerAvatar }
 func (m *MockPlayerActor) GetSessionToken() string          { return m.SessionToken }
 func (m *MockPlayerActor) GetState() interfaces.PlayerState { return m.CurrentState }
 

@@ -164,7 +164,7 @@ func TestPlayerActor_StateMachine(t *testing.T) {
 			eventBus.Subscribe("player_disconnected", eventCapture)
 
 			mockConn := createMockWebSocketConnection(t)
-			actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "test-token", mockConn)
+			actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "👤", "test-token", mockConn)
 			actor.SetDependencies(mockLifecycleManager, eventBus)
 
 			// Set initial state
@@ -260,7 +260,7 @@ func TestPlayerActor_StateTransitions(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "test-token", nil)
+	actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "👤", "test-token", nil)
 
 	// Test initial state
 	if actor.GetState() != interfaces.StateIdle {
@@ -312,7 +312,7 @@ func TestPlayerActor_DisconnectHandling(t *testing.T) {
 	eventCapture := make(chan events.Event, 10)
 	eventBus.Subscribe("player_disconnected", eventCapture)
 
-	actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "test-token", nil)
+	actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "👤", "test-token", nil)
 	actor.SetDependencies(mockLifecycleManager, eventBus)
 
 	// Test disconnect from InLobby state
@@ -344,7 +344,7 @@ func TestPlayerActor_ServerMessageHandling(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "test-token", nil)
+	actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "👤", "test-token", nil)
 
 	// Test sending a lobby state update
 	lobbyUpdate := lobby.LobbyStateUpdate{

@@ -161,3 +161,75 @@ export const ConcernPulseCheck: Story = {
     gameState: baseGameState,
   },
 };
+
+export const ProgressiveResponses: Story = {
+  args: {
+    message: {
+      id: 'pulse-7',
+      playerID: 'system',
+      playerName: 'NEXUS',
+      message: 'What is your immediate priority in response to this crisis?',
+      timestamp: '2024-01-01T11:30:00Z',
+      type: 'PULSE_CHECK',
+      isSystem: true,
+      metadata: {
+        pulseCheckResponses: {
+          'Alice': 'Secure our databases immediately',
+          'Bob': 'Identify the source of the breach',
+        },
+        total_responses: 2,
+      },
+    },
+    gameState: baseGameState,
+  },
+};
+
+export const ProgressiveResponsesMore: Story = {
+  args: {
+    message: {
+      id: 'pulse-7',
+      playerID: 'system',
+      playerName: 'NEXUS',
+      message: 'What is your immediate priority in response to this crisis?',
+      timestamp: '2024-01-01T11:30:30Z',
+      type: 'PULSE_CHECK',
+      isSystem: true,
+      metadata: {
+        pulseCheckResponses: {
+          'Alice': 'Secure our databases immediately',
+          'Bob': 'Identify the source of the breach',
+          'Charlie': 'Notify all stakeholders about the situation',
+          'Diana': 'Begin damage assessment protocols',
+        },
+        total_responses: 4,
+      },
+    },
+    gameState: baseGameState,
+  },
+};
+
+export const ProgressiveResponsesFull: Story = {
+  args: {
+    message: {
+      id: 'pulse-7',
+      playerID: 'system',
+      playerName: 'NEXUS',
+      message: 'What is your immediate priority in response to this crisis?',
+      timestamp: '2024-01-01T11:31:00Z',
+      type: 'PULSE_CHECK',
+      isSystem: true,
+      metadata: {
+        pulseCheckResponses: {
+          'Alice': 'Secure our databases immediately',
+          'Bob': 'Identify the source of the breach',
+          'Charlie': 'Notify all stakeholders about the situation',
+          'Diana': 'Begin damage assessment protocols',
+          'Eve': 'Implement emergency containment procedures',
+          'Frank': 'Coordinate with external security teams',
+        },
+        total_responses: 6,
+      },
+    },
+    gameState: baseGameState,
+  },
+};

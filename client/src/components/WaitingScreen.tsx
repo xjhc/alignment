@@ -17,7 +17,8 @@ export function WaitingScreen() {
     hostId,
     lobbyName,
     maxPlayers,
-    connectionError
+    connectionError,
+    countdown
   } = lobbyState;
 
   const formatGameId = (id: string) => {
@@ -85,35 +86,37 @@ export function WaitingScreen() {
             Personnel Connected - {playerInfos.length} / {maxPlayers}
           </div>
 
-          {playerInfos.map((playerInfo, index) => (
-            <div 
-              key={playerInfo.id} 
-              className="flex items-start gap-2 p-1.5 px-2 rounded-md cursor-pointer mb-0.5 hover:bg-background-tertiary animation-slide-in-left"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <div className="w-7 h-7 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border relative">
-                {playerInfo.avatar || '👤'}
-                {playerInfo.id === hostId && (
-                  <div className="absolute -top-1.5 -right-1.5 text-xs bg-amber rounded-full w-4 h-4 flex items-center justify-center border border-background-primary">👑</div>
-                )}
-              </div>
-              <div className="flex-1 flex items-center justify-between">
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-semibold text-text-primary text-sm">
-                    {playerInfo.name}
-                    {playerInfo.id === hostId && ' (Host)'}
-                    {playerInfo.id === appState.playerId && ' (You)'}
-                  </span>
-                  <span className="text-xs text-text-secondary uppercase font-medium">
-                    Personnel
-                  </span>
+          {[...playerInfos]
+            .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime())
+            .map((playerInfo, index) => (
+              <div 
+                key={playerInfo.id} 
+                className="flex items-start gap-2 p-1.5 px-2 rounded-md cursor-pointer mb-0.5 hover:bg-background-tertiary animation-slide-in-left"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="w-7 h-7 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border relative">
+                  {playerInfo.avatar || '👤'}
+                  {playerInfo.id === hostId && (
+                    <div className="absolute -top-1.5 -right-1.5 text-xs bg-amber rounded-full w-4 h-4 flex items-center justify-center border border-background-primary">👑</div>
+                  )}
                 </div>
-                <div className="text-amber font-semibold text-sm">
-                  🪙0
+                <div className="flex-1 flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-semibold text-text-primary text-sm">
+                      {playerInfo.name}
+                      {playerInfo.id === hostId && ' (Host)'}
+                      {playerInfo.id === appState.playerId && ' (You)'}
+                    </span>
+                    <span className="text-xs text-text-secondary uppercase font-medium">
+                      Personnel
+                    </span>
+                  </div>
+                  <div className="text-amber font-semibold text-sm">
+                    🪙0
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
 
           {/* Show empty slots */}
           {Array.from({ length: Math.max(0, maxPlayers - playerInfos.length) }).map((_, index) => (
@@ -139,10 +142,12 @@ export function WaitingScreen() {
             size="lg"
             fullWidth
             onClick={onStartGame}
-            disabled={!canStart || !isConnected}
+            disabled={!canStart || !isConnected || (countdown?.isActive)}
             className="text-base font-semibold text-black bg-amber hover:enabled:bg-amber-light mt-6"
           >
-            {canStart
+            {countdown?.isActive
+              ? '[ INITIATING PROTOCOL... ]'
+              : canStart
               ? '[ > INITIATE CONTAINMENT PROTOCOL ]'
               : `[ NEED ${Math.max(0, 4 - playerInfos.length)} MORE PLAYERS ]`
             }
@@ -151,7 +156,10 @@ export function WaitingScreen() {
 
         {!isHost && (
           <p className="text-text-secondary italic mt-6">
-            Waiting for host to start the game...
+            {countdown?.isActive 
+              ? 'Protocol initiating...'
+              : 'Waiting for host to start the game...'
+            }
           </p>
         )}
 
@@ -164,6 +172,26 @@ export function WaitingScreen() {
           ← Leave Lobby
         </Button>
       </div>
+
+      {/* Countdown Modal */}
+      {countdown?.isActive && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-background-secondary border border-border rounded-lg p-8 text-center animation-scale-in">
+            <div className="text-amber text-6xl font-mono font-bold mb-4 animation-pulse">
+              {countdown.remaining > 0 ? countdown.remaining : 'GO!'}
+            </div>
+            <div className="text-text-primary text-lg mb-2">
+              INITIATING CONTAINMENT PROTOCOL
+            </div>
+            <div className="text-text-secondary text-sm">
+              {countdown.remaining > 0 
+                ? 'Last chance to leave lobby...'
+                : 'Protocol activated!'
+              }
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

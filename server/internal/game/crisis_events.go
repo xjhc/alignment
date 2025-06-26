@@ -196,19 +196,19 @@ func (cem *CrisisEventManager) GetAllCrisisEvents() []CrisisEventDefinition {
 	}
 }
 
-// TriggerRandomCrisis selects and triggers a random crisis event
-func (cem *CrisisEventManager) TriggerRandomCrisis() *core.CrisisEvent {
+// TriggerRandomCrisis selects and triggers a random crisis event, returning the crisis and any additional events
+func (cem *CrisisEventManager) TriggerRandomCrisis() (*core.CrisisEvent, []core.Event) {
 	allCrises := cem.GetAllCrisisEvents()
 	selectedCrisis := allCrises[cem.rng.Intn(len(allCrises))]
 
 	return cem.TriggerSpecificCrisis(selectedCrisis.Type)
 }
 
-// TriggerSpecificCrisis creates and applies a specific crisis event
-func (cem *CrisisEventManager) TriggerSpecificCrisis(crisisType CrisisEventType) *core.CrisisEvent {
+// TriggerSpecificCrisis creates and applies a specific crisis event, returning any additional events generated
+func (cem *CrisisEventManager) TriggerSpecificCrisis(crisisType CrisisEventType) (*core.CrisisEvent, []core.Event) {
 	definition := cem.getCrisisDefinition(crisisType)
 	if definition == nil {
-		return nil
+		return nil, nil
 	}
 
 	crisis := &core.CrisisEvent{
@@ -218,17 +218,19 @@ func (cem *CrisisEventManager) TriggerSpecificCrisis(crisisType CrisisEventType)
 		Effects:     make(map[string]interface{}),
 	}
 
-	// Apply immediate effects
-	cem.applyCrisisEffects(crisis, definition.Effects)
+	// Apply immediate effects and collect any additional events
+	additionalEvents := cem.applyCrisisEffects(crisis, definition.Effects)
 
 	// Store in game state
 	cem.gameState.CrisisEvent = crisis
 
-	return crisis
+	return crisis, additionalEvents
 }
 
 // applyCrisisEffects converts CrisisEffects to the generic effects map and applies immediate effects
-func (cem *CrisisEventManager) applyCrisisEffects(crisis *core.CrisisEvent, effects CrisisEffects) {
+func (cem *CrisisEventManager) applyCrisisEffects(crisis *core.CrisisEvent, effects CrisisEffects) []core.Event {
+	var additionalEvents []core.Event
+
 	// Store all effects in the crisis
 	if effects.SupermajorityRequired {
 		crisis.Effects["supermajority_required"] = true
@@ -268,12 +270,16 @@ func (cem *CrisisEventManager) applyCrisisEffects(crisis *core.CrisisEvent, effe
 
 	// Apply immediate effects
 	if effects.RevealRandomRole {
-		cem.revealRandomPlayerRole(crisis)
+		if roleRevealEvent := cem.revealRandomPlayerRole(crisis); roleRevealEvent != nil {
+			additionalEvents = append(additionalEvents, *roleRevealEvent)
+		}
 	}
+
+	return additionalEvents
 }
 
 // revealRandomPlayerRole implements the Database Corruption crisis effect
-func (cem *CrisisEventManager) revealRandomPlayerRole(crisis *core.CrisisEvent) {
+func (cem *CrisisEventManager) revealRandomPlayerRole(crisis *core.CrisisEvent) *core.Event {
 	// Find all alive players with unrevealed roles
 	candidates := make([]string, 0)
 	for playerID, player := range cem.gameState.Players {
@@ -285,7 +291,7 @@ func (cem *CrisisEventManager) revealRandomPlayerRole(crisis *core.CrisisEvent) 
 	if len(candidates) == 0 {
 		// No unrevealed roles, crisis has no effect
 		crisis.Effects["reveal_result"] = "no_unrevealed_roles"
-		return
+		return nil
 	}
 
 	// Select random player
@@ -305,6 +311,24 @@ func (cem *CrisisEventManager) revealRandomPlayerRole(crisis *core.CrisisEvent) 
 	// Update crisis description with specific details
 	crisis.Description = fmt.Sprintf("Database corruption has revealed that %s is the %s",
 		selectedPlayer.Name, selectedPlayer.Role.Name)
+
+	// Generate and return a PLAYER_ROLE_REVEALED event
+	roleRevealedEvent := &core.Event{
+		ID:        fmt.Sprintf("crisis_role_revealed_%s_%d", selectedPlayerID, time.Now().UnixNano()),
+		Type:      core.EventPlayerRoleRevealed,
+		GameID:    cem.gameState.ID,
+		PlayerID:  selectedPlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"player_id":    selectedPlayerID,
+			"role_type":    string(selectedPlayer.Role.Type),
+			"role_name":    selectedPlayer.Role.Name,
+			"reason":       "crisis_database_corruption",
+			"crisis_type":  string(crisis.Type),
+		},
+	}
+
+	return roleRevealedEvent
 }
 
 // assignRandomRole assigns a random role to a player (for crisis revelation)

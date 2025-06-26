@@ -28,6 +28,7 @@ const (
 type PlayerActor struct {
 	playerID     string
 	playerName   string
+	playerAvatar string
 	sessionToken string
 	conn         *websocket.Conn
 	send         chan []byte
@@ -54,12 +55,13 @@ type PlayerActor struct {
 }
 
 // NewPlayerActor creates a new PlayerActor for a WebSocket connection
-func NewPlayerActor(ctx context.Context, playerID, playerName, sessionToken string, conn *websocket.Conn) *PlayerActor {
+func NewPlayerActor(ctx context.Context, playerID, playerName, playerAvatar, sessionToken string, conn *websocket.Conn) *PlayerActor {
 	actorCtx, cancel := context.WithCancel(ctx)
 
 	return &PlayerActor{
 		playerID:      playerID,
 		playerName:    playerName,
+		playerAvatar:  playerAvatar,
 		sessionToken:  sessionToken,
 		conn:          conn,
 		send:          make(chan []byte, 256),
@@ -121,6 +123,11 @@ func (pa *PlayerActor) GetPlayerID() string {
 // GetPlayerName returns the player's name
 func (pa *PlayerActor) GetPlayerName() string {
 	return pa.playerName
+}
+
+// GetPlayerAvatar returns the player's avatar
+func (pa *PlayerActor) GetPlayerAvatar() string {
+	return pa.playerAvatar
 }
 
 // GetSessionToken returns the player's session token
@@ -534,6 +541,8 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 	switch action.Type {
 	case "POST_CHAT_MESSAGE":
 		actionType = core.ActionSendMessage
+	case "REACT_TO_MESSAGE":
+		actionType = core.ActionReactToMessage
 	case "UPDATE_STATUS":
 		actionType = core.ActionSetSlackStatus
 	}
@@ -541,6 +550,7 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 	// List of valid game actions that should be forwarded to the SessionManager
 	validGameActions := map[core.ActionType]bool{
 		core.ActionSendMessage:         true,
+		core.ActionReactToMessage:      true,
 		core.ActionSubmitVote:          true,
 		core.ActionSubmitNightAction:   true,
 		core.ActionMineTokens:          true,

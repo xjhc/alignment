@@ -32,10 +32,10 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/go/pkg/mod
-        # Improved cache key includes the Go version
-        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        # FIX: Replaced matrix variable with the actual Go version.
+        key: ${{ runner.os }}-go-1.21-${{ hashFiles('**/go.sum') }}
         restore-keys: |
-          ${{ runner.os }}-go-${{ matrix.go-version }}-
+          ${{ runner.os }}-go-1.21-
 
     - name: Download dependencies
       working-directory: ./server

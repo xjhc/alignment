@@ -10,26 +10,28 @@ export interface CoreGameState {
   id: string;
   players: Record<string, CorePlayer>;
   phase: CorePhase;
-  dayNumber: number;
-  chatMessages: CoreChatMessage[];
-  createdAt: string;
-  updatedAt: string;
+  day_number: number;  // snake_case to match Go JSON tags
+  chat_messages: CoreChatMessage[];  // snake_case to match Go JSON tags
+  created_at: string;  // snake_case to match Go JSON tags
+  updated_at: string;  // snake_case to match Go JSON tags
   settings: CoreGameSettings;
-  voteState?: CoreVoteState;
-  crisisEvent?: CoreCrisisEvent;
-  winCondition?: CoreWinCondition;
-  nightActions?: Record<string, CoreSubmittedNightAction>;
-  corporateMandate?: CoreCorporateMandate;
-  pulseCheckResponses?: Record<string, string>;
-  nominatedPlayer?: string;
-  nightActionResults?: any[];
-  privateNotifications?: any[];
+  vote_state?: CoreVoteState;  // snake_case to match Go JSON tags
+  crisis_event?: CoreCrisisEvent;  // snake_case to match Go JSON tags
+  win_condition?: CoreWinCondition;  // snake_case to match Go JSON tags
+  night_actions?: Record<string, CoreSubmittedNightAction>;  // snake_case to match Go JSON tags
+  corporate_mandate?: CoreCorporateMandate;  // snake_case to match Go JSON tags
+  pulse_check_responses?: Record<string, string>;  // snake_case to match Go JSON tags
+  nominated_player?: string;  // snake_case to match Go JSON tags
+  skip_votes?: Record<string, boolean>;  // snake_case to match Go JSON tags
+  night_action_results?: any[];
+  private_notifications?: any[];
 }
 
 export interface CorePlayer {
   id: string;
   name: string;
   jobTitle: string;
+  controlType: string;
   isAlive: boolean;
   tokens: number;
   projectMilestones: number;
@@ -45,6 +47,7 @@ export interface CorePlayer {
   slackStatus?: string;
   partingShot?: string;
   systemShocks?: CoreSystemShock[];
+  isRolePubliclyRevealed?: boolean;
 }
 
 export interface CoreRole {
@@ -177,15 +180,20 @@ export function convertToClientTypes(coreState: CoreGameState): any {
     id: coreState.id,
     players: playersArray,
     phase: coreState.phase,
-    dayNumber: coreState.dayNumber,
-    chatMessages: coreState.chatMessages || [],
-    voteState: coreState.voteState,
-    crisisEvent: coreState.crisisEvent,
-    winCondition: coreState.winCondition,
-    nominatedPlayer: coreState.nominatedPlayer,
-    corporateMandate: coreState.corporateMandate,
-    nightActionResults: coreState.nightActionResults || [],
-    privateNotifications: coreState.privateNotifications || [],
+    dayNumber: coreState.day_number,  // Convert snake_case to camelCase
+    chatMessages: coreState.chat_messages || [],  // Convert snake_case to camelCase
+    voteState: coreState.vote_state,  // Convert snake_case to camelCase
+    crisisEvent: coreState.crisis_event,  // Convert snake_case to camelCase
+    winCondition: coreState.win_condition,  // Convert snake_case to camelCase
+    nominatedPlayer: coreState.nominated_player,  // Convert snake_case to camelCase
+    corporateMandate: coreState.corporate_mandate,  // Convert snake_case to camelCase
+    nightActionResults: coreState.night_action_results || [],
+    privateNotifications: coreState.private_notifications || [],
+    settings: coreState.settings,
+    createdAt: coreState.created_at,  // Convert snake_case to camelCase
+    updatedAt: coreState.updated_at,  // Convert snake_case to camelCase
+    nightActions: coreState.night_actions,  // Convert snake_case to camelCase
+    pulseCheckResponses: coreState.pulse_check_responses,  // Convert snake_case to camelCase
   };
 }
 
@@ -203,10 +211,10 @@ export function convertToCoreTypes(clientState: any): CoreGameState {
     id: clientState.id,
     players: playersMap,
     phase: clientState.phase,
-    dayNumber: clientState.dayNumber,
-    chatMessages: clientState.chatMessages || [],
-    createdAt: clientState.createdAt || new Date().toISOString(),
-    updatedAt: clientState.updatedAt || new Date().toISOString(),
+    day_number: clientState.dayNumber,  // Convert camelCase to snake_case
+    chat_messages: clientState.chatMessages || [],  // Convert camelCase to snake_case
+    created_at: clientState.createdAt || new Date().toISOString(),  // Convert camelCase to snake_case
+    updated_at: clientState.updatedAt || new Date().toISOString(),  // Convert camelCase to snake_case
     settings: clientState.settings || {
       maxPlayers: 8,
       minPlayers: 2,
@@ -221,13 +229,13 @@ export function convertToCoreTypes(clientState: any): CoreGameState {
       startingTokens: 1,
       votingThreshold: 0.5,
     },
-    voteState: clientState.voteState,
-    crisisEvent: clientState.crisisEvent,
-    winCondition: clientState.winCondition,
-    nightActions: clientState.nightActions,
-    corporateMandate: clientState.corporateMandate,
-    pulseCheckResponses: clientState.pulseCheckResponses,
-    nominatedPlayer: clientState.nominatedPlayer,
+    vote_state: clientState.voteState,  // Convert camelCase to snake_case
+    crisis_event: clientState.crisisEvent,  // Convert camelCase to snake_case
+    win_condition: clientState.winCondition,  // Convert camelCase to snake_case
+    night_actions: clientState.nightActions,  // Convert camelCase to snake_case
+    corporate_mandate: clientState.corporateMandate,  // Convert camelCase to snake_case
+    pulse_check_responses: clientState.pulseCheckResponses,  // Convert camelCase to snake_case
+    nominated_player: clientState.nominatedPlayer,  // Convert camelCase to snake_case
   };
 }
 

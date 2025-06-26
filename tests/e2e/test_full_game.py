@@ -1,18 +1,22 @@
-import requests
-import json
-import websocket
+
+
+import os
 import time
-import pytest
+import json
+import requests
+import websocket
 import threading
+import pytest
 from typing import List, Dict, Any
 
-# Configuration
-BASE_URL = "http://localhost:8080"
-WS_URL = "ws://localhost:8080/ws"
+# --- Configuration ---
+BASE_URL = os.environ.get("E2E_BASE_URL", "http://localhost:8080")
+WS_URL = os.environ.get("E2E_WS_URL", "ws://localhost:8080/ws")
+NUM_PLAYERS = 6
 
 # --- Helper Functions ---
 
-def receive_websocket_messages(ws, received_messages, stop_event, player_id, timeout=10):
+def receive_websocket_messages(ws, received_messages, stop_event, player_id, timeout=20):
     """Receives WebSocket messages in a separate thread for a single player."""
     start_time = time.time()
     try:
@@ -23,7 +27,6 @@ def receive_websocket_messages(ws, received_messages, stop_event, player_id, tim
                 if not message_str:
                     continue
                 
-                # Handle potentially batched messages
                 for line in message_str.strip().split('\n'):
                     if not line:
                         continue
@@ -57,6 +60,8 @@ class PlayerClient:
         self.received_messages: Dict[str, List[Any]] = {}
         self.stop_event = threading.Event()
         self.receive_thread = None
+        self.role: str = ""
+        self.alignment: str = ""
 
     def create_lobby(self) -> str:
         """Creates a new lobby and sets this player as the host."""
@@ -90,7 +95,7 @@ class PlayerClient:
     def connect_websocket(self):
         """Connects to the WebSocket and starts listening for messages."""
         ws_url = f"{WS_URL}?gameId={self.game_id}&playerId={self.player_id}&sessionToken={self.session_token}"
-        self.ws = websocket.create_connection(ws_url, timeout=5)
+        self.ws = websocket.create_connection(ws_url, timeout=10)
         self.receive_thread = threading.Thread(
             target=receive_websocket_messages,
             args=(self.ws, self.received_messages, self.stop_event, self.player_id)
@@ -102,9 +107,6 @@ class PlayerClient:
         """Sends a JSON action to the WebSocket."""
         action = {
             "type": action_type,
-            "player_id": self.player_id,
-            "game_id": self.game_id,
-            "timestamp": time.time(),
             "payload": payload
         }
         print(f"  [{self.player_id}] Sending: {action_type} with payload {payload}")
@@ -128,15 +130,15 @@ class PlayerClient:
         events = self.get_events(event_type)
         return events[-1] if events else None
 
-# --- Test Suite ---
+# --- Test Fixture ---
 
 @pytest.fixture(scope="module")
 def game_setup():
-    """Fixture to set up a game with 6 players and tear it down."""
+    """Fixture to set up a game with the specified number of players and tear it down."""
     print("\n--- E2E Game Setup ---")
     
     # Health check loop
-    for _ in range(10): # Try for 10 seconds
+    for _ in range(15): # Try for 15 seconds
         try:
             response = requests.get(f"{BASE_URL}/health")
             if response.status_code == 200:
@@ -156,7 +158,7 @@ def game_setup():
         players.append(host)
 
         # Create and join other players
-        for i in range(2, 7):
+        for i in range(2, NUM_PLAYERS + 1):
             player = PlayerClient(f"Player{i}", "🤖")
             player.join_lobby(game_id)
             players.append(player)
@@ -165,8 +167,7 @@ def game_setup():
         for player in players:
             player.connect_websocket()
         
-        # Give a moment for all LOBBY_STATE_UPDATEs to arrive
-        time.sleep(2)
+        time.sleep(2) # Allow time for all LOBBY_STATE_UPDATEs to arrive
 
         yield game_id, players
 
@@ -175,71 +176,84 @@ def game_setup():
         for player in players:
             player.stop()
 
+# --- Test Cases ---
+
 def test_full_game_happy_path(game_setup):
     """
-    Tests a full game flow from lobby to a win condition.
+    Tests a full game flow from lobby creation to a valid win condition.
     """
     game_id, players = game_setup
     host = players[0]
 
-    # 1. Host starts the game
-    print("\nSTEP 1: Host starts the game...")
-    host.send_action("START_GAME", {})
-    time.sleep(3) # Allow time for game start processing
+    # 1. Verify lobby state
+    print("\nSTEP 1: Verifying lobby state...")
+    for player in players:
+        lobby_state = player.get_latest_event("LOBBY_STATE_UPDATE")
+        assert lobby_state is not None, f"{player.name} did not receive LOBBY_STATE_UPDATE"
+        payload = lobby_state.get("payload", {})
+        assert len(payload.get("players", [])) == NUM_PLAYERS, f"{player.name} sees incorrect player count"
+        assert payload.get("host_id") == host.player_id, f"{player.name} has incorrect host_id"
+    print("  ✅ All players see correct initial lobby state.")
 
-    # 2. Verify all players receive game start events
-    print("\nSTEP 2: Verifying game start for all players...")
+    # 2. Host starts the game
+    print("\nSTEP 2: Host starts the game...")
+    host.send_action("START_GAME", {})
+    time.sleep(5) # Allow time for game start processing and role assignment
+
+    # 3. Verify all players receive game start events
+    print("\nSTEP 3: Verifying game start for all players...")
+    ai_player = None
     for player in players:
         role_assigned = player.get_latest_event("ROLE_ASSIGNED")
-        snapshot = player.get_latest_event("GAME_STATE_UPDATE") # Changed from GAME_STATE_SNAPSHOT
+        snapshot = player.get_latest_event("GAME_STATE_UPDATE")
         
         assert role_assigned is not None, f"{player.name} did not receive ROLE_ASSIGNED"
         assert snapshot is not None, f"{player.name} did not receive GAME_STATE_UPDATE"
         
         role_payload = role_assigned.get("payload", {})
-        assert "role" in role_payload
-        assert "alignment" in role_payload
+        assert "role" in role_payload, f"ROLE_ASSIGNED payload for {player.name} is missing 'role'"
+        assert "alignment" in role_payload, f"ROLE_ASSIGNED payload for {player.name} is missing 'alignment'"
+        
         player.role = role_payload["role"]["type"]
         player.alignment = role_payload["alignment"]
+        
+        if player.alignment == "ALIGNED":
+            ai_player = player
+        
         print(f"  ✅ {player.name} assigned role {player.role} and alignment {player.alignment}")
 
-    # 3. Simulate a few rounds of voting and night actions
-    # This is a simplified simulation. A real test would be more dynamic.
-    print("\nSTEP 3: Simulating game rounds...")
-    
-    # Find the AI player to target for elimination
-    ai_player = None
-    for p in players:
-        # In this test, the AI is assigned the 'CTO' role based on game logic
-        if p.role == 'CTO':
-            ai_player = p
-            break
-    
-    assert ai_player is not None, "Could not identify the AI player to target for elimination"
-    print(f"  Identified AI player: {ai_player.name} ({ai_player.player_id}) with role {ai_player.role}")
+    assert ai_player is not None, "Could not identify the AI player"
+    print(f"  Identified AI player: {ai_player.name} ({ai_player.player_id})")
 
-    # Day 1: Nominate and vote out the AI player
-    print("\n--- DAY 1: Voting Phase ---")
+    # 4. Simulate a round of voting to eliminate the AI
+    print("\nSTEP 4: Simulating Day 1 voting...")
     
     # Nomination Phase
+    print("  Nominating the AI player...")
     for p in players:
-        if p.player_id != ai_player.player_id: # Everyone votes for the AI
+        if p.isAlive and p.player_id != ai_player.player_id:
             p.send_action("SUBMIT_VOTE", {"vote_type": "NOMINATION", "target_id": ai_player.player_id})
-    
+            time.sleep(0.1) # Stagger votes slightly
+
     time.sleep(2) # Allow votes to be processed
 
     # Verdict Phase
+    print("  Voting to eliminate the AI player...")
     for p in players:
-        p.send_action("SUBMIT_VOTE", {"vote_type": "VERDICT", "target_id": "GUILTY"})
+        if p.isAlive:
+            p.send_action("SUBMIT_VOTE", {"vote_type": "VERDICT", "verdict": "GUILTY"})
+            time.sleep(0.1)
 
     time.sleep(3) # Allow verdict to be processed
 
-    # 4. Verify game end
-    print("\nSTEP 4: Verifying game end...")
+    # 5. Verify game end
+    print("\nSTEP 5: Verifying game end...")
     for p in players:
         game_ended = p.get_latest_event("GAME_ENDED")
         assert game_ended is not None, f"{p.name} did not receive GAME_ENDED event"
         
         end_payload = game_ended.get("payload", {})
-        assert end_payload.get("winning_faction") == "HUMANS", "Expected HUMAN faction to win"
+        assert end_payload.get("winning_faction") == "HUMANS", f"Expected HUMAN faction to win, but got {end_payload.get('winning_faction')}"
         print(f"  ✅ {p.name} received correct GAME_ENDED event.")
+
+

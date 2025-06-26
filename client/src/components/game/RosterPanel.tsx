@@ -4,7 +4,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { PlayerCard } from './PlayerCard';
 
 export const RosterPanel: React.FC = () => {
-  const { gameState, localPlayerId, localPlayer, viewedPlayerId, setViewedPlayer } = useGameContext();
+  const { gameState, localPlayerId, localPlayer, viewedPlayerId, setViewedPlayer, activeChannel, setActiveChannel } = useGameContext();
   const { theme, toggleTheme } = useTheme();
   const players = gameState.players;
 
@@ -17,6 +17,31 @@ export const RosterPanel: React.FC = () => {
 
   const { humanCount, alignedCount, deactivatedCount } = getPlayerCounts();
   const isAI = localPlayer?.alignment === 'AI' || localPlayer?.alignment === 'ALIGNED';
+
+  const getChannelAccess = (channelId: string) => {
+    switch (channelId) {
+      case '#war-room':
+        return localPlayer?.isAlive || false;
+      case '#aligned':
+        return isAI;
+      case '#off-boarding':
+        return !localPlayer?.isAlive || false;
+      default:
+        return false;
+    }
+  };
+
+  const getUnreadCount = (channelId: string) => {
+    return gameState.chatMessages.filter(msg => 
+      msg.channelID === channelId && !msg.isSystem
+    ).length; // Simplified for now - would need read state tracking for real unread count
+  };
+
+  const handleChannelClick = (channelId: string) => {
+    if (getChannelAccess(channelId)) {
+      setActiveChannel(channelId);
+    }
+  };
 
   return (
     <aside className="flex flex-col bg-background-secondary overflow-hidden select-none">
@@ -38,23 +63,48 @@ export const RosterPanel: React.FC = () => {
 
       <div className="px-2 py-3 border-b border-border flex-shrink-0">
         <div className="text-xs font-bold text-text-muted uppercase tracking-wider px-1.5 pb-1.5 mb-2 flex justify-between items-center">Text Channels</div>
-        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-white font-normal cursor-pointer mb-0.5 transition-all duration-150 text-sm bg-amber-500 hover:bg-amber-600 hover:translate-x-0.5">
+        
+        {/* War Room Channel */}
+        <div 
+          onClick={() => handleChannelClick('#war-room')}
+          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer mb-0.5 transition-all duration-150 text-sm ${
+            activeChannel === '#war-room' 
+              ? 'bg-background-quaternary text-text-primary border-l-2 border-primary' 
+              : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
+          } ${!getChannelAccess('#war-room') ? 'opacity-50 cursor-not-allowed' : 'hover:translate-x-0.5'}`}
+        >
           <span>#</span>
-          <span className="channel-name">war-room</span>
+          <span className={`channel-name ${getUnreadCount('#war-room') > 0 ? 'font-bold text-text-primary' : ''}`}>war-room</span>
+          {!getChannelAccess('#war-room') && <span className="ml-auto text-xs opacity-50">❌</span>}
         </div>
-        <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer mb-0.5 transition-all duration-150 text-sm ${
-          isAI 
-            ? 'text-cyan-600 bg-cyan-500/10 opacity-100' 
-            : 'text-text-muted opacity-60'
-        } hover:bg-background-tertiary hover:text-text-primary hover:translate-x-0.5`}>
+
+        {/* Aligned Channel */}
+        <div 
+          onClick={() => handleChannelClick('#aligned')}
+          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer mb-0.5 transition-all duration-150 text-sm ${
+            activeChannel === '#aligned' 
+              ? 'bg-background-quaternary text-text-primary border-l-2 border-primary' 
+              : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
+          } ${!getChannelAccess('#aligned') ? 'opacity-50 cursor-not-allowed' : 'hover:translate-x-0.5'}`}
+        >
           <span>#</span>
-          <span className="channel-name">aligned</span>
-          {!isAI && <span className="ml-auto text-xs opacity-50">❌</span>}
+          <span className={`channel-name ${getUnreadCount('#aligned') > 0 ? 'font-bold text-text-primary' : ''}`}>aligned</span>
+          {!getChannelAccess('#aligned') && <span className="ml-auto text-xs opacity-50">❌</span>}
         </div>
+
+        {/* Off-boarding Channel - only show if there are deactivated players */}
         {deactivatedCount > 0 && (
-          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-text-secondary font-normal cursor-pointer mb-0.5 transition-all duration-150 text-sm hover:bg-background-tertiary hover:text-text-primary hover:translate-x-0.5">
+          <div 
+            onClick={() => handleChannelClick('#off-boarding')}
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer mb-0.5 transition-all duration-150 text-sm ${
+              activeChannel === '#off-boarding' 
+                ? 'bg-background-quaternary text-text-primary border-l-2 border-primary' 
+                : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
+            } ${!getChannelAccess('#off-boarding') ? 'opacity-50 cursor-not-allowed' : 'hover:translate-x-0.5'}`}
+          >
             <span>#</span>
-            <span className="channel-name">off-boarding</span>
+            <span className={`channel-name ${getUnreadCount('#off-boarding') > 0 ? 'font-bold text-text-primary' : ''}`}>off-boarding</span>
+            {!getChannelAccess('#off-boarding') && <span className="ml-auto text-xs opacity-50">❌</span>}
           </div>
         )}
       </div>

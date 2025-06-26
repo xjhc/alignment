@@ -19,10 +19,13 @@ type EventType string
 
 const (
 	// Game lifecycle events
-	EventGameCreated  EventType = "GAME_CREATED"
-	EventGameStarted  EventType = "GAME_STARTED"
-	EventGameEnded    EventType = "GAME_ENDED"
-	EventPhaseChanged EventType = "PHASE_CHANGED"
+	EventGameCreated              EventType = "GAME_CREATED"
+	EventGameStarted              EventType = "GAME_STARTED"
+	EventGameStartCountdownStart  EventType = "GAME_START_COUNTDOWN_INITIATED"
+	EventGameStartCountdownUpdate EventType = "GAME_START_COUNTDOWN_UPDATE"
+	EventGameStartCountdownCancel EventType = "GAME_START_COUNTDOWN_CANCELLED" 
+	EventGameEnded                EventType = "GAME_ENDED"
+	EventPhaseChanged             EventType = "PHASE_CHANGED"
 
 	// Player events
 	EventPlayerJoined       EventType = "PLAYER_JOINED"
@@ -31,6 +34,7 @@ const (
 	EventPlayerRoleRevealed EventType = "PLAYER_ROLE_REVEALED"
 	EventPlayerAligned      EventType = "PLAYER_ALIGNED"
 	EventPlayerShocked      EventType = "PLAYER_SHOCKED"
+	EventHostTransferred    EventType = "HOST_TRANSFERRED"
 
 	// Voting events
 	EventVoteStarted      EventType = "VOTE_STARTED"
@@ -60,13 +64,15 @@ const (
 
 	// Communication events
 	EventChatMessage         EventType = "CHAT_MESSAGE"
+	EventMessageReaction     EventType = "MESSAGE_REACTION"
 	EventSystemMessage       EventType = "SYSTEM_MESSAGE"
 	EventPrivateNotification EventType = "PRIVATE_NOTIFICATION"
 
 	// Crisis and Special events
 	EventCrisisTriggered     EventType = "CRISIS_TRIGGERED"
 	EventPulseCheckStarted   EventType = "PULSE_CHECK_STARTED"
-	EventPulseCheckSubmitted EventType = "PULSE_CHECK_SUBMITTED"
+	// EventPulseCheckSubmitted is deprecated in favor of EventPulseCheckUpdated
+	EventPulseCheckUpdated   EventType = "PULSE_CHECK_UPDATED"
 	EventPulseCheckRevealed  EventType = "PULSE_CHECK_REVEALED"
 	EventRoleAbilityUnlocked EventType = "ROLE_ABILITY_UNLOCKED"
 	EventProjectMilestone    EventType = "PROJECT_MILESTONE"
@@ -86,10 +92,16 @@ const (
 	// Status and State events
 	EventPlayerStatusChanged EventType = "PLAYER_STATUS_CHANGED"
 	EventGameStateSnapshot   EventType = "GAME_STATE_SNAPSHOT"
+	EventGameStateUpdate     EventType = "GAME_STATE_UPDATE"
+	EventLobbyStateUpdate    EventType = "LOBBY_STATE_UPDATE"
+	EventClientIdentified    EventType = "CLIENT_IDENTIFIED"
 	EventChatHistorySnapshot EventType = "CHAT_HISTORY_SNAPSHOT"
 	EventPlayerReconnected   EventType = "PLAYER_RECONNECTED"
 	EventPlayerDisconnected  EventType = "PLAYER_DISCONNECTED"
 	EventSyncComplete        EventType = "SYNC_COMPLETE"
+
+	// Phase skipping events
+	EventSkipVoteUpdated EventType = "SKIP_VOTE_UPDATED"
 
 	// Win Condition events
 	EventVictoryCondition EventType = "VICTORY_CONDITION"
@@ -146,11 +158,13 @@ const (
 
 	// Communication actions
 	ActionSendMessage      ActionType = "SEND_MESSAGE"
+	ActionReactToMessage   ActionType = "REACT_TO_MESSAGE"
 	ActionSubmitPulseCheck ActionType = "SUBMIT_PULSE_CHECK"
 
 	// Voting actions
 	ActionSubmitVote       ActionType = "SUBMIT_VOTE"
 	ActionExtendDiscussion ActionType = "EXTEND_DISCUSSION"
+	ActionSubmitSkipVote   ActionType = "SUBMIT_SKIP_VOTE"
 
 	// Night actions
 	ActionSubmitNightAction ActionType = "SUBMIT_NIGHT_ACTION"
@@ -211,17 +225,19 @@ type Player struct {
 	JoinedAt          time.Time `json:"joinedAt"`
 
 	// Private fields (only visible to the player themselves)
-	Alignment       string       `json:"alignment,omitempty"` // "HUMAN" or "ALIGNED"
-	Role            *Role        `json:"role,omitempty"`
-	PersonalKPI     *PersonalKPI `json:"personalKPI,omitempty"`
-	AIEquity        int          `json:"aiEquity,omitempty"` // For alignment conversion
-	HasUsedAbility  bool         `json:"hasUsedAbility,omitempty"`
-	LastNightAction *NightAction `json:"lastNightAction,omitempty"`
+	Alignment              string       `json:"alignment,omitempty"` // "HUMAN" or "ALIGNED"
+	Role                   *Role        `json:"role,omitempty"`
+	PersonalKPI            *PersonalKPI `json:"personalKPI,omitempty"`
+	AIEquity               int          `json:"aiEquity,omitempty"` // For alignment conversion
+	HasUsedAbility         bool         `json:"hasUsedAbility,omitempty"`
+	LastNightAction        *NightAction `json:"lastNightAction,omitempty"`
+	HasSubmittedPulseCheck bool         `json:"hasSubmittedPulseCheck,omitempty"`
 
 	// Public status and effects
-	SlackStatus  string        `json:"slackStatus,omitempty"`
-	PartingShot  string        `json:"partingShot,omitempty"`
-	SystemShocks []SystemShock `json:"systemShocks,omitempty"`
+	SlackStatus           string        `json:"slackStatus,omitempty"`
+	PartingShot           string        `json:"partingShot,omitempty"`
+	SystemShocks          []SystemShock `json:"systemShocks,omitempty"`
+	IsRolePubliclyRevealed bool         `json:"isRolePubliclyRevealed"`
 }
 
 // Role represents a player's role and abilities
@@ -337,20 +353,33 @@ type CrisisEvent struct {
 
 // ChatMessage represents a chat message
 type ChatMessage struct {
-	ID         string    `json:"id"`
-	PlayerID   string    `json:"playerID"`
-	PlayerName string    `json:"playerName"`
-	Message    string    `json:"message"`
-	Timestamp  time.Time `json:"timestamp"`
-	IsSystem   bool      `json:"isSystem"`
+	ID         string                 `json:"id"`
+	PlayerID   string                 `json:"playerID"`
+	PlayerName string                 `json:"playerName"`
+	Message    string                 `json:"message"`
+	Timestamp  time.Time              `json:"timestamp"`
+	IsSystem   bool                   `json:"isSystem"`
+	Type       string                 `json:"type,omitempty"`       // Message type for system messages (e.g., "PULSE_CHECK", "SITREP")
+	ChannelID  string                 `json:"channelID"`            // "#war-room" or "#aligned"
+	ReactToID  string                 `json:"reactToID,omitempty"`  // ID of message being reacted to
+	Reactions  []EmojiReaction        `json:"reactions,omitempty"`  // Emoji reactions on this message
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`   // Additional data for system messages
+}
+
+// EmojiReaction represents an emoji reaction to a message
+type EmojiReaction struct {
+	Emoji    string    `json:"emoji"`    // The emoji unicode or name
+	PlayerID string    `json:"playerID"` // Player who reacted
+	PlayerName string  `json:"playerName"` // Player name for quick display
+	Timestamp time.Time `json:"timestamp"` // When the reaction was added
 }
 
 // VoteState represents the current voting state
 type VoteState struct {
 	Type         VoteType          `json:"type"`
-	Votes        map[string]string `json:"votes"`         // PlayerID -> TargetID
+	Votes        map[string]string `json:"votes"`        // PlayerID -> TargetID
 	TokenWeights map[string]int    `json:"tokenWeights"` // PlayerID -> Token count
-	Results      map[string]int    `json:"results"`       // TargetID -> Total tokens
+	Results      map[string]int    `json:"results"`      // TargetID -> Total tokens
 	IsComplete   bool              `json:"isComplete"`
 }
 
