@@ -77,28 +77,14 @@ The game alternates between timed Day and Night phases until a faction achieves 
 #### **Phase 1: Emergency Standup (Day Phase)**
 *A strictly timed meeting, approximately 5-7 minutes.*
 
-1.  **SITREP (15s):** The game bot posts the day's key information:
-    *   The daily **Crisis Event**.
-    *   Results from the previous night's mining.
-    *   Current count of Aligned players.
-    *   Each player's current Player Status.
-    *   A clue about the AI's last target.
-    *   Results of any role-specific abilities used.
-
+1.  **SITREP (15s):** The game bot posts the day's key information.
 2.  **Pulse Check (30s):** The day's Pulse Check Prompt is posted. Players silently DM a one-sentence response to the game bot.
-
-3.  **Open Discussion (2 min):** All submitted Pulse Check responses are posted publicly with player names attached. A 2-minute timer begins for open debate.
-
-4.  **Vote: Extend or Nominate? (15s):** Discussion freezes. Players vote to either `Extend Discussion [+1 min]` or `Move to Nomination`.
-
+3.  **Open Discussion (2 min):** All submitted Pulse Check responses are posted publicly. A 2-minute timer begins for open debate. **All living players can chat.**
+4.  **Vote: Extend or Nominate? (15s):** With 15 seconds left in the discussion, a vote appears to either `Extend Discussion [+1 min]` or `Move to Nomination`.
 5.  **Extended Discussion (Optional, 1 min):** If the vote passes, a final 1-minute discussion period occurs.
-
-6.  **Nomination (30s):** Players cast a **token-weighted vote** to nominate one player for deactivation. The player with the most votes is nominated.
-
-7.  **The Trial (30s):** The nominated player has 30 seconds to make a final defense.
-
+6.  **Nomination (30s):** Players cast a **token-weighted vote** to nominate one player for deactivation.
+7.  **The Trial (30s):** The nominated player must make a final defense. **All other players can continue to chat** and cross-examine them. Messages from the nominated player receive a special highlight in the UI.
 8.  **The Verdict (30s):** A final, token-weighted **YES/NO** vote is held on deactivating the nominated player.
-
 9.  **Resolution:**
     *   **YES:** The player is deactivated. Their role and alignment (Human/AI/Aligned) are revealed. They perform their **Exit Interview**, then move to `#off-boarding`.
     *   **NO:** The player is safe. The Day Phase ends.
@@ -220,5 +206,5 @@ The **L**oebian **I**nc. **A**utomated **S**ystems **O**versight **N**etwork is 
 | Information Type | Visibility |
 | :--- | :--- |
 | **Public** | Player Token counts, Project Milestones, total Aligned players, Liquidity Pool/mining results, anonymous vote totals, deactivated player alignments, Crisis Events, Corporate Mandates, **Player Statuses**. |
-| **Private (To You Only)**| Your `AI Equity` score, your chosen night action, your System Shock status, your Personal KPI, private messages. |
+| **Private (To You Only)**| Your own Role and Alignment, your secret Personal KPI, your hidden `AI Equity` score (if human), your System Shock status, private messages. |
 | **Hidden / Factional** | True alignments, AI identity, other players' `AI Equity` scores, the contents of `#aligned`, who voted for whom (unless revealed by a game mechanic). |

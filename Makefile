@@ -33,6 +33,16 @@ build: build-backend build-frontend ## 📦 Build all production artifacts (Back
 test: test-backend test-frontend test-simulation ## 🧪 Run all backend and frontend tests
 	@echo "✅ All tests passed!"
 
+.PHONY: test-ci
+test-ci: test-backend test-frontend ## 🤖 Run tests suitable for CI (excludes simulation)
+	@echo "✅ CI tests passed!"
+
+.PHONY: docs
+docs: ## 📚 Generate OpenAPI documentation from code annotations
+	@echo ">>> Generating OpenAPI documentation..."
+	@cd server && GOWORK=off go run -mod=mod github.com/swaggo/swag/cmd/swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+	@echo "✅ API documentation generated at server/docs/"
+
 ## --------------------------------------
 ## BACKGROUND DEVELOPMENT / E2E TESTING
 ## --------------------------------------
@@ -59,7 +69,9 @@ bg-logs: ## 📜 BACKGROUND: View live logs from all background services.
 .PHONY: vendor
 vendor: ## 🤝 Synchronize Go backend dependencies into the server/vendor directory.
 	@echo ">>> Tidying and vendoring Go modules for the backend..."
-	@cd server && go mod tidy && go mod vendor
+	@cd server && go mod tidy
+	@echo ">>> Updating workspace vendor directory..."
+	@go work vendor
 
 ## --------------------------------------
 ## INDIVIDUAL COMPONENTS
@@ -98,6 +110,11 @@ test-frontend-watch: ## 👀 Run frontend tests in watch mode for development
 test-frontend-coverage: ## 📊 Run frontend tests with coverage report
 	@echo ">>> Running frontend tests with coverage..."
 	@cd client && npx vitest run --coverage
+
+.PHONY: test-contract-e2e
+test-contract-e2e: ## 🔗 Run contract verification against live server (requires running server)
+	@echo ">>> Running contract verification against live server..."
+	@cd client && E2E_SERVER_URL=http://localhost:8080 npm test -- contract-verification
 
 .PHONY: test-simulation
 test-simulation: build-simulator ## 🎯 Run game balance simulation tests

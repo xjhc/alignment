@@ -47,13 +47,18 @@ const (
 	EventTokensAwarded    EventType = "TOKENS_AWARDED"
 	EventTokensSpent      EventType = "TOKENS_SPENT"
 	EventMiningAttempted  EventType = "MINING_ATTEMPTED"
+	// Deprecated: see ADR-006. Use EventNightActionsResolved with comprehensive payload instead of individual mining events
 	EventMiningSuccessful EventType = "MINING_SUCCESSFUL"
+	// Deprecated: see ADR-006. Use EventNightActionsResolved with comprehensive payload instead of individual mining events
 	EventMiningFailed     EventType = "MINING_FAILED"
 
 	// Night Action events
 	EventNightActionsResolved EventType = "NIGHT_ACTIONS_RESOLVED"
+	// Deprecated: see ADR-006. Use EventNightActionsResolved with comprehensive payload instead of individual action events
 	EventPlayerBlocked        EventType = "PLAYER_BLOCKED"
+	// Deprecated: see ADR-006. Use EventNightActionsResolved with comprehensive payload instead of individual action events
 	EventPlayerProtected      EventType = "PLAYER_PROTECTED"
+	// Deprecated: see ADR-006. Use EventNightActionsResolved with comprehensive payload instead of individual action events
 	EventPlayerInvestigated   EventType = "PLAYER_INVESTIGATED"
 
 	// AI and Conversion events

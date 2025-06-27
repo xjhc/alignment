@@ -35,15 +35,18 @@ This document provides a comprehensive checklist for each game phase and feature
 
 ### 2. SITREP PHASE (PULSE CHECK)
 
-#### UI Requirements ⚠️ **CRITICAL - This was the missing piece**
-- [ ] **Three Response Buttons Must Display**:
-  - [ ] "Nominal" button (green) - sends value "NOMINAL"
-  - [ ] "Elevated" button (yellow) - sends value "ELEVATED"  
-  - [ ] "Critical" button (red) - sends value "CRITICAL"
-- [ ] **Button Behavior**:
-  - [ ] Clicking any button sends SUBMIT_PULSE_CHECK action
-  - [ ] Buttons disable after response submitted
-  - [ ] Visual feedback shows selected response
+#### UI Requirements ⚠️ **CRITICAL - Freeform Text Input**
+- [ ] **Freeform Text Input Must Display**:
+  - [ ] Text input field with placeholder "Enter your response (max 200 characters)..."
+  - [ ] 200 character limit enforced
+  - [ ] Character counter display showing current/max characters
+  - [ ] Submit button (initially disabled)
+- [ ] **Input Behavior**:
+  - [ ] Submit button enables when text is present
+  - [ ] Enter key submits the response
+  - [ ] Submitting sends SUBMIT_PULSE_CHECK action with freeform text
+  - [ ] Input field and submit button disable after response submitted
+  - [ ] Visual feedback shows submission status
 - [ ] **Input Restrictions**:
   - [ ] Main chat input field MUST be disabled during pulse check
   - [ ] No other game actions allowed except pulse check response
@@ -54,9 +57,9 @@ This document provides a comprehensive checklist for each game phase and feature
 
 #### Action Requirements
 - [ ] **SUBMIT_PULSE_CHECK Action**:
-  - [ ] Required payload: `{ "response": "NOMINAL|ELEVATED|CRITICAL" }`
-  - [ ] Validates response is one of three valid values
-  - [ ] Stores response against player ID
+  - [ ] Required payload: `{ "response": "[freeform text string]" }`
+  - [ ] Validates response is non-empty string (max 200 characters)
+  - [ ] Stores freeform response against player ID
   - [ ] Cannot be submitted twice by same player
 
 #### State Requirements

@@ -115,3 +115,23 @@ export const LongQuestion: Story = {
     question: 'Given the recent security incidents and the increasing complexity of our project, what is your assessment of the current threat level and what immediate actions do you recommend we take to ensure the safety and success of our mission?',
   },
 };
+
+export const SecurityBreach: Story = {
+  args: {
+    gameState: baseGameState,
+    localPlayerId: 'player-1',
+    handlePulseCheck: handlePulseCheckMock,
+    localPlayerName: 'Alice',
+    question: 'A security breach has been detected in our systems. How do you assess the situation?',
+  },
+};
+
+export const MissionCritical: Story = {
+  args: {
+    gameState: baseGameState,
+    localPlayerId: 'player-2',
+    handlePulseCheck: handlePulseCheckMock,
+    localPlayerName: 'Bob',
+    question: 'The project deadline is approaching and we are behind schedule. What is your stance?',
+  },
+};

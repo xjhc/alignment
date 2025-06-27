@@ -2,7 +2,7 @@
 
 This document provides a high-level overview of the `Alignment` backend architecture. Our design philosophy prioritizes **low latency, high concurrency, and operational resilience** on a single-machine deployment.
 
-To achieve this, we have implemented a **stateful, in-memory, supervised Actor Model**.
+To achieve this, we have implemented a **stateful, player-centric, supervised Actor Model**. Each player's session is managed by its own actor, which then interacts with a separate actor that runs the game simulation.
 
 ---
 
@@ -10,26 +10,27 @@ To achieve this, we have implemented a **stateful, in-memory, supervised Actor M
 
 The backend is composed of several key, concurrent components that work together. Understanding their distinct roles is key to understanding the system.
 
-*   **The [Supervisor](./01-supervisor-and-resiliency.md) (The Guardian):** The top-level goroutine that launches and monitors all active games. Its primary role is to provide fault isolation; if a single `Game Actor` panics, the Supervisor catches the error and terminates that one game without crashing the entire server. It is the core of a wider **resiliency layer** that also includes a **Health Monitor** and **Admission Controller** to protect the server from overload.
+*   **The `PlayerActor` (The Session Owner):** The cornerstone of our architecture. A dedicated goroutine is spawned for each client WebSocket connection, "owning" that player's session. It functions as a state machine (`Idle`, `InLobby`, `InGame`) and is the single point of contact for a player's client. It receives actions from the client and forwards them to the appropriate manager or `GameActor`.
 
-*   **The [Game Actor](./04-actor-and-event-processing.md) (The Workhorse):** A dedicated goroutine that "owns" a single game. It holds that game's complete state in memory (`GameState`) and processes all actions and events for that game serially via a private channel. This is the source of our performance and data consistency.
+*   **The `Dispatcher` (The Router):** The central hub for all incoming WebSocket messages. It routes each message to the correct `PlayerActor`'s mailbox. It no longer routes directly to `GameActor`s. On the way out, it acts as a broadcaster, taking events and sending them to all relevant connected clients.
 
-*   **The [Dispatcher](../glossary.md#dispatcher) (The Router):** The central hub for all network traffic. It listens to all incoming WebSocket messages from players, identifies the target game, and routes the message to the correct Game Actor's channel (mailbox). In a single-node deployment, it also handles broadcasting events back to clients; this role shifts to a Redis Pub/Sub model in a [multi-node environment](./07-future-scaling-path.md).
+*   **The `GameActor` (The Simulation Engine):** A dedicated goroutine that "owns" a single game simulation. It holds the `GameState` in memory and processes all game logic serially. It receives actions from the `PlayerActor`s participating in its game.
 
-*   **The [Scheduler](../glossary.md#scheduler) (The Metronome):** A single, highly-efficient goroutine that manages all time-based events for the entire server (e.g., phase timers, AI thinking delays). It uses a **[Timing Wheel](../glossary.md#timing-wheel)** algorithm to handle thousands of timers with minimal overhead.
+*   **The `Supervisor` (The Guardian):** The top-level goroutine that launches and monitors all active **`GameActor`s**. Its primary role is fault isolation; if a single `GameActor` panics, the Supervisor contains the failure, protecting the rest of the server.
+
+*   **The `Scheduler` (The Metronome):** A single, highly-efficient goroutine that manages all time-based events for the entire server (e.g., phase timers, AI thinking delays). It uses a **[Timing Wheel](../glossary.md#timing-wheel)** algorithm to handle thousands of timers with minimal overhead.
 
 *   **Redis (The Scribe):** Our external persistence layer. It is used exclusively as a **[Write-Ahead Log (WAL)](../glossary.md#wal-write-ahead-log)** to record the event history and for storing **State Snapshots** to enable fast recovery. **It is not read from during normal gameplay.**
 
 ## System Flow Diagram
 
+This diagram illustrates the data path of a user action through the primary components.
+
 ```ascii
-                               +---------------------------------------------+
-                               |        Go Backend Process (Single VM)       |
-                               |                                             |
-+----------+      +------------+      +------------------+      +-----------+
-| WebSocket|----->| Dispatcher |----->|   Supervisor     |----->| Game      |
-| Connection      | (Routes msg)      | (Manages Actors) |      | Actor     |
-+----------+      +------------+      +------------------+      | (In-Memory|
++----------+      +------------+      +---------------+      +-----------+
+| WebSocket|----->| Dispatcher |----->| PlayerActor   |----->| Game      |
+| Connection      | (Routes msg)      | (Session Owner) |      | Actor     |
++----------+      +------------+      +---------------+      | (In-Memory|
                                |              ^                 |  State)   |
                                |              | (Time's Up)     |           |
                                |              |                 |           |
@@ -41,22 +42,26 @@ The backend is composed of several key, concurrent components that work together
 
 ## The Lifecycle of a Player Action
 
+This diagram shows the sequence of events for a single player action.
+
 ```mermaid
 sequenceDiagram
     participant Client as Player (WebSocket)
-    participant Dispatcher as Dispatcher<br/>(Router)
-    participant Actor as Game Actor<br/>(Workhorse)
+    participant Dispatcher as Dispatcher/Broadcaster<br/>(Router)
+    participant PlayerActor as PlayerActor<br/>(Session Owner)
+    participant GameActor as GameActor<br/>(Simulation Engine)
     participant Redis as Redis<br/>(WAL)
     participant Clients as All Game Clients
 
     Client->>Dispatcher: 1. Action arrives<br/>(WebSocket message)
-    Dispatcher->>Actor: 2. Route to mailbox<br/>(Go channel)
-    Actor->>Actor: 3. Validate action<br/>(against in-memory state)
-    Actor->>Redis: 4. Persist event<br/>(Write-Ahead Log)
-    Redis-->>Actor: WAL write confirmed
-    Actor->>Actor: 5. Apply event<br/>(update GameState)
-    Actor->>Dispatcher: 6. Send event for broadcast
-    Dispatcher->>Clients: Broadcast event<br/>(to all game clients)
+    Dispatcher->>PlayerActor: 2. Route to correct PlayerActor
+    PlayerActor->>GameActor: 3. Forward action to GameActor's mailbox<br/>(Go channel)
+    GameActor->>GameActor: 4. Validate action<br/>(against in-memory state)
+    GameActor->>Redis: 5. Persist event<br/>(Write-Ahead Log)
+    Redis-->>GameActor: WAL write confirmed
+    GameActor->>GameActor: 6. Apply event<br/>(update GameState)
+    GameActor->>Dispatcher: 7. Send event for broadcast
+    Dispatcher->>Clients: 8. Broadcast event<br/>(to all game clients)
 ```
 
 ## Deep Dives

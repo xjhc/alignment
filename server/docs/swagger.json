@@ -1,0 +1,379 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Corporate-themed social deduction game where humans identify a rogue AI among them before it converts staff and seizes company control.",
+        "title": "Alignment Game Server API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://www.swagger.io/support",
+            "email": "support@swagger.io"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/api/debug/event-types": {
+            "get": {
+                "description": "Get a comprehensive list of all available event and action types in the system for debugging and contract verification",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "debug"
+                ],
+                "summary": "Get all event and action types",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.EventTypesResponse"
+                        }
+                    },
+                    "405": {
+                        "description": "Method not allowed",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/games": {
+            "get": {
+                "description": "Get a list of all available game lobbies",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "lobbies"
+                ],
+                "summary": "List available lobbies",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.LobbyListResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new game lobby with the requesting player as host",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "lobbies"
+                ],
+                "summary": "Create a new lobby",
+                "parameters": [
+                    {
+                        "description": "Lobby creation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.CreateLobbyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.CreateLobbyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/games/{gameId}/join": {
+            "post": {
+                "description": "Join an existing game lobby as a player",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "lobbies"
+                ],
+                "summary": "Join an existing lobby",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game ID",
+                        "name": "gameId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Join lobby request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.JoinLobbyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.JoinLobbyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Lobby not found",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Lobby is full or not accepting players",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/stats": {
+            "get": {
+                "description": "Get detailed server statistics including supervisor and scheduler information",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Get server statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.StatsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Get server health status and supervisor statistics",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/cmd_server.HealthResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "cmd_server.CreateLobbyRequest": {
+            "type": "object",
+            "required": [
+                "player_name"
+            ],
+            "properties": {
+                "lobby_name": {
+                    "type": "string",
+                    "example": "My Game Lobby"
+                },
+                "player_avatar": {
+                    "type": "string",
+                    "example": "avatar1"
+                },
+                "player_name": {
+                    "type": "string",
+                    "example": "John Doe"
+                }
+            }
+        },
+        "cmd_server.CreateLobbyResponse": {
+            "type": "object",
+            "properties": {
+                "game_id": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "player_id": {
+                    "type": "string",
+                    "example": "player456"
+                },
+                "session_token": {
+                    "type": "string",
+                    "example": "token789"
+                }
+            }
+        },
+        "cmd_server.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Player name is required"
+                }
+            }
+        },
+        "cmd_server.EventTypesResponse": {
+            "type": "object",
+            "properties": {
+                "action_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "CREATE_GAME",
+                        "JOIN_GAME",
+                        "SUBMIT_VOTE"
+                    ]
+                },
+                "event_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "GAME_CREATED",
+                        "PLAYER_JOINED",
+                        "VOTE_CAST"
+                    ]
+                },
+                "total_actions": {
+                    "type": "integer",
+                    "example": 22
+                },
+                "total_events": {
+                    "type": "integer",
+                    "example": 94
+                }
+            }
+        },
+        "cmd_server.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "stats": {},
+                "status": {
+                    "type": "string",
+                    "example": "healthy"
+                }
+            }
+        },
+        "cmd_server.JoinLobbyRequest": {
+            "type": "object",
+            "required": [
+                "player_name"
+            ],
+            "properties": {
+                "player_avatar": {
+                    "type": "string",
+                    "example": "avatar2"
+                },
+                "player_name": {
+                    "type": "string",
+                    "example": "Jane Doe"
+                }
+            }
+        },
+        "cmd_server.JoinLobbyResponse": {
+            "type": "object",
+            "properties": {
+                "game_id": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "player_id": {
+                    "type": "string",
+                    "example": "player789"
+                },
+                "session_token": {
+                    "type": "string",
+                    "example": "token456"
+                }
+            }
+        },
+        "cmd_server.LobbyListResponse": {
+            "type": "object",
+            "properties": {
+                "lobbies": {
+                    "type": "array",
+                    "items": {}
+                }
+            }
+        },
+        "cmd_server.StatsResponse": {
+            "type": "object",
+            "properties": {
+                "scheduler": {
+                    "type": "integer"
+                },
+                "supervisor": {}
+            }
+        }
+    },
+    "tags": [
+        {
+            "description": "Lobby management operations",
+            "name": "lobbies"
+        },
+        {
+            "description": "Server health and monitoring",
+            "name": "health"
+        },
+        {
+            "description": "Debug and development endpoints",
+            "name": "debug"
+        }
+    ]
+}

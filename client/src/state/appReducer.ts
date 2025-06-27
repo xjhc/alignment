@@ -1,4 +1,4 @@
-import { AppState, GameState, Role, PersonalKPI } from '../types';
+import { AppState, GameState, Role, PersonalKPI, VoteState } from '../types';
 
 // Define the possible states of the user's session
 export type SessionState = 'IDLE' | 'IN_LOBBY' | 'IN_GAME' | 'POST_GAME';
@@ -70,7 +70,8 @@ export type AppAction =
   | { type: 'COUNTDOWN_UPDATE'; payload: { remaining: number } }
   | { type: 'COUNTDOWN_CANCEL' }
   | { type: 'HOST_TRANSFERRED'; payload: { newHostId: string; previousHostId: string } }
-  | { type: 'LOAD_CHAT_HISTORY'; payload: { chatMessages: any[] } };
+  | { type: 'LOAD_CHAT_HISTORY'; payload: { chatMessages: any[] } }
+  | { type: 'VOTE_TALLY_UPDATED'; payload: { voteState: VoteState } };
 
 // Initial state
 export const initialAppState: ConsolidatedAppState = {
@@ -332,6 +333,15 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         gameState: {
           ...state.gameState,
           chatMessages: action.payload.chatMessages,
+        },
+      };
+
+    case 'VOTE_TALLY_UPDATED':
+      return {
+        ...state,
+        gameState: {
+          ...state.gameState,
+          voteState: action.payload.voteState,
         },
       };
 

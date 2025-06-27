@@ -351,17 +351,17 @@ func (cem *CrisisEventManager) assignRandomRole(player *core.Player) {
 func (cem *CrisisEventManager) getRoleName(roleType core.RoleType) string {
 	switch roleType {
 	case core.RoleCISO:
-		return "Chief Information Security Officer"
+		return "CISO"
 	case core.RoleCTO:
-		return "Chief Technology Officer"
+		return "CTO"
 	case core.RoleCFO:
-		return "Chief Financial Officer"
+		return "CFO"
 	case core.RoleCEO:
-		return "Chief Executive Officer"
+		return "CEO"
 	case core.RoleCOO:
-		return "Chief Operating Officer"
+		return "COO"
 	case core.RoleEthics:
-		return "VP Ethics & Alignment"
+		return "VP Ethics"
 	case core.RolePlatforms:
 		return "VP Platforms"
 	default:

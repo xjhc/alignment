@@ -63,3 +63,55 @@ export const NonHostView: Story = {
     },
   },
 };
+
+export const CountdownActive: Story = {
+  args: {
+    session: {
+      ...baseSession,
+      lobbyState: {
+        playerInfos: [
+          { id: 'p-alice', name: 'Alice', avatar: '👤', joinedAt: '2024-01-01T00:00:00Z' },
+          { id: 'p-bob', name: 'Bob', avatar: '🧑‍💻', joinedAt: '2024-01-01T00:01:00Z' },
+          { id: 'p-charlie', name: 'Charlie', avatar: '👨‍💼', joinedAt: '2024-01-01T00:02:00Z' },
+          { id: 'p-diana', name: 'Diana', avatar: '👩‍💻', joinedAt: '2024-01-01T00:03:00Z' },
+        ],
+        isHost: true,
+        canStart: true,
+        hostId: 'p-alice',
+        lobbyName: '#lobby-countdown-demo',
+        maxPlayers: 8,
+        connectionError: null,
+        countdown: {
+          isActive: true,
+          remaining: 3,
+        },
+      },
+    },
+  },
+};
+
+export const CountdownGo: Story = {
+  args: {
+    session: {
+      ...baseSession,
+      lobbyState: {
+        playerInfos: [
+          { id: 'p-alice', name: 'Alice', avatar: '👤', joinedAt: '2024-01-01T00:00:00Z' },
+          { id: 'p-bob', name: 'Bob', avatar: '🧑‍💻', joinedAt: '2024-01-01T00:01:00Z' },
+          { id: 'p-charlie', name: 'Charlie', avatar: '👨‍💼', joinedAt: '2024-01-01T00:02:00Z' },
+          { id: 'p-diana', name: 'Diana', avatar: '👩‍💻', joinedAt: '2024-01-01T00:03:00Z' },
+        ],
+        isHost: true,
+        canStart: true,
+        hostId: 'p-alice',
+        lobbyName: '#lobby-countdown-demo',
+        maxPlayers: 8,
+        connectionError: null,
+        countdown: {
+          isActive: true,
+          remaining: 0,
+        },
+      },
+    },
+  },
+};

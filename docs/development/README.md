@@ -33,6 +33,7 @@ Our documentation is as critical as our source code. It is the only way to maint
     - [ ] **Tests:** New tests have been added or existing tests have been updated.
     - [ ] **Linting:** The code has been run through `gofmt` and `golangci-lint`.
     - [ ] **Documentation:** I have updated all relevant documentation in `/docs` to reflect my changes.
+    - [ ] **Storybook (UI changes only):** Stories have been created/updated and visual changes approved in Chromatic.
     ```
 
 ## 3. Key Development Guides
@@ -48,6 +49,9 @@ Before writing code, please familiarize yourself with our core development patte
     *   **Integration Tests** for stateful Game Actors.
     *   **System Tests** for high-level resiliency features.
     It provides concrete examples and explains what is expected for a pull request to be considered "tested."
+
+*   **[Component-Driven Development](./07-component-driven-development.md):**
+    Mandatory workflow for UI component development using Storybook. This guide establishes Storybook as the single source of truth for component specifications and enforces visual regression testing through Chromatic. All UI changes must follow this workflow.
 
 ---
 

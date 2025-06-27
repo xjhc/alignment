@@ -1,0 +1,257 @@
+basePath: /
+definitions:
+  cmd_server.CreateLobbyRequest:
+    properties:
+      lobby_name:
+        example: My Game Lobby
+        type: string
+      player_avatar:
+        example: avatar1
+        type: string
+      player_name:
+        example: John Doe
+        type: string
+    required:
+    - player_name
+    type: object
+  cmd_server.CreateLobbyResponse:
+    properties:
+      game_id:
+        example: abc123
+        type: string
+      player_id:
+        example: player456
+        type: string
+      session_token:
+        example: token789
+        type: string
+    type: object
+  cmd_server.ErrorResponse:
+    properties:
+      error:
+        example: Player name is required
+        type: string
+    type: object
+  cmd_server.EventTypesResponse:
+    properties:
+      action_types:
+        example:
+        - CREATE_GAME
+        - JOIN_GAME
+        - SUBMIT_VOTE
+        items:
+          type: string
+        type: array
+      event_types:
+        example:
+        - GAME_CREATED
+        - PLAYER_JOINED
+        - VOTE_CAST
+        items:
+          type: string
+        type: array
+      total_actions:
+        example: 22
+        type: integer
+      total_events:
+        example: 94
+        type: integer
+    type: object
+  cmd_server.HealthResponse:
+    properties:
+      stats: {}
+      status:
+        example: healthy
+        type: string
+    type: object
+  cmd_server.JoinLobbyRequest:
+    properties:
+      player_avatar:
+        example: avatar2
+        type: string
+      player_name:
+        example: Jane Doe
+        type: string
+    required:
+    - player_name
+    type: object
+  cmd_server.JoinLobbyResponse:
+    properties:
+      game_id:
+        example: abc123
+        type: string
+      player_id:
+        example: player789
+        type: string
+      session_token:
+        example: token456
+        type: string
+    type: object
+  cmd_server.LobbyListResponse:
+    properties:
+      lobbies:
+        items: {}
+        type: array
+    type: object
+  cmd_server.StatsResponse:
+    properties:
+      scheduler:
+        type: integer
+      supervisor: {}
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Corporate-themed social deduction game where humans identify a rogue
+    AI among them before it converts staff and seizes company control.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Alignment Game Server API
+  version: "1.0"
+paths:
+  /api/debug/event-types:
+    get:
+      description: Get a comprehensive list of all available event and action types
+        in the system for debugging and contract verification
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_server.EventTypesResponse'
+        "405":
+          description: Method not allowed
+          schema:
+            $ref: '#/definitions/cmd_server.ErrorResponse'
+      summary: Get all event and action types
+      tags:
+      - debug
+  /api/games:
+    get:
+      description: Get a list of all available game lobbies
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_server.LobbyListResponse'
+      summary: List available lobbies
+      tags:
+      - lobbies
+    post:
+      consumes:
+      - application/json
+      description: Create a new game lobby with the requesting player as host
+      parameters:
+      - description: Lobby creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_server.CreateLobbyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/cmd_server.CreateLobbyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_server.ErrorResponse'
+      summary: Create a new lobby
+      tags:
+      - lobbies
+  /api/games/{gameId}/join:
+    post:
+      consumes:
+      - application/json
+      description: Join an existing game lobby as a player
+      parameters:
+      - description: Game ID
+        in: path
+        name: gameId
+        required: true
+        type: string
+      - description: Join lobby request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_server.JoinLobbyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_server.JoinLobbyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/cmd_server.ErrorResponse'
+        "404":
+          description: Lobby not found
+          schema:
+            $ref: '#/definitions/cmd_server.ErrorResponse'
+        "409":
+          description: Lobby is full or not accepting players
+          schema:
+            $ref: '#/definitions/cmd_server.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/cmd_server.ErrorResponse'
+      summary: Join an existing lobby
+      tags:
+      - lobbies
+  /api/stats:
+    get:
+      description: Get detailed server statistics including supervisor and scheduler
+        information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_server.StatsResponse'
+      summary: Get server statistics
+      tags:
+      - health
+  /health:
+    get:
+      description: Get server health status and supervisor statistics
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_server.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+schemes:
+- http
+- https
+swagger: "2.0"
+tags:
+- description: Lobby management operations
+  name: lobbies
+- description: Server health and monitoring
+  name: health
+- description: Debug and development endpoints
+  name: debug

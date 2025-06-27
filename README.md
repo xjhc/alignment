@@ -15,7 +15,7 @@
 
 This project is a real-time, stateful application built on a modern Go stack designed for high concurrency and resilience.
 
--   **Backend:** A **Go** server using a **Supervised Actor Model**. Each game runs in an isolated goroutine, processing events serially from a channel to guarantee consistency without locks.
+-   **Backend:** A **Go** server using a **player-centric, supervised Actor Model**. Each player session is managed by a dedicated `PlayerActor` goroutine, while each game simulation runs in a separate, isolated `GameActor` goroutine. This guarantees both session integrity and per-game data consistency without locks.
 -   **Persistence:** **Redis Streams** are used as a Write-Ahead Log (WAL) for event sourcing. This provides durability and fast recovery without Redis being a bottleneck for live gameplay.
 -   **Frontend:** A **Go/WebAssembly** core shares critical game logic (`ApplyEvent`) with the server, wrapped in a **React/TypeScript** UI.
 -   **AI Player:** A hybrid model using a deterministic **Go Rules Engine** for strategic decisions and an **LLM** for all communication, securely interfaced via a MCP protocol.

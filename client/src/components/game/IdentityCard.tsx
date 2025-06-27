@@ -20,14 +20,14 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
     if (player.alignment === 'AI') {
       return (
         <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-aligned text-white">
-          🤖 ALIGNED 
+          🤖 ALIGNED
           <span className="text-[8px] opacity-60 cursor-help text-pink-200" title="Only you can see this">🔒</span>
         </span>
       );
     }
     return (
       <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-human text-white">
-        👤 HUMAN 
+        👤 HUMAN
         <span className="text-[8px] opacity-60 cursor-help text-pink-200" title="Only you can see this">🔒</span>
       </span>
     );
@@ -35,11 +35,11 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
 
   const getRoleDisplayName = (player: Player) => {
     if (!player.role) return 'Employee';
-    
+
     switch (player.role.type) {
-      case 'CISO': return 'Chief Security Officer';
+      case 'CISO': return 'Chief Information Security Officer';
       case 'SYSTEMS': return 'Systems Administrator';
-      case 'ETHICS': return 'Ethics Officer';
+      case 'ETHICS': return 'VP, Ethics';
       case 'CTO': return 'Chief Technology Officer';
       case 'COO': return 'Chief Operating Officer';
       case 'CFO': return 'Chief Financial Officer';

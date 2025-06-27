@@ -35,7 +35,7 @@ describe('WebSocket Event Handling', () => {
   });
 
   it('should ignore deprecated/unknown events and not apply them to game engine', () => {
-    // Arrange - Create deprecated/unknown events
+    // Arrange - Create deprecated/unknown events including some common ones that might exist
     const deprecatedEvents: ServerEvent[] = [
       {
         type: 'DEPRECATED_EVENT' as ServerEventType,
@@ -44,6 +44,14 @@ describe('WebSocket Event Handling', () => {
       {
         type: 'UNKNOWN_EVENT' as ServerEventType,
         payload: { unknown: 'data' },
+      },
+      {
+        type: 'OLD_VOTE_UPDATE' as ServerEventType,
+        payload: { votes: {} },
+      },
+      {
+        type: 'LEGACY_PLAYER_ACTION' as ServerEventType,
+        payload: { playerId: 'test', action: 'something' },
       },
     ];
 
@@ -56,12 +64,18 @@ describe('WebSocket Event Handling', () => {
     expect(mockGameEngine.applyEvent).not.toHaveBeenCalled();
     expect(mockGameEngine.resetAndLoadState).not.toHaveBeenCalled();
 
-    // Should log unknown event types
+    // Should log unknown event types for each deprecated event
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining('Unknown event type: DEPRECATED_EVENT')
     );
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining('Unknown event type: UNKNOWN_EVENT')
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('Unknown event type: OLD_VOTE_UPDATE')
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('Unknown event type: LEGACY_PLAYER_ACTION')
     );
   });
 
@@ -117,6 +131,106 @@ describe('WebSocket Event Handling', () => {
     expect(console.log).toHaveBeenCalledWith(
       'Applying granular event NIGHT_ACTIONS_RESOLVED to game engine'
     );
+  });
+
+  it('should handle NIGHT_ACTIONS_RESOLVED with multiple action results correctly', () => {
+    // Arrange
+    const complexNightActionsEvent: ServerEvent = {
+      type: ServerEventType.NightActionsResolved,
+      id: 'event-456',
+      gameId: 'test-game-2',
+      timestamp: '2024-01-02T02:00:00Z',
+      payload: {
+        nightActionResults: [
+          {
+            id: 'action-1',
+            type: 'INVESTIGATION',
+            playerName: 'Detective',
+            targetName: 'Suspect',
+            result: 'success',
+            description: 'Detective investigated Suspect and found them suspicious',
+            isPublic: false,
+          },
+          {
+            id: 'action-2',
+            type: 'CONVERSION',
+            playerName: 'AI_Player',
+            targetName: 'Human_Target',
+            result: 'failed',
+            description: 'AI attempted conversion but triggered System Shock',
+            isPublic: true,
+          },
+          {
+            id: 'action-3',
+            type: 'PROTECTION',
+            playerName: 'Protector',
+            targetName: 'VIP',
+            result: 'success',
+            description: 'VIP was successfully protected',
+            isPublic: false,
+          },
+        ],
+      },
+    };
+
+    // Act
+    mockHandleServerEvent(complexNightActionsEvent);
+
+    // Assert
+    expect(mockGameEngine.applyEvent).toHaveBeenCalledTimes(1);
+    expect(mockGameEngine.applyEvent).toHaveBeenCalledWith({
+      id: 'event-456',
+      type: ServerEventType.NightActionsResolved,
+      gameId: 'test-game-2',
+      playerId: '',
+      timestamp: '2024-01-02T02:00:00Z',
+      payload: {
+        nightActionResults: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'INVESTIGATION',
+            result: 'success',
+          }),
+          expect.objectContaining({
+            type: 'CONVERSION',
+            result: 'failed',
+            description: expect.stringContaining('System Shock'),
+          }),
+          expect.objectContaining({
+            type: 'PROTECTION',
+            result: 'success',
+          }),
+        ]),
+      },
+    });
+  });
+
+  it('should handle NIGHT_ACTIONS_RESOLVED with empty results array', () => {
+    // Arrange
+    const emptyNightActionsEvent: ServerEvent = {
+      type: ServerEventType.NightActionsResolved,
+      id: 'event-789',
+      gameId: 'test-game-3',
+      timestamp: '2024-01-03T03:00:00Z',
+      payload: {
+        nightActionResults: [],
+      },
+    };
+
+    // Act
+    mockHandleServerEvent(emptyNightActionsEvent);
+
+    // Assert - Should still call game engine even with empty results
+    expect(mockGameEngine.applyEvent).toHaveBeenCalledTimes(1);
+    expect(mockGameEngine.applyEvent).toHaveBeenCalledWith({
+      id: 'event-789',
+      type: ServerEventType.NightActionsResolved,
+      gameId: 'test-game-3',
+      playerId: '',
+      timestamp: '2024-01-03T03:00:00Z',
+      payload: {
+        nightActionResults: [],
+      },
+    });
   });
 
   it('should handle events when game engine is not ready', () => {

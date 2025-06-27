@@ -15,10 +15,10 @@ This matrix maps each requirement to its implementation, tests, and verification
 
 | Requirement ID | Requirement | Frontend Implementation | Backend Implementation | Test Coverage | Status |
 |---|---|---|---|---|---|
-| SIT-UI-001 | Three response buttons displayed | `client/src/components/PulseCheckInput.tsx` | N/A | `PulseCheckInput.test.tsx` | ✅ |
-| SIT-UI-002 | "Nominal" button (green) | `PulseCheckInput.tsx:25` | N/A | `PulseCheckInput.test.tsx:15` | ✅ |
-| SIT-UI-003 | "Elevated" button (yellow) | `PulseCheckInput.tsx:30` | N/A | `PulseCheckInput.test.tsx:25` | ✅ |
-| SIT-UI-004 | "Critical" button (red) | `PulseCheckInput.tsx:35` | N/A | `PulseCheckInput.test.tsx:35` | ✅ |
+| SIT-UI-001 | Freeform text input for pulse check responses | `client/src/components/PulseCheckInput.tsx` | N/A | `PulseCheckInput.test.tsx` | ✅ |
+| SIT-UI-002 | Text input with 200 character limit | `PulseCheckInput.tsx:49` | N/A | `PulseCheckInput.test.tsx:85` | ✅ |
+| SIT-UI-003 | Character counter display | `PulseCheckInput.tsx:63` | N/A | `PulseCheckInput.test.tsx:142` | ✅ |
+| SIT-UI-004 | Submit button enabled when text present | `PulseCheckInput.tsx:55` | N/A | `PulseCheckInput.test.tsx:111` | ✅ |
 | SIT-UI-005 | Chat input disabled during pulse check | `CommsPanel.tsx:120` | N/A | `CommsPanel.test.tsx:45` | ✅ |
 | SIT-UI-006 | Phase header shows "Pulse Check - Day X" | `GameScreen.tsx:78` | N/A | `GameScreen.test.tsx:120` | ✅ |
 | SIT-UI-007 | Timer displays remaining time | `GameScreen.tsx:85` | N/A | `GameScreen.test.tsx:140` | ✅ |

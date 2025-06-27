@@ -21,7 +21,7 @@ graph TD
         subgraph ReactShell["1. UI Shell (React/TypeScript)"]
             direction TB
             AppState["App.tsx<br/>(State Owner - useReducer)"]
-            Components["React Components<br/>(Views, Buttons, etc.)"] 
+            Components["React Components<br/>(Views, Buttons, etc.)"]
             AppState -->|Props| Components
             Components -->|Events| AppState
         end
@@ -65,7 +65,32 @@ graph TD
     *   App.tsx consults this core through `useGameEngineContext()` to get validated game state for UI updates.
     *   It does **not** manage UI state or network connections directly.
 
-### State Management: Centralized in `App.tsx`
+## React Context Architecture: Decoupling State Management
+
+To manage global state cleanly and prevent prop-drilling, we use a layered system of React Contexts. Each provider has a distinct responsibility, allowing for a clear separation of concerns.
+
+```mermaid
+graph TD
+    subgraph "App Component Tree"
+        BrowserRouter["BrowserRouter<br>(Routing)"] --> ThemeProvider
+        ThemeProvider["ThemeProvider<br>(Styling & Themes)"] --> GameEngineProvider
+        GameEngineProvider["GameEngineProvider<br>(Go/Wasm Logic Core)"] --> WebSocketProvider
+        WebSocketProvider["WebSocketProvider<br>(Network Connection)"] --> AppContent["AppContent<br>(Main Application Logic)"]
+
+        subgraph AppContent
+            SessionProvider["SessionProvider<br>(Session Lifecycle: Login, Lobby)"] --> GameProvider
+            GameProvider["GameProvider<br>(In-Game State & Actions)"] --> Screens["Screens (Login, Game, etc.)"]
+        end
+    end
+```
+
+*   **`ThemeProvider`**: Manages the application's visual theme (e.g., light/dark mode) and provides theming utilities to all components.
+*   **`GameEngineProvider`**: Manages the Go/WebAssembly module. It handles loading the `.wasm` file, exposes the core game logic functions, and holds the authoritative client-side `GameState`.
+*   **`WebSocketProvider`**: Manages the raw WebSocket network connection, including connection, disconnection, and reconnection logic. It provides a simple `sendAction` function and an event subscription system.
+*   **`SessionProvider`**: Manages the overall user session lifecycle. It handles state transitions between being logged out, in a lobby, and in a game. It is the source of truth for the player's identity and credentials.
+*   **`GameProvider`**: Provides focused, contextual access to the *current* game state for components *within* an active game. This simplifies in-game components by giving them direct access to the `localPlayer`, the `viewedPlayer`, and game-specific actions.
+
+## State Management: Centralized in `App.tsx`
 
 To prevent race conditions and ensure a predictable data flow, we use a **centralized state management** pattern where we "lift state up."
 

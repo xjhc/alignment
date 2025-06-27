@@ -260,6 +260,7 @@ def test_system_shock_flow(game_setup):
     """
     Tests the System Shock flow where a night action fails conversion 
     and the target player receives a PRIVATE_NOTIFICATION event.
+    This test specifically validates the event flow mentioned in the GitHub issue.
     """
     game_id, players = game_setup
     host = players[0]
@@ -290,29 +291,44 @@ def test_system_shock_flow(game_setup):
     target_player = human_players[0]  # AI will try to convert this player
     print(f"  AI player: {ai_player.name}, Target: {target_player.name}")
 
-    # Skip to night phase (this would normally happen through game progression)
-    # For testing purposes, we'll simulate a conversion attempt that should fail
-    print("\nSTEP 2: Simulating AI conversion attempt that will trigger System Shock...")
+    # Intentionally set up a night action to fail conversion
+    print("\nSTEP 2: Intentionally setting up conversion failure to trigger System Shock...")
     
-    # AI attempts conversion
+    # AI attempts conversion (this should fail and trigger System Shock)
     ai_player.send_action("ATTEMPT_CONVERSION", {"target_id": target_player.player_id})
     time.sleep(3)  # Allow time for night action processing
 
     # Verify target player receives PRIVATE_NOTIFICATION about system shock
-    print("\nSTEP 3: Verifying System Shock notification...")
+    print("\nSTEP 3: Verifying System Shock PRIVATE_NOTIFICATION event...")
     private_notification = target_player.get_latest_event("PRIVATE_NOTIFICATION")
     assert private_notification is not None, f"{target_player.name} did not receive PRIVATE_NOTIFICATION"
     
     notification_payload = private_notification.get("payload", {})
     assert notification_payload.get("type") == "system_shock", f"Expected system_shock notification, got {notification_payload.get('type')}"
     
-    print(f"  ✅ {target_player.name} received System Shock notification: {notification_payload.get('message')}")
+    # Verify the notification has the expected structure
+    assert "message" in notification_payload, "PRIVATE_NOTIFICATION missing message field"
+    assert "title" in notification_payload, "PRIVATE_NOTIFICATION missing title field"
+    
+    # Verify other players do NOT receive this private notification
+    print("\nSTEP 4: Verifying other players do not receive private System Shock notification...")
+    for other_player in players:
+        if other_player.player_id != target_player.player_id:
+            other_notifications = other_player.get_events("PRIVATE_NOTIFICATION")
+            system_shock_notifications = [n for n in other_notifications 
+                                        if n.get("payload", {}).get("type") == "system_shock"]
+            assert len(system_shock_notifications) == 0, \
+                f"{other_player.name} should not have received System Shock notification"
+    
+    print(f"  ✅ {target_player.name} received correct System Shock PRIVATE_NOTIFICATION: {notification_payload.get('message')}")
+    print("  ✅ Other players correctly did not receive the private notification")
 
 
 def test_quote_reply_flow(game_setup):
     """
-    Tests the Quote-Reply flow where one player replies to another 
-    and other clients receive a CHAT_MESSAGE event with correctly formatted quote payload.
+    Tests the Quote-Reply flow where one bot client replies to another 
+    and other clients receive a CHAT_MESSAGE event with correctly formatted [quote] payload.
+    This test specifically validates the chat reply mechanics mentioned in the GitHub issue.
     """
     game_id, players = game_setup
     host = players[0]
@@ -322,12 +338,12 @@ def test_quote_reply_flow(game_setup):
     host.send_action("START_GAME", {})
     time.sleep(3)
 
-    # Set up the quote-reply scenario
-    original_sender = players[0]
-    replier = players[1]
-    observers = players[2:]
+    # Set up the quote-reply scenario with bot clients
+    original_sender = players[0]  # First bot client
+    replier = players[1]          # Second bot client  
+    observers = players[2:]       # Other clients in the game
 
-    print("\nSTEP 2: Sending original message...")
+    print(f"\nSTEP 2: Bot client {original_sender.name} sending original message...")
     original_message = "What do you think about the current situation?"
     original_sender.send_action("SEND_MESSAGE", {
         "message": original_message,
@@ -335,12 +351,28 @@ def test_quote_reply_flow(game_setup):
     })
     time.sleep(1)
 
+    # Verify all players receive the original message
+    print("  Verifying all clients received the original message...")
+    for player in players:
+        chat_events = player.get_events("CHAT_MESSAGE")
+        original_received = False
+        for event in chat_events:
+            payload = event.get("payload", {})
+            if payload.get("message") == original_message:
+                original_received = True
+                break
+        assert original_received, f"{player.name} did not receive the original message"
+
     # Get the original message ID from received messages
     original_chat_event = None
     for player in players:
         chat_events = player.get_events("CHAT_MESSAGE")
-        if chat_events:
-            original_chat_event = chat_events[-1]
+        for event in reversed(chat_events):
+            payload = event.get("payload", {})
+            if payload.get("message") == original_message:
+                original_chat_event = event
+                break
+        if original_chat_event:
             break
     
     assert original_chat_event is not None, "Original message was not received"
@@ -349,7 +381,7 @@ def test_quote_reply_flow(game_setup):
 
     print(f"  Original message ID: {original_message_id}")
 
-    print("\nSTEP 3: Sending reply with quote...")
+    print(f"\nSTEP 3: Bot client {replier.name} replying to {original_sender.name}...")
     reply_message = "I think we need to be more careful about who we trust."
     replier.send_action("SEND_MESSAGE", {
         "message": reply_message,
@@ -362,30 +394,43 @@ def test_quote_reply_flow(game_setup):
     })
     time.sleep(1)
 
-    print("\nSTEP 4: Verifying quote-reply format...")
-    # Check that all observers receive the correctly formatted quote reply
-    for observer in observers:
+    print("\nSTEP 4: Verifying all other clients receive CHAT_MESSAGE with correctly formatted [quote] payload...")
+    # Check that ALL clients (including observers) receive the correctly formatted quote reply
+    for observer in players:
+        if observer.player_id == replier.player_id:
+            continue  # Skip the replier themselves
+            
         chat_events = observer.get_events("CHAT_MESSAGE")
         reply_event = None
         
-        # Find the reply message (should be the most recent)
+        # Find the reply message (should be the most recent chat event)
         for event in reversed(chat_events):
             event_payload = event.get("payload", {})
-            if event_payload.get("message") == reply_message:
+            if reply_message in event_payload.get("message", ""):
                 reply_event = event
                 break
         
         assert reply_event is not None, f"{observer.name} did not receive the reply message"
         
         reply_payload = reply_event.get("payload", {})
-        assert "[quote]" in reply_payload.get("message", ""), f"Reply message for {observer.name} does not contain [quote] format"
+        message_content = reply_payload.get("message", "")
+        
+        # Verify the message contains [quote] format
+        assert "[quote]" in message_content, f"Reply message for {observer.name} does not contain [quote] format"
         
         # Verify quote structure - the message should contain the quoted content
-        message_content = reply_payload.get("message", "")
         assert original_sender.name in message_content, f"Quote in {observer.name}'s message does not contain original author name"
         assert original_message in message_content, f"Quote in {observer.name}'s message does not contain original message text"
         
-        print(f"  ✅ {observer.name} received correctly formatted quote-reply")
+        # Verify the event is properly structured as CHAT_MESSAGE
+        assert reply_event.get("type") == "CHAT_MESSAGE", f"Event type should be CHAT_MESSAGE, got {reply_event.get('type')}"
+        assert "sender_id" in reply_payload, f"CHAT_MESSAGE missing sender_id for {observer.name}"
+        assert "sender_name" in reply_payload, f"CHAT_MESSAGE missing sender_name for {observer.name}"
+        
+        print(f"  ✅ {observer.name} received correctly formatted CHAT_MESSAGE with [quote] payload")
+        print(f"    Message content: {message_content[:100]}...")
+
+    print("  ✅ Quote-Reply flow completed successfully - all clients received properly formatted events")
 
 
 def test_expanded_game_mechanics(game_setup):
@@ -408,13 +453,14 @@ def test_expanded_game_mechanics(game_setup):
             pulse_check_events.append(pulse_check)
     
     if pulse_check_events:
-        print("  Pulse check initiated, testing responses...")
-        # Have all players respond to pulse check
-        responses = ["NOMINAL", "ELEVATED", "CRITICAL"]
+        print("  Pulse check initiated, testing button responses...")
+        # Have all players respond to pulse check with button choices (Confident, Concerned, Uncertain)
+        button_responses = ["Confident", "Concerned", "Uncertain"]
         for i, player in enumerate(players):
-            response = responses[i % len(responses)]
+            response = button_responses[i % len(button_responses)]
             player.send_action("SUBMIT_PULSE_CHECK", {"response": response})
             time.sleep(0.2)
+            print(f"    {player.name} submitted pulse check response: {response}")
         
         time.sleep(2)  # Allow pulse check to complete
         
@@ -457,5 +503,140 @@ def test_expanded_game_mechanics(game_setup):
         print(f"  ✅ Mining mechanic working: {len(mining_events)} mining event(s) received")
 
     print("  ✅ Extended game mechanics test completed")
+
+
+def test_vote_tally_mechanics(game_setup):
+    """
+    Tests the voting mechanics including VOTE_TALLY_UPDATED events.
+    """
+    game_id, players = game_setup
+    host = players[0]
+
+    print("\nSTEP 1: Starting game and getting role assignments...")
+    host.send_action("START_GAME", {})
+    time.sleep(5)
+
+    # Identify players
+    for player in players:
+        role_assigned = player.get_latest_event("ROLE_ASSIGNED")
+        assert role_assigned is not None, f"{player.name} did not receive ROLE_ASSIGNED"
+
+    print("\nSTEP 2: Testing nomination vote mechanics...")
+    
+    # Have first 3 players nominate the 4th player
+    nominee = players[3]
+    voters = players[:3]
+    
+    for voter in voters:
+        voter.send_action("SUBMIT_VOTE", {
+            "vote_type": "NOMINATION", 
+            "target_id": nominee.player_id
+        })
+        time.sleep(0.5)
+        
+        # Check if voters receive VOTE_TALLY_UPDATED events
+        vote_tally_events = voter.get_events("VOTE_TALLY_UPDATED")
+        if vote_tally_events:
+            latest_tally = vote_tally_events[-1]
+            tally_payload = latest_tally.get("payload", {})
+            vote_state = tally_payload.get("voteState", {})
+            
+            print(f"  {voter.name} received vote tally update: {vote_state.get('results', {})}")
+            assert "votes" in vote_state, f"Vote state missing votes for {voter.name}"
+            assert "results" in vote_state, f"Vote state missing results for {voter.name}"
+
+    print("\nSTEP 3: Verifying all players see the same vote tally...")
+    
+    # Wait for vote processing
+    time.sleep(2)
+    
+    # Verify all players see consistent vote tallies
+    vote_tallies = []
+    for player in players:
+        vote_events = player.get_events("VOTE_TALLY_UPDATED")
+        if vote_events:
+            latest_vote = vote_events[-1]
+            vote_payload = latest_vote.get("payload", {})
+            vote_tallies.append(vote_payload.get("voteState", {}))
+            print(f"  {player.name} sees vote tally: {vote_payload.get('voteState', {}).get('results', {})}")
+
+    # Assert all players see the same results (if any vote tallies were received)
+    if vote_tallies:
+        first_tally = vote_tallies[0]
+        for i, tally in enumerate(vote_tallies[1:], 1):
+            assert tally.get("results") == first_tally.get("results"), \
+                f"Player {players[i].name} sees different vote results than {players[0].name}"
+        
+        print("  ✅ All players see consistent vote tallies")
+
+    print("  ✅ Vote tally mechanics test completed")
+
+
+def test_comprehensive_event_flow(game_setup):
+    """
+    Tests a comprehensive flow of events to ensure proper event propagation.
+    """
+    game_id, players = game_setup
+    host = players[0]
+
+    print("\nSTEP 1: Starting comprehensive event flow test...")
+    host.send_action("START_GAME", {})
+    time.sleep(5)
+
+    # Track events received by each player
+    event_counts = {}
+    expected_events = [
+        "ROLE_ASSIGNED",
+        "GAME_STARTED", 
+        "PHASE_CHANGED",
+        "GAME_STATE_UPDATE"
+    ]
+
+    print("\nSTEP 2: Verifying all players receive core game events...")
+    for player in players:
+        player_events = {}
+        for event_type in expected_events:
+            events = player.get_events(event_type)
+            player_events[event_type] = len(events)
+            print(f"  {player.name} received {len(events)} {event_type} event(s)")
+        
+        event_counts[player.name] = player_events
+
+    # Verify all players received the same number of core events
+    first_player_events = list(event_counts.values())[0]
+    for player_name, player_events in event_counts.items():
+        for event_type in expected_events:
+            first_count = first_player_events.get(event_type, 0)
+            player_count = player_events.get(event_type, 0)
+            if first_count > 0:  # Only check if the first player received this event type
+                assert player_count == first_count, \
+                    f"{player_name} received {player_count} {event_type} events, expected {first_count}"
+
+    print("  ✅ All players received consistent core game events")
+
+    print("\nSTEP 3: Testing chat message propagation...")
+    sender = players[0]
+    test_message = "Test message for event propagation"
+    
+    sender.send_action("SEND_MESSAGE", {
+        "message": test_message,
+        "channel_id": "general"
+    })
+    time.sleep(1)
+
+    # Verify all players receive the chat message
+    for player in players:
+        chat_events = player.get_events("CHAT_MESSAGE")
+        received_test_message = False
+        for event in chat_events:
+            payload = event.get("payload", {})
+            if payload.get("message") == test_message:
+                received_test_message = True
+                break
+        
+        assert received_test_message, f"{player.name} did not receive the test chat message"
+        print(f"  ✅ {player.name} received chat message")
+
+    print("  ✅ Comprehensive event flow test completed")
 
 

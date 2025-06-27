@@ -65,8 +65,18 @@ const (
 	// Communication events
 	EventChatMessage         EventType = "CHAT_MESSAGE"
 	EventMessageReaction     EventType = "MESSAGE_REACTION"
-	EventSystemMessage       EventType = "SYSTEM_MESSAGE"
+	EventSystemMessage       EventType = "SYSTEM_MESSAGE" // DEPRECATED: Use specific semantic events
 	EventPrivateNotification EventType = "PRIVATE_NOTIFICATION"
+	EventIncitingIncident    EventType = "INCITING_INCIDENT"
+	EventLoebmateMessage     EventType = "LOEBMATE_MESSAGE"
+
+	// Specific semantic events replacing SYSTEM_MESSAGE
+	EventClientError              EventType = "CLIENT_ERROR"
+	EventSitrepPublished          EventType = "SITREP_PUBLISHED"
+	EventLiaisonProtocolActivated EventType = "LIAISON_PROTOCOL_ACTIVATED"
+	EventLiaisonIntelRevealed     EventType = "LIAISON_INTEL_REVEALED"
+	EventAIConversionBlocked      EventType = "AI_CONVERSION_BLOCKED"
+	EventGameRuleModified         EventType = "GAME_RULE_MODIFIED"
 
 	// Crisis and Special events
 	EventCrisisTriggered     EventType = "CRISIS_TRIGGERED"
@@ -225,13 +235,14 @@ type Player struct {
 	JoinedAt          time.Time `json:"joinedAt"`
 
 	// Private fields (only visible to the player themselves)
-	Alignment              string       `json:"alignment,omitempty"` // "HUMAN" or "ALIGNED"
+	Alignment              string       `json:"alignment,omitempty"` // "HUMAN" or "AI"
 	Role                   *Role        `json:"role,omitempty"`
 	PersonalKPI            *PersonalKPI `json:"personalKPI,omitempty"`
 	AIEquity               int          `json:"aiEquity,omitempty"` // For alignment conversion
 	HasUsedAbility         bool         `json:"hasUsedAbility,omitempty"`
 	LastNightAction        *NightAction `json:"lastNightAction,omitempty"`
 	HasSubmittedPulseCheck bool         `json:"hasSubmittedPulseCheck,omitempty"`
+	LobbyHandle            string       `json:"lobbyHandle,omitempty"` // Original lobby identity for post-game reveal
 
 	// Public status and effects
 	SlackStatus           string        `json:"slackStatus,omitempty"`

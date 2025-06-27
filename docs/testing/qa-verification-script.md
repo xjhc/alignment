@@ -77,24 +77,28 @@ For each phase, follow these exact steps to verify UI requirements:
 
 ### Critical UI Verification ⚠️
 - [ ] **VERIFY**: Header displays "Pulse Check - Day 1"
-- [ ] **VERIFY**: Three buttons displayed:
-  - [ ] "Nominal" button (green color)
-  - [ ] "Elevated" button (yellow color)  
-  - [ ] "Critical" button (red color)
+- [ ] **VERIFY**: Freeform text input field displayed with:
+  - [ ] Placeholder text: "Enter your response (max 200 characters)..."
+  - [ ] 200 character limit enforced
+  - [ ] Character counter display (e.g., "0/200 characters")
+- [ ] **VERIFY**: Submit button displayed and initially disabled
 - [ ] **VERIFY**: Main chat input field is disabled/hidden
 - [ ] **VERIFY**: No other action buttons available
 - [ ] **VERIFY**: Timer shows countdown for phase duration
 
-### Button Functionality
-- [ ] **TEST**: Click "Nominal" button
-- [ ] **VERIFY**: SUBMIT_PULSE_CHECK action sent (check network tab)
-- [ ] **VERIFY**: All three buttons become disabled
+### Text Input Functionality
+- [ ] **TEST**: Type freeform response (e.g., "I'm concerned about recent behavior")
+- [ ] **VERIFY**: Character counter updates in real-time
+- [ ] **VERIFY**: Submit button becomes enabled when text is present
+- [ ] **TEST**: Press Enter key to submit
+- [ ] **VERIFY**: SUBMIT_PULSE_CHECK action sent with freeform text (check network tab)
+- [ ] **VERIFY**: Input field and submit button become disabled
 - [ ] **VERIFY**: UI shows "Response submitted" or similar confirmation
 - [ ] **VERIFY**: Other players see "[PlayerName] has responded"
 
 ### Action Payload Verification
-- [ ] **TEST**: Check browser network tab after clicking button
-- [ ] **VERIFY**: Payload contains: `{ "response": "NOMINAL" }`
+- [ ] **TEST**: Check browser network tab after submitting response
+- [ ] **VERIFY**: Payload contains: `{ "response": "[user's freeform text]" }`
 - [ ] **TEST**: Try to submit second response (should fail)
 - [ ] **VERIFY**: Server rejects duplicate submission
 

@@ -59,4 +59,4 @@ Every new feature or design decision must pass this test:
 *   **[ ] Is the interaction immediate, responsive, and satisfying?**
 *   **[ ] Does it adhere to our established tokens and components, or does it justify creating a new, reusable pattern?**
 
-By rigorously applying these principles, we will create an experience that is not just a game, but a believable simulation of corporate espionage against a rogue AI—an experience that is "buttoned-up," tense, and deeply immersive.
+By rigorously applying these principles, we will create an experience that is not just a game, but a believable simulation of corporate espionage against a rogue AI—an experience that is "buttoned-up," tense, and deeply immersive.R

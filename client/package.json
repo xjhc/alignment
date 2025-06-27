@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "storybook": "npm run build:tokens && storybook dev -p 6006",
-    "build-storybook": "npm run build:tokens && storybook build"
+    "build-storybook": "npm run build:tokens && storybook build",
+    "chromatic": "npm run build:tokens && chromatic --exit-zero-on-changes"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +20,7 @@
   "description": "Frontend client for Alignment game",
   "devDependencies": {
     "@chromatic-com/storybook": "^4.0.1",
+    "chromatic": "^11.10.4",
     "@storybook/addon-a11y": "^9.0.12",
     "@storybook/addon-docs": "^9.0.12",
     "@storybook/addon-onboarding": "^9.0.12",
