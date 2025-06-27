@@ -112,6 +112,8 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 	// Voting events
 	case EventVoteCast:
 		newState.applyVoteCast(event)
+	case EventVoteTallyUpdated:
+		newState.applyVoteTallyUpdated(event)
 	case EventVoteStarted:
 		newState.applyVoteStarted(event)
 	case EventVoteCompleted:
@@ -157,9 +159,23 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 	case EventChatMessage:
 		newState.applyChatMessage(event)
 	case EventSystemMessage:
-		newState.applySystemMessage(event)
+		newState.applySystemMessage(event) // DEPRECATED: Use specific semantic events
 	case EventPrivateNotification:
 		newState.applyPrivateNotification(event)
+
+	// Specific semantic events
+	case EventClientError:
+		newState.applyClientError(event)
+	case EventSitrepPublished:
+		newState.applySitrepPublished(event)
+	case EventLiaisonProtocolActivated:
+		newState.applyLiaisonProtocolActivated(event)
+	case EventLiaisonIntelRevealed:
+		newState.applyLiaisonIntelRevealed(event)
+	case EventAIConversionBlocked:
+		newState.applyAIConversionBlocked(event)
+	case EventGameRuleModified:
+		newState.applyGameRuleModified(event)
 
 	// Crisis and pulse check events
 	case EventCrisisTriggered:
@@ -327,6 +343,71 @@ func (gs *GameState) applyVoteCast(event Event) {
 			gs.VoteState.Results[candidateID] += tokens
 		}
 	}
+}
+
+func (gs *GameState) applyVoteTallyUpdated(event Event) {
+	voteType, _ := event.Payload["vote_type"].(string)
+	results, _ := event.Payload["results"].(map[string]interface{})
+	tokenWeights, _ := event.Payload["token_weights"].(map[string]interface{})
+	isComplete, _ := event.Payload["is_complete"].(bool)
+	voterID, _ := event.Payload["voter_id"].(string)
+	targetID, _ := event.Payload["target_id"].(string)
+	
+	// Initialize vote state if needed
+	if gs.VoteState == nil {
+		gs.VoteState = &VoteState{
+			Type:         VoteType(voteType),
+			Votes:        make(map[string]string),
+			TokenWeights: make(map[string]int),
+			Results:      make(map[string]int),
+			IsComplete:   false,
+		}
+	}
+
+	// Apply the authoritative vote tally from the event
+	if results != nil {
+		gs.VoteState.Results = make(map[string]int)
+		for candidateID, voteCountInterface := range results {
+			if voteCount, ok := voteCountInterface.(float64); ok {
+				gs.VoteState.Results[candidateID] = int(voteCount)
+			} else if voteCount, ok := voteCountInterface.(int); ok {
+				gs.VoteState.Results[candidateID] = voteCount
+			}
+		}
+	}
+
+	// Apply token weights from the event
+	if tokenWeights != nil {
+		gs.VoteState.TokenWeights = make(map[string]int)
+		for playerID, weightInterface := range tokenWeights {
+			if weight, ok := weightInterface.(float64); ok {
+				gs.VoteState.TokenWeights[playerID] = int(weight)
+			} else if weight, ok := weightInterface.(int); ok {
+				gs.VoteState.TokenWeights[playerID] = weight
+			}
+		}
+	}
+
+	// Record the individual vote that triggered this update
+	if voterID != "" && targetID != "" {
+		gs.VoteState.Votes[voterID] = targetID
+	}
+
+	// Apply public voting information if transparency mandate is active
+	if publicVoting, exists := event.Payload["public_voting"].(bool); exists && publicVoting {
+		if voterChoices, exists := event.Payload["voter_choices"].(map[string]interface{}); exists {
+			// Replace with authoritative voter choices
+			gs.VoteState.Votes = make(map[string]string)
+			for voterID, choiceInterface := range voterChoices {
+				if choice, ok := choiceInterface.(string); ok {
+					gs.VoteState.Votes[voterID] = choice
+				}
+			}
+		}
+	}
+
+	// Update completion status
+	gs.VoteState.IsComplete = isComplete
 }
 
 func (gs *GameState) applyTokensAwarded(event Event) {
@@ -534,6 +615,11 @@ func (gs *GameState) applyRoleAssigned(event Event) {
 	kpiType, _ := event.Payload["kpi_type"].(string)
 	kpiDescription, _ := event.Payload["kpi_description"].(string)
 	alignment, _ := event.Payload["alignment"].(string)
+	
+	// New persona fields
+	personaName, _ := event.Payload["persona_name"].(string)
+	jobTitle, _ := event.Payload["job_title"].(string)
+	lobbyHandle, _ := event.Payload["lobby_handle"].(string)
 
 	if player, exists := gs.Players[playerID]; exists {
 		player.Role = &Role{
@@ -553,7 +639,17 @@ func (gs *GameState) applyRoleAssigned(event Event) {
 			}
 		}
 
+		// Update player identity with persona information
 		player.Alignment = alignment
+		if personaName != "" {
+			player.Name = personaName
+		}
+		if jobTitle != "" {
+			player.JobTitle = jobTitle
+		}
+		if lobbyHandle != "" {
+			player.LobbyHandle = lobbyHandle
+		}
 	}
 }
 
@@ -705,51 +801,81 @@ func (gs *GameState) applyNightActionSubmitted(event Event) {
 }
 
 func (gs *GameState) applyNightActionsResolved(event Event) {
-	// Process night action results
-	results, ok := event.Payload["results"].(map[string]interface{})
-	if !ok {
-		return
-	}
-
-	// Update each player based on night action results
-	for playerID, resultInterface := range results {
-		if result, ok := resultInterface.(map[string]interface{}); ok {
-			if player, exists := gs.Players[playerID]; exists {
-				// Update tokens from mining or other actions
-				if tokenChange, exists := result["token_change"]; exists {
-					if change, ok := tokenChange.(float64); ok {
-						player.Tokens += int(change)
-						if player.Tokens < 0 {
-							player.Tokens = 0
+	// Apply structured night action results
+	
+	// Apply player state changes from the structured payload
+	if playerStateChanges, ok := event.Payload["player_state_changes"].(map[string]interface{}); ok {
+		for playerID, changesInterface := range playerStateChanges {
+			if changes, ok := changesInterface.(map[string]interface{}); ok {
+				if player, exists := gs.Players[playerID]; exists {
+					// Apply each state change to the player
+					for key, value := range changes {
+						switch key {
+						case "tokens_gained":
+							if tokens, ok := value.(float64); ok {
+								player.Tokens += int(tokens)
+							} else if tokens, ok := value.(int); ok {
+								player.Tokens += tokens
+							}
+						case "status_message":
+							if msg, ok := value.(string); ok {
+								player.StatusMessage = msg
+							}
+						case "alignment":
+							if align, ok := value.(string); ok {
+								player.Alignment = align
+							}
+						case "ai_equity":
+							if equity, ok := value.(float64); ok {
+								player.AIEquity = int(equity)
+							} else if equity, ok := value.(int); ok {
+								player.AIEquity = equity
+							}
+						case "project_milestones":
+							if milestones, ok := value.(float64); ok {
+								player.ProjectMilestones = int(milestones)
+							} else if milestones, ok := value.(int); ok {
+								player.ProjectMilestones = milestones
+							}
+						case "has_used_ability":
+							if used, ok := value.(bool); ok {
+								player.HasUsedAbility = used
+							}
+						case "role_unlocked":
+							if unlocked, ok := value.(bool); ok && unlocked {
+								if player.Role != nil {
+									player.Role.IsUnlocked = true
+									if player.Role.Ability != nil {
+										player.Role.Ability.IsReady = true
+									}
+								}
+							}
 						}
 					}
 				}
+			}
+		}
+	}
 
-				// Update status messages
-				if status, exists := result["status_message"]; exists {
-					if msg, ok := status.(string); ok {
-						player.StatusMessage = msg
+	// Reset night action tracking for all players
+	for _, player := range gs.Players {
+		player.LastNightAction = nil
+		// HasUsedAbility is handled in the state changes section above
+		// If not explicitly set in state changes, reset to false
+		if playerStateChanges, ok := event.Payload["player_state_changes"].(map[string]interface{}); ok {
+			if playerChanges, exists := playerStateChanges[player.ID]; exists {
+				if changes, ok := playerChanges.(map[string]interface{}); ok {
+					if _, hasAbilitySet := changes["has_used_ability"]; !hasAbilitySet {
+						player.HasUsedAbility = false
 					}
+				} else {
+					player.HasUsedAbility = false
 				}
-
-				// Update alignment changes from conversions
-				if alignment, exists := result["alignment"]; exists {
-					if align, ok := alignment.(string); ok {
-						player.Alignment = align
-					}
-				}
-
-				// Update AI equity
-				if aiEquity, exists := result["ai_equity"]; exists {
-					if equity, ok := aiEquity.(float64); ok {
-						player.AIEquity = int(equity)
-					}
-				}
-
-				// Reset night action tracking
-				player.LastNightAction = nil
+			} else {
 				player.HasUsedAbility = false
 			}
+		} else {
+			player.HasUsedAbility = false
 		}
 	}
 
@@ -867,6 +993,65 @@ func (gs *GameState) applySystemMessage(event Event) {
 func (gs *GameState) applyPrivateNotification(event Event) {
 	// Private notifications don't affect global game state
 	// They are delivered to specific players only
+}
+
+// Specific semantic event handlers
+
+func (gs *GameState) applyClientError(event Event) {
+	// Client errors don't modify game state - they're for client handling only
+	// Could log for analytics but no state changes needed
+}
+
+func (gs *GameState) applySitrepPublished(event Event) {
+	// SITREP events contain crisis and day information but don't modify core game state
+	// The crisis data is already applied via EventCrisisTriggered
+	// This event is primarily for client rendering
+}
+
+func (gs *GameState) applyLiaisonProtocolActivated(event Event) {
+	// Liaison protocol activation modifies game mechanics
+	// Store activation state for mining bonuses and other effects
+	if gs.CrisisEvent == nil {
+		gs.CrisisEvent = &CrisisEvent{Effects: make(map[string]interface{})}
+	}
+	if gs.CrisisEvent.Effects == nil {
+		gs.CrisisEvent.Effects = make(map[string]interface{})
+	}
+	
+	aiPercentage, _ := event.Payload["ai_percentage"].(float64)
+	bonusSlots, _ := event.Payload["mining_bonus_slots"].(float64)
+	
+	gs.CrisisEvent.Effects["liaison_protocol_active"] = true
+	gs.CrisisEvent.Effects["liaison_ai_percentage"] = aiPercentage
+	gs.CrisisEvent.Effects["liaison_mining_bonus"] = int(bonusSlots)
+}
+
+func (gs *GameState) applyLiaisonIntelRevealed(event Event) {
+	// Intel reveals don't modify game state - they're informational
+	// Could track for analytics but no state changes needed
+}
+
+func (gs *GameState) applyAIConversionBlocked(event Event) {
+	// Conversion blocks are informational and don't modify state
+	// The actual blocking logic is handled in the night resolution
+}
+
+func (gs *GameState) applyGameRuleModified(event Event) {
+	// Rule modifications can affect various game mechanics
+	// Store in crisis effects for reference during rule evaluation
+	if gs.CrisisEvent == nil {
+		gs.CrisisEvent = &CrisisEvent{Effects: make(map[string]interface{})}
+	}
+	if gs.CrisisEvent.Effects == nil {
+		gs.CrisisEvent.Effects = make(map[string]interface{})
+	}
+	
+	ruleCategory, _ := event.Payload["rule_category"].(string)
+	modificationType, _ := event.Payload["modification_type"].(string)
+	source, _ := event.Payload["source"].(string)
+	
+	ruleKey := fmt.Sprintf("rule_mod_%s_%s", ruleCategory, modificationType)
+	gs.CrisisEvent.Effects[ruleKey] = source
 }
 
 func (gs *GameState) applyPulseCheckStarted(event Event) {

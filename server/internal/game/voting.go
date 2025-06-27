@@ -397,27 +397,13 @@ func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, err
 		events = append(events, voteStartedEvent)
 	}
 
-	// Create the vote cast event
-	voteCastEvent := core.Event{
-		ID:        fmt.Sprintf("vote_%s_%s_%d", action.PlayerID, targetID, getCurrentTime().UnixNano()),
-		Type:      core.EventVoteCast,
-		GameID:    vm.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"target_id": targetID,
-			"vote_type": string(voteType),
-		},
-	}
-	events = append(events, voteCastEvent)
-
-	// Cast the vote internally
+	// Cast the vote internally to update state for calculation
 	if err := vm.CastVote(action.PlayerID, targetID); err != nil {
 		return nil, fmt.Errorf("failed to cast vote: %w", err)
 	}
 
-	// Generate vote tally updated event with mandate effects
-	voteTallyEvent := vm.generateVoteTallyEvent(voteType)
+	// Generate single authoritative vote tally updated event
+	voteTallyEvent := vm.generateVoteTallyEvent(voteType, action.PlayerID, targetID)
 	if voteTallyEvent != nil {
 		events = append(events, *voteTallyEvent)
 	}
@@ -426,7 +412,7 @@ func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, err
 }
 
 // generateVoteTallyEvent creates a vote tally updated event with mandate effects
-func (vm *VotingManager) generateVoteTallyEvent(voteType core.VoteType) *core.Event {
+func (vm *VotingManager) generateVoteTallyEvent(voteType core.VoteType, voterID, targetID string) *core.Event {
 	if vm.gameState.VoteState == nil {
 		return nil
 	}
@@ -434,16 +420,24 @@ func (vm *VotingManager) generateVoteTallyEvent(voteType core.VoteType) *core.Ev
 	// Check if Total Transparency mandate is active
 	publicVotingOnly := vm.checkTransparencyMandate()
 
-	// Build the payload with vote results
+	// Build comprehensive payload with complete voting state
 	payload := map[string]interface{}{
-		"vote_type": string(voteType),
-		"results":   vm.gameState.VoteState.Results,
+		"vote_type":     string(voteType),
+		"results":       vm.gameState.VoteState.Results,
+		"token_weights": vm.gameState.VoteState.TokenWeights,
+		"is_complete":   vm.gameState.VoteState.IsComplete,
+		"voter_id":      voterID,
+		"target_id":     targetID,
 	}
 
 	// Include voter identities if transparency mandate is active
 	if publicVotingOnly {
 		payload["public_voting"] = true
 		payload["voter_choices"] = vm.gameState.VoteState.Votes
+	} else {
+		// In private voting, only include vote counts
+		payload["public_voting"] = false
+		// Do not include voter_choices for private voting
 	}
 
 	return &core.Event{

@@ -50,22 +50,36 @@ func (lpm *LiaisonProtocolManager) CheckProtocolTrigger() bool {
 func (lpm *LiaisonProtocolManager) ActivateProtocol() []core.Event {
 	var events []core.Event
 
-	log.Printf("[LiaisonProtocol] LIAISON Protocol activated - AI faction at 40%% of living players")
+	// Calculate current AI percentage
+	alivePlayers := 0
+	aiPlayers := 0
+	for _, player := range lpm.gameState.Players {
+		if player.IsAlive {
+			alivePlayers++
+			if player.Alignment == "ALIGNED" {
+				aiPlayers++
+			}
+		}
+	}
+	aiPercentage := float64(aiPlayers) / float64(alivePlayers)
 
-	// 1. Generate system alert message
-	alertEvent := core.Event{
-		ID:        fmt.Sprintf("liaison_alert_%d", time.Now().UnixNano()),
-		Type:      core.EventSystemMessage,
+	log.Printf("[LiaisonProtocol] LIAISON Protocol activated - AI faction at %.2f%% of living players", aiPercentage*100)
+
+	// 1. Generate specific liaison protocol activation event
+	activationEvent := core.Event{
+		ID:        fmt.Sprintf("liaison_protocol_activated_%d", time.Now().UnixNano()),
+		Type:      core.EventLiaisonProtocolActivated,
 		GameID:    lpm.gameState.ID,
 		PlayerID:  "", // Public event
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"message":     "[LIAISON ALERT] Corporate security protocol activated. Enhanced intelligence gathering authorized.",
-			"message_type": "liaison_protocol",
-			"priority":    "high",
+			"ai_percentage":        aiPercentage,
+			"trigger_threshold":    0.40,
+			"mining_bonus_slots":   2,
+			"protocol_duration":    "remainder of night",
 		},
 	}
-	events = append(events, alertEvent)
+	events = append(events, activationEvent)
 
 	// 2. Reveal a random non-AI night action from previous night
 	revealEvent := lpm.generateActionRevealEvent()
@@ -109,18 +123,17 @@ func (lpm *LiaisonProtocolManager) generateActionRevealEvent() *core.Event {
 	actionDescription := lpm.getActionDescription(selectedAction)
 
 	revealEvent := &core.Event{
-		ID:        fmt.Sprintf("liaison_action_reveal_%d", time.Now().UnixNano()),
-		Type:      core.EventSystemMessage,
+		ID:        fmt.Sprintf("liaison_intel_revealed_%d", time.Now().UnixNano()),
+		Type:      core.EventLiaisonIntelRevealed,
 		GameID:    lpm.gameState.ID,
 		PlayerID:  "", // Public event
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"message": fmt.Sprintf("[LIAISON INTEL] Corporate security detected: %s performed %s last night.",
-				selectedPlayer.Name, actionDescription),
-			"message_type":   "liaison_reveal",
-			"revealed_player": selectedPlayerID,
-			"revealed_action": selectedAction.Type,
-			"priority":       "high",
+			"revealed_player_id":   selectedPlayerID,
+			"revealed_player_name": selectedPlayer.Name,
+			"revealed_action_type": selectedAction.Type,
+			"action_description":   actionDescription,
+			"night_number":         lpm.gameState.DayNumber,
 		},
 	}
 

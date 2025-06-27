@@ -44,6 +44,7 @@ export interface CorePlayer {
   hasUsedAbility?: boolean;
   lastNightAction?: CoreNightAction;
   hasSubmittedPulseCheck?: boolean;
+  lobbyHandle?: string;
   slackStatus?: string;
   partingShot?: string;
   systemShocks?: CoreSystemShock[];

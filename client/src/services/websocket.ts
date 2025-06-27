@@ -203,8 +203,11 @@ export class WebSocketClient {
       case ServerEventType.GameStarted:
       case ServerEventType.PhaseChanged:
       case ServerEventType.ChatMessage:
+      case ServerEventType.IncitingIncident:
+      case ServerEventType.LoebmateMessage:
       case ServerEventType.VoteCast:
       case ServerEventType.NightActionSubmitted:
+      case ServerEventType.NightActionsResolved:
       case ServerEventType.PlayerLeft:
       case ServerEventType.PlayerEliminated:
       case ServerEventType.PulseCheckStarted:

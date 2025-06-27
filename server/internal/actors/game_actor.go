@@ -514,17 +514,28 @@ func (ga *GameActor) generatePulseCheckRevelation() core.Event {
 	}
 }
 
-// generateInitializeGameEvents handles the game setup by generating events.
+// generateInitializeGameEvents handles the game setup by generating events using the Persona system.
 func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Event, error) {
-	log.Printf("[GameActor/%s] Generating events for role and alignment assignment...", ga.gameID)
+	log.Printf("[GameActor/%s] Generating events for persona and alignment assignment...", ga.gameID)
 	var events []core.Event
 
-	assignments := assignRolesAndAlignments(getPlayerIDs(ga.state.Players), ga.rng)
-	for playerID, assignment := range assignments {
-		// Create a ROLE_ASSIGNED event for each player.
-		// These events will be applied internally to build the correct server state
-		// before generating the player-specific snapshots.
-		// Create role assignment event  
+	// Use the new persona assignment system
+	personaAssignments := game.AssignPersonas(ga.state.Players, ga.rng)
+	
+	// Generate KPI pool for human players
+	kpis := []core.KPIType{
+		core.KPICapitalist, core.KPIGuardian, core.KPIInquisitor,
+		core.KPISuccessionPlanner, core.KPIScapegoat,
+	}
+	
+	// Shuffle KPIs for random assignment
+	ga.rng.Shuffle(len(kpis), func(i, j int) {
+		kpis[i], kpis[j] = kpis[j], kpis[i]
+	})
+	
+	kpiIndex := 0
+	for playerID, assignment := range personaAssignments {
+		// Create a ROLE_ASSIGNED event for each player with their new persona
 		roleAssignedEvent := core.Event{
 			ID:        fmt.Sprintf("role_assigned_%s", playerID),
 			Type:      core.EventRoleAssigned,
@@ -532,16 +543,20 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 			PlayerID:  playerID, // Event is specific to this player
 			Timestamp: time.Now(),
 			Payload: map[string]interface{}{
-				"role_type":        string(assignment.RoleType),
-				"role_name":        assignment.RoleName,
-				"role_description": assignment.RoleDescription,
+				"role_type":        string(assignment.Persona.Role),
+				"role_name":        getRoleName(assignment.Persona.Role),
+				"role_description": getRoleDescription(assignment.Persona.Role),
 				"alignment":        assignment.Alignment,
+				"persona_name":     assignment.Persona.Name,
+				"job_title":        assignment.Persona.JobTitle,
+				"lobby_handle":     assignment.LobbyHandle,
 			},
 		}
 		events = append(events, roleAssignedEvent)
 
 		// Create separate KPI assignment event for human players only
-		if assignment.Alignment == "human" && assignment.KPIType != "" {
+		if assignment.Alignment == "HUMAN" && kpiIndex < len(kpis) {
+			kpiType := kpis[kpiIndex]
 			kpiAssignedEvent := core.Event{
 				ID:        fmt.Sprintf("kpi_assigned_%s", playerID),
 				Type:      core.EventKPIAssigned,
@@ -549,13 +564,14 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 				PlayerID:  playerID, // Private event for this player
 				Timestamp: time.Now(),
 				Payload: map[string]interface{}{
-					"kpi_type":    string(assignment.KPIType),
-					"description": assignment.KPIDescription,
-					"target":      ga.getKPITarget(assignment.KPIType),
-					"reward":      ga.getKPIReward(assignment.KPIType),
+					"kpi_type":    string(kpiType),
+					"description": getKPIDescription(kpiType),
+					"target":      ga.getKPITarget(kpiType),
+					"reward":      ga.getKPIReward(kpiType),
 				},
 			}
 			events = append(events, kpiAssignedEvent)
+			kpiIndex++
 		}
 	}
 
@@ -582,7 +598,7 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 	// Add initial system messages before game starts
 	incitingIncidentEvent := core.Event{
 		ID:        fmt.Sprintf("inciting_incident_%s", ga.gameID),
-		Type:      core.EventChatMessage,
+		Type:      core.EventIncitingIncident,
 		GameID:    ga.gameID,
 		PlayerID:  "", // Public event
 		Timestamp: time.Now(),
@@ -620,7 +636,7 @@ Time is critical. Trust no one. The AI walks among us.
 	// Add Loebmate welcome message
 	loebmateWelcomeEvent := core.Event{
 		ID:        fmt.Sprintf("loebmate_welcome_%s", ga.gameID),
-		Type:      core.EventChatMessage,
+		Type:      core.EventLoebmateMessage,
 		GameID:    ga.gameID,
 		PlayerID:  "", // Public event
 		Timestamp: time.Now(),
@@ -899,71 +915,8 @@ func (ga *GameActor) handleSkipVoteAction(action core.Action) ([]core.Event, err
 	return events, nil
 }
 
-type RoleAssignment struct {
-	RoleType        core.RoleType
-	RoleName        string
-	RoleDescription string
-	Alignment       string
-	KPIType         core.KPIType
-	KPIDescription  string
-}
-
-func assignRolesAndAlignments(playerIDs []string, rng *rand.Rand) map[string]RoleAssignment {
-	assignments := make(map[string]RoleAssignment)
-
-	roles := []core.RoleType{
-		core.RoleCISO, core.RoleCTO, core.RoleCOO, core.RoleCFO,
-		core.RoleEthics, core.RolePlatforms, core.RoleIntern,
-	}
-
-	kpis := []core.KPIType{
-		core.KPICapitalist, core.KPIGuardian, core.KPIInquisitor,
-		core.KPISuccessionPlanner, core.KPIScapegoat,
-	}
-
-	numPlayers := len(playerIDs)
-	numAI := numPlayers / 4
-	if numAI < 1 && numPlayers > 0 {
-		numAI = 1
-	}
-
-	shuffledPlayerIDs := make([]string, numPlayers)
-	copy(shuffledPlayerIDs, playerIDs)
-	rng.Shuffle(len(shuffledPlayerIDs), func(i, j int) {
-		shuffledPlayerIDs[i], shuffledPlayerIDs[j] = shuffledPlayerIDs[j], shuffledPlayerIDs[i]
-	})
-
-	aiPlayers := make(map[string]bool)
-	for i := 0; i < numAI; i++ {
-		aiPlayers[shuffledPlayerIDs[i]] = true
-	}
-
-	for i, playerID := range playerIDs {
-		alignment := "HUMAN"
-		if aiPlayers[playerID] {
-			alignment = "ALIGNED"
-		}
-
-		assignments[playerID] = RoleAssignment{
-			RoleType:        roles[i%len(roles)],
-			Alignment:       alignment,
-			KPIType:         kpis[i%len(kpis)],
-			RoleName:        getRoleName(roles[i%len(roles)]),
-			RoleDescription: getRoleDescription(roles[i%len(roles)]),
-			KPIDescription:  getKPIDescription(kpis[i%len(kpis)]),
-		}
-	}
-
-	return assignments
-}
-
-func getPlayerIDs(players map[string]*core.Player) []string {
-	ids := make([]string, 0, len(players))
-	for id := range players {
-		ids = append(ids, id)
-	}
-	return ids
-}
+// Legacy role assignment functions removed - now using persona system
+// Helper functions moved to game/personas.go
 
 func getRoleName(roleType core.RoleType) string {
 	switch roleType {

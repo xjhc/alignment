@@ -6,6 +6,7 @@
 
 # Go modules
 /server/vendor/
+/vendor/
 
 # Python
 __pycache__/

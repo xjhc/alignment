@@ -26,31 +26,292 @@ func (nrm *NightResolutionManager) ResolveNightActions() []core.Event {
 		return []core.Event{}
 	}
 
-	var allEvents []core.Event
+	// Process night actions internally to determine results without emitting granular events
+	results := nrm.processAllNightActions()
 
-	// Pass 1: Resolve blocking actions (highest precedence)
-	// These must be resolved first as they prevent other actions
-	blockEvents := nrm.resolveBlockActions()
-	allEvents = append(allEvents, blockEvents...)
-
-	// Pass 2: Resolve AI conversion attempts
-	// AI targeting functions as a block, so must be resolved before standard actions
-	conversionEvents := nrm.resolveConversionActions()
-	allEvents = append(allEvents, conversionEvents...)
-
-	// Pass 3: Resolve standard actions (mining, role abilities, others)
-	// These are resolved for non-blocked players only
-	standardEvents := nrm.resolveStandardActions()
-	allEvents = append(allEvents, standardEvents...)
-
-	// Generate summary event
-	summaryEvent := nrm.createNightResolutionSummary(allEvents)
-	allEvents = append(allEvents, summaryEvent)
+	// Generate single authoritative night resolution event
+	summaryEvent := nrm.createNightResolutionSummary(results)
 
 	// Clear night actions for next night
 	nrm.gameState.NightActions = make(map[string]*core.SubmittedNightAction)
 
-	return allEvents
+	return []core.Event{summaryEvent}
+}
+
+// NightActionResults holds the structured results of all night actions
+type NightActionResults struct {
+	BlockedPlayers      []map[string]interface{} `json:"blocked_players"`
+	ConvertedPlayers    []map[string]interface{} `json:"converted_players"`
+	ShockedPlayers      []map[string]interface{} `json:"shocked_players"`
+	EliminatedPlayers   []map[string]interface{} `json:"eliminated_players"`
+	MiningResults       []map[string]interface{} `json:"mining_results"`
+	RoleAbilityResults  []map[string]interface{} `json:"role_ability_results"`
+	MilestoneResults    []map[string]interface{} `json:"milestone_results"`
+	FailedActions       []map[string]interface{} `json:"failed_actions"`
+	PlayerStateChanges  map[string]map[string]interface{} `json:"player_state_changes"`
+}
+
+// processAllNightActions handles all night actions and returns structured results
+func (nrm *NightResolutionManager) processAllNightActions() *NightActionResults {
+	results := &NightActionResults{
+		BlockedPlayers:      []map[string]interface{}{},
+		ConvertedPlayers:    []map[string]interface{}{},
+		ShockedPlayers:      []map[string]interface{}{},
+		EliminatedPlayers:   []map[string]interface{}{},
+		MiningResults:       []map[string]interface{}{},
+		RoleAbilityResults:  []map[string]interface{}{},
+		MilestoneResults:    []map[string]interface{}{},
+		FailedActions:       []map[string]interface{}{},
+		PlayerStateChanges:  make(map[string]map[string]interface{}),
+	}
+
+	// Pass 1: Process blocking actions (highest precedence)
+	nrm.processBlockActions(results)
+
+	// Pass 2: Process AI conversion attempts
+	nrm.processConversionActions(results)
+
+	// Pass 3: Process standard actions (mining, role abilities, others)
+	nrm.processStandardActions(results)
+
+	return results
+}
+
+// processBlockActions handles all blocking actions and updates results
+func (nrm *NightResolutionManager) processBlockActions(results *NightActionResults) {
+	for playerID, action := range nrm.gameState.NightActions {
+		if action.Type == "BLOCK" || action.Type == "ISOLATE_NODE" {
+			targetID := action.TargetID
+
+			// Validate block action
+			if nrm.canPlayerUseAbility(playerID, action.Type) && targetID != "" {
+				// Block the target player
+				nrm.blockPlayer(targetID)
+
+				// Get player names for structured results
+				blocker := nrm.gameState.Players[playerID]
+				target := nrm.gameState.Players[targetID]
+
+				if blocker != nil && target != nil {
+					results.BlockedPlayers = append(results.BlockedPlayers, map[string]interface{}{
+						"player_id":     targetID,
+						"player_name":   target.Name,
+						"blocker_id":    playerID,
+						"blocker_name":  blocker.Name,
+						"block_type":    action.Type,
+					})
+
+					// Track state change for target
+					nrm.addPlayerStateChange(results, targetID, "status_message", fmt.Sprintf("Action blocked by %s", blocker.Name))
+				}
+			}
+		}
+	}
+}
+
+// processConversionActions handles AI conversion attempts
+func (nrm *NightResolutionManager) processConversionActions(results *NightActionResults) {
+	for playerID, action := range nrm.gameState.NightActions {
+		if action.Type == "CONVERT" {
+			targetID := action.TargetID
+
+			// Skip blocked players
+			if nrm.isPlayerBlocked(playerID) {
+				continue
+			}
+
+			// Validate conversion action
+			if nrm.canPlayerUseAbility(playerID, "CONVERT") && targetID != "" {
+				player := nrm.gameState.Players[playerID]
+				target := nrm.gameState.Players[targetID]
+
+				if player != nil && target != nil && player.Alignment == "ALIGNED" {
+					// Calculate conversion success - use AI equity from player
+					success := core.CalculateAIConversionSuccess(*target, player.AIEquity, *nrm.gameState)
+					
+					if success {
+						// Successful conversion
+						results.ConvertedPlayers = append(results.ConvertedPlayers, map[string]interface{}{
+							"player_id":        targetID,
+							"player_name":      target.Name,
+							"converter_id":     playerID,
+							"converter_name":   player.Name,
+							"previous_equity":  target.AIEquity,
+							"new_equity":       0, // Reset after successful conversion
+						})
+
+						// Track state changes
+						nrm.addPlayerStateChange(results, targetID, "alignment", "ALIGNED")
+						nrm.addPlayerStateChange(results, targetID, "ai_equity", 0)
+						nrm.addPlayerStateChange(results, targetID, "status_message", "Conversion successful")
+					} else {
+						// Failed conversion - system shock
+						shockMessage := fmt.Sprintf("System shock: Failed AI conversion by %s", player.Name)
+						
+						results.ShockedPlayers = append(results.ShockedPlayers, map[string]interface{}{
+							"player_id":      targetID,
+							"player_name":    target.Name,
+							"shock_type":     "CONVERSION_FAILURE",
+							"shock_duration": 24,
+							"reason":         "Failed AI conversion attempt",
+							"converter_id":   playerID,
+							"converter_name": player.Name,
+						})
+
+						// Track state changes
+						nrm.addPlayerStateChange(results, targetID, "ai_equity", 0)
+						nrm.addPlayerStateChange(results, targetID, "status_message", shockMessage)
+					}
+				}
+			}
+		}
+	}
+}
+
+// processStandardActions handles mining, role abilities, and other standard actions
+func (nrm *NightResolutionManager) processStandardActions(results *NightActionResults) {
+	for playerID, action := range nrm.gameState.NightActions {
+		// Skip blocked players for standard actions
+		if nrm.isPlayerBlocked(playerID) {
+			continue
+		}
+
+		switch action.Type {
+		case "MINE":
+			nrm.processMiningAction(playerID, action, results)
+		case "PROJECT_MILESTONE":
+			nrm.processProjectMilestoneAction(playerID, action, results)
+		default:
+			// Handle role abilities
+			if nrm.isRoleAbility(action.Type) {
+				nrm.processRoleAbilityAction(playerID, action, results)
+			}
+		}
+	}
+}
+
+// Helper functions for processing night actions
+
+// addPlayerStateChange tracks a state change for a player
+func (nrm *NightResolutionManager) addPlayerStateChange(results *NightActionResults, playerID, key string, value interface{}) {
+	if results.PlayerStateChanges[playerID] == nil {
+		results.PlayerStateChanges[playerID] = make(map[string]interface{})
+	}
+	results.PlayerStateChanges[playerID][key] = value
+}
+
+// blockPlayer marks a player as blocked for the night
+func (nrm *NightResolutionManager) blockPlayer(playerID string) {
+	if nrm.gameState.BlockedPlayersTonight == nil {
+		nrm.gameState.BlockedPlayersTonight = make(map[string]bool)
+	}
+	nrm.gameState.BlockedPlayersTonight[playerID] = true
+}
+
+// isPlayerBlocked checks if a player is blocked for the night
+func (nrm *NightResolutionManager) isPlayerBlocked(playerID string) bool {
+	if nrm.gameState.BlockedPlayersTonight == nil {
+		return false
+	}
+	return nrm.gameState.BlockedPlayersTonight[playerID]
+}
+
+// isRoleAbility checks if an action type is a role ability
+func (nrm *NightResolutionManager) isRoleAbility(actionType string) bool {
+	roleAbilities := []string{
+		"RUN_AUDIT", "OVERCLOCK_SERVERS", "ISOLATE_NODE", 
+		"PERFORMANCE_REVIEW", "REALLOCATE_BUDGET", "PIVOT", "DEPLOY_HOTFIX",
+	}
+	for _, ability := range roleAbilities {
+		if actionType == ability {
+			return true
+		}
+	}
+	return false
+}
+
+// processMiningAction handles mining actions and updates results
+func (nrm *NightResolutionManager) processMiningAction(playerID string, action *core.SubmittedNightAction, results *NightActionResults) {
+	targetID := action.TargetID
+	player := nrm.gameState.Players[playerID]
+	target := nrm.gameState.Players[targetID]
+
+	if player != nil && target != nil && targetID != playerID {
+		// Calculate mining success
+		success := core.CalculateMiningSuccess(*player, 0.2, *nrm.gameState) // Standard difficulty
+
+		if success {
+			// Successful mining
+			reward := core.CalculateTokenReward(core.EventMiningSuccessful, *player, *nrm.gameState)
+			
+			results.MiningResults = append(results.MiningResults, map[string]interface{}{
+				"miner_id":     playerID,
+				"miner_name":   player.Name,
+				"target_id":    targetID,
+				"target_name":  target.Name,
+				"tokens_mined": reward,
+				"success":      true,
+			})
+
+			// Track state change for target (gains tokens)
+			nrm.addPlayerStateChange(results, targetID, "tokens_gained", reward)
+		} else {
+			// Failed mining
+			results.FailedActions = append(results.FailedActions, map[string]interface{}{
+				"player_id":   playerID,
+				"player_name": player.Name,
+				"action_type": "MINE",
+				"target_id":   targetID,
+				"reason":      "Mining attempt failed",
+			})
+		}
+	}
+}
+
+// processProjectMilestoneAction handles project milestone advancement
+func (nrm *NightResolutionManager) processProjectMilestoneAction(playerID string, action *core.SubmittedNightAction, results *NightActionResults) {
+	player := nrm.gameState.Players[playerID]
+	if player == nil {
+		return
+	}
+
+	// Advance milestone
+	newMilestones := player.ProjectMilestones + 1
+	roleUnlocked := newMilestones >= 3 && (player.Role == nil || !player.Role.IsUnlocked)
+
+	results.MilestoneResults = append(results.MilestoneResults, map[string]interface{}{
+		"player_id":        playerID,
+		"player_name":      player.Name,
+		"milestones_count": newMilestones,
+		"role_unlocked":    roleUnlocked,
+		"message":          fmt.Sprintf("%s advanced to %d project milestones", player.Name, newMilestones),
+	})
+
+	// Track state changes
+	nrm.addPlayerStateChange(results, playerID, "project_milestones", newMilestones)
+	if roleUnlocked {
+		nrm.addPlayerStateChange(results, playerID, "role_unlocked", true)
+	}
+}
+
+// processRoleAbilityAction handles role ability usage
+func (nrm *NightResolutionManager) processRoleAbilityAction(playerID string, action *core.SubmittedNightAction, results *NightActionResults) {
+	player := nrm.gameState.Players[playerID]
+	if player == nil || player.Role == nil || !player.Role.IsUnlocked || player.HasUsedAbility {
+		return
+	}
+
+	// Process the specific role ability
+	results.RoleAbilityResults = append(results.RoleAbilityResults, map[string]interface{}{
+		"player_id":    playerID,
+		"player_name":  player.Name,
+		"ability_type": action.Type,
+		"target_id":    action.TargetID,
+		"message":      fmt.Sprintf("%s used %s", player.Name, action.Type),
+	})
+
+	// Track that ability was used
+	nrm.addPlayerStateChange(results, playerID, "has_used_ability", true)
 }
 
 // resolveBlockActions handles all blocking actions first
@@ -414,14 +675,19 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 		if blocked, exists := nrm.gameState.CrisisEvent.Effects["block_ai_conversions"]; exists {
 			if isBlocked, ok := blocked.(bool); ok && isBlocked {
 				return []core.Event{{
-					ID:        fmt.Sprintf("night_convert_crisis_blocked_%s_%s", playerID, targetID),
-					Type:      core.EventSystemMessage,
+					ID:        fmt.Sprintf("ai_conversion_blocked_crisis_%s_%s", playerID, targetID),
+					Type:      core.EventAIConversionBlocked,
 					GameID:    nrm.gameState.ID,
-					PlayerID:  playerID,
+					PlayerID:  "", // Public event
 					Timestamp: getCurrentTime(),
 					Payload: map[string]interface{}{
-						"message": "AI conversion blocked by active crisis protocols",
-						"crisis":  nrm.gameState.CrisisEvent.Title,
+						"converter_id":     playerID,
+						"target_id":        targetID,
+						"blocking_reason":  "CRISIS",
+						"blocking_source":  nrm.gameState.CrisisEvent.Title,
+						"blocking_details": map[string]interface{}{
+							"crisis_type": nrm.gameState.CrisisEvent.Type,
+						},
 					},
 				}}
 			}
@@ -436,14 +702,21 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 				nightNumber := nrm.gameState.DayNumber
 				if nightNumber%2 == 1 {
 					return []core.Event{{
-						ID:        fmt.Sprintf("night_convert_mandate_blocked_%s_%s", playerID, targetID),
-						Type:      core.EventSystemMessage,
+						ID:        fmt.Sprintf("ai_conversion_blocked_mandate_%s_%s", playerID, targetID),
+						Type:      core.EventAIConversionBlocked,
 						GameID:    nrm.gameState.ID,
-						PlayerID:  playerID,
+						PlayerID:  "", // Public event
 						Timestamp: getCurrentTime(),
 						Payload: map[string]interface{}{
-							"message": "AI conversion blocked by Security Lockdown Protocol on odd nights",
-							"mandate": nrm.gameState.CorporateMandate.Name,
+							"converter_id":     playerID,
+							"target_id":        targetID,
+							"blocking_reason":  "MANDATE",
+							"blocking_source":  nrm.gameState.CorporateMandate.Name,
+							"blocking_details": map[string]interface{}{
+								"mandate_type": nrm.gameState.CorporateMandate.Type,
+								"night_number": nightNumber,
+								"odd_night_restriction": true,
+							},
 						},
 					}}
 				}
@@ -455,13 +728,19 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 	if nrm.isPlayerProtected(targetID) {
 		// Conversion blocked by protection
 		return []core.Event{{
-			ID:        fmt.Sprintf("night_convert_blocked_%s_%s", playerID, targetID),
-			Type:      core.EventSystemMessage,
+			ID:        fmt.Sprintf("ai_conversion_blocked_protection_%s_%s", playerID, targetID),
+			Type:      core.EventAIConversionBlocked,
 			GameID:    nrm.gameState.ID,
-			PlayerID:  playerID,
+			PlayerID:  "", // Public event
 			Timestamp: getCurrentTime(),
 			Payload: map[string]interface{}{
-				"message": "Conversion attempt blocked by protection",
+				"converter_id":     playerID,
+				"target_id":        targetID,
+				"blocking_reason":  "PROTECTION",
+				"blocking_source":  "Player Protection",
+				"blocking_details": map[string]interface{}{
+					"protection_type": "night_protection",
+				},
 			},
 		}}
 	}
@@ -538,125 +817,24 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 	}
 }
 
-// createNightResolutionSummary creates a comprehensive summary event of all night actions
-func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents []core.Event) core.Event {
-	// Analyze the resolved events to create a detailed summary
-	eventCounts := make(map[string]int)
-	blockedPlayers := []map[string]interface{}{}
-	convertedPlayers := []map[string]interface{}{}
-	shockedPlayers := []map[string]interface{}{}
-	eliminatedPlayers := []map[string]interface{}{}
-	miningResults := []map[string]interface{}{}
-	roleAbilityResults := []map[string]interface{}{}
-	milestoneResults := []map[string]interface{}{}
-	
-	for _, event := range resolvedEvents {
-		// Count event types
-		eventType := string(event.Type)
-		eventCounts[eventType]++
-		
-		// Extract specific information based on event type with player names for UI
-		switch event.Type {
-		case core.EventPlayerBlocked:
-			if targetID, ok := event.Payload["target_id"].(string); ok {
-				if target := nrm.gameState.Players[targetID]; target != nil {
-					blockedPlayers = append(blockedPlayers, map[string]interface{}{
-						"player_id":   targetID,
-						"player_name": target.Name,
-						"blocked_by":  event.Payload["blocker_id"],
-					})
-				}
-			}
-		case core.EventAIConversionSuccess:
-			if targetID, ok := event.Payload["target_id"].(string); ok {
-				if target := nrm.gameState.Players[targetID]; target != nil {
-					convertedPlayers = append(convertedPlayers, map[string]interface{}{
-						"player_id":        targetID,
-						"player_name":      target.Name,
-						"ai_equity_gained": event.Payload["ai_equity_gained"],
-						"new_ai_equity":    event.Payload["new_ai_equity"],
-					})
-				}
-			}
-		case core.EventPlayerShocked:
-			if targetID, ok := event.Payload["target_id"].(string); ok {
-				if target := nrm.gameState.Players[targetID]; target != nil {
-					shockedPlayers = append(shockedPlayers, map[string]interface{}{
-						"player_id":      targetID,
-						"player_name":    target.Name,
-						"shock_type":     event.Payload["shock_type"],
-						"shock_duration": event.Payload["shock_duration"],
-						"reason":         event.Payload["reason"],
-					})
-				}
-			}
-		case core.EventPlayerEliminated:
-			if playerID := event.PlayerID; playerID != "" {
-				if player := nrm.gameState.Players[playerID]; player != nil {
-					eliminatedPlayers = append(eliminatedPlayers, map[string]interface{}{
-						"player_id":   playerID,
-						"player_name": player.Name,
-						"role_type":   event.Payload["role_type"],
-						"alignment":   event.Payload["alignment"],
-					})
-				}
-			}
-		case core.EventMiningSuccessful:
-			if minerID, ok := event.Payload["miner_id"].(string); ok {
-				if targetID, ok := event.Payload["target_id"].(string); ok {
-					miner := nrm.gameState.Players[minerID]
-					target := nrm.gameState.Players[targetID]
-					if miner != nil && target != nil {
-						miningResults = append(miningResults, map[string]interface{}{
-							"miner_id":     minerID,
-							"miner_name":   miner.Name,
-							"target_id":    targetID,
-							"target_name":  target.Name,
-							"tokens_mined": event.Payload["amount"],
-						})
-					}
-				}
-			}
-		case core.EventRunAudit, core.EventOverclockServers, core.EventIsolateNode, 
-			 core.EventPerformanceReview, core.EventReallocateBudget, core.EventPivot, core.EventDeployHotfix:
-			if player := nrm.gameState.Players[event.PlayerID]; player != nil {
-				roleAbilityResults = append(roleAbilityResults, map[string]interface{}{
-					"player_id":    event.PlayerID,
-					"player_name":  player.Name,
-					"ability_type": string(event.Type),
-					"target_id":    event.Payload["target_id"],
-					"message":      event.Payload["message"],
-				})
-			}
-		case core.EventProjectMilestone:
-			if player := nrm.gameState.Players[event.PlayerID]; player != nil {
-				milestoneResults = append(milestoneResults, map[string]interface{}{
-					"player_id":        event.PlayerID,
-					"player_name":      player.Name,
-					"milestones_count": event.Payload["milestones_count"],
-					"role_unlocked":    event.Payload["role_unlocked"],
-					"message":          event.Payload["message"],
-				})
-			}
-		}
-	}
-
-	// Create comprehensive summary payload with human-readable information
+// createNightResolutionSummary creates a comprehensive summary event from structured results
+func (nrm *NightResolutionManager) createNightResolutionSummary(results *NightActionResults) core.Event {
+	// Create comprehensive summary payload with structured information
 	summary := map[string]interface{}{
 		"night_number":         nrm.gameState.DayNumber,
 		"total_actions":        len(nrm.gameState.NightActions),
-		"resolved_events":      len(resolvedEvents),
-		"event_counts":         eventCounts,
-		"blocked_players":      blockedPlayers,
-		"converted_players":    convertedPlayers,
-		"shocked_players":      shockedPlayers,
-		"eliminated_players":   eliminatedPlayers,
-		"mining_results":       miningResults,
-		"role_ability_results": roleAbilityResults,
-		"milestone_results":    milestoneResults,
+		"blocked_players":      results.BlockedPlayers,
+		"converted_players":    results.ConvertedPlayers,
+		"shocked_players":      results.ShockedPlayers,
+		"eliminated_players":   results.EliminatedPlayers,
+		"mining_results":       results.MiningResults,
+		"role_ability_results": results.RoleAbilityResults,
+		"milestone_results":    results.MilestoneResults,
+		"failed_actions":       results.FailedActions,
+		"player_state_changes": results.PlayerStateChanges,
 		"phase_end":            true,
 		"next_phase":           "SITREP",
-		"summary_message":      nrm.createHumanReadableSummary(blockedPlayers, convertedPlayers, shockedPlayers, miningResults, roleAbilityResults, milestoneResults),
+		"summary_message":      nrm.createHumanReadableSummary(results),
 	}
 
 	return core.Event{
@@ -670,12 +848,12 @@ func (nrm *NightResolutionManager) createNightResolutionSummary(resolvedEvents [
 }
 
 // createHumanReadableSummary generates a text summary for display in SITREP
-func (nrm *NightResolutionManager) createHumanReadableSummary(blocked, converted, shocked, mining, abilities, milestones []map[string]interface{}) string {
+func (nrm *NightResolutionManager) createHumanReadableSummary(results *NightActionResults) string {
 	summary := fmt.Sprintf("Night %d Summary:\n", nrm.gameState.DayNumber)
 	
-	if len(blocked) > 0 {
+	if len(results.BlockedPlayers) > 0 {
 		summary += "• Players blocked from actions: "
-		for i, p := range blocked {
+		for i, p := range results.BlockedPlayers {
 			if i > 0 {
 				summary += ", "
 			}
@@ -684,9 +862,9 @@ func (nrm *NightResolutionManager) createHumanReadableSummary(blocked, converted
 		summary += "\n"
 	}
 	
-	if len(converted) > 0 {
+	if len(results.ConvertedPlayers) > 0 {
 		summary += "• Players converted by AI: "
-		for i, p := range converted {
+		for i, p := range results.ConvertedPlayers {
 			if i > 0 {
 				summary += ", "
 			}
@@ -695,9 +873,9 @@ func (nrm *NightResolutionManager) createHumanReadableSummary(blocked, converted
 		summary += "\n"
 	}
 	
-	if len(shocked) > 0 {
+	if len(results.ShockedPlayers) > 0 {
 		summary += "• Players experienced system shock: "
-		for i, p := range shocked {
+		for i, p := range results.ShockedPlayers {
 			if i > 0 {
 				summary += ", "
 			}
@@ -706,18 +884,18 @@ func (nrm *NightResolutionManager) createHumanReadableSummary(blocked, converted
 		summary += "\n"
 	}
 	
-	if len(mining) > 0 {
-		summary += fmt.Sprintf("• %d successful mining operations completed\n", len(mining))
+	if len(results.MiningResults) > 0 {
+		summary += fmt.Sprintf("• %d successful mining operations completed\n", len(results.MiningResults))
 	}
 	
-	if len(abilities) > 0 {
-		summary += fmt.Sprintf("• %d role abilities were used\n", len(abilities))
+	if len(results.RoleAbilityResults) > 0 {
+		summary += fmt.Sprintf("• %d role abilities were used\n", len(results.RoleAbilityResults))
 	}
 	
-	if len(milestones) > 0 {
+	if len(results.MilestoneResults) > 0 {
 		summary += "• Project milestone advancement: "
 		rolesUnlocked := 0
-		for i, m := range milestones {
+		for i, m := range results.MilestoneResults {
 			if i > 0 {
 				summary += ", "
 			}
@@ -797,13 +975,6 @@ func (nrm *NightResolutionManager) canPlayerUseAbility(playerID, abilityType str
 	}
 
 	return player.ProjectMilestones >= requiredMilestones
-}
-
-func (nrm *NightResolutionManager) isPlayerBlocked(playerID string) bool {
-	if nrm.gameState.BlockedPlayersTonight == nil {
-		return false
-	}
-	return nrm.gameState.BlockedPlayersTonight[playerID]
 }
 
 func (nrm *NightResolutionManager) isPlayerProtected(playerID string) bool {

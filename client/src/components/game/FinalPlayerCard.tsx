@@ -128,9 +128,14 @@ export function FinalPlayerCard({ player }: FinalPlayerCardProps) {
         }`}>
           {player.name}
         </h3>
-        <p className="text-xs text-gray-400 uppercase tracking-wider m-0 mb-2">
+        <p className="text-xs text-gray-400 uppercase tracking-wider m-0 mb-1">
           {player.role?.name || player.jobTitle || 'Employee'}
         </p>
+        {player.lobbyHandle && player.lobbyHandle !== player.name && (
+          <p className="text-xs text-gray-500 italic m-0 mb-2">
+            (played by {player.lobbyHandle})
+          </p>
+        )}
         <div className="flex justify-center gap-2 mt-2">
           {getTokensDisplay()}
           {getAlignmentDisplay()}

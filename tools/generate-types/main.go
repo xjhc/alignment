@@ -133,6 +133,7 @@ export interface GeneratedPlayer {
   hasUsedAbility?: boolean;
   lastNightAction?: GeneratedNightAction;
   hasSubmittedPulseCheck?: boolean;
+  lobbyHandle?: string;
   slackStatus?: string;
   partingShot?: string;
   systemShocks?: GeneratedSystemShock[];

@@ -366,9 +366,9 @@ func TestApplyEvent_NightActionsResolved(t *testing.T) {
 		GameID:    "test-game",
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"results": map[string]interface{}{
+			"player_state_changes": map[string]interface{}{
 				"player-1": map[string]interface{}{
-					"token_change":   float64(2),
+					"tokens_gained":  float64(2),
 					"status_message": "Mining successful",
 				},
 				"player-2": map[string]interface{}{

@@ -44,8 +44,18 @@ var EventTypeValues = []EventType{
 
 	// Communication events
 	EventChatMessage,
-	EventSystemMessage,
+	EventSystemMessage, // DEPRECATED: Use specific semantic events
 	EventPrivateNotification,
+	EventIncitingIncident,
+	EventLoebmateMessage,
+
+	// Specific semantic events replacing SYSTEM_MESSAGE
+	EventClientError,
+	EventSitrepPublished,
+	EventLiaisonProtocolActivated,
+	EventLiaisonIntelRevealed,
+	EventAIConversionBlocked,
+	EventGameRuleModified,
 
 	// Crisis and Special events
 	EventCrisisTriggered,

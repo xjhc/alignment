@@ -109,6 +109,23 @@ This codebase prioritizes **maintainability and performance** through clean, idi
 -   No Technical Debt: We adhere to the "Boy Scout Rule"—always leave the code cleaner than you found it. Do not defer refactoring or implement temporary hacks. Choose the correct, maintainable solution now, even if it takes longer.
 -   Documentation as Code: Documentation must be kept up-to-date. If a code change alters a feature, API, or architectural pattern, the corresponding documentation in the `/docs` directory must be updated within the same commit or pull request. Treat documentation with the same rigor as source code.
 
+### Event Architecture Principles
+
+Following **ADR-006**, the codebase enforces the **"Single Authoritative Event"** pattern:
+
+-   **Single Event per Action**: For any player action, emit exactly one event that fully describes the resulting state change. Never emit multiple uncoordinated events for a single logical action.
+-   **Comprehensive Payloads**: Events must contain all necessary information for clients to update their state deterministically without requiring additional events or coordination.
+-   **Semantic Event Types**: Use specific, strongly-typed events instead of generic `SYSTEM_MESSAGE` events. Each event type should have a clear, single purpose.
+-   **Structured Data**: Event payloads should use structured data (objects, arrays) rather than descriptive strings that require client-side parsing.
+
+**Examples:**
+- ✅ **Correct**: `VOTE_TALLY_UPDATED` with complete voting state
+- ❌ **Incorrect**: `VOTE_CAST` + separate `VOTE_TALLY_UPDATED` events
+- ✅ **Correct**: `NIGHT_ACTIONS_RESOLVED` with all outcomes in structured format  
+- ❌ **Incorrect**: Individual `PLAYER_BLOCKED`, `MINING_SUCCESSFUL` events + summary
+- ✅ **Correct**: `LIAISON_PROTOCOL_ACTIVATED` with specific trigger data
+- ❌ **Incorrect**: Generic `SYSTEM_MESSAGE` with string-based content
+
 ## Frontend Styling Guidelines
 
 This project uses **Tailwind CSS** as the primary styling framework, integrated with our design token system to ensure consistency and maintain our design system constraints.

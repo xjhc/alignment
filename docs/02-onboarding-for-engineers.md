@@ -55,50 +55,52 @@ The frontend is a modern web application with two distinct parts that work toget
 ```mermaid
 graph TD
     subgraph Browser["🌐 Browser Environment"]
-        subgraph ReactApp["React/TypeScript UI Shell"]
+        subgraph ReactApp["React/TypeScript State Owner"]
+            AppState["App.tsx<br/>• useReducer State<br/>• Event Handlers<br/>• WebSocket Management"]
             Components["React Components<br/>• Game Board<br/>• Chat Interface<br/>• Player Status<br/>• Action Buttons"]
-            EventHandlers["Event Handlers<br/>• onClick<br/>• onSubmit<br/>• onChange"]
         end
 
-        subgraph Bridge["JavaScript Bridge Layer"]
-            JSFunctions["JS Functions<br/>• updateGameState()<br/>• triggerRerender()"]
-            GoExports["Go Exports<br/>• submitAction()<br/>• getState()"]
+        subgraph WasmCore["Go/Wasm Pure Logic Core"]
+            GameLogic["Game Logic<br/>• Event Processing<br/>• Rule Validation<br/>• State Consistency"]
+            ClientState["Client GameState<br/>• Read Model<br/>• Authoritative State"]
         end
 
-        subgraph WasmEngine["Go/Wasm Engine"]
-            GameLogic["Game Logic<br/>• State Management<br/>• Event Processing<br/>• Action Validation"]
-            WebSocket["WebSocket Client<br/>• Server Connection<br/>• Message Handling"]
-            ClientState["Client GameState<br/>• Read Model<br/>• Local Cache"]
+        subgraph CommsLayer["Communication Layer"]
+            WebSocket["WebSocket Client<br/>• Server Connection<br/>• Message Handling<br/>• Reconnection Logic"]
         end
     end
 
     Server["🖥️ Go Backend Server"]
 
     %% User interaction flow
-    Components --> EventHandlers
-    EventHandlers --> GoExports
-    GoExports --> GameLogic
+    Components -->|User Actions| AppState
+    AppState -->|Actions| WebSocket
 
-    %% State update flow
-    GameLogic --> JSFunctions
-    JSFunctions --> Components
+    %% State consultation flow
+    AppState -->|Consults| GameLogic
+    GameLogic -->|Validated State| ClientState
+    ClientState -->|State Data| AppState
+    AppState -->|Props| Components
 
     %% Server communication
-    WebSocket <--> Server
-    Server --> GameLogic
-    GameLogic --> ClientState
+    WebSocket <-->|Events/Actions| Server
+    Server -->|Events| GameLogic
 ```
 
-1.  **The "Engine" (Go/Wasm Core):**
+1.  **The "State Owner" (React/TypeScript with App.tsx):**
+    *   `App.tsx` is the central state manager using `useReducer` to handle all application state.
+    *   **Responsibilities:** Managing UI state, WebSocket connections, user input handling, event processing, and coordinating between the Pure Logic Core and UI components. It is the "conductor" of the client.
+
+2.  **The "Pure Logic Core" (Go/Wasm):**
     *   The client-side game logic is written in Go and compiled to a WebAssembly (`.wasm`) binary.
-    *   **Responsibilities:** Managing the WebSocket connection, holding the client-side `GameState` (the "read model"), applying events received from the server, and containing all game-related logic. It is the "brain" of the client.
+    *   **Responsibilities:** Holding the authoritative client-side `GameState`, applying events received from the server, validating game rules, and maintaining state consistency. It is the "validator" of the client.
 
-2.  **The "UI Shell" (React + Vite):**
-    *   The user interface is built as a standard **React/TypeScript** application, located in `./client`.
+3.  **The "UI Shell" (React Components + Vite):**
+    *   The user interface is built as standard **React/TypeScript** components, located in `./client`.
     *   We use **Vite** for the development server and to build the final static assets (HTML, JS, CSS).
-    *   **Responsibilities:** Rendering all UI components, handling user input (clicks, typing), and visually representing the state managed by the Go/Wasm core. It is the "face" of the client.
+    *   **Responsibilities:** Rendering UI components based on props from App.tsx and triggering event handlers for user interactions. It is the "face" of the client.
 
-**Communication:** A small JavaScript "bridge" layer connects the two worlds. The Go/Wasm core calls JS functions to trigger React state updates, and React event handlers call exposed Go functions to submit actions.
+**Communication:** App.tsx consults the Go/Wasm core through `useGameEngineContext()` to get validated game state, then passes this state as props to child components. User interactions flow back up through event handlers to App.tsx.
 
 ---
 

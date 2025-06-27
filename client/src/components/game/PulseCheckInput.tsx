@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useGameContext } from '../../contexts/GameContext';
+import React, { useState } from 'react';
 
 interface PulseCheckInputProps {
   handlePulseCheck: (response: string) => Promise<void>;
@@ -12,16 +11,8 @@ export const PulseCheckInput: React.FC<PulseCheckInputProps> = ({
   localPlayerName,
   question = "What is your immediate response to the current crisis?"
 }) => {
-  const { localPlayer } = useGameContext();
   const [response, setResponse] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Reset submitting state when player successfully submits pulse check
-  useEffect(() => {
-    if (localPlayer?.hasSubmittedPulseCheck && isSubmitting) {
-      setIsSubmitting(false);
-    }
-  }, [localPlayer?.hasSubmittedPulseCheck, isSubmitting]);
 
   const handleSubmit = async () => {
     if (response.trim() && !isSubmitting) {
@@ -35,7 +26,7 @@ export const PulseCheckInput: React.FC<PulseCheckInputProps> = ({
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -54,7 +45,7 @@ export const PulseCheckInput: React.FC<PulseCheckInputProps> = ({
           type="text"
           value={response}
           onChange={(e) => setResponse(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           placeholder="Enter your response (max 200 characters)..."
           maxLength={200}
           className="flex-1 px-3 py-2 text-sm bg-gray-900 border border-gray-600 rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"

@@ -7,7 +7,7 @@ This directory contains the source code for the `Alignment` web client, a hybrid
 *   **UI Framework:** [React](https://react.dev/) with [TypeScript](https://www.typescriptlang.org/) for type-safe component development.
 *   **Game Engine:** A core game logic module written in **Go** and compiled to **WebAssembly** (`.wasm`). This module is located in `/client/wasm`.
 *   **Build Tool:** [Vite](https://vitejs.dev/) for fast development builds and optimized production bundling.
-*   **Styling:** Plain CSS with variables, following the visual design specified in `/design`.
+*   **Styling:** [Tailwind CSS](https://tailwindcss.com/) integrated with design tokens for consistent theming and responsive design.
 
 ---
 
@@ -20,7 +20,10 @@ graph TD
     subgraph Browser["🌐 Browser Environment"]
         subgraph ReactShell["1. UI Shell (React/TypeScript)"]
             direction TB
-            Components["React Components<br/>(Views, Buttons, etc.)"] -->|Triggers| UserActions["User Actions (onClick, etc.)"]
+            AppState["App.tsx<br/>(State Owner - useReducer)"]
+            Components["React Components<br/>(Views, Buttons, etc.)"] 
+            AppState -->|Props| Components
+            Components -->|Events| AppState
         end
 
         subgraph CommsService["2. Communication Service (TypeScript)"]
@@ -28,7 +31,7 @@ graph TD
             WebSocket["WebSocket<br/>Connection Manager"]
         end
 
-        subgraph WasmEngine["3. Engine (Go/Wasm)"]
+        subgraph WasmCore["3. Pure Logic Core (Go/Wasm)"]
             direction TB
             GameState["Client-side GameState"]
             ApplyEvent["ApplyEvent() Logic"]
@@ -38,27 +41,29 @@ graph TD
     Server["🖥️ Go Backend Server"]
 
     %% Data Flow
-    UserActions -- "Calls function on Service" --> WebSocket
+    AppState -- "Sends Actions via" --> WebSocket
     WebSocket -- "Sends Action to Server" --> Server
     Server -- "Broadcasts Event" --> WebSocket
     WebSocket -- "Receives Event" --> ApplyEvent
     ApplyEvent -- "Updates State" --> GameState
-    GameState -- "Provides data to" --> Components
+    GameState -- "Consulted by" --> AppState
 ```
 
-1.  **The "UI Shell" (React/TypeScript):** The presentation layer.
-    *   Its primary job is to render UI components based on the state it receives.
-    *   It captures user input (clicks, typing) and calls functions on the Communication Service to send actions to the server.
-    *   It does **not** contain any game rule or direct WebSocket logic.
+1.  **The "UI Shell" (React/TypeScript):** The presentation and state management layer.
+    *   `App.tsx` is the state owner, using `useReducer` to manage all application state centrally.
+    *   It captures user input (clicks, typing) and sends actions via the Communication Service.
+    *   It receives events from the server and updates its own state accordingly.
+    *   Child components receive state as props and communicate back through event handlers.
 
 2.  **The "Communication Service" (TypeScript):** The network layer.
-    *   The service at `src/services/websocket.ts` is responsible for managing the WebSocket connection, including connection, disconnection, and automatic reconnection logic.
-    *   It receives raw events from the server and forwards them to the Go/Wasm Engine for processing.
+    *   The service at `src/services/websocket.ts` manages the WebSocket connection, including connection, disconnection, and automatic reconnection logic.
+    *   It receives raw events from the server and forwards them to both the Pure Logic Core and UI event handlers.
 
-3.  **The "Engine" (Go/Wasm):** The core logic layer.
-    *   It holds the local, client-side copy of the `core.GameState`.
-    *   It contains the shared `ApplyEvent` function (from `/core`) to process events received from the Communication Service and update its state.
-    *   It exposes a small, well-defined API to the JavaScript world (e.g., `getGameState()`, `applyEvent()`). It does **not** manage the network connection directly.
+3.  **The "Pure Logic Core" (Go/Wasm):** The game rules validation layer.
+    *   It holds the authoritative client-side copy of the `core.GameState`.
+    *   It contains the shared `ApplyEvent` function (from `/core`) to process events and maintain consistent game state.
+    *   App.tsx consults this core through `useGameEngineContext()` to get validated game state for UI updates.
+    *   It does **not** manage UI state or network connections directly.
 
 ### State Management: Centralized in `App.tsx`
 

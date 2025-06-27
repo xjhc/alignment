@@ -721,12 +721,13 @@ func (pa *PlayerActor) sendEvent(event core.Event) {
 func (pa *PlayerActor) sendError(message string) {
 	log.Printf("Sending error to player %s: %s", pa.playerID, message)
 	event := core.Event{
-		Type:      core.EventSystemMessage,
+		Type:      core.EventClientError,
 		PlayerID:  pa.playerID,
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"message": message,
-			"error":   true,
+			"error_code":    "GENERAL_ERROR",
+			"message":       message,
+			"retry_allowed": false,
 		},
 	}
 
