@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { PulseCheckMessage } from './PulseCheckMessage';
-import { GameState } from '../../types';
+import { GameState, PhaseType } from '../../types';
 
 const meta: Meta<typeof PulseCheckMessage> = {
   title: 'Game/PulseCheckMessage',
@@ -22,7 +22,7 @@ const baseGameState: GameState = {
   id: 'game-1',
   players: [],
   phase: {
-    type: 'PULSE_CHECK',
+    type: PhaseType.PulseCheck,
     startTime: '2024-01-01T11:00:00Z',
     duration: 60000000000,
   },

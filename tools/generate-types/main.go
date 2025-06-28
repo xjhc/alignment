@@ -134,6 +134,7 @@ export interface GeneratedPlayer {
   lastNightAction?: GeneratedNightAction;
   hasSubmittedPulseCheck?: boolean;
   lobbyHandle?: string;
+  bootcampPoints?: number;
   slackStatus?: string;
   partingShot?: string;
   systemShocks?: GeneratedSystemShock[];
@@ -172,6 +173,7 @@ export interface GeneratedSystemShock {
 export interface GeneratedNightAction {
   type: string;
   targetId?: string;
+  shadowTargetId?: string;
 }
 
 export interface GeneratedChatMessage {

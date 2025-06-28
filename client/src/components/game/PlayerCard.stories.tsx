@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { PlayerCard } from './PlayerCard';
-import { Player } from '../../types';
+import { Player, RoleType, KPIType } from '../../types';
 
 // The 'meta' object describes your component
 const meta: Meta<typeof PlayerCard> = {
@@ -24,6 +24,7 @@ const basePlayer: Player = {
   id: 'p-1',
   name: 'Alice',
   jobTitle: 'Chief Security Officer',
+  controlType: 'HUMAN',
   isAlive: true,
   tokens: 5,
   projectMilestones: 2,
@@ -32,7 +33,7 @@ const basePlayer: Player = {
   avatar: '👤',
   joinedAt: '2024-01-01T00:00:00Z',
   role: {
-    type: 'SECURITY_ANALYST',
+    type: RoleType.Ciso,
     name: 'Security Analyst',
     description: 'Protects the company from threats',
     isUnlocked: true,
@@ -43,7 +44,7 @@ const basePlayer: Player = {
     },
   },
   personalKPI: {
-    type: 'THREAT_MITIGATION',
+    type: KPIType.Guardian,
     description: 'Identify and neutralize 2 security threats',
     progress: 1,
     target: 2,

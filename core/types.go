@@ -198,7 +198,8 @@ const (
 	ActionDeployHotfix      ActionType = "DEPLOY_HOTFIX"
 
 	// Status actions
-	ActionSetSlackStatus ActionType = "SET_SLACK_STATUS"
+	ActionSetSlackStatus    ActionType = "SET_SLACK_STATUS"
+	ActionSubmitExitInterview ActionType = "SUBMIT_EXIT_INTERVIEW"
 
 	// Meta actions
 	ActionReconnect ActionType = "RECONNECT"
@@ -248,6 +249,7 @@ type Player struct {
 	LastNightAction        *NightAction `json:"lastNightAction,omitempty"`
 	HasSubmittedPulseCheck bool         `json:"hasSubmittedPulseCheck,omitempty"`
 	LobbyHandle            string       `json:"lobbyHandle,omitempty"` // Original lobby identity for post-game reveal
+	BootcampPoints         int          `json:"bootcampPoints,omitempty"` // Intern role resource for shadowing abilities
 
 	// Public status and effects
 	SlackStatus           string        `json:"slackStatus,omitempty"`
@@ -344,8 +346,9 @@ const (
 
 // NightAction represents an action taken during night phase
 type NightAction struct {
-	Type     NightActionType `json:"type"`
-	TargetID string          `json:"targetId,omitempty"`
+	Type           NightActionType `json:"type"`
+	TargetID       string          `json:"targetId,omitempty"`
+	ShadowTargetID string          `json:"shadowTargetId,omitempty"` // For SHADOW action: the final target of the copied ability
 }
 
 // NightActionType represents types of night actions
@@ -357,6 +360,8 @@ const (
 	ActionBlock       NightActionType = "BLOCK"
 	ActionInvestigate NightActionType = "INVESTIGATE"
 	ActionProtect     NightActionType = "PROTECT"
+	ActionBootcamp    NightActionType = "BOOTCAMP"
+	ActionShadow      NightActionType = "SHADOW"
 )
 
 // CrisisEvent represents a daily crisis that affects game rules

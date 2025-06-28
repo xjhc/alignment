@@ -1,4 +1,4 @@
-import { AppState, GameState, Role, PersonalKPI, VoteState } from '../types';
+import { AppState, GameState, Role, PersonalKPI, VoteState, PhaseType } from '../types';
 
 // Define the possible states of the user's session
 export type SessionState = 'IDLE' | 'IN_LOBBY' | 'IN_GAME' | 'POST_GAME';
@@ -93,7 +93,7 @@ export const initialAppState: ConsolidatedAppState = {
   gameState: {
     id: '',
     players: [],
-    phase: { type: 'LOBBY', startTime: new Date().toISOString(), duration: 0 },
+    phase: { type: PhaseType.Lobby, startTime: new Date().toISOString(), duration: 0 },
     dayNumber: 1,
     chatMessages: [],
   },

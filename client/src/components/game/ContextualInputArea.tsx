@@ -77,8 +77,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
           />
         );
       }
-      // If already submitted, fall through to default chat interface
-      // fallthrough
+      break; // Handled above if not submitted
     case 'SITREP':
     case 'DISCUSSION':
     case 'TRIAL':

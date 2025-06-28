@@ -21,7 +21,8 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
   const { playSound } = useSound();
   
   if (!localPlayer) return null;
-  const alivePlayers = gameState.players.filter(p => p.isAlive && p.id !== localPlayer.id);
+  const players = gameState?.players || [];
+  const alivePlayers = Array.isArray(players) ? players.filter(p => p.isAlive && p.id !== localPlayer.id) : [];
   
   if (gameState.phase.type === 'NOMINATION') {
     return (
@@ -32,8 +33,8 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
         <div className="flex flex-wrap gap-1 justify-start">
           {alivePlayers.map((player) => {
             const isSelected = selectedNominee === player.id;
-            const playerVotes = gameState.voteState?.votes ? 
-              Object.values(gameState.voteState.votes).filter(vote => vote === player.id).length : 0;
+            const votes = gameState.voteState?.votes || {};
+            const playerVotes = Object.values(votes).filter(vote => vote === player.id).length;
             
             return (
               <Tooltip

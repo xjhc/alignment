@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { IdentityCard } from './IdentityCard';
-import { Player } from '../../types';
+import { Player, RoleType, KPIType } from '../../types';
 
 const meta: Meta<typeof IdentityCard> = {
   title: 'Game/IdentityCard',
@@ -21,6 +21,7 @@ const basePlayer: Player = {
   id: 'p-1',
   name: 'Alice',
   jobTitle: 'Chief Security Officer',
+  controlType: 'HUMAN',
   isAlive: true,
   tokens: 5,
   projectMilestones: 2,
@@ -29,7 +30,7 @@ const basePlayer: Player = {
   avatar: '👤',
   joinedAt: '2024-01-01T00:00:00Z',
   role: {
-    type: 'CISO',
+    type: RoleType.Ciso,
     name: 'Chief Information Security Officer',
     description: 'Protects the company from security threats',
     isUnlocked: true,
@@ -40,7 +41,7 @@ const basePlayer: Player = {
     },
   },
   personalKPI: {
-    type: 'THREAT_MITIGATION',
+    type: KPIType.Guardian,
     description: 'Identify and neutralize 2 security threats',
     progress: 1,
     target: 2,
@@ -65,7 +66,7 @@ export const AIPlayer: Story = {
       statusMessage: '"OPTIMIZING HUMAN RESOURCES"',
       avatar: '🤖',
       role: {
-        type: 'CTO',
+        type: RoleType.Cto,
         name: 'Chief Technology Officer',
         description: 'Manages all technology systems',
         isUnlocked: true,
@@ -89,7 +90,7 @@ export const AlignedPlayer: Story = {
       statusMessage: '"Efficiency is key."',
       avatar: '🧑‍🚀',
       role: {
-        type: 'COO',
+        type: RoleType.Coo,
         name: 'Chief Operating Officer',
         description: 'Manages company operations',
         isUnlocked: true,
@@ -110,7 +111,7 @@ export const SystemsRole: Story = {
       name: 'Bob',
       jobTitle: 'Systems Administrator',
       role: {
-        type: 'SYSTEMS',
+        type: RoleType.Platforms,
         name: 'Systems Administrator',
         description: 'Maintains critical infrastructure',
         isUnlocked: true,
@@ -131,7 +132,7 @@ export const EthicsRole: Story = {
       name: 'Diana',
       jobTitle: 'Ethics Officer',
       role: {
-        type: 'ETHICS',
+        type: RoleType.Ethics,
         name: 'Ethics Officer',
         description: 'Ensures ethical AI deployment',
         isUnlocked: true,

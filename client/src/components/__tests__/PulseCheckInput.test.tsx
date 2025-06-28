@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { GameProvider } from '../../contexts/GameContext';
 import { PulseCheckInput } from '../game/PulseCheckInput';
 import type { Player, GameState } from '../../types';
+import { KPIType } from '../../types/generated';
 
 // Mock the WebSocket context
 vi.mock('../../contexts/WebSocketContext', () => ({
@@ -16,6 +17,7 @@ const createTestPlayer = (overrides: Partial<Player> = {}): Player => ({
   id: 'test-player-1',
   name: 'TestPlayer',
   jobTitle: 'Developer',
+  controlType: 'HUMAN',
   isAlive: true,
   tokens: 5,
   projectMilestones: 3,
@@ -30,7 +32,7 @@ const createTestPlayer = (overrides: Partial<Player> = {}): Player => ({
     isUnlocked: true,
   },
   personalKPI: {
-    type: 'PRODUCTIVITY' as const,
+    type: KPIType.Capitalist,
     description: 'Complete objectives',
     progress: 3,
     target: 3,
@@ -38,8 +40,6 @@ const createTestPlayer = (overrides: Partial<Player> = {}): Player => ({
     reward: 'Role unlock',
   },
   hasSubmittedPulseCheck: false,
-  nightActions: [],
-  voteTarget: null,
   ...overrides,
 });
 
@@ -99,12 +99,18 @@ describe('PulseCheckInput', () => {
     //   expect(button).toBeEnabled();
     // });
 
-    // TEMPORARY: Test current behavior (will be removed when component is updated)
-    const textInput = screen.getByRole('textbox');
-    expect(textInput).toBeInTheDocument();
+    // Assert that no text input is rendered - we now use three buttons instead
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    
+    // Verify there are exactly three pulse check response buttons
     const buttons = screen.getAllByRole('button');
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0]).toHaveTextContent(/submit/i);
+    expect(buttons).toHaveLength(3);
+    
+    // Check for expected button texts 
+    const buttonTexts = buttons.map(button => button.textContent?.toLowerCase());
+    expect(buttonTexts.some(text => text?.includes('confident'))).toBe(true);
+    expect(buttonTexts.some(text => text?.includes('concerned'))).toBe(true); 
+    expect(buttonTexts.some(text => text?.includes('suspicious'))).toBe(true);
   });
 
   it('displays pulse check title and question', () => {
@@ -117,31 +123,19 @@ describe('PulseCheckInput', () => {
   it('displays player name in instruction text', () => {
     renderComponent({ localPlayerName: 'Alice' });
 
-    expect(screen.getByText(/As Alice, your response:/)).toBeInTheDocument();
+    expect(screen.getByText(/As Alice, choose your response:/)).toBeInTheDocument();
   });
 
   // TODO: Update this test when component uses buttons instead of text input
   it('calls handlePulseCheck when a response button is clicked', async () => {
     renderComponent();
 
-    // TODO: When component is updated, use this approach:
-    // // Click on the "Concerned" button
-    // const concernedButton = screen.getByRole('button', { name: /concerned/i });
-    // fireEvent.click(concernedButton);
-    // 
-    // await waitFor(() => {
-    //   expect(mockHandlePulseCheck).toHaveBeenCalledWith('Concerned');
-    // });
-
-    // TEMPORARY: Test current text input behavior
-    const textInput = screen.getByRole('textbox');
-    const submitButton = screen.getByRole('button', { name: /submit/i });
-
-    fireEvent.change(textInput, { target: { value: 'This is concerning' } });
-    fireEvent.click(submitButton);
-
+    // Click on the "Concerned" button
+    const concernedButton = screen.getByRole('button', { name: /concerned/i });
+    fireEvent.click(concernedButton);
+    
     await waitFor(() => {
-      expect(mockHandlePulseCheck).toHaveBeenCalledWith('This is concerning');
+      expect(mockHandlePulseCheck).toHaveBeenCalledWith('I have concerns about how things are progressing right now.');
     });
   });
 
@@ -162,31 +156,26 @@ describe('PulseCheckInput', () => {
     //   expect(button).toBeDisabled();
     // });
 
-    // TEMPORARY: Test current behavior
-    const textInput = screen.getByRole('textbox');
-    const submitButton = screen.getByRole('button', { name: /submit/i });
-
-    fireEvent.change(textInput, { target: { value: 'Test response' } });
-    fireEvent.click(submitButton);
-
-    expect(textInput).toBeDisabled();
-    expect(screen.getByRole('button', { name: /submitting/i })).toBeDisabled();
+    const confidentButton = screen.getByRole('button', { name: /confident/i });
+    
+    // Click a button to submit
+    fireEvent.click(confidentButton);
+    
+    // All buttons should be disabled while submitting
+    const buttons = screen.getAllByRole('button');
+    buttons.forEach(button => {
+      expect(button).toBeDisabled();
+    });
   });
 
   // TODO: Update this test when component uses buttons instead of text input
   it('shows response options clearly', () => {
     renderComponent();
 
-    // TODO: When component is updated, uncomment these:
-    // // Should display all three response options
-    // expect(screen.getByRole('button', { name: /confident/i })).toBeInTheDocument();
-    // expect(screen.getByRole('button', { name: /concerned/i })).toBeInTheDocument();
-    // expect(screen.getByRole('button', { name: /uncertain/i })).toBeInTheDocument();
-
-    // TEMPORARY: Test current behavior - text input with character counter
-    const textInput = screen.getByRole('textbox');
-    expect(textInput).toBeInTheDocument();
-    expect(screen.getByText('0/200 characters • Press Enter to submit')).toBeInTheDocument();
+    // Should display all three response options
+    expect(screen.getByRole('button', { name: /confident/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /concerned/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /suspicious/i })).toBeInTheDocument();
   });
 
   it('displays custom question when provided', () => {
@@ -200,36 +189,12 @@ describe('PulseCheckInput', () => {
   it('allows clicking different response buttons', async () => {
     renderComponent();
 
-    // TODO: When component is updated, uncomment these:
-    // // Test clicking each button type
-    // const confidentButton = screen.getByRole('button', { name: /confident/i });
-    // fireEvent.click(confidentButton);
-    // 
-    // await waitFor(() => {
-    //   expect(mockHandlePulseCheck).toHaveBeenCalledWith('Confident');
-    // });
-    // 
-    // // Reset mock for next test
-    // mockHandlePulseCheck.mockClear();
-    // 
-    // // Re-render to reset component state
-    // renderComponent();
-    // 
-    // const uncertainButton = screen.getByRole('button', { name: /uncertain/i });
-    // fireEvent.click(uncertainButton);
-    // 
-    // await waitFor(() => {
-    //   expect(mockHandlePulseCheck).toHaveBeenCalledWith('Uncertain');
-    // });
-
-    // TEMPORARY: Test current keyboard behavior
-    const textInput = screen.getByRole('textbox');
+    // Test clicking confident button
+    const confidentButton = screen.getByRole('button', { name: /confident/i });
+    fireEvent.click(confidentButton);
     
-    fireEvent.change(textInput, { target: { value: 'Enter key response' } });
-    fireEvent.keyDown(textInput, { key: 'Enter', shiftKey: false });
-
     await waitFor(() => {
-      expect(mockHandlePulseCheck).toHaveBeenCalledWith('Enter key response');
+      expect(mockHandlePulseCheck).toHaveBeenCalledWith('I feel confident about our current situation and next steps.');
     });
   });
 });

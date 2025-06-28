@@ -1,9 +1,10 @@
 import { wasmLoader, AlignmentCore } from './wasmLoader';
-import { CoreGameState, CoreEvent, CoreAction } from '../utils/coreTypes';
+import { GeneratedEvent, GeneratedAction } from '../types/generated';
+import { GameState } from '../types';
 
 export class GameEngine {
   private core: AlignmentCore | null = null;
-  private stateChangeListeners: ((state: CoreGameState) => void)[] = [];
+  private stateChangeListeners: ((state: GameState) => void)[] = [];
 
   async initialize(): Promise<void> {
     try {
@@ -12,8 +13,15 @@ export class GameEngine {
 
       wasmLoader.onStateChange((stateJson: string) => {
         try {
-          const state: CoreGameState = JSON.parse(stateJson);
-          this.notifyStateChange(state);
+          const state: GameState = JSON.parse(stateJson);
+          
+          // Validate the state before notifying - only notify if we have essential data
+          if (state && state.id && state.players && 
+              (Array.isArray(state.players) || typeof state.players === 'object')) {
+            this.notifyStateChange(state);
+          } else {
+            console.warn('WASM sent invalid or incomplete state, ignoring notification');
+          }
         } catch (error) {
           console.error('Failed to parse game state from WASM:', error);
         }
@@ -26,7 +34,7 @@ export class GameEngine {
     }
   }
 
-  resetAndLoadState(state: CoreGameState): Promise<void> {
+  resetAndLoadState(state: GameState): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.core) {
         reject(new Error('Game engine not initialized'));
@@ -44,8 +52,17 @@ export class GameEngine {
         const stateJson = JSON.stringify(state);
         const loadResult = this.core.deserializeGameState(stateJson);
         if (loadResult.success) {
-          // Manually trigger a state change notification since the Go side won't
-          this.notifyStateChange(state);
+          // Get the actual current state after loading to verify it worked
+          const currentState = this.getCurrentState();
+          
+          // Use the actual current state instead of the input state for notification
+          // to ensure we're sending what was actually loaded into WASM
+          if (currentState) {
+            this.notifyStateChange(currentState);
+          } else {
+            console.warn('getCurrentState returned null after successful load');
+            this.notifyStateChange(state);
+          }
           resolve();
         } else {
           reject(new Error(loadResult.error || 'Failed to load state from snapshot'));
@@ -77,7 +94,7 @@ export class GameEngine {
     });
   }
 
-  applyEvent(event: CoreEvent): Promise<void> {
+  applyEvent(event: GeneratedEvent): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.core) {
         reject(new Error('Game engine not initialized'));
@@ -99,7 +116,7 @@ export class GameEngine {
     });
   }
 
-  getCurrentState(): CoreGameState | null {
+  getCurrentState(): GameState | null {
     if (!this.core) {
       return null;
     }
@@ -123,7 +140,7 @@ export class GameEngine {
     }
   }
 
-  loadState(state: CoreGameState): Promise<void> {
+  loadState(state: GameState): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.core) {
         reject(new Error('Game engine not initialized'));
@@ -204,7 +221,7 @@ export class GameEngine {
     return this.core.isGamePhaseOver();
   }
 
-  submitPlayerAction(action: CoreAction): Promise<CoreEvent[]> {
+  submitPlayerAction(action: GeneratedAction): Promise<GeneratedEvent[]> {
     return new Promise((resolve, reject) => {
       const events = this.actionToEvents(action);
 
@@ -214,8 +231,8 @@ export class GameEngine {
     });
   }
 
-  private actionToEvents(action: CoreAction): CoreEvent[] {
-    const baseEvent: Partial<CoreEvent> = {
+  private actionToEvents(action: GeneratedAction): GeneratedEvent[] {
+    const baseEvent: Partial<GeneratedEvent> = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       gameId: action.gameId,
       playerId: action.playerId,
@@ -228,25 +245,25 @@ export class GameEngine {
         return [{
           ...baseEvent,
           type: 'VOTE_CAST',
-        } as CoreEvent];
+        } as GeneratedEvent];
 
       case 'SEND_MESSAGE':
         return [{
           ...baseEvent,
           type: 'CHAT_MESSAGE',
-        } as CoreEvent];
+        } as GeneratedEvent];
 
       case 'MINE_TOKENS':
         return [{
           ...baseEvent,
           type: 'MINING_ATTEMPTED',
-        } as CoreEvent];
+        } as GeneratedEvent];
 
       case 'USE_ABILITY':
         return [{
           ...baseEvent,
           type: 'NIGHT_ACTION_SUBMITTED',
-        } as CoreEvent];
+        } as GeneratedEvent];
 
       default:
         console.warn('Unknown action type:', action.type);
@@ -254,7 +271,7 @@ export class GameEngine {
     }
   }
 
-  onStateChange(callback: (state: CoreGameState) => void): () => void {
+  onStateChange(callback: (state: GameState) => void): () => void {
     this.stateChangeListeners.push(callback);
 
     return () => {
@@ -265,7 +282,7 @@ export class GameEngine {
     };
   }
 
-  private notifyStateChange(state: CoreGameState): void {
+  private notifyStateChange(state: GameState): void {
     this.stateChangeListeners.forEach(callback => {
       try {
         callback(state);

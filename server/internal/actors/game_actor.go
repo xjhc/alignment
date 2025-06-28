@@ -322,6 +322,8 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 		return ga.handlePulseCheckSubmission(action)
 	case core.ActionSetSlackStatus:
 		return ga.handleStatusUpdate(action)
+	case core.ActionSubmitExitInterview:
+		return ga.handleExitInterview(action)
 	case core.ActionType("PHASE_TRANSITION"):
 		return ga.handlePhaseTransition(action)
 	default:
@@ -407,6 +409,44 @@ func (ga *GameActor) handleStatusUpdate(action core.Action) ([]core.Event, error
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
 			"status": statusMessage,
+		},
+	}
+
+	return []core.Event{event}, nil
+}
+
+func (ga *GameActor) handleExitInterview(action core.Action) ([]core.Event, error) {
+	// Validate player exists and is eliminated (not alive)
+	player := ga.state.Players[action.PlayerID]
+	if player == nil {
+		return nil, fmt.Errorf("invalid player submitting exit interview")
+	}
+	
+	// Allow exit interview only for eliminated players
+	if player.IsAlive {
+		return nil, fmt.Errorf("only eliminated players can submit exit interviews")
+	}
+
+	// Extract parting shot from payload
+	partingShot, ok := action.Payload["parting_shot"].(string)
+	if !ok || partingShot == "" {
+		return nil, fmt.Errorf("invalid or missing parting_shot")
+	}
+
+	// Validate parting shot length
+	if len(partingShot) > 50 {
+		return nil, fmt.Errorf("parting shot too long (max 50 characters)")
+	}
+
+	// Generate parting shot set event
+	event := core.Event{
+		ID:        fmt.Sprintf("parting_shot_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventPartingShotSet,
+		GameID:    ga.gameID,
+		PlayerID:  action.PlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"parting_shot": partingShot,
 		},
 	}
 
@@ -958,7 +998,7 @@ func getRoleDescription(roleType core.RoleType) string {
 	case core.RolePlatforms:
 		return "Maintains platform stability and information systems"
 	case core.RoleIntern:
-		return "Learning the ropes of corporate survival"
+		return "Shadows experienced employees to learn their abilities. Use BOOTCAMP to gain Bootcamp Points, then SHADOW other players to copy their role abilities."
 	default:
 		return "Manages corporate responsibilities"
 	}

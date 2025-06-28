@@ -290,6 +290,26 @@ export function useGameActions() {
     }
   }, [localPlayer, isConnected, gameState.id, localPlayerId, sendAction]);
 
+  const handleSubmitPartingShot = useCallback(async (partingShot: string) => {
+    if (!isConnected || !partingShot.trim()) return;
+
+    try {
+      const action: ClientAction = {
+        type: ClientActionType.SubmitExitInterview,
+        payload: {
+          game_id: gameState.id,
+          player_id: localPlayerId,
+          parting_shot: partingShot.trim(),
+        },
+      };
+
+      sendAction(action);
+    } catch (error) {
+      console.error('Failed to submit parting shot:', error);
+      throw error;
+    }
+  }, [isConnected, gameState.id, localPlayerId, sendAction]);
+
   return {
     // State
     chatInput,
@@ -318,6 +338,7 @@ export function useGameActions() {
     cancelReply,
     handleSkipPhase,
     handleEmojiReaction,
+    handleSubmitPartingShot,
     
     // Utility functions
     getPhaseDisplayName,

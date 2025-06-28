@@ -6,9 +6,11 @@ import { PlayerCard } from './PlayerCard';
 export const RosterPanel: React.FC = () => {
   const { gameState, localPlayerId, localPlayer, viewedPlayerId, setViewedPlayer, activeChannel, setActiveChannel } = useGameContext();
   const { theme, toggleTheme } = useTheme();
-  const players = gameState.players;
+  const players = gameState?.players || [];
 
   const getPlayerCounts = () => {
+    if (!Array.isArray(players)) return { humanCount: 0, alignedCount: 0, deactivatedCount: 0 };
+    
     const humanCount = players.filter(p => p.isAlive && p.alignment !== 'AI' && p.alignment !== 'ALIGNED').length;
     const alignedCount = players.filter(p => p.isAlive && (p.alignment === 'AI' || p.alignment === 'ALIGNED')).length;
     const deactivatedCount = players.filter(p => !p.isAlive).length;
@@ -32,7 +34,11 @@ export const RosterPanel: React.FC = () => {
   };
 
   const getUnreadCount = (channelId: string) => {
-    return gameState.chatMessages.filter(msg => 
+    // Handle both chatMessages (camelCase) and chat_messages (snake_case) 
+    const messages = gameState?.chatMessages || (gameState as any)?.chat_messages || [];
+    if (!Array.isArray(messages)) return 0;
+    
+    return messages.filter(msg => 
       msg.channelID === channelId && !msg.isSystem
     ).length; // Simplified for now - would need read state tracking for real unread count
   };
@@ -119,7 +125,7 @@ export const RosterPanel: React.FC = () => {
           </div>
         </div>
 
-        {players.sort((a, b) => {
+        {Array.isArray(players) && players.sort((a, b) => {
           // Sort self to top, then by alive status, then by name
           if (a.id === localPlayerId) return -1;
           if (b.id === localPlayerId) return 1;

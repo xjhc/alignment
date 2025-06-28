@@ -29,7 +29,7 @@ export const EmptyInput: Story = {
     ...Default.args,
   },
   // You can add interactions to test the form behavior
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement: _ }) => {
     // const canvas = within(canvasElement);
     // const loginButton = await canvas.getByRole('button', { name: /browse lobbies/i });
     // expect(loginButton).toBeDisabled();

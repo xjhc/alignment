@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { appReducer, initialAppState, ConsolidatedAppState } from '../appReducer';
-import { VoteState } from '../../types';
+import { VoteState, VoteType } from '../../types';
 
 describe('appReducer', () => {
   describe('VOTE_TALLY_UPDATED action', () => {
     it('should update voteState when VOTE_TALLY_UPDATED action is dispatched', () => {
       // Arrange
       const mockVoteState: VoteState = {
-        type: 'NOMINATION',
+        type: VoteType.Nomination,
         votes: {
           'player-1': 'player-2',
           'player-3': 'player-2',
@@ -64,17 +64,17 @@ describe('appReducer', () => {
             {
               id: 'msg-1',
               message: 'Test message',
-              senderId: 'player-1',
-              senderName: 'TestPlayer',
+              playerID: 'player-1',
+              playerName: 'TestPlayer',
               timestamp: '2024-01-01T12:00:00Z',
-              channelId: 'general'
+              isSystem: false
             }
           ]
         }
       };
 
       const mockVoteState: VoteState = {
-        type: 'VERDICT',
+        type: VoteType.Verdict,
         votes: { 'player-1': 'GUILTY' },
         tokenWeights: { 'player-1': 1 },
         results: { 'GUILTY': 1 },
@@ -108,7 +108,7 @@ describe('appReducer', () => {
       };
 
       const mockVoteState: VoteState = {
-        type: 'NOMINATION',
+        type: VoteType.Nomination,
         votes: {},
         tokenWeights: {},
         results: {},
@@ -131,7 +131,7 @@ describe('appReducer', () => {
     it('should handle replacing existing voteState with new voteState', () => {
       // Arrange
       const existingVoteState: VoteState = {
-        type: 'NOMINATION',
+        type: VoteType.Nomination,
         votes: { 'player-1': 'player-2' },
         tokenWeights: { 'player-1': 1 },
         results: { 'player-2': 1 },
@@ -147,7 +147,7 @@ describe('appReducer', () => {
       };
 
       const newVoteState: VoteState = {
-        type: 'VERDICT',
+        type: VoteType.Verdict,
         votes: { 
           'player-1': 'GUILTY',
           'player-2': 'INNOCENT'
@@ -173,7 +173,7 @@ describe('appReducer', () => {
 
       // Assert
       expect(result.gameState.voteState).toEqual(newVoteState);
-      expect(result.gameState.voteState?.type).toBe('VERDICT');
+      expect(result.gameState.voteState?.type).toBe(VoteType.Verdict);
       expect(result.gameState.voteState?.isComplete).toBe(true);
       expect(result.gameState.voteState?.results).toEqual({
         'GUILTY': 2,

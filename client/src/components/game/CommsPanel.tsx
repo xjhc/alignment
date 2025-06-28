@@ -50,7 +50,8 @@ export const CommsPanel: React.FC = () => {
   // Skip vote calculations
   const skipVotes = gameState.skipVotes || {};
   const skipVoteCount = Object.keys(skipVotes).length;
-  const livingHumans = gameState.players.filter(p => p.isAlive && p.controlType === 'HUMAN').length;
+  const players = gameState?.players || [];
+  const livingHumans = Array.isArray(players) ? players.filter(p => p.isAlive && p.controlType === 'HUMAN').length : 0;
   const hasLocalPlayerVoted = skipVotes[localPlayer.id] || false;
   
   // Determine if skip button should be shown
@@ -61,12 +62,16 @@ export const CommsPanel: React.FC = () => {
 
   // Filter messages by active channel (memoized to prevent re-renders)
   const filteredMessages = useMemo(() => {
-    return gameState.chatMessages.filter(msg => {
+    // Handle both chatMessages (camelCase) and chat_messages (snake_case)
+    const messages = gameState?.chatMessages || (gameState as any)?.chat_messages || [];
+    if (!Array.isArray(messages)) return [];
+    
+    return messages.filter(msg => {
       // If message has no channelID, assume it's for #war-room (legacy support)
       const messageChannel = msg.channelID || '#war-room';
       return messageChannel === activeChannel;
     });
-  }, [gameState.chatMessages, activeChannel]);
+  }, [gameState?.chatMessages, (gameState as any)?.chat_messages, activeChannel]);
 
   // Debug: Log duplicate messages
   const messageIds = filteredMessages.map(msg => msg.id);

@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gameEngine } from '../services/gameEngine';
-import { CoreGameState, CoreEvent, CoreAction } from '../utils/coreTypes';
+import { GeneratedEvent, GeneratedAction, GameState } from '../types';
 
 export interface GameEngineState {
   isLoaded: boolean;
   isLoading: boolean;
   error: string | null;
-  gameState: CoreGameState | null;
+  gameState: GameState | null;
 }
 
 export function useGameEngine() {
@@ -88,7 +88,7 @@ export function useGameEngine() {
     }
   }, [state.isLoaded]);
 
-  const applyEvent = useCallback(async (event: CoreEvent) => {
+  const applyEvent = useCallback(async (event: GeneratedEvent) => {
     if (!state.isLoaded) {
       throw new Error('Game engine not loaded');
     }
@@ -105,7 +105,7 @@ export function useGameEngine() {
     }
   }, [state.isLoaded]);
 
-  const submitAction = useCallback(async (action: CoreAction) => {
+  const submitAction = useCallback(async (action: GeneratedAction) => {
     if (!state.isLoaded) {
       throw new Error('Game engine not loaded');
     }
@@ -122,7 +122,7 @@ export function useGameEngine() {
     }
   }, [state.isLoaded]);
 
-  const loadGameState = useCallback(async (gameState: CoreGameState) => {
+  const loadGameState = useCallback(async (gameState: GameState) => {
     if (!state.isLoaded) {
       throw new Error('Game engine not loaded');
     }

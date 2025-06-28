@@ -1,6 +1,6 @@
 # ADR-005: Adopt a "Contract-First" Approach for API and Events
 
-*   **Status:** Accepted
+*   **Status:** Implemented
 *   **Supersedes:** Implicit, manual synchronization between backend and frontend.
 
 ## Context

@@ -71,7 +71,10 @@ func (nrm *NightResolutionManager) processAllNightActions() *NightActionResults 
 	// Pass 2: Process AI conversion attempts
 	nrm.processConversionActions(results)
 
-	// Pass 3: Process standard actions (mining, role abilities, others)
+	// Pass 3: Process Intern actions (BOOTCAMP and SHADOW)
+	nrm.processInternActions(results)
+
+	// Pass 4: Process standard actions (mining, role abilities, others)
 	nrm.processStandardActions(results)
 
 	return results
@@ -168,6 +171,28 @@ func (nrm *NightResolutionManager) processConversionActions(results *NightAction
 	}
 }
 
+// processInternActions handles BOOTCAMP and SHADOW actions for the Intern role
+func (nrm *NightResolutionManager) processInternActions(results *NightActionResults) {
+	for playerID, action := range nrm.gameState.NightActions {
+		// Skip blocked players
+		if nrm.isPlayerBlocked(playerID) {
+			continue
+		}
+
+		player := nrm.gameState.Players[playerID]
+		if player == nil || player.Role == nil || player.Role.Type != core.RoleIntern {
+			continue
+		}
+
+		switch action.Type {
+		case "BOOTCAMP":
+			nrm.processBootcampAction(playerID, action, results)
+		case "SHADOW":
+			nrm.processShadowAction(playerID, action, results)
+		}
+	}
+}
+
 // processStandardActions handles mining, role abilities, and other standard actions
 func (nrm *NightResolutionManager) processStandardActions(results *NightActionResults) {
 	for playerID, action := range nrm.gameState.NightActions {
@@ -187,6 +212,164 @@ func (nrm *NightResolutionManager) processStandardActions(results *NightActionRe
 				nrm.processRoleAbilityAction(playerID, action, results)
 			}
 		}
+	}
+}
+
+// processBootcampAction handles BOOTCAMP action - grants the Intern 1 Bootcamp Point
+func (nrm *NightResolutionManager) processBootcampAction(playerID string, action *core.SubmittedNightAction, results *NightActionResults) {
+	player := nrm.gameState.Players[playerID]
+	if player == nil {
+		return
+	}
+
+	// Increment Bootcamp Points
+	player.BootcampPoints++
+
+	results.RoleAbilityResults = append(results.RoleAbilityResults, map[string]interface{}{
+		"player_id":          playerID,
+		"player_name":        player.Name,
+		"ability_type":       "BOOTCAMP",
+		"message":            fmt.Sprintf("%s completed bootcamp training and gained 1 Bootcamp Point", player.Name),
+		"bootcamp_points":    player.BootcampPoints,
+	})
+
+	// Track state change
+	nrm.addPlayerStateChange(results, playerID, "bootcamp_points", player.BootcampPoints)
+}
+
+// processShadowAction handles SHADOW action - copies another player's ability
+func (nrm *NightResolutionManager) processShadowAction(playerID string, action *core.SubmittedNightAction, results *NightActionResults) {
+	player := nrm.gameState.Players[playerID]
+	if player == nil {
+		return
+	}
+
+	// Check if Intern has enough Bootcamp Points
+	if player.BootcampPoints < 1 {
+		results.FailedActions = append(results.FailedActions, map[string]interface{}{
+			"player_id":   playerID,
+			"player_name": player.Name,
+			"action_type": "SHADOW",
+			"reason":      "Insufficient Bootcamp Points",
+		})
+		return
+	}
+
+	// Get shadow target (player whose ability to copy)
+	shadowTargetID := action.TargetID
+	shadowTarget := nrm.gameState.Players[shadowTargetID]
+	if shadowTarget == nil || shadowTarget.Role == nil || !shadowTarget.Role.IsUnlocked {
+		results.FailedActions = append(results.FailedActions, map[string]interface{}{
+			"player_id":   playerID,
+			"player_name": player.Name,
+			"action_type": "SHADOW",
+			"reason":      "Target does not have an unlocked ability to shadow",
+		})
+		return
+	}
+
+	// Check project milestone requirement (3+ milestones)
+	if shadowTarget.ProjectMilestones < 3 {
+		results.FailedActions = append(results.FailedActions, map[string]interface{}{
+			"player_id":   playerID,
+			"player_name": player.Name,
+			"action_type": "SHADOW",
+			"reason":      "Target's ability is not unlocked (needs 3+ project milestones)",
+		})
+		return
+	}
+
+	// Get final target from payload
+	var finalTargetID string
+	if payload, ok := action.Payload["shadow_target_id"].(string); ok {
+		finalTargetID = payload
+	}
+
+	// Consume Bootcamp Point
+	player.BootcampPoints--
+
+	// Determine the ability type based on the shadow target's role
+	var abilityType string
+	switch shadowTarget.Role.Type {
+	case core.RoleCISO:
+		abilityType = "ISOLATE_NODE"
+	case core.RoleCTO:
+		abilityType = "OVERCLOCK_SERVERS"
+	case core.RoleEthics:
+		abilityType = "RUN_AUDIT"
+	case core.RoleCEO:
+		abilityType = "PERFORMANCE_REVIEW"
+	case core.RoleCFO:
+		abilityType = "REALLOCATE_BUDGET"
+	case core.RoleCOO:
+		abilityType = "PIVOT"
+	case core.RolePlatforms:
+		abilityType = "DEPLOY_HOTFIX"
+	default:
+		results.FailedActions = append(results.FailedActions, map[string]interface{}{
+			"player_id":   playerID,
+			"player_name": player.Name,
+			"action_type": "SHADOW",
+			"reason":      "Unknown or unshadowable role ability",
+		})
+		return
+	}
+
+	// Create a RoleAbilityAction with the Intern's ID but using the copied ability
+	// This ensures the Intern's alignment determines the effect version
+	roleAbilityManager := NewRoleAbilityManager(nrm.gameState)
+	roleAbilityAction := &RoleAbilityAction{
+		PlayerID:    playerID, // CRITICAL: Use Intern's ID for alignment determination
+		AbilityType: abilityType,
+		TargetID:    finalTargetID,
+	}
+
+	// Handle special cases that need additional parameters
+	if abilityType == "REALLOCATE_BUDGET" {
+		if secondTarget, ok := action.Payload["second_target_id"].(string); ok {
+			roleAbilityAction.SecondTargetID = secondTarget
+		}
+	} else if abilityType == "PIVOT" {
+		if chosenCrisis, ok := action.Payload["chosen_crisis"].(string); ok {
+			roleAbilityAction.Parameters = map[string]interface{}{"chosen_crisis": chosenCrisis}
+		}
+	} else if abilityType == "DEPLOY_HOTFIX" {
+		if section, ok := action.Payload["redacted_section"].(string); ok {
+			roleAbilityAction.Parameters = map[string]interface{}{"redacted_section": section}
+		}
+	}
+
+	// Execute the copied ability using the RoleAbilityManager
+	// The RoleAbilityManager will use the Intern's alignment to determine the effect
+	result, err := roleAbilityManager.UseRoleAbility(*roleAbilityAction)
+	if err != nil {
+		results.FailedActions = append(results.FailedActions, map[string]interface{}{
+			"player_id":   playerID,
+			"player_name": player.Name,
+			"action_type": "SHADOW",
+			"reason":      fmt.Sprintf("Failed to execute copied ability: %v", err),
+		})
+		return
+	}
+
+	// Add the shadow action result
+	results.RoleAbilityResults = append(results.RoleAbilityResults, map[string]interface{}{
+		"player_id":          playerID,
+		"player_name":        player.Name,
+		"ability_type":       fmt.Sprintf("SHADOW_%s", abilityType),
+		"shadowed_player":    shadowTarget.Name,
+		"target_id":          finalTargetID,
+		"message":            fmt.Sprintf("%s used %s (shadowed from %s)", player.Name, abilityType, shadowTarget.Name),
+		"bootcamp_points":    player.BootcampPoints,
+	})
+
+	// Track state change for Bootcamp Points
+	nrm.addPlayerStateChange(results, playerID, "bootcamp_points", player.BootcampPoints)
+
+	// Process the ability result events
+	if result != nil {
+		// Note: The events from the ability execution will be handled by the RoleAbilityManager
+		// and will appear to come from the Intern in public logs
 	}
 }
 

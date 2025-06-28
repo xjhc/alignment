@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { SitrepMessage } from './SitrepMessage';
-import { ChatMessage, GameState, Player } from '../../types';
+import { ChatMessage, GameState, Player, RoleType, KPIType, PhaseType } from '../../types';
 
 const meta: Meta<typeof SitrepMessage> = {
   title: 'Game/SitrepMessage',
@@ -23,6 +23,7 @@ const basePlayers: Player[] = [
     id: 'p-1',
     name: 'Alice',
     jobTitle: 'Chief Security Officer',
+    controlType: 'HUMAN',
     isAlive: true,
     tokens: 8,
     projectMilestones: 3,
@@ -31,7 +32,7 @@ const basePlayers: Player[] = [
     avatar: '👤',
     joinedAt: '2024-01-01T00:00:00Z',
     role: {
-      type: 'SECURITY_ANALYST',
+      type: RoleType.Ciso,
       name: 'Security Analyst',
       description: 'Protects the company from threats',
       isUnlocked: true,
@@ -42,7 +43,7 @@ const basePlayers: Player[] = [
       },
     },
     personalKPI: {
-      type: 'THREAT_MITIGATION',
+      type: KPIType.Guardian,
       description: 'Identify and neutralize 2 security threats',
       progress: 1,
       target: 2,
@@ -54,6 +55,7 @@ const basePlayers: Player[] = [
     id: 'p-2',
     name: 'Bob',
     jobTitle: 'Senior Developer',
+    controlType: 'HUMAN',
     isAlive: true,
     tokens: 5,
     projectMilestones: 2,
@@ -62,7 +64,7 @@ const basePlayers: Player[] = [
     avatar: '👨‍💻',
     joinedAt: '2024-01-01T00:05:00Z',
     role: {
-      type: 'SOFTWARE_ENGINEER',
+      type: RoleType.Platforms,
       name: 'Software Engineer',
       description: 'Builds and maintains systems',
       isUnlocked: true,
@@ -73,7 +75,7 @@ const basePlayers: Player[] = [
       },
     },
     personalKPI: {
-      type: 'CODE_QUALITY',
+      type: KPIType.Capitalist,
       description: 'Complete 3 code reviews',
       progress: 2,
       target: 3,
@@ -85,6 +87,7 @@ const basePlayers: Player[] = [
     id: 'p-3',
     name: 'Eve',
     jobTitle: 'Chief Operating Officer',
+    controlType: 'HUMAN',
     isAlive: false,
     tokens: 0,
     projectMilestones: 4,
@@ -93,7 +96,7 @@ const basePlayers: Player[] = [
     avatar: '👻',
     joinedAt: '2024-01-01T00:10:00Z',
     role: {
-      type: 'EXECUTIVE',
+      type: RoleType.Coo,
       name: 'Executive',
       description: 'Manages company operations',
       isUnlocked: true,
@@ -104,7 +107,7 @@ const basePlayers: Player[] = [
       },
     },
     personalKPI: {
-      type: 'OPERATIONAL_EFFICIENCY',
+      type: KPIType.SuccessionPlanner,
       description: 'Optimize 2 company processes',
       progress: 2,
       target: 2,
@@ -118,7 +121,7 @@ const baseGameState: GameState = {
   id: 'game-1',
   players: basePlayers,
   phase: {
-    type: 'DISCUSSION',
+    type: PhaseType.Discussion,
     startTime: '2024-01-01T09:00:00Z',
     duration: 300000000000,
   },

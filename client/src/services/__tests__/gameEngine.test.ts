@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GameEngine } from '../gameEngine';
-import { CoreGameState, CoreEvent } from '../../utils/coreTypes';
-import { ServerEventType } from '../../types/generated';
+import { GeneratedEvent } from '../../types/generated';
+import { GameState } from '../../types';
+import { ServerEventType, PhaseType, VoteType } from '../../types/generated';
 
 // Mock the WASM loader
 let mockStateChangeCallback: ((stateJson: string) => void) | null = null;
@@ -53,17 +54,17 @@ describe('GameEngine', () => {
 
   it('should handle VOTE_TALLY_UPDATED event and update voteState', async () => {
     // Arrange
-    const initialState: CoreGameState = {
+    const initialState: GameState = {
       id: 'test-game',
       players: [
-        { id: 'player1', name: 'Alice', isAlive: true, tokens: 5 },
-        { id: 'player2', name: 'Bob', isAlive: true, tokens: 3 },
+        { id: 'player1', name: 'Alice', jobTitle: 'Employee', controlType: 'HUMAN', isAlive: true, tokens: 5, projectMilestones: 0, statusMessage: '', joinedAt: '2024-01-01T00:00:00Z' },
+        { id: 'player2', name: 'Bob', jobTitle: 'Employee', controlType: 'HUMAN', isAlive: true, tokens: 3, projectMilestones: 0, statusMessage: '', joinedAt: '2024-01-01T00:00:00Z' },
       ],
-      phase: { type: 'VERDICT', startTime: '2024-01-01T00:00:00Z', duration: 300 },
+      phase: { type: PhaseType.Verdict, startTime: '2024-01-01T00:00:00Z', duration: 300 },
       dayNumber: 2,
       chatMessages: [],
       voteState: {
-        type: 'VERDICT',
+        type: VoteType.Verdict,
         votes: { 'player1': 'player2' },
         tokenWeights: { 'player1': 5 },
         results: { 'player2': 5 },
@@ -75,7 +76,7 @@ describe('GameEngine', () => {
     const updatedStateJson = JSON.stringify({
       ...initialState,
       voteState: {
-        type: 'VERDICT',
+        type: VoteType.Verdict,
         votes: { 'player1': 'player2', 'player2': 'player1' },
         tokenWeights: { 'player1': 5, 'player2': 3 },
         results: { 'player1': 3, 'player2': 5 },
@@ -86,7 +87,7 @@ describe('GameEngine', () => {
     mockCore.getGameState.mockReturnValue(updatedStateJson);
 
     // Set up state change listener to capture the update
-    let capturedState: CoreGameState | null = null;
+    let capturedState: GameState | null = null;
     const unsubscribe = gameEngine.onStateChange((state) => {
       capturedState = state;
     });
@@ -95,7 +96,7 @@ describe('GameEngine', () => {
     await gameEngine.loadState(initialState);
 
     // Act - Apply VOTE_TALLY_UPDATED event
-    const voteTallyEvent: CoreEvent = {
+    const voteTallyEvent: GeneratedEvent = {
       id: 'event-123',
       type: ServerEventType.VoteTallyUpdated,
       gameId: 'test-game',
@@ -103,7 +104,7 @@ describe('GameEngine', () => {
       timestamp: '2024-01-01T00:05:00Z',
       payload: {
         voteState: {
-          type: 'VERDICT',
+          type: VoteType.Verdict,
           votes: { 'player1': 'player2', 'player2': 'player1' },
           tokenWeights: { 'player1': 5, 'player2': 3 },
           results: { 'player1': 3, 'player2': 5 },
@@ -118,8 +119,8 @@ describe('GameEngine', () => {
     expect(mockCore.applyEvent).toHaveBeenCalledWith(JSON.stringify(voteTallyEvent));
     expect(mockCore.applyEvent).toHaveBeenCalledTimes(1);
     expect(capturedState).not.toBeNull();
-    expect(capturedState?.voteState).toEqual({
-      type: 'VERDICT',
+    expect((capturedState as any)?.voteState).toEqual({
+      type: VoteType.Verdict,
       votes: { 'player1': 'player2', 'player2': 'player1' },
       tokenWeights: { 'player1': 5, 'player2': 3 },
       results: { 'player1': 3, 'player2': 5 },
@@ -141,13 +142,13 @@ describe('GameEngine', () => {
     });
 
     // Set up state change listener
-    let capturedState: CoreGameState | null = null;
+    let capturedState: GameState | null = null;
     const unsubscribe = gameEngine.onStateChange((state) => {
       capturedState = state;
     });
 
     // Act - Apply VOTE_TALLY_UPDATED event that completes the vote
-    const voteTallyEvent: CoreEvent = {
+    const voteTallyEvent: GeneratedEvent = {
       id: 'event-124',
       type: ServerEventType.VoteTallyUpdated,
       gameId: 'test-game',
@@ -155,7 +156,7 @@ describe('GameEngine', () => {
       timestamp: '2024-01-01T00:05:00Z',
       payload: {
         voteState: {
-          type: 'VERDICT',
+          type: VoteType.Verdict,
           votes: { 'player1': 'player2', 'player2': 'player1' },
           tokenWeights: { 'player1': 5, 'player2': 3 },
           results: { 'player1': 3, 'player2': 5 },
@@ -168,8 +169,8 @@ describe('GameEngine', () => {
 
     // Assert
     expect(mockCore.applyEvent).toHaveBeenCalledWith(JSON.stringify(voteTallyEvent));
-    expect(capturedState?.voteState?.isComplete).toBe(true);
-    expect(capturedState?.voteState?.results).toEqual({ 'player1': 3, 'player2': 5 });
+    expect((capturedState as any)?.voteState?.isComplete).toBe(true);
+    expect((capturedState as any)?.voteState?.results).toEqual({ 'player1': 3, 'player2': 5 });
 
     // Cleanup
     unsubscribe();
@@ -179,7 +180,7 @@ describe('GameEngine', () => {
     // Arrange
     mockCore.applyEvent.mockReturnValue({ success: false, error: 'Invalid vote state' });
 
-    const voteTallyEvent: CoreEvent = {
+    const voteTallyEvent: GeneratedEvent = {
       id: 'event-125',
       type: ServerEventType.VoteTallyUpdated,
       gameId: 'test-game',
@@ -187,7 +188,7 @@ describe('GameEngine', () => {
       timestamp: '2024-01-01T00:05:00Z',
       payload: {
         voteState: {
-          type: 'INVALID_TYPE',
+          type: 'INVALID_TYPE' as any,
           votes: {},
           tokenWeights: {},
           results: {},

@@ -9,7 +9,7 @@ import { WebSocketProvider } from './contexts/WebSocketContext';
 import { GameProvider } from './contexts/GameContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { GameEngineProvider } from './contexts/GameEngineContext';
-import { convertToClientTypes } from './utils/coreTypes';
+// Note: convertToClientTypes function removed as we now use generated types directly
 import { appReducer, initialAppState, type RoleAssignment, type PlayerLobbyInfo } from './state/appReducer';
 
 
@@ -40,10 +40,23 @@ function AppContent() {
       return;
     }
 
-    const clientState = convertToClientTypes(coreGameState);
+    const clientState = coreGameState;
+
+    // Handle both array and object formats for players
+    let playersArray: any[] = [];
+    
+    if (Array.isArray(clientState.players)) {
+      playersArray = clientState.players;
+    } else if (clientState.players && typeof clientState.players === 'object') {
+      // Convert players object to array
+      playersArray = Object.values(clientState.players);
+    } else {
+      console.warn('Game state does not have valid players data, skipping update. State keys:', Object.keys(clientState));
+      return;
+    }
 
     // Merge avatar information from lobbyState into players
-    const playersWithAvatars = clientState.players.map((player: any) => {
+    const playersWithAvatars = playersArray.map((player: any) => {
       const lobbyInfo = state.lobbyState.playerInfos.find(info => info.id === player.id);
       return {
         ...player,
@@ -56,7 +69,7 @@ function AppContent() {
       players: playersWithAvatars
     };
 
-    const localPlayer = clientState.players.find((p: any) => p.id === state.appState.playerId);
+    const localPlayer = playersArray.find((p: any) => p.id === state.appState.playerId);
     let roleAssignment: RoleAssignment | undefined;
     
     if (localPlayer && localPlayer.role && localPlayer.alignment) {
@@ -76,9 +89,9 @@ function AppContent() {
       } 
     });
 
-    // Check for game over condition
-    if (clientState.winCondition) {
-      console.log(`[App] Game over condition met. Winner: ${clientState.winCondition.winner}. Transitioning.`);
+    // Check for game over condition  
+    if (gameStateWithAvatars.winCondition) {
+      console.log(`[App] Game over condition met. Winner: ${gameStateWithAvatars.winCondition.winner}. Transitioning.`);
       dispatch({ type: 'GAME_OVER', payload: { sessionState: 'POST_GAME' } });
       navigateToGameOver();
     }

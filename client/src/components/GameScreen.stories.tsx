@@ -3,6 +3,7 @@ import React from 'react';
 import { GameScreen } from './GameScreen';
 import { GameProvider } from '../contexts/GameContext';
 import { GameState, Player, Phase, ChatMessage } from '../types';
+import { RoleType, KPIType, PhaseType, VoteType } from '../types/generated';
 
 // Create a wrapper component that provides contexts
 const GameScreenWrapper: React.FC<{ gameState: GameState; playerID: string }> = ({ gameState, playerID }) => (
@@ -33,6 +34,7 @@ const basePlayers: Player[] = [
     id: 'p-1',
     name: 'Alice',
     jobTitle: 'Chief Security Officer',
+    controlType: 'HUMAN',
     isAlive: true,
     tokens: 8,
     projectMilestones: 3,
@@ -41,7 +43,7 @@ const basePlayers: Player[] = [
     avatar: '👤',
     joinedAt: '2024-01-01T00:00:00Z',
     role: {
-      type: 'SECURITY_ANALYST',
+      type: RoleType.Ciso,
       name: 'Security Analyst',
       description: 'Protects the company from threats',
       isUnlocked: true,
@@ -52,7 +54,7 @@ const basePlayers: Player[] = [
       },
     },
     personalKPI: {
-      type: 'THREAT_MITIGATION',
+      type: KPIType.Guardian,
       description: 'Identify and neutralize 2 security threats',
       progress: 1,
       target: 2,
@@ -64,6 +66,7 @@ const basePlayers: Player[] = [
     id: 'p-2',
     name: 'Bob',
     jobTitle: 'Senior Developer',
+    controlType: 'HUMAN',
     isAlive: true,
     tokens: 5,
     projectMilestones: 2,
@@ -72,7 +75,7 @@ const basePlayers: Player[] = [
     avatar: '👨‍💻',
     joinedAt: '2024-01-01T00:05:00Z',
     role: {
-      type: 'SOFTWARE_ENGINEER',
+      type: RoleType.Cto,
       name: 'Software Engineer',
       description: 'Builds and maintains systems',
       isUnlocked: true,
@@ -83,7 +86,7 @@ const basePlayers: Player[] = [
       },
     },
     personalKPI: {
-      type: 'CODE_QUALITY',
+      type: KPIType.Inquisitor,
       description: 'Complete 3 code reviews',
       progress: 2,
       target: 3,
@@ -95,6 +98,7 @@ const basePlayers: Player[] = [
     id: 'p-3',
     name: 'Eve',
     jobTitle: 'Chief Operating Officer',
+    controlType: 'HUMAN',
     isAlive: true,
     tokens: 12,
     projectMilestones: 4,
@@ -103,7 +107,7 @@ const basePlayers: Player[] = [
     avatar: '🧑‍🚀',
     joinedAt: '2024-01-01T00:10:00Z',
     role: {
-      type: 'EXECUTIVE',
+      type: RoleType.Ceo,
       name: 'Executive',
       description: 'Manages company operations',
       isUnlocked: true,
@@ -114,7 +118,7 @@ const basePlayers: Player[] = [
       },
     },
     personalKPI: {
-      type: 'OPERATIONAL_EFFICIENCY',
+      type: KPIType.Capitalist,
       description: 'Optimize 2 company processes',
       progress: 2,
       target: 2,
@@ -126,6 +130,7 @@ const basePlayers: Player[] = [
     id: 'p-4',
     name: 'Charlie',
     jobTitle: 'Former Employee',
+    controlType: 'HUMAN',
     isAlive: false,
     tokens: 0,
     projectMilestones: 1,
@@ -134,7 +139,7 @@ const basePlayers: Player[] = [
     avatar: '👻',
     joinedAt: '2024-01-01T00:15:00Z',
     role: {
-      type: 'DATA_ANALYST',
+      type: RoleType.Platforms,
       name: 'Data Analyst',
       description: 'Analyzes company data',
       isUnlocked: false,
@@ -145,7 +150,7 @@ const basePlayers: Player[] = [
       },
     },
     personalKPI: {
-      type: 'DATA_INSIGHTS',
+      type: KPIType.SuccessionPlanner,
       description: 'Generate 3 data reports',
       progress: 1,
       target: 3,
@@ -195,7 +200,7 @@ const baseChatMessages: ChatMessage[] = [
 
 // Base phase
 const discussionPhase: Phase = {
-  type: 'DISCUSSION',
+  type: PhaseType.Discussion,
   startTime: '2024-01-01T09:00:00Z',
   duration: 300000000000, // 5 minutes in nanoseconds
 };
@@ -223,7 +228,7 @@ export const NightPhase: Story = {
     gameState: {
       ...baseGameState,
       phase: {
-        type: 'NIGHT',
+        type: PhaseType.Night,
         startTime: '2024-01-01T21:00:00Z',
         duration: 120000000000, // 2 minutes in nanoseconds
       },
@@ -237,12 +242,12 @@ export const NominationPhase: Story = {
     gameState: {
       ...baseGameState,
       phase: {
-        type: 'NOMINATION',
+        type: PhaseType.Nomination,
         startTime: '2024-01-01T12:00:00Z',
         duration: 180000000000, // 3 minutes in nanoseconds
       },
       voteState: {
-        type: 'NOMINATION',
+        type: VoteType.Nomination,
         votes: {},
         tokenWeights: {},
         results: {},
@@ -258,13 +263,13 @@ export const TrialPhase: Story = {
     gameState: {
       ...baseGameState,
       phase: {
-        type: 'TRIAL',
+        type: PhaseType.Trial,
         startTime: '2024-01-01T12:05:00Z',
         duration: 120000000000, // 2 minutes in nanoseconds
       },
       nominatedPlayer: 'p-3',
       voteState: {
-        type: 'TRIAL',
+        type: VoteType.Verdict,
         votes: {},
         tokenWeights: {},
         results: {},
@@ -280,13 +285,13 @@ export const VerdictPhase: Story = {
     gameState: {
       ...baseGameState,
       phase: {
-        type: 'VERDICT',
+        type: PhaseType.Verdict,
         startTime: '2024-01-01T12:10:00Z',
         duration: 60000000000, // 1 minute in nanoseconds
       },
       nominatedPlayer: 'p-3',
       voteState: {
-        type: 'VERDICT',
+        type: VoteType.Verdict,
         votes: {
           'p-1': 'GUILTY',
           'p-2': 'INNOCENT',
@@ -312,7 +317,7 @@ export const VerdictComplete: Story = {
       ...baseGameState,
       players: basePlayers.map(p => p.id === 'p-3' ? { ...p, isAlive: false } : p),
       phase: {
-        type: 'DISCUSSION',
+        type: PhaseType.Discussion,
         startTime: '2024-01-01T12:11:00Z',
         duration: 300000000000,
       },
@@ -362,7 +367,7 @@ export const PulseCheckPhase: Story = {
     gameState: {
       ...baseGameState,
       phase: {
-        type: 'PULSE_CHECK',
+        type: PhaseType.PulseCheck,
         startTime: '2024-01-01T11:00:00Z',
         duration: 60000000000, // 1 minute in nanoseconds
       },
@@ -387,7 +392,7 @@ export const PulseCheckPhase: Story = {
           playerName: 'NEXUS',
           message: 'A critical role has been exposed. How does this change your immediate priority?',
           timestamp: '2024-01-01T11:00:30Z',
-          type: 'PULSE_CHECK',
+          type: PhaseType.PulseCheck,
           isSystem: true,
           metadata: {
             pulseCheckResponses: {
@@ -410,7 +415,7 @@ export const PulseCheckEarly: Story = {
     gameState: {
       ...baseGameState,
       phase: {
-        type: 'PULSE_CHECK',
+        type: PhaseType.PulseCheck,
         startTime: '2024-01-01T11:00:00Z',
         duration: 60000000000, // 1 minute in nanoseconds
       },
@@ -433,7 +438,7 @@ export const PulseCheckEarly: Story = {
           playerName: 'NEXUS',
           message: 'With limited bandwidth, what is the one piece of information everyone needs to hear from you?',
           timestamp: '2024-01-01T11:00:30Z',
-          type: 'PULSE_CHECK',
+          type: PhaseType.PulseCheck,
           isSystem: true,
           metadata: {
             pulseCheckResponses: {
@@ -525,7 +530,7 @@ export const GameOver: Story = {
     gameState: {
       ...baseGameState,
       phase: {
-        type: 'GAME_OVER',
+        type: PhaseType.GameOver,
         startTime: '2024-01-01T15:00:00Z',
         duration: 0,
       },

@@ -1,14 +1,21 @@
+import React, { useState } from 'react';
 import { useGameContext } from '../contexts/GameContext';
 import { PrivateNotifications } from './PrivateNotifications';
 import { RosterPanel } from './game/RosterPanel';
 import { CommsPanel } from './game/CommsPanel';
 import { PlayerHUD } from './game/PlayerHUD';
+import { ExitInterviewScreen } from './game/ExitInterviewScreen';
 
 export function GameScreen() {
   const { gameState, localPlayer } = useGameContext();
+  const [showExitInterview, setShowExitInterview] = useState(false);
 
-  // All game actions are now handled by the useGameActions hook
-
+  // Show exit interview for eliminated players who haven't submitted a parting shot
+  React.useEffect(() => {
+    if (localPlayer && !localPlayer.isAlive && !localPlayer.partingShot && !showExitInterview) {
+      setShowExitInterview(true);
+    }
+  }, [localPlayer, showExitInterview]);
 
   if (!localPlayer) {
     return (
@@ -23,6 +30,13 @@ export function GameScreen() {
 
   return (
     <div className="w-screen h-screen grid grid-cols-[260px_1fr_320px] gap-px bg-border overflow-hidden">
+      {/* Exit Interview Overlay */}
+      {showExitInterview && (
+        <ExitInterviewScreen
+          onComplete={() => setShowExitInterview(false)}
+        />
+      )}
+
       {/* Private Notifications Overlay */}
       {gameState.privateNotifications && (
         <PrivateNotifications

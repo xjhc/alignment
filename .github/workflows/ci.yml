@@ -106,6 +106,20 @@ jobs:
       working-directory: ./client
       run: npm ci
 
+    - name: Generate TypeScript types from Go core package
+      working-directory: ./client
+      run: npm run generate:types
+
+    - name: Verify generated types are in sync
+      run: |
+        git diff --exit-code client/src/types/generated.ts || {
+          echo "❌ Generated TypeScript types are out of sync with Go core package"
+          echo "The generated.ts file has uncommitted changes."
+          echo "This means the Go core types were modified but TypeScript types weren't regenerated."
+          echo "Please run 'npm run generate:types' and commit the changes."
+          exit 1
+        }
+
     - name: Architectural Linting
       run: go run tools/arch-lint/main.go
 

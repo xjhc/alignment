@@ -12,10 +12,11 @@ export const SitrepMessage: React.FC<SitrepMessageProps> = ({ message, gameState
   // Use structured night action results from game state, falling back to old metadata approach
   const nightActionResults = gameState.nightActionResults || metadata?.nightActions || [];
   
+  const players = gameState?.players || [];
   const headcount = metadata?.playerHeadcount || {
-    humans: gameState.players.filter(p => p.isAlive && p.alignment !== 'ALIGNED').length,
-    aligned: gameState.players.filter(p => p.isAlive && p.alignment === 'ALIGNED').length,
-    dead: gameState.players.filter(p => !p.isAlive).length
+    humans: Array.isArray(players) ? players.filter(p => p.isAlive && p.alignment !== 'ALIGNED').length : 0,
+    aligned: Array.isArray(players) ? players.filter(p => p.isAlive && p.alignment === 'ALIGNED').length : 0,
+    dead: Array.isArray(players) ? players.filter(p => !p.isAlive).length : 0
   };
   const crisisEvent = metadata?.crisisEvent || gameState.crisisEvent;
 

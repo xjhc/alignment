@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { NightActionSelection } from '../game/NightActionSelection'
 import { GameProvider } from '../../contexts/GameContext'
 import { Player, GameState } from '../../types'
+import { KPIType } from '../../types/generated'
 
 // Mock the WebSocket context
 vi.mock('../../contexts/WebSocketContext', () => ({
@@ -29,6 +30,7 @@ const createTestPlayer = (id: string, name: string, role: string, milestones = 3
   id,
   name,
   jobTitle: role,
+  controlType: 'HUMAN',
   isAlive: true,
   tokens,
   projectMilestones: milestones,
@@ -48,7 +50,7 @@ const createTestPlayer = (id: string, name: string, role: string, milestones = 3
     } : undefined,
   },
   personalKPI: {
-    type: 'PRODUCTIVITY',
+    type: KPIType.Capitalist,
     description: 'Complete objectives',
     progress: milestones,
     target: 3,

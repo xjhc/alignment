@@ -11,7 +11,7 @@ export const PulseCheckInput: React.FC<PulseCheckInputProps> = ({
   localPlayerName,
   question = "What is your immediate response to the current crisis?"
 }) => {
-  const [selectedResponse, setSelectedResponse] = useState<string>('');
+  // Pulse check responses are now handled via button selection
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const responses = [

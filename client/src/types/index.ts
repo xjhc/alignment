@@ -1,10 +1,20 @@
-// Re-export types from the core package via WASM bridge
-import * as CoreTypes from '../utils/coreTypes';
-export * from '../utils/coreTypes';
-
-// Re-export generated types
+// Re-export generated types from the core package
 export * from './generated';
-import { ServerEventType, ClientActionType } from './generated';
+import { 
+  ServerEventType, 
+  ClientActionType, 
+  GeneratedPlayer,
+  GeneratedRole,
+  GeneratedAbility,
+  GeneratedPersonalKPI,
+  GeneratedSystemShock,
+  GeneratedNightAction,
+  GeneratedChatMessage,
+  GeneratedPhase,
+  GeneratedVoteState,
+  GeneratedCrisisEvent,
+  GeneratedWinCondition
+} from './generated';
 
 // WebSocket message types
 export interface WebSocketMessage {
@@ -27,15 +37,17 @@ export interface ServerEvent extends WebSocketMessage {
   playerId?: string;  // Player ID for events
 }
 
-// Type aliases for compatibility with existing code
-export interface Player extends CoreTypes.CorePlayer {
+// Type aliases for compatibility with existing code using generated types
+export interface Player extends GeneratedPlayer {
   avatar?: string;
+  isRolePubliclyRevealed?: boolean;
 }
-export type Role = CoreTypes.CoreRole;
-export type Ability = CoreTypes.CoreAbility;
-export type PersonalKPI = CoreTypes.CorePersonalKPI;
-export type SystemShock = CoreTypes.CoreSystemShock;
-export type NightAction = CoreTypes.CoreNightAction;
+export type Role = GeneratedRole;
+export type Ability = GeneratedAbility;
+export type PersonalKPI = GeneratedPersonalKPI;
+export type SystemShock = GeneratedSystemShock;
+export type NightAction = GeneratedNightAction;
+
 // EmojiReaction type - define it here since not yet in core types
 export interface EmojiReaction {
   emoji: string;
@@ -43,8 +55,9 @@ export interface EmojiReaction {
   playerName: string;
   timestamp: string;
 }
+
 // Enhanced ChatMessage with specialized message types
-export interface ChatMessage extends CoreTypes.CoreChatMessage {
+export interface ChatMessage extends GeneratedChatMessage {
   type?: 'SITREP' | 'VOTE_RESULT' | 'PULSE_CHECK' | 'PULSE_CHECK_SUBMISSION' | 'INCITING_INCIDENT' | 'LOEBMATE_MESSAGE' | 'REGULAR';
   reactions?: EmojiReaction[];
   metadata?: {
@@ -81,10 +94,10 @@ export interface ChatMessage extends CoreTypes.CoreChatMessage {
     body?: string;
   };
 }
-export type Phase = CoreTypes.CorePhase;
-export type VoteState = CoreTypes.CoreVoteState;
-export type CrisisEvent = CoreTypes.CoreCrisisEvent;
-export type WinCondition = CoreTypes.CoreWinCondition;
+export type Phase = GeneratedPhase;
+export type VoteState = GeneratedVoteState;
+export type CrisisEvent = GeneratedCrisisEvent;
+export type WinCondition = GeneratedWinCondition;
 
 // GameState with client-friendly structure (array instead of map for players)
 export interface GameState {

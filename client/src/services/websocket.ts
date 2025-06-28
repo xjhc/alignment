@@ -200,7 +200,6 @@ export class WebSocketClient {
         break;
 
       case ServerEventType.RoleAssigned:
-      case ServerEventType.GameStarted:
       case ServerEventType.PhaseChanged:
       case ServerEventType.ChatMessage:
       case ServerEventType.IncitingIncident:
@@ -243,6 +242,13 @@ export class WebSocketClient {
           console.warn(`Game engine not ready for event ${event.type}, will buffer for later`);
           // Could implement event buffering here if needed
         }
+        break;
+
+      case ServerEventType.GameStarted:
+        // GAME_STARTED events don't need to be applied to the game engine
+        // since they're just notifications. The actual game state will come
+        // via GAME_STATE_UPDATE event which loads the full initial state.
+        console.log('Game started event received - awaiting state update');
         break;
         
       // Events handled directly by UI subscribers

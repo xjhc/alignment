@@ -38,6 +38,8 @@ redis-server &
 make dev
 ```
 
+**Note:** The frontend development workflow automatically generates TypeScript types from the Go `core` package using `npm run generate:types`. This ensures perfect synchronization between backend and frontend contracts.
+
 **3. Testing**
 ```bash
 # Run all backend and frontend tests
@@ -84,6 +86,9 @@ cd client/
 # Install dependencies
 npm install
 
+# Generate TypeScript types from Go core package (automated in dev/build)
+npm run generate:types
+
 # Start the frontend dev server
 npm run dev
 
@@ -97,6 +102,38 @@ npm run build
 # Start Redis (required for the backend)
 redis-server
 ```
+
+## Automated Type Generation
+
+This project implements a **Contract-First API** approach where the Go `core` package serves as the single source of truth for all data structures and event types. TypeScript types are automatically generated to ensure perfect backend-frontend synchronization.
+
+### How It Works
+
+1. **Source of Truth**: All game types, event constants, and action types are defined in `/core/types.go`
+2. **Generation Tool**: A custom Go tool at `/tools/generate-types/` parses the core package and generates TypeScript equivalents
+3. **Automated Integration**: The `npm run generate:types` command runs automatically during `npm run dev` and `npm run build`
+4. **CI Enforcement**: The CI pipeline verifies that generated types are always in sync with the Go source
+
+### Key Benefits
+
+- **Eliminates Contract Drift**: Impossible for backend/frontend types to get out of sync
+- **Compile-Time Safety**: Type mismatches caught during TypeScript compilation
+- **Single Source of Truth**: The `/core` package defines the authoritative API contract
+- **Automated Workflow**: No manual synchronization required
+
+### Usage
+
+```bash
+# Manually regenerate types (usually not needed)
+cd client/
+npm run generate:types
+
+# Types are automatically generated during development
+npm run dev
+npm run build
+```
+
+**Important**: Never manually edit `client/src/types/generated.ts` - it is automatically overwritten. All type definitions must be made in the Go `core` package.
 
 ## Development guidelines
 

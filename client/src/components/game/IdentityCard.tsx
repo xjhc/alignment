@@ -1,5 +1,5 @@
 import React from 'react';
-import { Player } from '../../types';
+import { Player, RoleType } from '../../types';
 
 interface IdentityCardProps {
   localPlayer: Player;
@@ -7,12 +7,13 @@ interface IdentityCardProps {
 
 export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
   const getPlayerAvatar = (player: Player) => {
-    if (player.role?.type === 'CISO') return '👤';
-    if (player.role?.type === 'SYSTEMS') return '🧑‍💻';
-    if (player.role?.type === 'ETHICS') return '🕵️';
-    if (player.role?.type === 'CTO') return '🤖';
-    if (player.role?.type === 'COO') return '🧑‍🚀';
-    if (player.role?.type === 'CFO') return '👩‍🔬';
+    if (player.role?.type === RoleType.Ciso) return '👤';
+    if (player.role?.type === RoleType.Platforms) return '🧑‍💻';
+    if (player.role?.type === RoleType.Ethics) return '🕵️';
+    if (player.role?.type === RoleType.Cto) return '🤖';
+    if (player.role?.type === RoleType.Coo) return '🧑‍🚀';
+    if (player.role?.type === RoleType.Cfo) return '👩‍🔬';
+    if (player.role?.type === RoleType.Intern) return '🎓';
     return '👤';
   };
 
@@ -37,12 +38,13 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
     if (!player.role) return 'Employee';
 
     switch (player.role.type) {
-      case 'CISO': return 'Chief Information Security Officer';
-      case 'SYSTEMS': return 'Systems Administrator';
-      case 'ETHICS': return 'VP, Ethics';
-      case 'CTO': return 'Chief Technology Officer';
-      case 'COO': return 'Chief Operating Officer';
-      case 'CFO': return 'Chief Financial Officer';
+      case RoleType.Ciso: return 'Chief Information Security Officer';
+      case RoleType.Platforms: return 'Systems Administrator';
+      case RoleType.Ethics: return 'VP, Ethics';
+      case RoleType.Cto: return 'Chief Technology Officer';
+      case RoleType.Coo: return 'Chief Operating Officer';
+      case RoleType.Cfo: return 'Chief Financial Officer';
+      case RoleType.Intern: return 'Research Intern';
       default: return player.role.name || player.jobTitle;
     }
   };
@@ -61,6 +63,11 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
             <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-background-tertiary border border-border text-text-primary">
               🪙 {localPlayer.tokens}
             </span>
+            {localPlayer.role?.type === RoleType.Intern && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-purple-500/20 border border-purple-500/50 text-purple-200">
+                📚 {localPlayer.bootcampPoints || 0}
+              </span>
+            )}
           </div>
         </div>
       </div>
