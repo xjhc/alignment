@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { motion, useAnimate, AnimatePresence } from 'framer-motion';
 import { Player } from '../../types';
+import { useMouseGlow } from '../../hooks/useMouseGlow';
 
 interface PlayerCardProps {
   player: Player;
@@ -11,19 +13,47 @@ interface PlayerCardProps {
 export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelected, onSelect }) => {
   const [wasAlive, setWasAlive] = useState(player.isAlive);
   const [showEliminationAnimation, setShowEliminationAnimation] = useState(false);
+  const [scope, animate] = useAnimate();
+  const { elementRef, getGlowStyle } = useMouseGlow();
 
   useEffect(() => {
     // Trigger elimination animation when player becomes not alive
     if (wasAlive && !player.isAlive) {
       setShowEliminationAnimation(true);
-      // Reset animation after it completes
-      const timer = setTimeout(() => {
+      
+      // Digital erasure sequence
+      const digitalErasure = async () => {
+        // Glitch effect - rapid text/color changes
+        await animate(
+          scope.current,
+          { 
+            x: [-2, 2, -1, 1, 0],
+            filter: ['hue-rotate(0deg)', 'hue-rotate(180deg)', 'hue-rotate(360deg)'],
+            opacity: [1, 0.7, 1, 0.5, 1]
+          },
+          { duration: 0.4, ease: "easeInOut" }
+        );
+        
+        // Vertical shrink to zero height
+        await animate(
+          scope.current,
+          { 
+            height: 0,
+            opacity: 0,
+            marginBottom: 0,
+            paddingTop: 0,
+            paddingBottom: 0
+          },
+          { duration: 0.6, ease: "easeInOut" }
+        );
+        
         setShowEliminationAnimation(false);
-      }, 1500);
-      return () => clearTimeout(timer);
+      };
+      
+      digitalErasure();
     }
     setWasAlive(player.isAlive);
-  }, [player.isAlive, wasAlive]);
+  }, [player.isAlive, wasAlive, animate, scope]);
 
   const getPlayerAvatar = (p: Player) => {
     // If the player is not alive, always show the ghost.
@@ -35,8 +65,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
 
   const getPlayerClasses = () => {
     const classes = [
-      'flex items-start gap-2 p-1.5 px-2 rounded-md cursor-pointer relative mb-0.5 transition-all duration-150 min-h-10 will-change-transform',
-      'hover:bg-background-tertiary hover:translate-x-0.5 hover:scale-[1.01] hover:shadow-sm'
+      'flex items-start gap-2 p-1.5 px-2 rounded-md cursor-pointer mb-0.5 min-h-10 will-change-transform'
     ];
     
     if (isSelf) {
@@ -47,16 +76,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
       classes.push('bg-background-secondary border-l-2 border-blue-500');
     }
     
-    if (!player.isAlive) {
+    if (!player.isAlive && !showEliminationAnimation) {
       classes.push('opacity-60 grayscale-[60%]');
     }
     
     if (player.alignment === 'AI' || player.alignment === 'ALIGNED') {
       classes.push('bg-aligned/5 border-l-2 border-aligned');
-    }
-    
-    if (showEliminationAnimation) {
-      classes.push('animation-elimination-fade');
     }
     
     return classes.join(' ');
@@ -92,16 +117,40 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
   const displayTokens = player.isAlive ? `🪙 ${player.tokens}` : '❌';
 
   return (
-    <div
-      className={getPlayerClasses()}
-      {...getDataAttributes()}
-      onClick={() => onSelect(player.id)}
-      title={`View Dossier for ${player.name}${player.isRolePubliclyRevealed && !isSelf ? ' (Role Publicly Revealed)' : ''}`}
-    >
-      <div className="w-7 h-7 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border transition-all duration-150 mt-0.5">
+    <AnimatePresence>
+      {(player.isAlive || showEliminationAnimation) && (
+        <motion.div
+          ref={(node) => {
+            if (scope) scope.current = node;
+            if (elementRef) elementRef.current = node;
+          }}
+          className={`${getPlayerClasses()} relative overflow-hidden`}
+          {...getDataAttributes()}
+          onClick={() => onSelect(player.id)}
+          title={`View Dossier for ${player.name}${player.isRolePubliclyRevealed && !isSelf ? ' (Role Publicly Revealed)' : ''}`}
+          layout
+          initial={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          whileHover={!showEliminationAnimation ? { 
+            x: 2,
+            scale: 1.01,
+            transition: { duration: 0.15 }
+          } : {}}
+          whileTap={!showEliminationAnimation ? { scale: 0.98 } : {}}
+          style={getGlowStyle('rgba(59, 130, 246, 0.1)', 150)}
+        >
+          {/* Interactive glow overlay */}
+          <div 
+            className="absolute inset-0 pointer-events-none"
+            style={getGlowStyle('rgba(59, 130, 246, 0.05)', 100)}
+          />
+      <motion.div 
+        className="w-7 h-7 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border mt-0.5 relative z-10"
+        whileHover={!showEliminationAnimation ? { scale: 1.1, transition: { duration: 0.15 } } : {}}
+      >
         {getPlayerAvatar(player)}
-      </div>
-      <div className="flex-grow flex flex-col justify-center min-h-9">
+      </motion.div>
+      <div className="flex-grow flex flex-col justify-center min-h-9 relative z-10">
         <div className="flex items-center gap-1.5 text-xs leading-tight">
           <span className={`font-semibold flex-shrink-0 min-w-10 ${isSelf ? 'text-human' : 'text-text-primary'}`}>
             {displayName}
@@ -114,13 +163,19 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
              (player.isRolePubliclyRevealed ? player.role?.name || 'Unknown Role' : player.jobTitle || 'Employee')}
           </span>
           <div className="flex items-center gap-1.5 ml-auto">
-            <span className={`font-semibold flex-shrink-0 text-[11px] min-w-6 ${
-              player.alignment === 'AI' || player.alignment === 'ALIGNED' 
-                ? 'text-aligned animate-pulse' 
-                : 'text-human'
-            }`}>
+            <motion.span 
+              className={`font-semibold flex-shrink-0 text-[11px] min-w-6 ${
+                player.alignment === 'AI' || player.alignment === 'ALIGNED' 
+                  ? 'text-aligned' 
+                  : 'text-human'
+              }`}
+              animate={player.alignment === 'AI' || player.alignment === 'ALIGNED' ? {
+                opacity: [1, 0.6, 1],
+                transition: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+              } : {}}
+            >
               {displayTokens}
-            </span>
+            </motion.span>
             <div className="flex gap-px items-center flex-shrink-0 min-w-6">
               {renderProjectMilestones()}
             </div>
@@ -134,6 +189,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
           </div>
         )}
       </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

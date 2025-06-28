@@ -1,5 +1,6 @@
 import { useReducer, useEffect, useCallback } from 'react';
 import { BrowserRouter, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { useWebSocketContext } from './contexts/WebSocketContext';
 import { useGameEngineContext } from './contexts/GameEngineContext';
 import { useAppNavigation } from './hooks/useAppNavigation';
@@ -9,6 +10,7 @@ import { WebSocketProvider } from './contexts/WebSocketContext';
 import { GameProvider } from './contexts/GameContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { GameEngineProvider } from './contexts/GameEngineContext';
+import { soundManager } from './services/soundManager';
 // Note: convertToClientTypes function removed as we now use generated types directly
 import { appReducer, initialAppState, type RoleAssignment, type PlayerLobbyInfo } from './state/appReducer';
 
@@ -113,6 +115,47 @@ function AppContent() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
   }, []);
+
+  // Handle music transitions based on game phase
+  useEffect(() => {
+    // Handle lobby/waiting screen music
+    if (location.pathname === '/waiting' || location.pathname === '/lobby-list') {
+      soundManager.playMusic('lobby');
+      return;
+    }
+
+    // Handle in-game music transitions based on phase
+    if (coreGameState?.phase?.type) {
+      const phaseType = coreGameState.phase.type;
+      
+      switch (phaseType) {
+        case 'DAY':
+        case 'DISCUSSION':
+        case 'VOTING':
+          soundManager.playMusic('day');
+          break;
+        case 'NIGHT':
+        case 'NIGHT_ACTIONS':
+          soundManager.playMusic('night');
+          break;
+        case 'GAME_OVER':
+          // Play victory/defeat stinger based on win condition
+          if (coreGameState.winCondition) {
+            const isPlayerWinner = coreGameState.winCondition.winner === 'HUMAN' || 
+                                  coreGameState.winCondition.winner === 'AI';
+            // For now, we'll use victory for any game end - can be refined later
+            soundManager.playSound('victory');
+          }
+          soundManager.stopMusic();
+          break;
+        default:
+          // For unknown phases, maintain current music or play lobby
+          if (location.pathname === '/game') {
+            soundManager.playMusic('day');
+          }
+      }
+    }
+  }, [coreGameState?.phase?.type, coreGameState?.winCondition, location.pathname]);
 
   // Stabilized event handlers using useCallback
   const handleLobbyStateUpdate = useCallback((event: any) => {
@@ -354,7 +397,9 @@ function AppContent() {
   return (
     <SessionProvider value={sessionContextValue}>
       <GameProvider gameState={state.gameState} localPlayerId={state.appState.playerId || ''}>
-        <GuardedAppRouter />
+        <AnimatePresence mode="wait">
+          <GuardedAppRouter />
+        </AnimatePresence>
       </GameProvider>
     </SessionProvider>
   );

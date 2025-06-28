@@ -38,13 +38,22 @@ export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer }) => {
           {status}
         </span>
       </div>
-      <div className={`bg-background-tertiary border rounded-lg p-3 ${
-        isReady ? 'border-success' : 'border-border opacity-70'
-      }`}>
+      <motion.div 
+        className={`bg-background-tertiary border rounded-lg p-3 cursor-pointer ${
+          isReady ? 'border-success' : 'border-border opacity-70'
+        }`}
+        whileHover={isReady ? { 
+          scale: 1.02, 
+          borderColor: 'rgba(34, 197, 94, 0.8)',
+          boxShadow: '0 0 12px rgba(34, 197, 94, 0.3)',
+          transition: { duration: 0.2 }
+        } : {}}
+        whileTap={isReady ? { scale: 0.98 } : {}}
+      >
         <div className="font-bold text-sm mb-1.5">{ability.name}</div>
         <div className="text-text-secondary text-[11px] leading-snug mb-1.5">{ability.description}</div>
         <div className="text-[10px] text-text-muted italic">Used during Night Phase (30s window)</div>
-      </div>
+      </motion.div>
     </div>
   );
 };

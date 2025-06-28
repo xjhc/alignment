@@ -59,14 +59,7 @@ To enforce these principles, the following checklist **must be copied into the d
 
 We will leverage tooling to automatically catch common accessibility issues before they reach production.
 
-*   **`@storybook/addon-a11y`:** This addon is already installed. It runs `axe-core` on every story in Storybook, flagging violations directly in the developer's browser. All stories must have zero violations in the "Accessibility" tab.
-*   **CI Integration:** We will add a script to our CI pipeline (e.g., using `jest-axe` or `cypress-axe`) to run automated accessibility checks on key pages as part of our test suite. A PR with critical accessibility violations will be blocked from merging.
-
-By integrating accessibility into our core workflow, from design to deployment, we commit to building a high-quality, inclusive product for all players.
-Excellent choice. Formalizing accessibility (A11y) is a hallmark of a mature, professional, and empathetic engineering culture. This document not only sets a standard for compliance but also serves as a practical guide for the team.
-
-Here is the detailed design document for the Accessibility Statement and Checklist.
-
+*   **`@storybook/addon-a11y`:** This addon is already installed. It runs `axe-core` on every story in Storybook, flagging violations di/11-game-economy-and-balance-sheet.md
 ---
 
 ### New File: `docs/design/09-accessibility-statement-and-checklist.md`

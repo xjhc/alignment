@@ -81,9 +81,11 @@ type GameLifecycleManagerInterface interface {
 	JoinLobbyWithActor(lobbyID string, playerActor PlayerActorInterface) error
 	StartGame(lobbyID string, hostPlayerID string) error
 	ValidateSessionToken(token string) (interface{}, error)
+	GetLobbyList() []interface{}
 	
 	// Game session management
 	SendActionToGame(gameID string, action core.Action) error
+	GetGameActor(gameID string) (GameActorInterface, bool)
 	
 	// Utility
 	Stop()

@@ -1,12 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGameContext } from '../../contexts/GameContext';
 import { useTheme } from '../../hooks/useTheme';
 import { PlayerCard } from './PlayerCard';
+import { soundManager } from '../../services/soundManager';
 
 export const RosterPanel: React.FC = () => {
   const { gameState, localPlayerId, localPlayer, viewedPlayerId, setViewedPlayer, activeChannel, setActiveChannel } = useGameContext();
   const { theme, toggleTheme } = useTheme();
   const players = gameState?.players || [];
+  const [isMuted, setIsMuted] = useState(soundManager.isMutedState());
+
+  // Update local state when sound manager mute state changes
+  useEffect(() => {
+    setIsMuted(soundManager.isMutedState());
+  }, []);
+
+  const handleToggleMute = () => {
+    const newMutedState = soundManager.toggleMute();
+    setIsMuted(newMutedState);
+  };
 
   const getPlayerCounts = () => {
     if (!Array.isArray(players)) return { humanCount: 0, alignedCount: 0, deactivatedCount: 0 };
@@ -56,6 +69,13 @@ export const RosterPanel: React.FC = () => {
           <span className="font-mono font-bold text-base tracking-widest text-text-primary">LOEBIAN</span>
         </div>
         <div className="flex gap-1">
+          <button 
+            className="w-7 h-7 rounded-md flex items-center justify-center bg-background-tertiary text-sm transition-all duration-150 hover:bg-background-quaternary hover:scale-105 border-0 cursor-pointer" 
+            title={isMuted ? "Unmute Audio" : "Mute Audio"}
+            onClick={handleToggleMute}
+          >
+            {isMuted ? '🔇' : '🔊'}
+          </button>
           <button className="w-7 h-7 rounded-md flex items-center justify-center bg-background-tertiary text-sm transition-all duration-150 hover:bg-background-quaternary hover:scale-105 border-0 cursor-pointer" title="Settings">⚙️</button>
           <button 
             className="w-7 h-7 rounded-md flex items-center justify-center bg-background-tertiary text-sm transition-all duration-150 hover:bg-background-quaternary hover:scale-105 border-0 cursor-pointer" 
@@ -125,21 +145,25 @@ export const RosterPanel: React.FC = () => {
           </div>
         </div>
 
-        {Array.isArray(players) && players.sort((a, b) => {
-          // Sort self to top, then by alive status, then by name
-          if (a.id === localPlayerId) return -1;
-          if (b.id === localPlayerId) return 1;
-          if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
-          return a.name.localeCompare(b.name);
-        }).map((player) => (
-          <PlayerCard
-            key={player.id}
-            player={player}
-            isSelf={player.id === localPlayerId}
-            isSelected={player.id === viewedPlayerId}
-            onSelect={setViewedPlayer}
-          />
-        ))}
+        <motion.div layout>
+          <AnimatePresence mode="popLayout">
+            {Array.isArray(players) && players.sort((a, b) => {
+              // Sort self to top, then by alive status, then by name
+              if (a.id === localPlayerId) return -1;
+              if (b.id === localPlayerId) return 1;
+              if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
+              return a.name.localeCompare(b.name);
+            }).map((player) => (
+              <PlayerCard
+                key={player.id}
+                player={player}
+                isSelf={player.id === localPlayerId}
+                isSelected={player.id === viewedPlayerId}
+                onSelect={setViewedPlayer}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.div>
       </div>
     </aside>
   );

@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameContext } from '../contexts/GameContext';
 import { PrivateNotifications } from './PrivateNotifications';
 import { RosterPanel } from './game/RosterPanel';
 import { CommsPanel } from './game/CommsPanel';
 import { PlayerHUD } from './game/PlayerHUD';
 import { ExitInterviewScreen } from './game/ExitInterviewScreen';
+import { AlignmentConversionOverlay } from './game/AlignmentConversionOverlay';
 
 export function GameScreen() {
   const { gameState, localPlayer } = useGameContext();
   const [showExitInterview, setShowExitInterview] = useState(false);
+  const [showConversionOverlay, setShowConversionOverlay] = useState(false);
+  const previousAlignment = useRef(localPlayer?.alignment);
 
   // Show exit interview for eliminated players who haven't submitted a parting shot
   React.useEffect(() => {
@@ -16,6 +19,19 @@ export function GameScreen() {
       setShowExitInterview(true);
     }
   }, [localPlayer, showExitInterview]);
+
+  // Detect alignment conversion and show system takeover overlay
+  useEffect(() => {
+    if (localPlayer && 
+        previousAlignment.current === 'HUMAN' && 
+        (localPlayer.alignment === 'AI' || localPlayer.alignment === 'ALIGNED')) {
+      setShowConversionOverlay(true);
+    }
+    
+    if (localPlayer) {
+      previousAlignment.current = localPlayer.alignment;
+    }
+  }, [localPlayer?.alignment]);
 
   if (!localPlayer) {
     return (
@@ -47,6 +63,12 @@ export function GameScreen() {
           }}
         />
       )}
+
+      {/* Alignment Conversion System Takeover Overlay */}
+      <AlignmentConversionOverlay
+        isVisible={showConversionOverlay}
+        onComplete={() => setShowConversionOverlay(false)}
+      />
       
       <RosterPanel />
       

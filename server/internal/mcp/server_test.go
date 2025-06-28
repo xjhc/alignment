@@ -1,10 +1,11 @@
 package mcp
 
 import (
+	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -91,7 +92,7 @@ func TestMcpServer_handleReadResource(t *testing.T) {
 			},
 		},
 	}
-	mockGLM.GetActorResults = []mocks.GetActorResult{{Actor: mockActor, Found: true}}
+	mockGLM.GetGameActorResults = []mocks.GLMGetGameActorResult{{Actor: mockActor, Found: true}}
 
 	req := Request{
 		ID:     1,
@@ -172,7 +173,7 @@ func TestMcpServer_handleCallTool_NotFound(t *testing.T) {
 
 // TestMcpServer_Run simulates the stdin/stdout interaction.
 func TestMcpServer_Run(t *testing.T) {
-	server, mockGLM := setupTestServer(t)
+	server, _ := setupTestServer(t)
 
 	// --- Mock the Stdio environment ---
 	oldStdin := os.Stdin
@@ -212,7 +213,7 @@ func TestMcpServer_Run(t *testing.T) {
 	var resp Response
 	err = json.Unmarshal(responseBytes, &resp)
 	require.NoError(t, err)
-	assert.Equal(t, req.ID, resp.ID)
+	assert.Equal(t, float64(req.ID.(int)), resp.ID) // JSON unmarshaling converts int to float64
 	assert.Nil(t, resp.Error)
 
 	// Clean up: Close the write pipe to signal EOF to the server's scanner.

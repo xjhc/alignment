@@ -17,6 +17,8 @@ type MockGameLifecycleManager struct {
 	StartGameCalls              []GLMStartGameCall
 	ValidateSessionTokenCalls   []GLMValidateSessionTokenCall
 	SendActionToGameCalls       []GLMSendActionToGameCall
+	GetGameActorCalls           []GLMGetGameActorCall
+	GetLobbyListCalls           []GLMGetLobbyListCall
 	StopCalls                   []GLMStopCall
 
 	CreateLobbyViaHTTPResults   []GLMCreateLobbyViaHTTPResult
@@ -25,6 +27,8 @@ type MockGameLifecycleManager struct {
 	StartGameResults            []error
 	ValidateSessionTokenResults []GLMValidateSessionTokenResult
 	SendActionToGameResults     []error
+	GetGameActorResults         []GLMGetGameActorResult
+	GetLobbyListResults         [][]interface{}
 }
 
 type GLMCreateLobbyViaHTTPCall struct {
@@ -75,6 +79,17 @@ type GLMSendActionToGameCall struct {
 	GameID string
 	Action core.Action
 }
+
+type GLMGetGameActorCall struct {
+	GameID string
+}
+
+type GLMGetGameActorResult struct {
+	Actor interfaces.GameActorInterface
+	Found bool
+}
+
+type GLMGetLobbyListCall struct{}
 
 type GLMStopCall struct{}
 
@@ -202,6 +217,42 @@ func (m *MockGameLifecycleManager) SendActionToGame(gameID string, action core.A
 	}
 
 	return nil
+}
+
+func (m *MockGameLifecycleManager) GetGameActor(gameID string) (interfaces.GameActorInterface, bool) {
+	m.Lock()
+	defer m.Unlock()
+
+	m.GetGameActorCalls = append(m.GetGameActorCalls, GLMGetGameActorCall{
+		GameID: gameID,
+	})
+
+	if len(m.GetGameActorResults) > 0 {
+		result := m.GetGameActorResults[0]
+		if len(m.GetGameActorResults) > 1 {
+			m.GetGameActorResults = m.GetGameActorResults[1:]
+		}
+		return result.Actor, result.Found
+	}
+
+	return nil, false
+}
+
+func (m *MockGameLifecycleManager) GetLobbyList() []interface{} {
+	m.Lock()
+	defer m.Unlock()
+
+	m.GetLobbyListCalls = append(m.GetLobbyListCalls, GLMGetLobbyListCall{})
+
+	if len(m.GetLobbyListResults) > 0 {
+		result := m.GetLobbyListResults[0]
+		if len(m.GetLobbyListResults) > 1 {
+			m.GetLobbyListResults = m.GetLobbyListResults[1:]
+		}
+		return result
+	}
+
+	return []interface{}{}
 }
 
 func (m *MockGameLifecycleManager) Stop() {

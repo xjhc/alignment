@@ -30,6 +30,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -46,6 +47,7 @@ import (
 	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/game"
 	"github.com/xjhc/alignment/server/internal/lifecycle"
+	"github.com/xjhc/alignment/server/internal/mcp"
 	"github.com/xjhc/alignment/server/internal/store"
 )
 
@@ -57,6 +59,7 @@ type Server struct {
 	scheduler        *game.Scheduler
 	lifecycleManager *lifecycle.GameLifecycleManager
 	eventBus         *events.EventBus
+	mcpServer        *mcp.McpServer
 }
 
 // NewServer creates a new server instance
@@ -99,6 +102,9 @@ func NewServer() (*Server, error) {
 	supervisor.SetBroadcaster(wsManager)
 	// Note: lifecycleManager doesn't need a broadcaster - it uses the event bus
 
+	// Create MCP server
+	mcpServer := mcp.NewMcpServer(lifecycleManager)
+
 	server := &Server{
 		supervisor:       supervisor,
 		wsManager:        wsManager,
@@ -106,6 +112,7 @@ func NewServer() (*Server, error) {
 		scheduler:        scheduler,
 		lifecycleManager: lifecycleManager,
 		eventBus:         eventBus,
+		mcpServer:        mcpServer,
 	}
 
 	return server, nil
@@ -461,15 +468,27 @@ func handleTimerExpired(sessionManager *game.SessionManager, timer game.Timer) {
 }
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	// Parse command-line flags
+	mcpMode := flag.Bool("mcp", false, "Run in MCP mode (Model Context Protocol)")
+	flag.Parse()
 
 	// Create server
 	server, err := NewServer()
 	if err != nil {
 		log.Fatalf("Failed to create server: %v", err)
+	}
+
+	if *mcpMode {
+		// Run MCP server on stdio
+		log.Println("Starting server in MCP mode...")
+		server.mcpServer.Run()
+		return
+	}
+
+	// Standard HTTP/WebSocket server mode
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
 	// Setup routes

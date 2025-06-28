@@ -30,7 +30,7 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
         <div className="mb-1.5">
           <h3 className="text-sm font-bold text-gray-100 normal-case tracking-normal text-left p-0 bg-transparent m-0 mb-3">Who should we deactivate?</h3>
         </div>
-        <div className="flex flex-wrap gap-1 justify-start">
+        <motion.div className="flex flex-wrap gap-1 justify-start" layout>
           {alivePlayers.map((player) => {
             const isSelected = selectedNominee === player.id;
             const votes = gameState.voteState?.votes || {};
@@ -41,8 +41,9 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
                 key={player.id}
                 content={`${player.name} (${playerVotes} vote${playerVotes !== 1 ? 's' : ''})`}
               >
-                <button
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-gray-600 bg-gray-800 transition-all duration-150 cursor-pointer min-w-0 font-inherit hover:bg-gray-700 hover:-translate-y-0.5 ${
+                <motion.button
+                  layout
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-gray-600 bg-gray-800 cursor-pointer min-w-0 font-inherit ${
                     isSelected ? 'bg-amber-500/10 border-amber-500' : ''
                   } ${
                     player.alignment === 'ALIGNED' ? 'bg-cyan-500/5 border-cyan-600' : ''
@@ -52,10 +53,18 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
                     setSelectedNominee(player.id);
                     handleNominate();
                   }}
-                  onMouseDown={(e) => {
-                    e.currentTarget.classList.add('animation-scale-in');
-                    setTimeout(() => e.currentTarget.classList.remove('animation-scale-in'), 150);
+                  whileHover={{ 
+                    backgroundColor: 'rgba(55, 65, 81, 1)',
+                    y: -2,
+                    scale: 1.02,
+                    transition: { duration: 0.15 }
                   }}
+                  whileTap={{ scale: 0.95 }}
+                  animate={isSelected ? {
+                    borderColor: 'rgba(245, 158, 11, 1)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    boxShadow: '0 0 10px rgba(245, 158, 11, 0.3)'
+                  } : {}}
               >
                 <span className="text-sm leading-none flex-shrink-0">
                   {player.jobTitle === 'CISO' ? '👤' :
@@ -73,11 +82,11 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
                 <span className={`font-mono font-bold text-gray-400 text-xs ml-auto ${
                   isSelected ? 'text-amber-500' : ''
                 }`}>🪙 {playerVotes}</span>
-              </button>
+              </motion.button>
               </Tooltip>
             );
           })}
-        </div>
+        </motion.div>
       </div>
     );
   }

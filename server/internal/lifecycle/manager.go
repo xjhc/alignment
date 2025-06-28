@@ -834,3 +834,8 @@ func (glm *GameLifecycleManager) GetLobbyList() []interface{} {
 
 	return lobbies
 }
+
+// GetGameActor returns the game actor for a given game ID
+func (glm *GameLifecycleManager) GetGameActor(gameID string) (interfaces.GameActorInterface, bool) {
+	return glm.supervisor.GetActor(gameID)
+}

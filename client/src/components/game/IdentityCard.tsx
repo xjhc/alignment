@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { motion, useAnimate } from 'framer-motion';
 import { Player, RoleType } from '../../types';
 
 interface IdentityCardProps {
@@ -6,6 +7,9 @@ interface IdentityCardProps {
 }
 
 export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
+  const [scope, animate] = useAnimate();
+  const [isConverting, setIsConverting] = useState(false);
+  const previousAlignment = useRef(localPlayer.alignment);
   const getPlayerAvatar = (player: Player) => {
     if (player.role?.type === RoleType.Ciso) return '👤';
     if (player.role?.type === RoleType.Platforms) return '🧑‍💻';
@@ -17,17 +21,73 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
     return '👤';
   };
 
+  // Detect alignment changes and trigger conversion animation
+  useEffect(() => {
+    if (previousAlignment.current === 'HUMAN' && 
+        (localPlayer.alignment === 'AI' || localPlayer.alignment === 'ALIGNED')) {
+      setIsConverting(true);
+      
+      // Digital reboot animation for the identity card
+      const conversionSequence = async () => {
+        // Glitch out the old alignment
+        await animate(
+          "[data-role='alignment']",
+          {
+            x: [-2, 2, -1, 1, 0],
+            opacity: [1, 0.3, 1, 0.1, 0],
+            filter: ['hue-rotate(0deg)', 'hue-rotate(180deg)', 'hue-rotate(360deg)']
+          },
+          { duration: 0.6 }
+        );
+        
+        // Brief pause
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Reveal new alignment with cyan glow
+        await animate(
+          "[data-role='alignment']",
+          {
+            opacity: [0, 1],
+            scale: [0.8, 1.1, 1],
+            filter: 'hue-rotate(0deg)'
+          },
+          { duration: 0.8, ease: "easeOut" }
+        );
+        
+        setIsConverting(false);
+      };
+      
+      conversionSequence();
+    }
+    
+    previousAlignment.current = localPlayer.alignment;
+  }, [localPlayer.alignment, animate]);
+
   const getAlignmentDisplay = (player: Player) => {
-    if (player.alignment === 'AI') {
+    if (player.alignment === 'AI' || player.alignment === 'ALIGNED') {
       return (
-        <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-aligned text-white">
+        <motion.span 
+          data-role="alignment"
+          className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-aligned text-white"
+          animate={isConverting ? {} : {
+            boxShadow: [
+              '0 0 5px rgba(0, 255, 255, 0.5)',
+              '0 0 10px rgba(0, 255, 255, 0.8)',
+              '0 0 5px rgba(0, 255, 255, 0.5)'
+            ]
+          }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        >
           🤖 ALIGNED
           <span className="text-[8px] opacity-60 cursor-help text-pink-200" title="Only you can see this">🔒</span>
-        </span>
+        </motion.span>
       );
     }
     return (
-      <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-human text-white">
+      <span 
+        data-role="alignment"
+        className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-human text-white"
+      >
         👤 HUMAN
         <span className="text-[8px] opacity-60 cursor-help text-pink-200" title="Only you can see this">🔒</span>
       </span>
@@ -50,7 +110,10 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
   };
 
   return (
-    <div className="p-4 border-b border-border bg-background-secondary">
+    <motion.div 
+      ref={scope}
+      className="p-4 border-b border-border bg-background-secondary"
+    >
       <div className="flex gap-2.5 items-center">
         <div className="w-12 h-12 rounded-full bg-background-tertiary flex items-center justify-center text-2xl flex-shrink-0 border-2 border-border">
           {getPlayerAvatar(localPlayer)}
@@ -71,6 +134,6 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
