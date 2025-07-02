@@ -29,13 +29,13 @@ func (km *KPIManager) TrackPlayerEliminated(eliminatedPlayerID string) []core.Ev
 		eliminatedPlayer := km.gameState.Players[eliminatedPlayerID]
 		if eliminatedPlayer != nil {
 			// Determine if this was a correct vote (AI player eliminated = correct vote for humans)
-			voteWasCorrect := eliminatedPlayer.Alignment == "ai"
+			voteWasCorrect := eliminatedPlayer.Alignment == "ALIGNED"
 
 			// Check all voters and update Inquisitor KPI progress
 			for voterID := range km.gameState.VoteState.Votes {
 				voter := km.gameState.Players[voterID]
 				if voter != nil && voter.PersonalKPI != nil && voter.PersonalKPI.Type == core.KPIInquisitor {
-					if voteWasCorrect && voter.Alignment == "human" {
+					if voteWasCorrect && voter.Alignment == "HUMAN" {
 						// Human voted to eliminate AI - correct vote
 						newProgress := voter.PersonalKPI.Progress + 1
 						log.Printf("[KPIManager] Player %s made correct vote, Inquisitor progress: %d/%d", 
@@ -55,10 +55,42 @@ func (km *KPIManager) TrackPlayerEliminated(eliminatedPlayerID string) []core.Ev
 						}
 						events = append(events, progressEvent)
 
+						// Create private notification for KPI progress
+						notificationEvent := core.Event{
+							ID:        fmt.Sprintf("private_notification_%s_%d", voterID, getKPICurrentTime().UnixNano()),
+							Type:      core.EventPrivateNotification,
+							GameID:    km.gameState.ID,
+							PlayerID:  voterID,
+							Timestamp: getKPICurrentTime(),
+							Payload: map[string]interface{}{
+								"type":     "kpi_progress",
+								"title":    "KPI Progress",
+								"message":  fmt.Sprintf("Inquisitor progress: %d/%d correct votes", newProgress, voter.PersonalKPI.Target),
+								"priority": "medium",
+							},
+						}
+						events = append(events, notificationEvent)
+
 						// Check if KPI is completed
 						if newProgress >= voter.PersonalKPI.Target {
 							completedEvent := km.generateKPICompletedEvent(voterID, core.KPIInquisitor)
 							events = append(events, completedEvent)
+
+							// Create private notification for KPI completion
+							completionNotificationEvent := core.Event{
+								ID:        fmt.Sprintf("private_notification_complete_%s_%d", voterID, getKPICurrentTime().UnixNano()),
+								Type:      core.EventPrivateNotification,
+								GameID:    km.gameState.ID,
+								PlayerID:  voterID,
+								Timestamp: getKPICurrentTime(),
+								Payload: map[string]interface{}{
+									"type":     "kpi_progress",
+									"title":    "KPI Completed!",
+									"message":  "You've completed the Inquisitor KPI! Your final vote weight will be doubled.",
+									"priority": "high",
+								},
+							}
+							events = append(events, completionNotificationEvent)
 
 							// Award tokens for Inquisitor KPI completion
 							tokenReward := newProgress * 2 // 2 tokens per correct vote
@@ -111,6 +143,22 @@ func (km *KPIManager) TrackNightSurvival() []core.Event {
 
 				completedEvent := km.generateKPICompletedEvent(playerID, core.KPIGuardian)
 				events = append(events, completedEvent)
+
+				// Create private notification for Guardian KPI completion
+				completionNotificationEvent := core.Event{
+					ID:        fmt.Sprintf("private_notification_complete_%s_%d", playerID, getKPICurrentTime().UnixNano()),
+					Type:      core.EventPrivateNotification,
+					GameID:    km.gameState.ID,
+					PlayerID:  playerID,
+					Timestamp: getKPICurrentTime(),
+					Payload: map[string]interface{}{
+						"type":     "kpi_progress",
+						"title":    "KPI Completed!",
+						"message":  fmt.Sprintf("You've completed the Guardian KPI! The CISO survived to Day %d. You now have an alternate win condition.", km.gameState.DayNumber),
+						"priority": "high",
+					},
+				}
+				events = append(events, completionNotificationEvent)
 			} else {
 				// Update progress (days survived)
 				progressEvent := core.Event{
@@ -126,6 +174,22 @@ func (km *KPIManager) TrackNightSurvival() []core.Event {
 					},
 				}
 				events = append(events, progressEvent)
+
+				// Create private notification for Guardian KPI progress
+				notificationEvent := core.Event{
+					ID:        fmt.Sprintf("private_notification_%s_%d", playerID, getKPICurrentTime().UnixNano()),
+					Type:      core.EventPrivateNotification,
+					GameID:    km.gameState.ID,
+					PlayerID:  playerID,
+					Timestamp: getKPICurrentTime(),
+					Payload: map[string]interface{}{
+						"type":     "kpi_progress",
+						"title":    "Guardian KPI Progress",
+						"message":  fmt.Sprintf("The CISO survived Day %d! Progress: %d/%d days", km.gameState.DayNumber, km.gameState.DayNumber, player.PersonalKPI.Target),
+						"priority": "medium",
+					},
+				}
+				events = append(events, notificationEvent)
 			}
 		}
 	}
@@ -143,7 +207,7 @@ func (km *KPIManager) CheckGameEndKPIs() []core.Event {
 	for _, player := range km.gameState.Players {
 		if player.IsAlive {
 			alivePlayers = append(alivePlayers, player)
-			if player.Alignment == "human" {
+			if player.Alignment == "HUMAN" {
 				aliveHumans++
 			}
 		}
@@ -158,6 +222,22 @@ func (km *KPIManager) CheckGameEndKPIs() []core.Event {
 					log.Printf("[KPIManager] Player %s completed Succession Planner KPI - exactly 2 humans remain", playerID)
 					completedEvent := km.generateKPICompletedEvent(playerID, core.KPISuccessionPlanner)
 					events = append(events, completedEvent)
+
+					// Create private notification for Succession Planner KPI completion
+					completionNotificationEvent := core.Event{
+						ID:        fmt.Sprintf("private_notification_complete_%s_%d", playerID, getKPICurrentTime().UnixNano()),
+						Type:      core.EventPrivateNotification,
+						GameID:    km.gameState.ID,
+						PlayerID:  playerID,
+						Timestamp: getKPICurrentTime(),
+						Payload: map[string]interface{}{
+							"type":     "kpi_progress",
+							"title":    "Victory!",
+							"message":  "You've completed the Succession Planner KPI! Exactly 2 humans remain. You have won the game!",
+							"priority": "high",
+						},
+					}
+					events = append(events, completionNotificationEvent)
 				}
 
 			case core.KPICapitalist:
@@ -175,6 +255,22 @@ func (km *KPIManager) CheckGameEndKPIs() []core.Event {
 					log.Printf("[KPIManager] Player %s completed Capitalist KPI - has most tokens (%d)", playerID, maxTokens)
 					completedEvent := km.generateKPICompletedEvent(playerID, core.KPICapitalist)
 					events = append(events, completedEvent)
+
+					// Create private notification for Capitalist KPI completion
+					completionNotificationEvent := core.Event{
+						ID:        fmt.Sprintf("private_notification_complete_%s_%d", playerID, getKPICurrentTime().UnixNano()),
+						Type:      core.EventPrivateNotification,
+						GameID:    km.gameState.ID,
+						PlayerID:  playerID,
+						Timestamp: getKPICurrentTime(),
+						Payload: map[string]interface{}{
+							"type":     "kpi_progress",
+							"title":    "Victory!",
+							"message":  fmt.Sprintf("You've completed the Capitalist KPI! You have the most tokens (%d). You have won the game!", maxTokens),
+							"priority": "high",
+						},
+					}
+					events = append(events, completionNotificationEvent)
 				}
 			}
 		}
@@ -209,6 +305,22 @@ func (km *KPIManager) TrackUnanimousElimination(eliminatedPlayerID string) []cor
 			log.Printf("[KPIManager] Player %s completed Scapegoat KPI - eliminated unanimously", eliminatedPlayerID)
 			completedEvent := km.generateKPICompletedEvent(eliminatedPlayerID, core.KPIScapegoat)
 			events = append(events, completedEvent)
+
+			// Create private notification for Scapegoat KPI completion
+			completionNotificationEvent := core.Event{
+				ID:        fmt.Sprintf("private_notification_complete_%s_%d", eliminatedPlayerID, getKPICurrentTime().UnixNano()),
+				Type:      core.EventPrivateNotification,
+				GameID:    km.gameState.ID,
+				PlayerID:  eliminatedPlayerID,
+				Timestamp: getKPICurrentTime(),
+				Payload: map[string]interface{}{
+					"type":     "kpi_progress",
+					"title":    "Victory!",
+					"message":  "You've completed the Scapegoat KPI! You were eliminated unanimously. You have won the game!",
+					"priority": "high",
+				},
+			}
+			events = append(events, completionNotificationEvent)
 		}
 	}
 

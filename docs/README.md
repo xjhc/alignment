@@ -13,7 +13,7 @@ New to the project? Start here.
 *   **[Game Design Document](./01-game-design-document.md):** What is the game? Read this for the rules, roles, and core concepts.
 *   **[Onboarding for Engineers](./02-onboarding-for-engineers.md):** The 5-minute technical overview of the entire stack.
 *   **[User Action Graph](./03-user-action-graph.md):** A detailed breakdown of what actions a user can perform at every point in the UX.
-*   **[Static UI Mocks](../design/README.md):** The visual reference for the application.
+*   **[Static UI Mocks](./design/README.md):** The visual reference for the application.
 *   **[Architectural Deep Dive](./architecture/README.md):** Detailed explanations of the backend systems (Actors, AI, etc.).
 *   **[Architectural Decisions (ADRs)](./adr/README.md):** The "why" behind our key technical choices.
 

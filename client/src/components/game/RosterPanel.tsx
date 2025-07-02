@@ -4,17 +4,34 @@ import { useGameContext } from '../../contexts/GameContext';
 import { useTheme } from '../../hooks/useTheme';
 import { PlayerCard } from './PlayerCard';
 import { soundManager } from '../../services/soundManager';
+import { CHANNEL_UNLOCK } from '../../utils/animations';
 
 export const RosterPanel: React.FC = () => {
   const { gameState, localPlayerId, localPlayer, viewedPlayerId, setViewedPlayer, activeChannel, setActiveChannel } = useGameContext();
   const { theme, toggleTheme } = useTheme();
   const players = gameState?.players || [];
   const [isMuted, setIsMuted] = useState(soundManager.isMutedState());
+  const [alignedChannelJustUnlocked, setAlignedChannelJustUnlocked] = useState(false);
 
   // Update local state when sound manager mute state changes
   useEffect(() => {
     setIsMuted(soundManager.isMutedState());
   }, []);
+
+  // Track when aligned channel becomes available for animation
+  useEffect(() => {
+    const wasAI = getChannelAccess('#aligned');
+    
+    // If aligned channel just became available, trigger unlock animation
+    if (wasAI && !alignedChannelJustUnlocked) {
+      setAlignedChannelJustUnlocked(true);
+      
+      // Remove the animation state after the animation completes
+      setTimeout(() => {
+        setAlignedChannelJustUnlocked(false);
+      }, 1000);
+    }
+  }, [localPlayer?.alignment]);
 
   const handleToggleMute = () => {
     const newMutedState = soundManager.toggleMute();
@@ -71,15 +88,20 @@ export const RosterPanel: React.FC = () => {
         <div className="flex gap-1">
           <button 
             className="w-7 h-7 rounded-md flex items-center justify-center bg-background-tertiary text-sm transition-all duration-150 hover:bg-background-quaternary hover:scale-105 border-0 cursor-pointer" 
-            title={isMuted ? "Unmute Audio" : "Mute Audio"}
+            aria-label={isMuted ? "Unmute Audio" : "Mute Audio"}
             onClick={handleToggleMute}
           >
             {isMuted ? '🔇' : '🔊'}
           </button>
-          <button className="w-7 h-7 rounded-md flex items-center justify-center bg-background-tertiary text-sm transition-all duration-150 hover:bg-background-quaternary hover:scale-105 border-0 cursor-pointer" title="Settings">⚙️</button>
           <button 
             className="w-7 h-7 rounded-md flex items-center justify-center bg-background-tertiary text-sm transition-all duration-150 hover:bg-background-quaternary hover:scale-105 border-0 cursor-pointer" 
-            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+            aria-label="Settings"
+          >
+            ⚙️
+          </button>
+          <button 
+            className="w-7 h-7 rounded-md flex items-center justify-center bg-background-tertiary text-sm transition-all duration-150 hover:bg-background-quaternary hover:scale-105 border-0 cursor-pointer" 
+            aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
             onClick={toggleTheme}
           >
             {theme === 'dark' ? '☀️' : '🌙'}
@@ -87,53 +109,67 @@ export const RosterPanel: React.FC = () => {
         </div>
       </header>
 
-      <div className="px-2 py-3 border-b border-border flex-shrink-0">
+      <nav className="px-2 py-3 border-b border-border flex-shrink-0" aria-label="Chat channels">
         <div className="text-xs font-bold text-text-muted uppercase tracking-wider px-1.5 pb-1.5 mb-2 flex justify-between items-center">Text Channels</div>
         
         {/* War Room Channel */}
-        <div 
+        <button
           onClick={() => handleChannelClick('#war-room')}
-          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer mb-0.5 transition-all duration-150 text-sm ${
+          disabled={!getChannelAccess('#war-room')}
+          aria-current={activeChannel === '#war-room' ? 'page' : undefined}
+          aria-label={`War room channel${getUnreadCount('#war-room') > 0 ? ` (${getUnreadCount('#war-room')} unread messages)` : ''}${!getChannelAccess('#war-room') ? ' (access denied)' : ''}`}
+          className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md mb-0.5 transition-all duration-150 text-sm border-0 ${
             activeChannel === '#war-room' 
               ? 'bg-background-quaternary text-text-primary border-l-2 border-primary' 
               : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
-          } ${!getChannelAccess('#war-room') ? 'opacity-50 cursor-not-allowed' : 'hover:translate-x-0.5'}`}
+          } ${!getChannelAccess('#war-room') ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:translate-x-0.5'}`}
         >
           <span>#</span>
           <span className={`channel-name ${getUnreadCount('#war-room') > 0 ? 'font-bold text-text-primary' : ''}`}>war-room</span>
           {!getChannelAccess('#war-room') && <span className="ml-auto text-xs opacity-50">❌</span>}
-        </div>
+        </button>
 
         {/* Aligned Channel */}
-        <div 
+        <button
           onClick={() => handleChannelClick('#aligned')}
-          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer mb-0.5 transition-all duration-150 text-sm ${
+          disabled={!getChannelAccess('#aligned')}
+          aria-current={activeChannel === '#aligned' ? 'page' : undefined}
+          aria-label={`Aligned channel${getUnreadCount('#aligned') > 0 ? ` (${getUnreadCount('#aligned')} unread messages)` : ''}${!getChannelAccess('#aligned') ? ' (access denied)' : ''}${alignedChannelJustUnlocked ? ' (recently unlocked)' : ''}`}
+          className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md mb-0.5 transition-all duration-150 text-sm border-0 ${
             activeChannel === '#aligned' 
               ? 'bg-background-quaternary text-text-primary border-l-2 border-primary' 
               : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
-          } ${!getChannelAccess('#aligned') ? 'opacity-50 cursor-not-allowed' : 'hover:translate-x-0.5'}`}
+          } ${!getChannelAccess('#aligned') ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:translate-x-0.5'} ${
+            alignedChannelJustUnlocked ? CHANNEL_UNLOCK : ''
+          }`}
         >
           <span>#</span>
           <span className={`channel-name ${getUnreadCount('#aligned') > 0 ? 'font-bold text-text-primary' : ''}`}>aligned</span>
           {!getChannelAccess('#aligned') && <span className="ml-auto text-xs opacity-50">❌</span>}
-        </div>
+          {getChannelAccess('#aligned') && alignedChannelJustUnlocked && (
+            <span className="ml-auto text-xs text-aligned">🔓</span>
+          )}
+        </button>
 
         {/* Off-boarding Channel - only show if there are deactivated players */}
         {deactivatedCount > 0 && (
-          <div 
+          <button
             onClick={() => handleChannelClick('#off-boarding')}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer mb-0.5 transition-all duration-150 text-sm ${
+            disabled={!getChannelAccess('#off-boarding')}
+            aria-current={activeChannel === '#off-boarding' ? 'page' : undefined}
+            aria-label={`Off-boarding channel${getUnreadCount('#off-boarding') > 0 ? ` (${getUnreadCount('#off-boarding')} unread messages)` : ''}${!getChannelAccess('#off-boarding') ? ' (access denied)' : ''}`}
+            className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md mb-0.5 transition-all duration-150 text-sm border-0 ${
               activeChannel === '#off-boarding' 
                 ? 'bg-background-quaternary text-text-primary border-l-2 border-primary' 
                 : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
-            } ${!getChannelAccess('#off-boarding') ? 'opacity-50 cursor-not-allowed' : 'hover:translate-x-0.5'}`}
+            } ${!getChannelAccess('#off-boarding') ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:translate-x-0.5'}`}
           >
             <span>#</span>
             <span className={`channel-name ${getUnreadCount('#off-boarding') > 0 ? 'font-bold text-text-primary' : ''}`}>off-boarding</span>
             {!getChannelAccess('#off-boarding') && <span className="ml-auto text-xs opacity-50">❌</span>}
-          </div>
+          </button>
         )}
-      </div>
+      </nav>
 
       <div className="px-2 py-3 flex-grow overflow-y-auto">
         <div className="text-xs font-bold text-text-muted uppercase tracking-wider px-1.5 pb-1.5 mb-2 flex justify-between items-center">

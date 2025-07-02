@@ -321,8 +321,8 @@ func (vv *VoteValidator) CanPlayerBeVoted(targetID string, voteType core.VoteTyp
 func (vv *VoteValidator) IsValidVotePhase(voteType core.VoteType) error {
 	switch voteType {
 	case core.VoteExtension:
-		if vv.gameState.Phase.Type != core.PhaseExtension {
-			return fmt.Errorf("extension votes only allowed during extension phase")
+		if vv.gameState.Phase.Type != core.PhaseDiscussion {
+			return fmt.Errorf("extension votes only allowed during discussion phase")
 		}
 	case core.VoteNomination:
 		if vv.gameState.Phase.Type != core.PhaseNomination {
@@ -346,17 +346,22 @@ func (vm *VotingManager) HandleVoteAction(action core.Action) ([]core.Event, err
 	// Create validator to check if vote is valid
 	validator := NewVoteValidator(vm.gameState)
 
-	// Determine vote type based on current phase
+	// Determine vote type - prefer explicit vote_type from payload, fallback to phase-based
 	var voteType core.VoteType
-	switch vm.gameState.Phase.Type {
-	case core.PhaseNomination:
-		voteType = core.VoteNomination
-	case core.PhaseTrial, core.PhaseVerdict:
-		voteType = core.VoteVerdict
-	case core.PhaseExtension:
-		voteType = core.VoteExtension
-	default:
-		return nil, fmt.Errorf("voting not allowed in phase %s", vm.gameState.Phase.Type)
+	if voteTypeStr, ok := action.Payload["vote_type"].(string); ok {
+		voteType = core.VoteType(voteTypeStr)
+	} else {
+		// Fallback to phase-based determination for backwards compatibility
+		switch vm.gameState.Phase.Type {
+		case core.PhaseNomination:
+			voteType = core.VoteNomination
+		case core.PhaseTrial, core.PhaseVerdict:
+			voteType = core.VoteVerdict
+		case core.PhaseExtension:
+			voteType = core.VoteExtension
+		default:
+			return nil, fmt.Errorf("voting not allowed in phase %s", vm.gameState.Phase.Type)
+		}
 	}
 
 	// Initialize vote state if needed

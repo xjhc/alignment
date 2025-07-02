@@ -33,24 +33,17 @@ ssh -o StrictHostKeyChecking=no ${VM_USERNAME}@${PUBLIC_IP} << 'EOF'
   # --- Clone or Update Application Code ---
   if [ ! -d "alignment" ]; then
     echo ">>> Cloning repository..."
-    git clone https://github.com/xjhc/alignment.git
+    git clone $REPO_URL
     cd alignment
   else
     echo ">>> Updating repository..."
     cd alignment
-    git pull
+    git pull origin main
   fi
 
-  # --- Build Frontend ---
-  echo ">>> Building frontend assets..."
-  cd client
-  npm install
-  npm run build
-  cd ..
-
   # --- Launch Application with Docker Compose ---
-  echo ">>> Launching application..."
-  docker-compose up --build -d
+  echo ">>> Launching application with production config..."
+  docker-compose -f docker-compose.prod.yml up --build -d
 
   echo "✅ Deployment successful."
 EOF

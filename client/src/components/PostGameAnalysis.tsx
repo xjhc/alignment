@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import { useSessionContext } from '../contexts/SessionContext';
 import { Button } from './ui';
+import { SocialActions } from './social/SocialActions';
+import { socialService } from '../services/socialService';
 
-// Mock data for analysis - in a real implementation, this would come from the server
+interface PostGameAnalysisProps {
+  analysisData?: any; // Analysis data from the server
+}
+
+// Fallback mock data for when analysis is not available
 const mockAnalysisData = {
   mvp: {
     player: 'Alice',
@@ -182,35 +188,35 @@ const mockAnalysisData = {
   }
 };
 
-function SummaryTab() {
+function SummaryTab({ data }: { data: any }) {
   return (
     <div className="p-6 animate-fade-in">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <div className="bg-gradient-to-br from-human to-amber-light text-white p-5 rounded-xl text-center">
           <div className="text-xs font-bold uppercase tracking-wider mb-2 opacity-90">🏆 Most Valuable Personnel</div>
           <div className="flex items-center justify-center gap-3 mb-3">
-            <div className="w-10 h-10 text-xl border-2 border-white rounded-full flex items-center justify-center">{mockAnalysisData.mvp.avatar}</div>
-            <div className="text-xl font-bold">{mockAnalysisData.mvp.player}</div>
+            <div className="w-10 h-10 text-xl border-2 border-white rounded-full flex items-center justify-center">{data.mvp.playerAvatar || '👤'}</div>
+            <div className="text-xl font-bold">{data.mvp.playerName || data.mvp.player || 'Unknown'}</div>
           </div>
-          <div className="text-sm opacity-90 leading-snug">{mockAnalysisData.mvp.reason}</div>
+          <div className="text-sm opacity-90 leading-snug">{data.mvp.reason}</div>
         </div>
         
         <div className="bg-background-secondary border border-border border-l-4 border-l-info p-5 rounded-lg">
-          <div className="text-info font-bold text-xs uppercase tracking-wider mb-2">{mockAnalysisData.keyMoment.title}</div>
+          <div className="text-info font-bold text-xs uppercase tracking-wider mb-2">{data.keyMoment.title}</div>
           <div className="text-text-primary leading-snug">
-            {mockAnalysisData.keyMoment.description}
+            {data.keyMoment.description}
           </div>
         </div>
       </div>
       
       <h3 className="text-lg font-bold text-text-primary mb-4">💬 Parting Shots</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {mockAnalysisData.partingShots.map((shot, index) => (
+        {(data.partingShots || []).map((shot: any, index: number) => (
           <div key={index} className="bg-background-secondary border border-border p-4 rounded-lg flex items-center gap-4">
-            <div className="w-8 h-8 text-base bg-background-tertiary rounded-full flex items-center justify-center flex-shrink-0">{shot.avatar}</div>
+            <div className="w-8 h-8 text-base bg-background-tertiary rounded-full flex items-center justify-center flex-shrink-0">{shot.playerAvatar || '👤'}</div>
             <div className="flex-1">
-              <div className="font-semibold text-text-primary mb-1">{shot.player}</div>
-              <div className="text-xs text-text-secondary italic">{shot.message}</div>
+              <div className="font-semibold text-text-primary mb-1">{shot.playerName || shot.player}</div>
+              <div className="text-xs text-text-secondary italic">"{shot.message}"</div>
             </div>
           </div>
         ))}
@@ -219,7 +225,7 @@ function SummaryTab() {
   );
 }
 
-function TimelineTab() {
+function TimelineTab({ data }: { data: any }) {
   const getIconBgClass = (type: string) => {
     switch (type) {
       case 'elimination': return 'bg-gradient-to-br from-danger to-red-light border-danger';
@@ -234,7 +240,7 @@ function TimelineTab() {
       <h3 className="text-lg font-bold text-text-primary mb-6">📅 Complete Event Timeline</h3>
       <div className="relative pl-8">
         <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border/50"></div>
-        {mockAnalysisData.timeline.map((event, index) => (
+        {(data.timeline || []).map((event: any, index: number) => (
           <div key={index} className="relative mb-8">
             <div className={`absolute -left-3 top-0 w-12 h-12 rounded-full flex items-center justify-center text-xl text-white border-4 border-background-primary ${getIconBgClass(event.type)}`}>{event.icon}</div>
             <div className="ml-12 bg-background-secondary p-4 rounded-lg border border-border">
@@ -248,7 +254,7 @@ function TimelineTab() {
   );
 }
 
-function AnalyticsTab() {
+function AnalyticsTab({ data }: { data: any }) {
   const getAlignmentClass = (alignment: string) => {
     switch (alignment) {
       case 'human': return 'bg-human text-white';
@@ -262,7 +268,7 @@ function AnalyticsTab() {
     <div className="p-6 animate-fade-in">
       <h3 className="text-lg font-bold text-text-primary mb-6">📈 Personnel Performance Analytics</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {mockAnalysisData.playerStats.map((player, index) => (
+        {(data.playerStats || []).map((player: any, index: number) => (
           <div key={index} className="bg-background-secondary border border-border rounded-xl p-4 transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
             <div className="flex items-center gap-4 pb-3 mb-3 border-b border-border">
               <div className="w-12 h-12 text-xl bg-background-tertiary rounded-full flex items-center justify-center">{player.avatar}</div>
@@ -276,19 +282,19 @@ function AnalyticsTab() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="text-center bg-background-tertiary p-2 rounded-md">
-                <div className="font-mono font-bold text-xl text-text-primary">{player.stats.tokensMined}</div>
+                <div className="font-mono font-bold text-xl text-text-primary">{player.stats?.tokensMined || 0}</div>
                 <div className="text-xs text-text-secondary uppercase">Tokens Mined</div>
               </div>
               <div className="text-center bg-background-tertiary p-2 rounded-md">
-                <div className="font-mono font-bold text-xl text-text-primary">{player.stats.correctVotes || player.stats.conversions || 0}</div>
+                <div className="font-mono font-bold text-xl text-text-primary">{player.stats?.correctVotes || player.stats?.conversions || 0}</div>
                 <div className="text-xs text-text-secondary uppercase">{player.alignment === 'ai' ? 'Conversions' : 'Correct Votes'}</div>
               </div>
               <div className="text-center bg-background-tertiary p-2 rounded-md">
-                <div className="font-mono font-bold text-xl text-text-primary">{player.stats.nominations}</div>
+                <div className="font-mono font-bold text-xl text-text-primary">{player.stats?.nominations || 0}</div>
                 <div className="text-xs text-text-secondary uppercase">Nominations</div>
               </div>
               <div className="text-center bg-background-tertiary p-2 rounded-md">
-                <div className="font-mono font-bold text-xl text-text-primary">{player.stats.daysSurvived}</div>
+                <div className="font-mono font-bold text-xl text-text-primary">{player.stats?.daysSurvived || 0}</div>
                 <div className="text-xs text-text-secondary uppercase">Days Survived</div>
               </div>
             </div>
@@ -299,8 +305,9 @@ function AnalyticsTab() {
   );
 }
 
-function HighlightsTab() {
-  const { mostReacted, notableQuotes, stats } = mockAnalysisData.communicationHighlights;
+function HighlightsTab({ data }: { data: any }) {
+  const highlights = data.communicationHighlights || {};
+  const { mostReacted = {}, notableQuotes = [], stats = {} } = highlights;
   
   return (
     <div className="p-6 animate-fade-in">
@@ -330,10 +337,10 @@ function HighlightsTab() {
           <div className="bg-background-secondary border border-border rounded-xl p-5">
             <h4 className="font-bold text-text-primary mb-3">💎 Notable Quotes</h4>
             <div className="space-y-4">
-              {notableQuotes.map((quote, index) => (
+              {notableQuotes.map((quote: any, index: number) => (
                 <div key={index} className="border-l-4 border-l-success pl-4">
                   <p className="italic text-text-primary">"{quote.message}"</p>
-                  <footer className="text-xs text-text-secondary mt-1">— {quote.player} ({quote.timestamp})</footer>
+                  <footer className="text-xs text-text-secondary mt-1">— {quote.playerName || quote.player} ({quote.timestamp})</footer>
                 </div>
               ))}
             </div>
@@ -345,19 +352,19 @@ function HighlightsTab() {
           <div className="space-y-3">
             <div className="flex justify-between items-center bg-background-tertiary p-3 rounded-md">
               <span className="text-sm text-text-secondary">Total Messages</span>
-              <span className="font-mono font-bold text-lg text-text-primary">{stats.totalMessages}</span>
+              <span className="font-mono font-bold text-lg text-text-primary">{stats.totalMessages || 0}</span>
             </div>
             <div className="flex justify-between items-center bg-background-tertiary p-3 rounded-md">
               <span className="text-sm text-text-secondary">Emoji Reactions</span>
-              <span className="font-mono font-bold text-lg text-text-primary">{stats.emojiReactions}</span>
+              <span className="font-mono font-bold text-lg text-text-primary">{stats.emojiReactions || 0}</span>
             </div>
             <div className="flex justify-between items-center bg-background-tertiary p-3 rounded-md">
               <span className="text-sm text-text-secondary">Direct Accusations</span>
-              <span className="font-mono font-bold text-lg text-text-primary">{stats.directAccusations}</span>
+              <span className="font-mono font-bold text-lg text-text-primary">{stats.directAccusations || 0}</span>
             </div>
             <div className="flex justify-between items-center bg-background-tertiary p-3 rounded-md">
               <span className="text-sm text-text-secondary">Correct AI IDs</span>
-              <span className="font-mono font-bold text-lg text-text-primary">{stats.correctAIIdentifications}</span>
+              <span className="font-mono font-bold text-lg text-text-primary">{stats.correctAIIdentifications || 0}</span>
             </div>
           </div>
         </div>
@@ -366,22 +373,61 @@ function HighlightsTab() {
   );
 }
 
-export function PostGameAnalysis() {
+export function PostGameAnalysis({ analysisData }: PostGameAnalysisProps) {
   const { onBackToResults, onPlayAgain } = useSessionContext();
   const [activeTab, setActiveTab] = useState<'summary' | 'timeline' | 'analytics' | 'highlights'>('summary');
+  
+  // Use provided analysis data or fall back to mock data
+  const data = analysisData || mockAnalysisData;
+
+  // Extract player list for social actions
+  const players = (data.playerStats || []).map((player: any) => ({
+    id: player.id || player.name, // Use ID if available, fallback to name
+    name: player.name,
+    avatar: player.avatar
+  }));
+
+  const handleGiveKudos = async (targetPlayerId: string, reason: string) => {
+    try {
+      await socialService.giveKudos({
+        target_player_id: targetPlayerId,
+        reason: reason
+      });
+      // Could show success notification here
+      console.log('Kudos sent successfully');
+    } catch (error) {
+      console.error('Failed to give kudos:', error);
+      // Could show error notification here
+    }
+  };
+
+  const handleSubmitReport = async (targetPlayerId: string, reason: string, description: string) => {
+    try {
+      await socialService.submitReport({
+        target_player_id: targetPlayerId,
+        reason: reason,
+        description: description
+      });
+      // Could show success notification here
+      console.log('Report submitted successfully');
+    } catch (error) {
+      console.error('Failed to submit report:', error);
+      // Could show error notification here
+    }
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'summary':
-        return <SummaryTab />;
+        return <SummaryTab data={data} />;
       case 'timeline':
-        return <TimelineTab />;
+        return <TimelineTab data={data} />;
       case 'analytics':
-        return <AnalyticsTab />;
+        return <AnalyticsTab data={data} />;
       case 'highlights':
-        return <HighlightsTab />;
+        return <HighlightsTab data={data} />;
       default:
-        return <SummaryTab />;
+        return <SummaryTab data={data} />;
     }
   };
 
@@ -389,19 +435,27 @@ export function PostGameAnalysis() {
     <div className="min-h-screen bg-background-primary text-text-primary flex flex-col">
       <header className="p-3 px-4 border-b border-border flex justify-between items-center bg-background-secondary">
         <div className="font-mono font-bold text-base tracking-[1.5px]">LOEBIAN</div>
-        <div className="flex gap-2">
-          <Button 
-            variant="secondary"
-            size="sm"
-            title="Toggle Theme"
-            onClick={() => {
-              const currentTheme = document.documentElement.getAttribute('data-theme');
-              const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-              document.documentElement.setAttribute('data-theme', newTheme);
-            }}
-          >
-            🌙
-          </Button>
+        <div className="flex items-center gap-4">
+          <SocialActions
+            players={players}
+            onGiveKudos={handleGiveKudos}
+            onSubmitReport={handleSubmitReport}
+            className="text-sm"
+          />
+          <div className="flex gap-2">
+            <Button 
+              variant="secondary"
+              size="sm"
+              title="Toggle Theme"
+              onClick={() => {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', newTheme);
+              }}
+            >
+              🌙
+            </Button>
+          </div>
         </div>
       </header>
       

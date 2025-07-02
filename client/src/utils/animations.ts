@@ -44,6 +44,7 @@ export const SHAKE = 'animation-shake';
 export const FLIP_CARD = 'animation-flip-card';
 export const CARD_FLIP_IN = 'animation-card-flip-in';
 export const ELIMINATION_FADE = 'animation-elimination-fade';
+export const CHANNEL_UNLOCK = 'animation-channel-unlock';
 
 /**
  * Legacy Animation Classes (for backwards compatibility during migration)

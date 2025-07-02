@@ -1,6 +1,9 @@
 package interfaces
 
-import "github.com/xjhc/alignment/core"
+import (
+	"time"
+	"github.com/xjhc/alignment/core"
+)
 
 // PlayerActorInterface defines the interface for PlayerActor
 type PlayerActorInterface interface {
@@ -13,6 +16,7 @@ type PlayerActorInterface interface {
 	TransitionToGame(gameID string) error
 	TransitionToIdle() error
 	SendServerMessage(message interface{})
+	Stop() // Add Stop method for proper cleanup
 }
 
 // PlayerState represents the current state of a player in the system
@@ -76,8 +80,8 @@ type SessionManagerInterface interface {
 // GameLifecycleManagerInterface unifies lobby and session management
 type GameLifecycleManagerInterface interface {
 	// Lobby management
-	CreateLobbyViaHTTP(hostPlayerName, lobbyName, playerAvatar string) (string, string, string, error)
-	JoinLobby(lobbyID, playerName, playerAvatar string) (string, string, error)
+	CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool) (string, string, string, error)
+	JoinLobby(lobbyID, userID, playerName, playerAvatar string) (string, string, error)
 	JoinLobbyWithActor(lobbyID string, playerActor PlayerActorInterface) error
 	StartGame(lobbyID string, hostPlayerID string) error
 	ValidateSessionToken(token string) (interface{}, error)
@@ -123,4 +127,25 @@ type GameStateSnapshot struct {
 type TransitionToGame struct {
 	GameID    string
 	GameState interface{}
+}
+
+// PartyInvite represents an invitation to join a party
+type PartyInvite struct {
+	ID         string    `json:"id"`
+	PartyID    string    `json:"partyId"`
+	InviterID  string    `json:"inviterId"`
+	InviteeID  string    `json:"inviteeId"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"createdAt"`
+	ExpiresAt  time.Time `json:"expiresAt"`
+}
+
+// PartyManagerInterface defines the interface for party management
+type PartyManagerInterface interface {
+	CreateParty(leader PlayerActorInterface) (string, error)
+	InviteToPartyByInviter(inviterID, inviteeID string) (*PartyInvite, error)
+	JoinParty(playerID, inviteID string, playerActor PlayerActorInterface) error
+	LeaveParty(playerID string) error
+	GetPendingInvites(playerID string) []*PartyInvite
+	IsInParty(playerID string) bool
 }

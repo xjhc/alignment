@@ -409,7 +409,7 @@ func (sg *SitrepGenerator) generateThreatAssessment() SitrepSection {
 	alignedCount := 0
 	for _, player := range sg.gameState.Players {
 		if player.IsAlive {
-			if player.Alignment == "ALIGNED" {
+			if player.Alignment == "AI" || player.Alignment == "ALIGNED" {
 				alignedCount++
 			} else {
 				humanCount++

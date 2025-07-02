@@ -83,8 +83,8 @@ func canSendInWarRoom(player Player, phase PhaseType) bool {
 		// Chat enabled during discussion phases
 		return true
 	case PhaseTrial:
-		// Only nominated player can speak during trial (handled elsewhere)
-		return false
+		// All living players can speak during trial
+		return true
 	case PhaseNight:
 		// Chat disabled during night phase
 		return false
@@ -272,14 +272,59 @@ func CheckWinCondition(gameState GameState) *WinCondition {
 	}
 
 	// Check for special Personal KPI win conditions first
-	// Succession Planner KPI: Game ends with exactly 2 humans alive
 	for _, player := range gameState.Players {
-		if player.PersonalKPI != nil && player.PersonalKPI.Type == KPISuccessionPlanner {
-			if aliveHumans == 2 && player.IsAlive && player.Alignment == "HUMAN" {
-				return &WinCondition{
-					Winner:      "HUMANS",
-					Condition:   "SUCCESSION_PLANNER",
-					Description: fmt.Sprintf("%s achieved succession plan with exactly 2 humans remaining", player.Name),
+		if player.PersonalKPI != nil && player.PersonalKPI.IsCompleted {
+			switch player.PersonalKPI.Type {
+			case KPISuccessionPlanner:
+				// Succession Planner: Game ends with exactly 2 humans alive
+				if aliveHumans == 2 && player.IsAlive && player.Alignment == "HUMAN" {
+					return &WinCondition{
+						Winner:      "HUMANS",
+						Condition:   "SUCCESSION_PLANNER",
+						Description: fmt.Sprintf("%s achieved succession plan with exactly 2 humans remaining", player.Name),
+					}
+				}
+			case KPIScapegoat:
+				// Scapegoat: Win if eliminated unanimously (player is dead but completed KPI)
+				if !player.IsAlive {
+					return &WinCondition{
+						Winner:      "HUMANS", // Scapegoat is on human team
+						Condition:   "SCAPEGOAT",
+						Description: fmt.Sprintf("%s won as the Scapegoat by being eliminated unanimously", player.Name),
+					}
+				}
+			case KPICapitalist:
+				// Capitalist: Win if you have the most tokens at game end
+				if player.IsAlive {
+					maxTokens := player.Tokens
+					isRichest := true
+					for _, otherPlayer := range gameState.Players {
+						if otherPlayer.ID != player.ID && otherPlayer.IsAlive && otherPlayer.Tokens > maxTokens {
+							isRichest = false
+							break
+						}
+					}
+					if isRichest {
+						return &WinCondition{
+							Winner:      player.Alignment,
+							Condition:   "CAPITALIST",
+							Description: fmt.Sprintf("%s won as the Capitalist with %d tokens", player.Name, maxTokens),
+						}
+					}
+				}
+			case KPIGuardian:
+				// Guardian: Win if CISO survived to Day 4 (checked by KPIManager, just handle completion here)
+				if gameState.DayNumber >= 4 {
+					// Find CISO player
+					for _, cisoPlayer := range gameState.Players {
+						if cisoPlayer.Role != nil && cisoPlayer.Role.Type == RoleCISO && cisoPlayer.IsAlive {
+							return &WinCondition{
+								Winner:      "HUMANS",
+								Condition:   "GUARDIAN",
+								Description: fmt.Sprintf("%s won as the Guardian by keeping the CISO alive to Day %d", player.Name, gameState.DayNumber),
+							}
+						}
+					}
 				}
 			}
 		}

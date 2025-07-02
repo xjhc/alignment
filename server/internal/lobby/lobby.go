@@ -28,17 +28,20 @@ type Lobby struct {
 	MaxPlayers   int
 	MinPlayers   int
 	CreatedAt    time.Time
+	LastActivity time.Time // Tracks when any player last joined or left
 	Status       string
+	IsPrivate    bool // If true, lobby won't appear in public listings
 	mutex        sync.RWMutex
 }
 
 // NewLobby creates a new lobby with the host player
-func NewLobby(id, name, hostPlayerID string, hostActor interfaces.PlayerActorInterface) *Lobby {
+func NewLobby(id, name, hostPlayerID string, hostActor interfaces.PlayerActorInterface, isPrivate bool) *Lobby {
 	players := make(map[string]interfaces.PlayerActorInterface)
 	players[hostPlayerID] = hostActor
 	
 	playerJoinTimes := make(map[string]time.Time)
-	playerJoinTimes[hostPlayerID] = time.Now()
+	now := time.Now()
+	playerJoinTimes[hostPlayerID] = now
 
 	return &Lobby{
 		ID:           id,
@@ -48,8 +51,10 @@ func NewLobby(id, name, hostPlayerID string, hostActor interfaces.PlayerActorInt
 		PlayerJoinTimes: playerJoinTimes,
 		MaxPlayers:   8,
 		MinPlayers:   2,
-		CreatedAt:    time.Now(),
+		CreatedAt:    now,
+		LastActivity: now,
 		Status:       "WAITING",
+		IsPrivate:    isPrivate,
 	}
 }
 
@@ -108,8 +113,10 @@ func (l *Lobby) AddPlayer(playerActor interfaces.PlayerActorInterface) error {
 	}
 
 	playerID := playerActor.GetPlayerID()
+	now := time.Now()
 	l.Players[playerID] = playerActor
-	l.PlayerJoinTimes[playerID] = time.Now()
+	l.PlayerJoinTimes[playerID] = now
+	l.LastActivity = now // Update last activity when player joins
 
 	// Create the update and broadcast it to all players in the lobby
 	l.broadcastStateUpdate()
@@ -128,6 +135,7 @@ func (l *Lobby) RemovePlayer(playerID string) {
 
 	delete(l.Players, playerID)
 	delete(l.PlayerJoinTimes, playerID)
+	l.LastActivity = time.Now() // Update last activity when player leaves
 
 	// Create the update and broadcast it to all players in the lobby
 	l.broadcastStateUpdate()
@@ -226,6 +234,20 @@ func (l *Lobby) SetStatus(status string) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	l.Status = status
+}
+
+// SetPrivacy updates the lobby privacy setting
+func (l *Lobby) SetPrivacy(isPrivate bool) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	l.IsPrivate = isPrivate
+}
+
+// IsPrivateLobby returns whether the lobby is private
+func (l *Lobby) IsPrivateLobby() bool {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+	return l.IsPrivate
 }
 
 func (l *Lobby) Lock() {

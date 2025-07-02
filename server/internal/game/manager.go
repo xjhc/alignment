@@ -212,10 +212,20 @@ func (sm *SessionManager) JoinGame(gameID string, playerActor interfaces.PlayerA
 // LeaveGame handles a player leaving a game
 func (sm *SessionManager) LeaveGame(gameID string, playerID string) error {
 	sm.gameMutex.Lock()
+	var playerCount int
 	if session, ok := sm.gameSessions[gameID]; ok {
 		delete(session, playerID)
+		playerCount = len(session)
 	}
 	sm.gameMutex.Unlock()
+
+	// Check if this was the last player in the game
+	if playerCount == 0 {
+		log.Printf("[GC] Last player %s left game %s. Scheduling for cleanup.", playerID, gameID)
+		// Clean up the game immediately since no players remain
+		sm.RemoveGame(gameID)
+		return nil // No need to send action to a game that's being cleaned up
+	}
 
 	// Send leave action to the GameActor
 	leaveAction := core.Action{
@@ -286,14 +296,21 @@ func (sm *SessionManager) SendActionToGame(gameID string, action core.Action) er
 // RemoveGame removes a game from management (called when game ends)
 func (sm *SessionManager) RemoveGame(gameID string) {
 	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	if _, exists := sm.gameActors[gameID]; exists {
+	gameActor, exists := sm.gameActors[gameID]
+	if exists {
 		delete(sm.gameActors, gameID)
-		log.Printf("SessionManager: Removed game %s", gameID)
+	}
+	sm.mutex.Unlock()
+
+	if exists {
+		// Stop the GameActor to ensure proper cleanup of its goroutine and resources
+		if gameActor != nil {
+			gameActor.Stop()
+		}
+		log.Printf("[GC] SessionManager: Removed and stopped game %s", gameID)
 	}
 
-	// Also remove from supervisor
+	// Also remove from supervisor (which may also call Stop, but that should be idempotent)
 	sm.supervisor.RemoveGame(gameID)
 
 	// Also remove from sessions

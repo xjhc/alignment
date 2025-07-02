@@ -20,12 +20,38 @@ type PersonaAssignment struct {
 	LobbyHandle string  `json:"lobbyHandle"` // Original lobby identity (kept for post-game reveal)
 }
 
-// GetPersonaPool returns the complete pool of available personas
+// GetNamePool returns the pool of available first names for random assignment
+func GetNamePool() []string {
+	return []string{
+		"Ada", "Alan", "David", "Dario", "Demis", "Eliza", "Geoffrey", "Grace",
+		"Jordan", "Judea", "Michael", "Sara", "Sam", "Yann", "Alex", "Blake",
+		"Cameron", "Dana", "Evelyn", "Felix", "Harper", "Ian", "Jules", "Kelly",
+		"Logan", "Morgan", "Nolan", "Parker", "Quinn", "River", "Sage", "Taylor",
+	}
+}
+
+// GetRolePool returns the pool of available roles with their job titles
+func GetRolePool() map[core.RoleType]string {
+	return map[core.RoleType]string{
+		core.RoleCISO:      "Chief Information Security Officer",
+		core.RoleCTO:       "Chief Technology Officer",
+		core.RoleCOO:       "Chief Operating Officer",
+		core.RoleCFO:       "Chief Financial Officer",
+		core.RoleCEO:       "Chief Executive Officer",
+		core.RoleEthics:    "VP, Ethics & Alignment",
+		core.RolePlatforms: "VP, Platforms",
+		core.RoleIntern:    "Research Intern",
+	}
+}
+
+// GetPersonaPool returns the complete pool of available personas (DEPRECATED)
+// This function is maintained for backward compatibility but will be removed
+// in favor of the new decoupled name/role assignment system
 func GetPersonaPool() []Persona {
 	return []Persona{
 		{Name: "Geoffrey", JobTitle: "VP, Ethics & Alignment", Role: core.RoleEthics},
 		{Name: "Yann", JobTitle: "Chief Technology Officer", Role: core.RoleCTO},
-		{Name: "Ada", JobTitle: "Systems Architect", Role: core.RolePlatforms},
+		{Name: "Ada", JobTitle: "VP, Platforms", Role: core.RolePlatforms},
 		{Name: "Judea", JobTitle: "Chief Financial Officer", Role: core.RoleCFO},
 		{Name: "Demis", JobTitle: "Chief Information Security Officer", Role: core.RoleCISO},
 		{Name: "Dario", JobTitle: "Chief Operating Officer", Role: core.RoleCOO},
@@ -34,27 +60,36 @@ func GetPersonaPool() []Persona {
 	}
 }
 
-// AssignPersonas assigns unique personas to all participants with exactly one AI
-func AssignPersonas(players map[string]*core.Player, rng *rand.Rand) map[string]PersonaAssignment {
+// AssignPersonas assigns unique personas to all participants with exactly one AI and configurable aligned humans
+func AssignPersonas(players map[string]*core.Player, settings core.GameSettings, rng *rand.Rand) map[string]PersonaAssignment {
 	if len(players) == 0 {
 		return make(map[string]PersonaAssignment)
 	}
 
 	assignments := make(map[string]PersonaAssignment)
 	
-	// Get and shuffle persona pool
-	personas := GetPersonaPool()
-	rng.Shuffle(len(personas), func(i, j int) {
-		personas[i], personas[j] = personas[j], personas[i]
+	// Get and shuffle name pool independently
+	names := GetNamePool()
+	rng.Shuffle(len(names), func(i, j int) {
+		names[i], names[j] = names[j], names[i]
 	})
 
-	// Ensure we have enough personas (this should be guaranteed by game lobby logic)
-	if len(players) > len(personas) {
-		// In a production system, we'd want to handle this more gracefully
-		// For now, we'll just use the available personas and cycle if needed
-		for len(personas) < len(players) {
-			personas = append(personas, personas...)
-		}
+	// Get role pool and create shuffled list of roles
+	rolePool := GetRolePool()
+	roles := make([]core.RoleType, 0, len(rolePool))
+	for roleType := range rolePool {
+		roles = append(roles, roleType)
+	}
+	rng.Shuffle(len(roles), func(i, j int) {
+		roles[i], roles[j] = roles[j], roles[i]
+	})
+
+	// Ensure we have enough names and roles (cycle if needed)
+	for len(names) < len(players) {
+		names = append(names, names...)
+	}
+	for len(roles) < len(players) {
+		roles = append(roles, roles...)
 	}
 
 	// Extract player IDs and shuffle for random assignment order
@@ -67,21 +102,47 @@ func AssignPersonas(players map[string]*core.Player, rng *rand.Rand) map[string]
 		participantIDs[i], participantIDs[j] = participantIDs[j], participantIDs[i]
 	})
 
-	// Assign exactly one AI player (first in shuffled list)
-	aiPlayerID := participantIDs[0]
+	// Assign exactly one Original AI (first in shuffled list)
+	originalAIPlayerID := participantIDs[0]
+	
+	// Determine how many additional players should be Aligned humans
+	alignedHumanCount := settings.InitialAlignedHumanCount
+	// Ensure we don't exceed available players (minus the one Original AI)
+	if alignedHumanCount > len(participantIDs)-1 {
+		alignedHumanCount = len(participantIDs) - 1
+	}
+	
+	// Assign aligned humans (next N players in shuffled list after the Original AI)
+	alignedHumanIDs := make(map[string]bool)
+	for i := 1; i <= alignedHumanCount; i++ {
+		alignedHumanIDs[participantIDs[i]] = true
+	}
 
-	// Assign personas to all participants
+	// Assign decoupled personas to all participants
 	for i, participantID := range participantIDs {
-		alignment := "HUMAN"
-		if participantID == aiPlayerID {
-			alignment = "AI"
+		var alignment string
+		if participantID == originalAIPlayerID {
+			alignment = "AI" // Original AI
+		} else if alignedHumanIDs[participantID] {
+			alignment = "ALIGNED" // Aligned humans (converted to AI faction)
+		} else {
+			alignment = "HUMAN" // Regular humans
 		}
 
 		// Get original lobby handle from player data
 		lobbyHandle := players[participantID].Name
 		
+		// Create persona with decoupled name and role
+		assignedRole := roles[i]
+		assignedName := names[i]
+		assignedJobTitle := rolePool[assignedRole]
+		
 		assignments[participantID] = PersonaAssignment{
-			Persona:     personas[i],
+			Persona: Persona{
+				Name:     assignedName,
+				JobTitle: assignedJobTitle,
+				Role:     assignedRole,
+			},
 			Alignment:   alignment,
 			LobbyHandle: lobbyHandle,
 		}

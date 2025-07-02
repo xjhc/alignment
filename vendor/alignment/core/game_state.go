@@ -1,12 +1,17 @@
 package core
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 )
 
 // GameState represents the complete state of a game
 type GameState struct {
+	Version         int                              `json:"version"`         // For handling state migrations
+	Checksum        string                           `json:"checksum,omitempty"` // For verifying data integrity
 	ID              string                           `json:"id"`
 	Phase           Phase                            `json:"phase"`
 	DayNumber       int                              `json:"day_number"`
@@ -16,9 +21,10 @@ type GameState struct {
 	Settings        GameSettings                     `json:"settings"`
 	CrisisEvent     *CrisisEvent                     `json:"crisis_event,omitempty"`
 	ChatMessages    []ChatMessage                    `json:"chat_messages"`
-	VoteState       *VoteState                       `json:"vote_state,omitempty"`
-	NominatedPlayer string                           `json:"nominated_player,omitempty"`
-	WinCondition    *WinCondition                    `json:"win_condition,omitempty"`
+	VoteState           *VoteState           `json:"vote_state,omitempty"`
+	WhistleblowerVoting *WhistleblowerVoting `json:"whistleblower_voting,omitempty"`
+	NominatedPlayer     string               `json:"nominated_player,omitempty"`
+	WinCondition        *WinCondition        `json:"win_condition,omitempty"`
 	NightActions    map[string]*SubmittedNightAction `json:"night_actions,omitempty"`
 
 	// Game-wide modifiers
@@ -38,6 +44,7 @@ type GameState struct {
 // NewGameState creates a new game state
 func NewGameState(id string, currentTime time.Time) *GameState {
 	return &GameState{
+		Version:      1,
 		ID:           id,
 		Phase:        Phase{Type: PhaseLobby, StartTime: currentTime, Duration: 0},
 		DayNumber:    0,
@@ -59,6 +66,7 @@ func NewGameState(id string, currentTime time.Time) *GameState {
 			NightDuration:      30 * time.Second,
 			StartingTokens:     1,
 			VotingThreshold:    0.5,
+			InitialAlignedHumanCount: 0,
 		},
 	}
 }
@@ -88,6 +96,8 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 		newState.applyPlayerLeft(event)
 	case EventPlayerEliminated:
 		newState.applyPlayerEliminated(event)
+	case EventPlayerAbandoned:
+		newState.applyPlayerAbandoned(event)
 	case EventPlayerRoleRevealed:
 		newState.applyPlayerRoleRevealed(event)
 	case EventPlayerAligned:
@@ -120,6 +130,8 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 		newState.applyVoteCompleted(event)
 	case EventPlayerNominated:
 		newState.applyPlayerNominated(event)
+	case EventExtensionVotingTriggered:
+		newState.applyExtensionVotingTriggered(event)
 
 	// Token and mining events
 	case EventTokensAwarded:
@@ -247,6 +259,14 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 	case EventSkipVoteUpdated:
 		newState.applySkipVoteUpdated(event)
 
+	// Whistleblower Protocol events
+	case EventWhistleblowerVotingStarted:
+		newState.applyWhistleblowerVotingStarted(event)
+	case EventWhistleblowerVoteCast:
+		newState.applyWhistleblowerVoteCast(event)
+	case EventWhistleblowerVotingCompleted:
+		newState.applyWhistleblowerVotingCompleted(event)
+
 	default:
 		// Unknown event type - ignore
 	}
@@ -273,6 +293,7 @@ func (gs *GameState) applyPlayerJoined(event Event) {
 		Name:              name,
 		JobTitle:          jobTitle,
 		ControlType:       "HUMAN", // Default control type
+		Status:            PlayerStatusAlive,
 		IsAlive:           true,
 		Tokens:            gs.Settings.StartingTokens,
 		ProjectMilestones: 0,
@@ -443,6 +464,7 @@ func (gs *GameState) applyPlayerEliminated(event Event) {
 	alignment, _ := event.Payload["alignment"].(string)
 
 	if player, exists := gs.Players[playerID]; exists {
+		player.Status = PlayerStatusEliminated
 		player.IsAlive = false
 		// Reveal role and alignment on elimination
 		if player.Role == nil {
@@ -450,6 +472,27 @@ func (gs *GameState) applyPlayerEliminated(event Event) {
 		}
 		player.Role.Type = RoleType(roleType)
 		player.Alignment = alignment
+	}
+}
+
+func (gs *GameState) applyPlayerAbandoned(event Event) {
+	playerID := event.PlayerID
+	revealedRole, _ := event.Payload["revealed_role"].(string)
+
+	if player, exists := gs.Players[playerID]; exists {
+		player.Status = PlayerStatusAbandoned
+		player.IsAlive = false
+		player.IsRolePubliclyRevealed = true
+		player.StatusMessage = "ABANDONED"
+		
+		// Reveal role but NOT alignment (as per requirements)
+		if player.Role == nil {
+			player.Role = &Role{}
+		}
+		player.Role.Type = RoleType(revealedRole)
+		
+		// Clear tokens as they are forfeited
+		player.Tokens = 0
 	}
 }
 
@@ -530,13 +573,15 @@ func (gs *GameState) applyCrisisTriggered(event Event) {
 	crisisType, _ := event.Payload["crisis_type"].(string)
 	title, _ := event.Payload["title"].(string)
 	description, _ := event.Payload["description"].(string)
+	pulseCheckPrompt, _ := event.Payload["pulse_check_prompt"].(string)
 	effects, _ := event.Payload["effects"].(map[string]interface{})
 
 	gs.CrisisEvent = &CrisisEvent{
-		Type:        crisisType,
-		Title:       title,
-		Description: description,
-		Effects:     effects,
+		Type:             crisisType,
+		Title:            title,
+		Description:      description,
+		PulseCheckPrompt: pulseCheckPrompt,
+		Effects:          effects,
 	}
 }
 
@@ -708,6 +753,17 @@ func (gs *GameState) applyVoteCompleted(event Event) {
 func (gs *GameState) applyPlayerNominated(event Event) {
 	nominatedPlayerID, _ := event.Payload["nominated_player"].(string)
 	gs.NominatedPlayer = nominatedPlayerID
+}
+
+func (gs *GameState) applyExtensionVotingTriggered(event Event) {
+	// Start extension voting by creating a new vote state
+	gs.VoteState = &VoteState{
+		Type:         VoteExtension,
+		Votes:        make(map[string]string),
+		TokenWeights: make(map[string]int),
+		Results:      make(map[string]int),
+		IsComplete:   false,
+	}
 }
 
 func (gs *GameState) applyTokensLost(event Event) {
@@ -1461,6 +1517,75 @@ func (gs *GameState) applySkipVoteUpdated(event Event) {
 	}
 }
 
+// Whistleblower Protocol event handlers
+
+// applyWhistleblowerVotingStarted initializes whistleblower voting state
+func (gs *GameState) applyWhistleblowerVotingStarted(event Event) {
+	crisisOptions, _ := event.Payload["crisis_options"].([]interface{})
+	
+	// Convert crisis options from interface{} to CrisisEventOption structs
+	var options []CrisisEventOption
+	for _, optionInterface := range crisisOptions {
+		if optionMap, ok := optionInterface.(map[string]interface{}); ok {
+			option := CrisisEventOption{
+				Type:        optionMap["type"].(string),
+				Title:       optionMap["title"].(string),
+				Description: optionMap["description"].(string),
+			}
+			options = append(options, option)
+		}
+	}
+	
+	gs.WhistleblowerVoting = &WhistleblowerVoting{
+		IsActive:      true,
+		CrisisOptions: options,
+		Votes:         make(map[string]string),
+		VoteResults:   make(map[string]int),
+		IsComplete:    false,
+	}
+}
+
+// applyWhistleblowerVoteCast records a whistleblower vote
+func (gs *GameState) applyWhistleblowerVoteCast(event Event) {
+	playerID := event.PlayerID
+	crisisType, _ := event.Payload["crisis_type"].(string)
+	
+	// Initialize whistleblower voting if it doesn't exist
+	if gs.WhistleblowerVoting == nil {
+		gs.WhistleblowerVoting = &WhistleblowerVoting{
+			IsActive:    true,
+			Votes:       make(map[string]string),
+			VoteResults: make(map[string]int),
+			IsComplete:  false,
+		}
+	}
+	
+	// Record the vote
+	gs.WhistleblowerVoting.Votes[playerID] = crisisType
+	
+	// Recalculate vote results
+	gs.WhistleblowerVoting.VoteResults = make(map[string]int)
+	for _, votedCrisis := range gs.WhistleblowerVoting.Votes {
+		gs.WhistleblowerVoting.VoteResults[votedCrisis]++
+	}
+}
+
+// applyWhistleblowerVotingCompleted finalizes whistleblower voting
+func (gs *GameState) applyWhistleblowerVotingCompleted(event Event) {
+	selectedCrisis, _ := event.Payload["selected_crisis"].(string)
+	
+	if gs.WhistleblowerVoting == nil {
+		gs.WhistleblowerVoting = &WhistleblowerVoting{
+			Votes:       make(map[string]string),
+			VoteResults: make(map[string]int),
+		}
+	}
+	
+	gs.WhistleblowerVoting.SelectedCrisis = selectedCrisis
+	gs.WhistleblowerVoting.IsComplete = true
+	gs.WhistleblowerVoting.IsActive = false
+}
+
 // ProcessPlayerAction is the formal Action-to-Event translation layer
 // This function takes the current state and a player's desired action,
 // performs all necessary validation, and returns the list of Events that should result.
@@ -1485,6 +1610,8 @@ func ProcessPlayerAction(gameState GameState, action Action, currentTime time.Ti
 		return processChatAction(gameState, action, currentTime)
 	case ActionLeaveGame:
 		return processLeaveGameAction(gameState, action, currentTime)
+	case ActionAbandonGame:
+		return processAbandonGameAction(gameState, action, currentTime)
 	case ActionUseAbility:
 		return processAbilityAction(gameState, action, currentTime)
 
@@ -1704,6 +1831,41 @@ func processLeaveGameAction(gameState GameState, action Action, currentTime time
 	return events, nil
 }
 
+// processAbandonGameAction handles player abandoning the game with consequences
+func processAbandonGameAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+
+	// Check if game is in progress (can't abandon from lobby)
+	if gameState.Phase.Type == PhaseLobby || gameState.Phase.Type == PhaseGameOver {
+		return nil, fmt.Errorf("cannot abandon game in phase %s", gameState.Phase.Type)
+	}
+
+	// Extract the player's role for revelation
+	var revealedRole string
+	if player.Role != nil {
+		revealedRole = string(player.Role.Type)
+	} else {
+		revealedRole = "UNKNOWN"
+	}
+
+	// Generate player abandoned event
+	events := []Event{
+		{
+			ID:        fmt.Sprintf("abandon_%s_%d", action.PlayerID, currentTime.UnixNano()),
+			Type:      EventPlayerAbandoned,
+			PlayerID:  action.PlayerID,
+			GameID:    gameState.ID,
+			Timestamp: currentTime,
+			Payload: map[string]interface{}{
+				"revealed_role": revealedRole,
+				"player_name":   player.Name,
+			},
+		},
+	}
+
+	return events, nil
+}
+
 // processAbilityAction handles role ability usage
 func processAbilityAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
 	player := gameState.Players[action.PlayerID]
@@ -1807,4 +1969,46 @@ func processSkipVoteAction(gameState GameState, action Action, currentTime time.
 	}
 
 	return events, nil
+}
+
+// CalculateChecksum computes a SHA256 hash of the game state data for integrity verification
+func (gs *GameState) CalculateChecksum() (string, error) {
+	// Create a copy of the state without the checksum field to avoid circular references
+	stateForHashing := *gs
+	stateForHashing.Checksum = ""
+	
+	// Serialize the state to JSON for consistent hashing
+	data, err := json.Marshal(stateForHashing)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal game state for checksum: %v", err)
+	}
+	
+	// Calculate SHA256 hash
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
+}
+
+// UpdateChecksum recalculates and updates the checksum field
+func (gs *GameState) UpdateChecksum() error {
+	checksum, err := gs.CalculateChecksum()
+	if err != nil {
+		return err
+	}
+	gs.Checksum = checksum
+	return nil
+}
+
+// ValidateChecksum verifies that the stored checksum matches the calculated checksum
+func (gs *GameState) ValidateChecksum() (bool, error) {
+	if gs.Checksum == "" {
+		// No checksum to validate - this is allowed for backwards compatibility
+		return true, nil
+	}
+	
+	expectedChecksum, err := gs.CalculateChecksum()
+	if err != nil {
+		return false, fmt.Errorf("failed to calculate checksum for validation: %v", err)
+	}
+	
+	return gs.Checksum == expectedChecksum, nil
 }

@@ -45,7 +45,7 @@ type SimulationConfig struct {
 func DefaultSimulationConfig() SimulationConfig {
 	return SimulationConfig{
 		PlayerCount:    6,
-		AICount:        2,
+		AICount:        1, // Only 1 Original AI by default (matching InitialAlignedHumanCount: 0)
 		PersonaWeights: map[string]float64{
 			"cautious_human":  0.4,
 			"aggressive_human": 0.4,
@@ -108,7 +108,11 @@ func (sr *SimulationRunner) initializeGame() error {
 		
 		// Determine alignment
 		alignment := "HUMAN"
-		if i < sr.config.AICount {
+		if i == 0 {
+			// First player is always the Original AI
+			alignment = "AI"
+		} else if i < sr.config.AICount {
+			// Next players (up to AICount-1) are Aligned humans
 			alignment = "ALIGNED"
 		}
 
@@ -146,8 +150,8 @@ func (sr *SimulationRunner) assignPersonas() error {
 	for playerID, player := range sr.gameState.Players {
 		var persona BotPersona
 		
-		if player.Alignment == "ALIGNED" {
-			// AI players always use DeceptiveAI persona
+		if player.Alignment == "AI" || player.Alignment == "ALIGNED" {
+			// AI faction members (both original AI and aligned humans) use DeceptiveAI persona
 			persona = NewDeceptiveAI(sr.config.Seed + int64(len(playerID)))
 		} else {
 			// Human players get assigned based on weights

@@ -54,6 +54,38 @@ services:
       timeout: 3s
       retries: 5
 
+  prometheus:
+    image: "prom/prometheus:latest"
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml"
+    networks:
+      - alignment-net
+    depends_on:
+      - backend
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: "grafana/grafana:latest"
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - "./monitoring/grafana/provisioning:/etc/grafana/provisioning"
+      - "./monitoring/grafana/dashboards:/var/lib/grafana/dashboards"
+    networks:
+      - alignment-net
+    depends_on:
+      - prometheus
+
 networks:
   alignment-net:
     driver: bridge

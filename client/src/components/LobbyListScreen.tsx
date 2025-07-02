@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui';
+import { FriendsPanel } from './FriendsPanel';
+import { PartyPanel } from './PartyPanel';
+import { getUserIdForApi } from '../services/guestIdentity';
 
 interface LobbyInfo {
   id: string;
@@ -24,6 +27,8 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
   const [lobbies, setLobbies] = useState<LobbyInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showFriendsPanel, setShowFriendsPanel] = useState(false);
+  const [showPartyPanel, setShowPartyPanel] = useState(false);
 
   // Fetch lobby list from REST API
   const fetchLobbies = async () => {
@@ -53,12 +58,14 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
   const handleJoinLobby = async (gameId: string) => {
     try {
       setError(null);
+      const userId = getUserIdForApi();
       const response = await fetch(`/api/games/${gameId}/join`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          user_id: userId,
           player_name: playerName,
           player_avatar: playerAvatar || '',
         }),
@@ -81,13 +88,15 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
   const handleCreateGame = async () => {
     try {
       setError(null);
+      const userId = getUserIdForApi();
       const response = await fetch('/api/games', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          lobby_name: `${playerName}'s Game`,
+          user_id: userId,
+          lobby_name: `${playerName} Game`,
           player_name: playerName,
           player_avatar: playerAvatar || '',
         }),
@@ -112,7 +121,11 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
     return (
       <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
         <div className="flex flex-col gap-4 items-center w-80">
-          <h2>Loading lobbies...</h2>
+          <div className="animate-pulse text-2xl">🔍</div>
+          <h2 className="text-lg font-medium">Scanning for active emergency sessions...</h2>
+          <p className="text-text-secondary text-sm text-center">
+            Connecting to Loebian Inc. crisis management network
+          </p>
         </div>
       </div>
     );
@@ -127,13 +140,29 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
       <div className="flex flex-col gap-6 max-w-2xl mx-auto">
         <div className="flex justify-between items-center pb-4 border-b border-border">
           <h2>Game Lobbies</h2>
-          <Button
-            variant="secondary"
-            onClick={handleCreateGame}
-            className="text-sm font-medium"
-          >
-            + Create New Game
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowFriendsPanel(true)}
+              className="text-sm font-medium"
+            >
+              👥 Friends
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setShowPartyPanel(true)}
+              className="text-sm font-medium"
+            >
+              🎉 Party
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleCreateGame}
+              className="text-sm font-medium"
+            >
+              + Create New Game
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -151,8 +180,19 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
           </div>
           
           {lobbies.length === 0 ? (
-            <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 bg-background-primary rounded-md transition-all duration-200 hover:bg-background-hover col-span-4 text-center text-text-secondary">
-              No active lobbies. Create one to get started!
+            <div className="col-span-4 flex flex-col items-center justify-center py-12 px-6 bg-background-primary rounded-md border-2 border-dashed border-border animation-fade-in">
+              <div className="text-4xl mb-4">🎮</div>
+              <h3 className="text-lg font-medium text-text-primary mb-2">No active lobbies found</h3>
+              <p className="text-text-secondary text-sm text-center mb-6 max-w-md">
+                Looks like you're the first to arrive! Be the pioneer and start a new emergency response session.
+              </p>
+              <Button
+                variant="primary"
+                onClick={handleCreateGame}
+                className="font-medium text-sm px-6 py-2 animation-scale-in-feedback"
+              >
+                🚀 Create New Game
+              </Button>
             </div>
           ) : (
             lobbies.map((lobby) => (
@@ -193,6 +233,19 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
           ← Back
         </Button>
       </div>
+
+      {/* Friends Panel */}
+      <FriendsPanel
+        isVisible={showFriendsPanel}
+        onClose={() => setShowFriendsPanel(false)}
+      />
+
+      {/* Party Panel */}
+      <PartyPanel
+        isVisible={showPartyPanel}
+        onClose={() => setShowPartyPanel(false)}
+        currentPlayerId="current-player-id" // TODO: Get from session context
+      />
     </div>
   );
 }

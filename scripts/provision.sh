@@ -13,8 +13,8 @@ echo ">>> Creating Virtual Machine: $VM_NAME..."
 VM_INFO=$(az vm create \
   --resource-group $RESOURCE_GROUP \
   --name $VM_NAME \
-  --image UbuntuLTS \
-  --size Standard_B1s \
+  --image Ubuntu2204 \
+  --size Standard_B2s \
   --admin-username $VM_USERNAME \
   --generate-ssh-keys)
 
@@ -25,5 +25,11 @@ echo ">>> VM created with Public IP: $PUBLIC_IP"
 
 echo ">>> Opening port 80 (HTTP)..."
 az vm open-port --port 80 --resource-group $RESOURCE_GROUP --name $VM_NAME --priority 100
+
+echo ">>> Opening port 443 (HTTPS)..."
+az vm open-port --port 443 --resource-group $RESOURCE_GROUP --name $VM_NAME --priority 101
+
+echo ">>> Opening port 22 (SSH)..."
+az vm open-port --port 22 --resource-group $RESOURCE_GROUP --name $VM_NAME --priority 102
 
 echo "✅ Provisioning complete."

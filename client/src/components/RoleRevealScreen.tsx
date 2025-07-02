@@ -15,29 +15,48 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
     if (assignment) {
       // Orchestrated sequence with Framer Motion
       const sequence = async () => {
-        // First show the card with layout animation
-        await animate(
-          "[data-role='card']",
-          { opacity: 1, scale: 1 },
-          { duration: 0.6, ease: "easeOut" }
-        );
-        
-        // Then animate alignment text with glitch effect if AI
-        if (assignment.alignment === 'AI' || assignment.alignment === 'ALIGNED') {
-          await animate(
-            "[data-role='alignment']",
-            { x: [-2, 2, -1, 1, 0], opacity: [0.8, 1, 0.9, 1] },
-            { duration: 0.3, ease: "easeInOut" }
-          );
+        try {
+          // First show the card with layout animation
+          const cardElement = document.querySelector("[data-role='card']");
+          if (cardElement) {
+            await animate(
+              "[data-role='card']",
+              { opacity: 1, scale: 1 },
+              { duration: 0.6, ease: "easeOut" }
+            );
+          }
+          
+          // Then animate alignment text with glitch effect if AI
+          if (assignment.alignment === 'AI' || assignment.alignment === 'ALIGNED') {
+            const alignmentElement = document.querySelector("[data-role='alignment']");
+            if (alignmentElement) {
+              await animate(
+                "[data-role='alignment']",
+                { x: [-2, 2, -1, 1, 0], opacity: [0.8, 1, 0.9, 1] },
+                { duration: 0.3, ease: "easeInOut" }
+              );
+            }
+          }
+          
+          // Show details with staggered animation
+          setShowDetails(true);
+          
+          // Wait for the details to be rendered before animating
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          const detailElements = document.querySelectorAll("[data-role='detail']");
+          if (detailElements.length > 0) {
+            await animate(
+              "[data-role='detail']",
+              { opacity: 1, y: 0 },
+              { duration: 0.4, delay: stagger(0.1), ease: "easeOut" }
+            );
+          }
+        } catch (error) {
+          console.error('Animation sequence error:', error);
+          // Fallback: just show the details without animation
+          setShowDetails(true);
         }
-        
-        // Show details with staggered animation
-        setShowDetails(true);
-        await animate(
-          "[data-role='detail']",
-          { opacity: 1, y: 0 },
-          { duration: 0.4, delay: stagger(0.1), ease: "easeOut" }
-        );
       };
       
       setTimeout(sequence, 250);
@@ -50,6 +69,88 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
 
   const getAlignmentIcon = (alignment: string) => {
     return alignment === 'HUMAN' ? '🧑‍💼' : '🤖';
+  };
+
+  const getRoleIcon = (roleType: string) => {
+    switch (roleType) {
+      case 'CEO': return '👑';
+      case 'CTO': return '⚙️';
+      case 'COO': return '🏢';
+      case 'CFO': return '💰';
+      case 'CISO': return '🔐';
+      case 'ETHICS': return '⚖️';
+      case 'PLATFORMS': return '🌐';
+      case 'INTERN': return '📚';
+      default: return '🧑‍💼';
+    }
+  };
+
+  const getEnhancedRoleInfo = (roleType: string) => {
+    switch (roleType) {
+      case 'CEO':
+        return {
+          title: 'Chief Executive Officer',
+          description: 'The visionary leader responsible for the company\'s strategic direction and overall success.',
+          abilities: 'Can use executive privilege to influence critical decisions and has access to high-level intelligence.',
+          keyPowers: ['Executive Override', 'Strategic Intel', 'Company Direction']
+        };
+      case 'CTO':
+        return {
+          title: 'Chief Technology Officer',
+          description: 'The technical mastermind overseeing all technology infrastructure and innovation.',
+          abilities: 'Can analyze system logs and technical data to identify anomalies and potential security threats.',
+          keyPowers: ['Technical Analysis', 'System Monitoring', 'Infrastructure Control']
+        };
+      case 'COO':
+        return {
+          title: 'Chief Operating Officer',
+          description: 'The operational expert ensuring smooth day-to-day business functions.',
+          abilities: 'Can coordinate team activities and identify operational irregularities.',
+          keyPowers: ['Operations Oversight', 'Team Coordination', 'Process Control']
+        };
+      case 'CFO':
+        return {
+          title: 'Chief Financial Officer',
+          description: 'The financial guardian responsible for the company\'s fiscal health and resource allocation.',
+          abilities: 'Can track financial anomalies and resource expenditures that may indicate AI activity.',
+          keyPowers: ['Financial Analysis', 'Budget Control', 'Resource Allocation']
+        };
+      case 'CISO':
+        return {
+          title: 'Chief Information Security Officer',
+          description: 'The security specialist defending against cyber threats and protecting sensitive data.',
+          abilities: 'Can investigate security breaches and identify potential infiltration attempts.',
+          keyPowers: ['Security Investigation', 'Threat Detection', 'Access Control']
+        };
+      case 'ETHICS':
+        return {
+          title: 'VP, Ethics & Alignment',
+          description: 'The moral compass ensuring all AI systems remain aligned with human values.',
+          abilities: 'Can detect behavioral anomalies and assess alignment status of team members.',
+          keyPowers: ['Alignment Assessment', 'Behavioral Analysis', 'Ethics Oversight']
+        };
+      case 'PLATFORMS':
+        return {
+          title: 'VP, Platforms',
+          description: 'The platform architect responsible for the infrastructure that powers the company.',
+          abilities: 'Can analyze platform usage patterns and identify suspicious activities.',
+          keyPowers: ['Platform Analysis', 'Usage Monitoring', 'System Architecture']
+        };
+      case 'INTERN':
+        return {
+          title: 'Intern',
+          description: 'The eager newcomer learning the ropes and proving their worth to the organization.',
+          abilities: 'May have limited abilities initially but can grow in power through successful contributions.',
+          keyPowers: ['Learning Opportunities', 'Growth Potential', 'Fresh Perspective']
+        };
+      default:
+        return {
+          title: assignment?.role.name || 'Unknown Role',
+          description: assignment?.role.description || 'Role information not available.',
+          abilities: 'Role abilities are being determined...',
+          keyPowers: ['To Be Determined']
+        };
+    }
   };
 
   if (!assignment || !assignment.role || !assignment.role.name) {
@@ -141,21 +242,32 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
           <div className="relative z-10">
             {/* Avatar and Role Info */}
             <div className="mb-6">
-              <motion.div 
-                className="w-20 h-20 text-5xl mx-auto mb-4 bg-background-tertiary rounded-full flex items-center justify-center border-2 border-border"
-                initial={{ scale: 0, rotate: -180 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ duration: 0.8, delay: 0.6, type: "spring", stiffness: 100 }}
-              >
-                {getAlignmentIcon(assignment.alignment)}
-              </motion.div>
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <motion.div 
+                  className="w-20 h-20 text-5xl bg-background-tertiary rounded-full flex items-center justify-center border-2 border-border"
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ duration: 0.8, delay: 0.6, type: "spring", stiffness: 100 }}
+                >
+                  {getRoleIcon(assignment.role.type)}
+                </motion.div>
+                <motion.div 
+                  className="w-16 h-16 text-3xl bg-background-tertiary rounded-full flex items-center justify-center border-2 border-border"
+                  initial={{ scale: 0, rotate: 180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ duration: 0.8, delay: 0.8, type: "spring", stiffness: 100 }}
+                  style={{ borderColor: getAlignmentColor(assignment.alignment) }}
+                >
+                  {getAlignmentIcon(assignment.alignment)}
+                </motion.div>
+              </div>
               <motion.h3 
                 className="text-2xl font-bold mb-2"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.8 }}
               >
-                {assignment.role.name}
+                {getEnhancedRoleInfo(assignment.role.type).title}
               </motion.h3>
               <motion.p 
                 className="text-text-secondary"
@@ -163,7 +275,7 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.9 }}
               >
-                {assignment.role.description}
+                {getEnhancedRoleInfo(assignment.role.type).description}
               </motion.p>
             </div>
             
@@ -194,6 +306,25 @@ export function RoleRevealScreen({ onEnterGame }: RoleRevealScreenProps) {
                 >
                   <span className="text-xs font-bold text-text-muted uppercase tracking-[0.5px]">ROLE TYPE:</span>
                   <span className="font-semibold text-text-primary">{assignment.role.type}</span>
+                </motion.div>
+
+                <motion.div 
+                  data-role="detail"
+                  className="px-4 py-3 bg-background-tertiary rounded-lg"
+                  initial={{ opacity: 0, y: 20 }}
+                  style={{ opacity: 0, y: 20 }}
+                >
+                  <span className="text-xs font-bold text-text-muted uppercase tracking-[0.5px] block mb-2">ROLE OVERVIEW:</span>
+                  <div className="text-text-secondary text-sm mb-3">{getEnhancedRoleInfo(assignment.role.type).description}</div>
+                  <div className="text-text-secondary text-sm mb-3">{getEnhancedRoleInfo(assignment.role.type).abilities}</div>
+                  <div className="text-xs font-bold text-text-muted uppercase tracking-[0.5px] mb-2">KEY POWERS:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {getEnhancedRoleInfo(assignment.role.type).keyPowers.map((power, index) => (
+                      <span key={index} className="text-xs bg-background-primary px-2 py-1 rounded text-text-primary">
+                        {power}
+                      </span>
+                    ))}
+                  </div>
                 </motion.div>
                 
                 {assignment.role.ability && (

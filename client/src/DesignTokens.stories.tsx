@@ -100,7 +100,10 @@ const DesignTokensPage = () => {
         <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px' }}>Usage</h2>
         
         <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>CSS Variables</h3>
-        <p style={{ marginBottom: '16px', color: '#64748b' }}>All tokens are available as CSS custom properties:</p>
+        <p style={{ marginBottom: '16px', color: '#64748b' }}>
+          All tokens are available as CSS custom properties. The design system supports both light and dark themes, 
+          which automatically switch the appropriate color variables.
+        </p>
         <pre style={{ 
           backgroundColor: '#f8fafc', 
           padding: '16px', 
@@ -111,13 +114,24 @@ const DesignTokensPage = () => {
           marginBottom: '24px'
         }}>
 {`.my-component {
-  background-color: var(--bg-primary);
+  background: var(--bg-primary);
   color: var(--text-primary);
-  padding: var(--space-4);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-family: var(--font-sans);
+  padding: var(--space-4);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
 }`}
         </pre>
+
+        <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Theme Switching</h3>
+        <p style={{ marginBottom: '16px', color: '#64748b' }}>
+          The application automatically switches between light and dark themes based on the <code>data-theme</code> attribute on the <code>html</code> element:
+        </p>
+        <ul style={{ marginBottom: '24px', color: '#64748b', lineHeight: '1.6' }}>
+          <li><code>data-theme="light"</code> → Light theme</li>
+          <li><code>data-theme="dark"</code> → Dark theme (default)</li>
+        </ul>
 
         <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>TypeScript/JavaScript</h3>
         <p style={{ marginBottom: '16px', color: '#64748b' }}>Tokens can also be imported and used in JavaScript:</p>

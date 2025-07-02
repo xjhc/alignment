@@ -45,9 +45,19 @@ export function PrivateNotifications({ notifications, onMarkAsRead }: PrivateNot
       case 'role_ability': return '✨';
       case 'conversion': return '🤖';
       case 'investigation': return '🔍';
+      case 'loebmate_hint': return '💡';
+      case 'help_response': return '❓';
       default: return '📢';
     }
   };
+
+  const getLoebmateStyles = () => ({
+    container: 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-400 text-text-primary shadow-lg border-2',
+    icon: 'text-blue-400',
+    title: 'text-blue-400 font-medium',
+    message: 'text-text-primary',
+    timestamp: 'text-text-tertiary'
+  });
 
   const getPriorityStyles = (priority: string) => {
     switch (priority) {
@@ -100,7 +110,9 @@ export function PrivateNotifications({ notifications, onMarkAsRead }: PrivateNot
           );
         }
 
-        const styles = getPriorityStyles(notification.priority);
+        // Use special Loebmate styling for hint and help notifications
+        const isLoebmateMessage = notification.type === 'loebmate_hint' || notification.type === 'help_response';
+        const styles = isLoebmateMessage ? getLoebmateStyles() : getPriorityStyles(notification.priority);
         
         return (
           <div 
@@ -123,7 +135,7 @@ export function PrivateNotifications({ notifications, onMarkAsRead }: PrivateNot
                   {getNotificationIcon(notification.type)}
                 </span>
                 <h3 className={`text-sm ${styles.title}`}>
-                  {notification.title}
+                  {isLoebmateMessage ? 'Loebmate' : notification.title}
                 </h3>
               </div>
               <Button

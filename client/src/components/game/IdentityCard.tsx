@@ -4,9 +4,10 @@ import { Player, RoleType } from '../../types';
 
 interface IdentityCardProps {
   localPlayer: Player;
+  isViewingSelf: boolean;
 }
 
-export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
+export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer, isViewingSelf }) => {
   const [scope, animate] = useAnimate();
   const [isConverting, setIsConverting] = useState(false);
   const previousAlignment = useRef(localPlayer.alignment);
@@ -27,31 +28,45 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
         (localPlayer.alignment === 'AI' || localPlayer.alignment === 'ALIGNED')) {
       setIsConverting(true);
       
-      // Digital reboot animation for the identity card
+      // Enhanced digital corruption animation for the identity card
       const conversionSequence = async () => {
-        // Glitch out the old alignment
+        // Phase 1: Glitch corruption of old alignment (syncs with screen glitch)
         await animate(
           "[data-role='alignment']",
           {
             x: [-2, 2, -1, 1, 0],
             opacity: [1, 0.3, 1, 0.1, 0],
-            filter: ['hue-rotate(0deg)', 'hue-rotate(180deg)', 'hue-rotate(360deg)']
+            filter: ['hue-rotate(0deg)', 'hue-rotate(180deg)', 'hue-rotate(360deg)'],
+            scale: [1, 0.95, 1.05, 0.9, 0.8]
           },
-          { duration: 0.6 }
+          { duration: 0.3 }
         );
         
-        // Brief pause
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Phase 2: Brief system reboot pause
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Reveal new alignment with cyan glow
+        // Phase 3: Reveal new ALIGNED status with dramatic effect
         await animate(
           "[data-role='alignment']",
           {
-            opacity: [0, 1],
-            scale: [0.8, 1.1, 1],
+            opacity: [0, 0.5, 1],
+            scale: [0.8, 1.2, 1],
             filter: 'hue-rotate(0deg)'
           },
-          { duration: 0.8, ease: "easeOut" }
+          { duration: 0.4, ease: "easeOut" }
+        );
+        
+        // Phase 4: Add brief AI faction glow
+        await animate(
+          scope.current,
+          {
+            boxShadow: [
+              '0 0 0px rgba(0, 255, 255, 0)',
+              '0 0 20px rgba(0, 255, 255, 0.6)',
+              '0 0 0px rgba(0, 255, 255, 0)'
+            ]
+          },
+          { duration: 0.6, ease: "easeInOut" }
         );
         
         setIsConverting(false);
@@ -61,9 +76,18 @@ export const IdentityCard: React.FC<IdentityCardProps> = ({ localPlayer }) => {
     }
     
     previousAlignment.current = localPlayer.alignment;
-  }, [localPlayer.alignment, animate]);
+  }, [localPlayer.alignment, animate, scope]);
 
   const getAlignmentDisplay = (player: Player) => {
+    // Only show alignment when viewing self
+    if (!isViewingSelf) {
+      return (
+        <span className="text-[10px] px-1.5 py-0.5 rounded-lg font-semibold uppercase flex items-center gap-0.5 bg-background-tertiary border border-border text-text-muted">
+          🔍 CLASSIFIED
+        </span>
+      );
+    }
+    
     if (player.alignment === 'AI' || player.alignment === 'ALIGNED') {
       return (
         <motion.span 

@@ -164,3 +164,7 @@ func (m *MockPlayerActor) SendServerMessage(message interface{}) {
 	m.Messages <- message
 }
 
+func (m *MockPlayerActor) Stop() {
+	// Mock implementation for testing
+}
+

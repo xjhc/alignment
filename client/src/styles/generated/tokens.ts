@@ -45,7 +45,7 @@ export const ThemeLightBgHover = "#f1f5f9";
 export const ThemeLightBgMention = "rgba(245, 158, 11, 0.2)";
 export const ThemeLightTextPrimary = "#0f172a";
 export const ThemeLightTextSecondary = "#475569";
-export const ThemeLightTextMuted = "#64748b";
+export const ThemeLightTextMuted = "#374151";
 export const ThemeLightBorder = "#e2e8f0";
 export const ThemeLightShadow =
   "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)";
@@ -57,7 +57,7 @@ export const ThemeDarkBgHover = "#334155";
 export const ThemeDarkBgMention = "rgba(251, 191, 36, 0.4)";
 export const ThemeDarkTextPrimary = "#f8fafc";
 export const ThemeDarkTextSecondary = "#cbd5e1";
-export const ThemeDarkTextMuted = "#94a3b8";
+export const ThemeDarkTextMuted = "#9ca3af";
 export const ThemeDarkBorder = "#334155";
 export const ThemeDarkShadow =
   "0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3)";

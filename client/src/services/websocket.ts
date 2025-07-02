@@ -11,13 +11,28 @@ export class WebSocketClient {
   private heartbeatInterval: number | null = null;
   private connectionCredentials: { gameId: string; playerId: string; sessionToken: string; connectedAt: Date } | null = null;
 
-  constructor(url: string = 'ws://localhost:8080/ws') {
-    this.url = url;
+  constructor(url?: string) {
+    // Auto-detect the WebSocket URL based on current location
+    if (!url) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname;
+      const port = '8080'; // Backend port
+      this.url = `${protocol}//${host}:${port}/ws`;
+    } else {
+      this.url = url;
+    }
   }
 
   connect(gameId?: string, playerId?: string, sessionToken?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
+        // Validate required parameters upfront
+        if (!gameId || !playerId || !sessionToken || 
+            gameId.trim() === '' || playerId.trim() === '' || sessionToken.trim() === '') {
+          reject(new Error('Invalid connection parameters'));
+          return;
+        }
+
         let wsUrl = this.url;
         if (gameId && playerId && sessionToken) {
           // Ensure proper URL encoding and validation
@@ -26,9 +41,10 @@ export class WebSocketClient {
           params.set('playerId', playerId.trim());
           params.set('sessionToken', sessionToken.trim());
 
-          // Validate required parameters
+          // Double check after trimming
           if (!params.get('gameId') || !params.get('playerId') || !params.get('sessionToken')) {
-            throw new Error('Invalid connection parameters: gameId, playerId, and sessionToken must be non-empty');
+            reject(new Error('Invalid connection parameters'));
+            return;
           }
 
           wsUrl = `${this.url}?${params.toString()}`;
@@ -42,10 +58,16 @@ export class WebSocketClient {
           };
         }
 
+        // Add connection timeout
+        const connectionTimeout = setTimeout(() => {
+          reject(new Error('Connection timeout - unable to connect to server'));
+        }, 10000); // 10 second timeout
+
         this.socket = new WebSocket(wsUrl);
 
         this.socket.onopen = () => {
           console.log('WebSocket connected');
+          clearTimeout(connectionTimeout);
           this.updateConnectionState({ isConnected: true, isReconnecting: false });
           this.startHeartbeat();
 
@@ -84,6 +106,7 @@ export class WebSocketClient {
 
         this.socket.onerror = (error) => {
           console.error('WebSocket error:', error);
+          clearTimeout(connectionTimeout);
           this.updateConnectionState({
             isConnected: false,
             isReconnecting: false,

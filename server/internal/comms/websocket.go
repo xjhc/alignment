@@ -8,10 +8,13 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/sync/semaphore"
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/actors"
 	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/interfaces"
+	"github.com/xjhc/alignment/server/internal/party"
+	"github.com/xjhc/alignment/server/internal/store"
 )
 
 // WebSocketManager handles WebSocket connections via PlayerActors
@@ -24,6 +27,9 @@ type WebSocketManager struct {
 	// Dependencies for PlayerActors
 	lifecycleManager interfaces.GameLifecycleManagerInterface
 	eventBus         *events.EventBus
+	postgresStore    *store.PostgresStore
+	partyManager     *party.PartyManager
+	actionSemaphore  *semaphore.Weighted
 }
 
 // TokenValidator validates sessions and provides player information
@@ -45,6 +51,7 @@ func NewWebSocketManager(ctx context.Context, tokenValidator TokenValidator) *We
 		playerActors:   make(map[string]*actors.PlayerActor),
 		ctx:            ctx,
 		tokenValidator: tokenValidator,
+		partyManager:   party.NewPartyManager(),
 	}
 }
 
@@ -52,6 +59,133 @@ func NewWebSocketManager(ctx context.Context, tokenValidator TokenValidator) *We
 func (wsm *WebSocketManager) SetDependencies(lifecycleManager interfaces.GameLifecycleManagerInterface, eventBus *events.EventBus) {
 	wsm.lifecycleManager = lifecycleManager
 	wsm.eventBus = eventBus
+}
+
+// SetPostgresStore sets the PostgreSQL store for presence tracking
+func (wsm *WebSocketManager) SetPostgresStore(postgresStore *store.PostgresStore) {
+	wsm.postgresStore = postgresStore
+	
+	// Subscribe to events for presence tracking
+	if wsm.eventBus != nil && postgresStore != nil {
+		wsm.startPresenceEventListeners()
+	}
+}
+
+// SetActionSemaphore sets the global action semaphore
+func (wsm *WebSocketManager) SetActionSemaphore(sem *semaphore.Weighted) {
+	wsm.actionSemaphore = sem
+}
+
+// startPresenceEventListeners sets up event listeners for presence tracking
+func (wsm *WebSocketManager) startPresenceEventListeners() {
+	// Create channels for different event types
+	playerJoinedCh := make(chan events.Event, 10)
+	playerLeftCh := make(chan events.Event, 10)
+	gameStartedCh := make(chan events.Event, 10)
+	playerDisconnectedCh := make(chan events.Event, 10)
+	
+	// Subscribe to events
+	wsm.eventBus.Subscribe("player_joined_lobby", playerJoinedCh)
+	wsm.eventBus.Subscribe("player_left_lobby", playerLeftCh)
+	wsm.eventBus.Subscribe("game_started", gameStartedCh)
+	wsm.eventBus.Subscribe("player_disconnected", playerDisconnectedCh)
+	
+	// Start goroutines to handle events
+	go wsm.listenForPlayerJoinedEvents(playerJoinedCh)
+	go wsm.listenForPlayerLeftEvents(playerLeftCh)
+	go wsm.listenForGameStartedEvents(gameStartedCh)
+	go wsm.listenForPlayerDisconnectedEvents(playerDisconnectedCh)
+}
+
+// updatePlayerPresence updates a player's presence status in the database
+func (wsm *WebSocketManager) updatePlayerPresence(playerID, status string, lobbyID, gameID *string) {
+	if wsm.postgresStore == nil {
+		return // Presence tracking not available
+	}
+
+	if err := wsm.postgresStore.UpdatePlayerPresence(playerID, status, lobbyID, gameID); err != nil {
+		log.Printf("WebSocketManager: Failed to update presence for player %s: %v", playerID, err)
+	}
+}
+
+// UpdatePlayerState updates a player's presence based on their actor state
+func (wsm *WebSocketManager) UpdatePlayerState(playerID string) {
+	wsm.actorsMutex.RLock()
+	actor, exists := wsm.playerActors[playerID]
+	wsm.actorsMutex.RUnlock()
+	
+	if !exists {
+		return
+	}
+	
+	state := actor.GetState()
+	lobbyID := actor.GetLobbyID()
+	gameID := actor.GetGameID()
+	
+	var status string
+	var lobbyPtr, gamePtr *string
+	
+	switch state {
+	case interfaces.StateIdle:
+		status = "online"
+		lobbyPtr = nil
+		gamePtr = nil
+	case interfaces.StateInLobby:
+		status = "in_lobby"
+		if lobbyID != "" {
+			lobbyPtr = &lobbyID
+		}
+		gamePtr = nil
+	case interfaces.StateInGame:
+		status = "in_game"
+		lobbyPtr = nil
+		if gameID != "" {
+			gamePtr = &gameID
+		}
+	default:
+		status = "online"
+		lobbyPtr = nil
+		gamePtr = nil
+	}
+	
+	wsm.updatePlayerPresence(playerID, status, lobbyPtr, gamePtr)
+}
+
+// Event listeners for presence tracking
+
+func (wsm *WebSocketManager) listenForPlayerJoinedEvents(ch chan events.Event) {
+	for event := range ch {
+		if e, ok := event.(events.PlayerJoinedLobbyEvent); ok {
+			wsm.updatePlayerPresence(e.PlayerID, "in_lobby", &e.LobbyID, nil)
+		}
+	}
+}
+
+func (wsm *WebSocketManager) listenForPlayerLeftEvents(ch chan events.Event) {
+	for event := range ch {
+		if e, ok := event.(events.PlayerLeftLobbyEvent); ok {
+			wsm.updatePlayerPresence(e.PlayerID, "online", nil, nil)
+		}
+	}
+}
+
+func (wsm *WebSocketManager) listenForGameStartedEvents(ch chan events.Event) {
+	for event := range ch {
+		if e, ok := event.(events.GameStartedEvent); ok {
+			// Update all players in the game to "in_game" status
+			for _, playerID := range e.PlayerIDs {
+				wsm.updatePlayerPresence(playerID, "in_game", nil, &e.GameID)
+			}
+		}
+	}
+}
+
+func (wsm *WebSocketManager) listenForPlayerDisconnectedEvents(ch chan events.Event) {
+	for event := range ch {
+		if e, ok := event.(events.PlayerDisconnectedEvent); ok {
+			wsm.updatePlayerPresence(e.PlayerID, "offline", nil, nil)
+		}
+	}
 }
 
 // Start is now a no-op since PlayerActors manage themselves
@@ -99,10 +233,18 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 
 	// Create new PlayerActor
 	playerActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, conn)
-	playerActor.SetDependencies(wsm.lifecycleManager, wsm.eventBus)
+	playerActor.SetDependencies(wsm.lifecycleManager, wsm.eventBus, wsm.partyManager)
+	
+	// Set the global action semaphore for admission control
+	if wsm.actionSemaphore != nil {
+		playerActor.SetActionSemaphore(wsm.actionSemaphore)
+	}
 
 	wsm.playerActors[playerID] = playerActor
 	wsm.actorsMutex.Unlock()
+
+	// Update player presence to "online"
+	wsm.updatePlayerPresence(playerID, "online", nil, nil)
 
 	// Start the PlayerActor
 	playerActor.Start()
@@ -151,11 +293,17 @@ func (wsm *WebSocketManager) GetPlayerActor(playerID string) (*actors.PlayerActo
 // RemovePlayerActor removes a PlayerActor (called when they disconnect)
 func (wsm *WebSocketManager) RemovePlayerActor(playerID string) {
 	wsm.actorsMutex.Lock()
-	defer wsm.actorsMutex.Unlock()
 	if actor, exists := wsm.playerActors[playerID]; exists {
 		actor.Stop()
 		delete(wsm.playerActors, playerID)
+		wsm.actorsMutex.Unlock()
+		
+		// Update player presence to "offline"
+		wsm.updatePlayerPresence(playerID, "offline", nil, nil)
+		
 		log.Printf("WebSocketManager: Removed PlayerActor for %s", playerID)
+	} else {
+		wsm.actorsMutex.Unlock()
 	}
 }
 

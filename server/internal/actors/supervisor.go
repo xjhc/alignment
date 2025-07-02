@@ -9,6 +9,7 @@ import (
 
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/interfaces"
+	"github.com/xjhc/alignment/server/internal/store"
 )
 
 // Supervisor manages all game actors and provides fault isolation
@@ -19,19 +20,21 @@ type Supervisor struct {
 	cancel context.CancelFunc
 
 	// Dependencies
-	datastore   interfaces.DataStore
-	broadcaster interfaces.Broadcaster
+	datastore     interfaces.DataStore
+	postgresStore *store.PostgresStore
+	broadcaster   interfaces.Broadcaster
 }
 
 // NewSupervisor creates a new supervisor
-func NewSupervisor(ctx context.Context, datastore interfaces.DataStore, broadcaster interfaces.Broadcaster) *Supervisor {
+func NewSupervisor(ctx context.Context, datastore interfaces.DataStore, postgresStore *store.PostgresStore, broadcaster interfaces.Broadcaster) *Supervisor {
 	supervisorCtx, cancel := context.WithCancel(ctx)
 	return &Supervisor{
-		actors:      make(map[string]*GameActor),
-		ctx:         supervisorCtx,
-		cancel:      cancel,
-		datastore:   datastore,
-		broadcaster: broadcaster,
+		actors:        make(map[string]*GameActor),
+		ctx:           supervisorCtx,
+		cancel:        cancel,
+		datastore:     datastore,
+		postgresStore: postgresStore,
+		broadcaster:   broadcaster,
 	}
 }
 
@@ -76,7 +79,7 @@ func (s *Supervisor) CreateGameWithPlayers(gameID string, players map[string]*co
 	}
 
 	actorCtx, actorCancel := context.WithCancel(s.ctx)
-	actor := NewGameActor(actorCtx, actorCancel, gameID, players)
+	actor := NewGameActor(actorCtx, actorCancel, gameID, players, s.postgresStore)
 	
 	// Set up event callback for timer-generated events
 	actor.SetEventCallback(func(gameID string, events []core.Event) {
@@ -160,7 +163,7 @@ func (s *Supervisor) restartActor(gameID string) {
 	delete(s.actors, gameID)
 	actorCtx, actorCancel := context.WithCancel(s.ctx)
 	// For restarted actors, we'll start with empty players map - they'll rejoin if still connected
-	actor := NewGameActor(actorCtx, actorCancel, gameID, make(map[string]*core.Player))
+	actor := NewGameActor(actorCtx, actorCancel, gameID, make(map[string]*core.Player), s.postgresStore)
 	s.actors[gameID] = actor
 
 	go func() {
@@ -179,12 +182,65 @@ func (s *Supervisor) restartActor(gameID string) {
 func (s *Supervisor) GetStats() SupervisorStats {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	return SupervisorStats{ActiveGames: len(s.actors)}
+	
+	gameInfos := make([]GameInfo, 0, len(s.actors))
+	for gameID, actor := range s.actors {
+		state := actor.GetGameState()
+		gameInfo := GameInfo{
+			GameID:      gameID,
+			PlayerCount: len(state.Players),
+			Status:      string(state.Phase.Type),
+		}
+		gameInfos = append(gameInfos, gameInfo)
+	}
+	
+	return SupervisorStats{
+		ActiveGames: len(s.actors),
+		Games:       gameInfos,
+	}
 }
 
 // SupervisorStats contains supervisor statistics
 type SupervisorStats struct {
-	ActiveGames int `json:"active_games"`
+	ActiveGames int        `json:"active_games"`
+	Games       []GameInfo `json:"games,omitempty"`
+}
+
+// GameInfo represents basic information about a game
+type GameInfo struct {
+	GameID      string `json:"game_id"`
+	PlayerCount int    `json:"player_count"`
+	Status      string `json:"status"`
+}
+
+// GetGameState returns the state of a specific game
+func (s *Supervisor) GetGameState(gameID string) (*core.GameState, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	
+	actor, exists := s.actors[gameID]
+	if !exists {
+		return nil, ErrGameNotFound
+	}
+	
+	return actor.GetGameState(), nil
+}
+
+// TerminateGame forcefully terminates a game and removes its actor
+func (s *Supervisor) TerminateGame(gameID string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	
+	actor, exists := s.actors[gameID]
+	if !exists {
+		return ErrGameNotFound
+	}
+	
+	log.Printf("[Supervisor] Forcefully terminating game %s", gameID)
+	actor.Stop()
+	delete(s.actors, gameID)
+	
+	return nil
 }
 
 // Custom errors

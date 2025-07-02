@@ -42,6 +42,11 @@ func NewRedisDataStore(addr, password string, db int) (*RedisDataStore, error) {
 	}, nil
 }
 
+// Client returns the underlying Redis client for advanced operations
+func (rds *RedisDataStore) Client() *redis.Client {
+	return rds.client
+}
+
 // AppendEvent appends an event to the game's Redis Stream (WAL)
 func (rds *RedisDataStore) AppendEvent(gameID string, event core.Event) error {
 	streamKey := fmt.Sprintf("game:%s:events", gameID)
@@ -81,6 +86,12 @@ func (rds *RedisDataStore) AppendEvent(gameID string, event core.Event) error {
 // CreateSnapshot saves a complete game state snapshot
 func (rds *RedisDataStore) CreateSnapshot(gameID string, state core.GameState) error {
 	snapshotKey := fmt.Sprintf("game:%s:snapshot", gameID)
+
+	// Calculate and update checksum before saving
+	err := state.UpdateChecksum()
+	if err != nil {
+		return fmt.Errorf("failed to calculate checksum: %w", err)
+	}
 
 	// Serialize game state
 	stateJSON, err := json.Marshal(&state)
@@ -204,8 +215,55 @@ func (rds *RedisDataStore) LoadSnapshot(gameID string) (*core.GameState, error) 
 		return nil, fmt.Errorf("failed to unmarshal game state: %w", err)
 	}
 
-	log.Printf("Loaded snapshot for game %s", gameID)
+	// Validate checksum if present
+	isValid, err := state.ValidateChecksum()
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate snapshot checksum: %w", err)
+	}
+	if !isValid {
+		log.Printf("Snapshot checksum validation failed for game %s - attempting recovery from event history", gameID)
+		return rds.RecoverFromEventHistory(gameID)
+	}
+
+	log.Printf("Loaded and validated snapshot for game %s", gameID)
 	return &state, nil
+}
+
+// RecoverFromEventHistory rebuilds the game state by replaying all events from the beginning
+func (rds *RedisDataStore) RecoverFromEventHistory(gameID string) (*core.GameState, error) {
+	log.Printf("Starting full event replay recovery for game %s", gameID)
+	
+	// Load all events from the beginning
+	events, err := rds.GetEvents(gameID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load events for recovery: %w", err)
+	}
+	
+	if len(events) == 0 {
+		return nil, fmt.Errorf("no events found to reconstruct game state for game %s", gameID)
+	}
+	
+	// Start with a fresh game state using the game ID from the first event
+	// We need to determine the creation time from the first event
+	firstEvent := events[0]
+	initialState := core.NewGameState(gameID, firstEvent.Timestamp)
+	
+	// Apply all events in sequence to rebuild the state
+	currentState := *initialState
+	for i, event := range events {
+		log.Printf("Recovery: Applying event %d/%d: %s", i+1, len(events), event.Type)
+		currentState = core.ApplyEvent(currentState, event)
+	}
+	
+	// Calculate and update checksum for the recovered state
+	err = currentState.UpdateChecksum()
+	if err != nil {
+		log.Printf("Warning: Failed to calculate checksum for recovered state: %v", err)
+		// Don't fail recovery just because checksum calculation failed
+	}
+	
+	log.Printf("Successfully recovered game state for %s from %d events", gameID, len(events))
+	return &currentState, nil
 }
 
 // GetGameMetadata retrieves game metadata

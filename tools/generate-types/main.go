@@ -1,57 +1,85 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
 type TypeGenerator struct {
 	output strings.Builder
+	fileSet *token.FileSet
+	structs map[string]*ast.StructType
+	fields  map[string][]*ast.Field
 }
 
 func (tg *TypeGenerator) parseGoFile(filePath string) error {
-	file, err := os.Open(filePath)
+	// Parse Go file using go/parser for robust AST parsing
+	node, err := parser.ParseFile(tg.fileSet, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	
-	// Regex patterns for parsing Go code
-	eventTypeRegex := regexp.MustCompile(`^\s*Event\w+\s+EventType\s*=\s*"([^"]+)"`)
-	actionTypeRegex := regexp.MustCompile(`^\s*Action\w+\s+ActionType\s*=\s*"([^"]+)"`)
-	phaseTypeRegex := regexp.MustCompile(`^\s*Phase\w+\s+PhaseType\s*=\s*"([^"]+)"`)
-	roleTypeRegex := regexp.MustCompile(`^\s*Role\w+\s+RoleType\s*=\s*"([^"]+)"`)
-	kpiTypeRegex := regexp.MustCompile(`^\s*KPI\w+\s+KPIType\s*=\s*"([^"]+)"`)
-	voteTypeRegex := regexp.MustCompile(`^\s*Vote\w+\s+VoteType\s*=\s*"([^"]+)"`)
-	
+	// Parse constants for enum generation
+	tg.parseConstants(node)
+
+	// Parse struct types for interface generation
+	tg.parseStructTypes(node)
+
+	return nil
+}
+
+// parseConstants extracts enum constants from the AST
+func (tg *TypeGenerator) parseConstants(file *ast.File) {
 	var eventTypes, actionTypes, phaseTypes, roleTypes, kpiTypes, voteTypes []string
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		
-		if match := eventTypeRegex.FindStringSubmatch(line); match != nil {
-			eventTypes = append(eventTypes, match[1])
-		} else if match := actionTypeRegex.FindStringSubmatch(line); match != nil {
-			actionTypes = append(actionTypes, match[1])
-		} else if match := phaseTypeRegex.FindStringSubmatch(line); match != nil {
-			phaseTypes = append(phaseTypes, match[1])
-		} else if match := roleTypeRegex.FindStringSubmatch(line); match != nil {
-			roleTypes = append(roleTypes, match[1])
-		} else if match := kpiTypeRegex.FindStringSubmatch(line); match != nil {
-			kpiTypes = append(kpiTypes, match[1])
-		} else if match := voteTypeRegex.FindStringSubmatch(line); match != nil {
-			voteTypes = append(voteTypes, match[1])
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.CONST {
+			continue
 		}
-	}
 
-	if err := scanner.Err(); err != nil {
-		return err
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+
+			for i, name := range valueSpec.Names {
+				if i >= len(valueSpec.Values) {
+					continue
+				}
+
+				basicLit, ok := valueSpec.Values[i].(*ast.BasicLit)
+				if !ok || basicLit.Kind != token.STRING {
+					continue
+				}
+
+				// Remove quotes from string literal
+				value := strings.Trim(basicLit.Value, `"`)
+				constName := name.Name
+
+				// Categorize constants by type
+				switch {
+				case strings.HasPrefix(constName, "Event"):
+					eventTypes = append(eventTypes, value)
+				case strings.HasPrefix(constName, "Action"):
+					actionTypes = append(actionTypes, value)
+				case strings.HasPrefix(constName, "Phase"):
+					phaseTypes = append(phaseTypes, value)
+				case strings.HasPrefix(constName, "Role"):
+					roleTypes = append(roleTypes, value)
+				case strings.HasPrefix(constName, "KPI"):
+					kpiTypes = append(kpiTypes, value)
+				case strings.HasPrefix(constName, "Vote"):
+					voteTypes = append(voteTypes, value)
+				}
+			}
+		}
 	}
 
 	// Generate TypeScript enums
@@ -61,8 +89,32 @@ func (tg *TypeGenerator) parseGoFile(filePath string) error {
 	tg.generateEnum("RoleType", roleTypes)
 	tg.generateEnum("KPIType", kpiTypes)
 	tg.generateEnum("VoteType", voteTypes)
+}
 
-	return nil
+// parseStructTypes extracts struct definitions from the AST
+func (tg *TypeGenerator) parseStructTypes(file *ast.File) {
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.TYPE {
+			continue
+		}
+
+		for _, spec := range genDecl.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+
+			structType, ok := typeSpec.Type.(*ast.StructType)
+			if !ok {
+				continue
+			}
+
+			// Store struct definition for interface generation
+			tg.structs[typeSpec.Name.Name] = structType
+			tg.fields[typeSpec.Name.Name] = structType.Fields.List
+		}
+	}
 }
 
 func (tg *TypeGenerator) generateEnum(enumName string, values []string) {
@@ -97,138 +149,15 @@ func (tg *TypeGenerator) toEnumKey(value string) string {
 }
 
 func (tg *TypeGenerator) generateInterfaces() {
-	// Generate basic interfaces that correspond to Go structs
-	tg.output.WriteString(`// Generated interfaces from Go structs
-export interface GeneratedEvent {
-  id: string;
-  type: ServerEventType;
-  gameId: string;
-  playerId?: string;
-  timestamp: string;
-  payload: Record<string, any>;
-}
+	tg.output.WriteString("// Generated interfaces from Go structs\n")
 
-export interface GeneratedAction {
-  type: ClientActionType;
-  playerId: string;
-  gameId: string;
-  timestamp: string;
-  payload: Record<string, any>;
-}
+	// Generate interfaces for each parsed struct
+	for structName, fields := range tg.fields {
+		tg.generateInterface(structName, fields)
+	}
 
-export interface GeneratedPlayer {
-  id: string;
-  name: string;
-  jobTitle: string;
-  controlType: string;
-  isAlive: boolean;
-  tokens: number;
-  projectMilestones: number;
-  statusMessage: string;
-  joinedAt: string;
-  alignment?: string;
-  role?: GeneratedRole;
-  personalKPI?: GeneratedPersonalKPI;
-  aiEquity?: number;
-  hasUsedAbility?: boolean;
-  lastNightAction?: GeneratedNightAction;
-  hasSubmittedPulseCheck?: boolean;
-  lobbyHandle?: string;
-  bootcampPoints?: number;
-  slackStatus?: string;
-  partingShot?: string;
-  systemShocks?: GeneratedSystemShock[];
-}
-
-export interface GeneratedRole {
-  type: RoleType;
-  name: string;
-  description: string;
-  isUnlocked: boolean;
-  ability?: GeneratedAbility;
-}
-
-export interface GeneratedAbility {
-  name: string;
-  description: string;
-  isReady: boolean;
-}
-
-export interface GeneratedPersonalKPI {
-  type: KPIType;
-  description: string;
-  progress: number;
-  target: number;
-  isCompleted: boolean;
-  reward: string;
-}
-
-export interface GeneratedSystemShock {
-  type: string;
-  description: string;
-  expiresAt: string;
-  isActive: boolean;
-}
-
-export interface GeneratedNightAction {
-  type: string;
-  targetId?: string;
-  shadowTargetId?: string;
-}
-
-export interface GeneratedChatMessage {
-  id: string;
-  playerID: string;
-  playerName: string;
-  message: string;
-  timestamp: string;
-  isSystem: boolean;
-  channelID?: string;
-}
-
-export interface GeneratedPhase {
-  type: PhaseType;
-  startTime: string;
-  duration: number;
-}
-
-export interface GeneratedVoteState {
-  type: VoteType;
-  votes: Record<string, string>;
-  tokenWeights: Record<string, number>;
-  results: Record<string, number>;
-  isComplete: boolean;
-}
-
-export interface GeneratedGameSettings {
-  maxPlayers: number;
-  minPlayers: number;
-  sitrepDuration: number;
-  pulseCheckDuration: number;
-  discussionDuration: number;
-  extensionDuration: number;
-  nominationDuration: number;
-  trialDuration: number;
-  verdictDuration: number;
-  nightDuration: number;
-  startingTokens: number;
-  votingThreshold: number;
-  customSettings?: Record<string, any>;
-}
-
-export interface GeneratedCrisisEvent {
-  type: string;
-  title: string;
-  description: string;
-  effects: Record<string, any>;
-}
-
-export interface GeneratedWinCondition {
-  winner: string;
-  condition: string;
-  description: string;
-}
-
+	// Generate union types for easier usage
+	tg.output.WriteString(`
 // Union types for easier usage
 export type AnyEventType = keyof typeof ServerEventType;
 export type AnyActionType = keyof typeof ClientActionType;
@@ -240,10 +169,147 @@ export type AnyVoteType = keyof typeof VoteType;
 `)
 }
 
+// generateInterface creates a TypeScript interface from Go struct fields
+func (tg *TypeGenerator) generateInterface(structName string, fields []*ast.Field) {
+	interfaceName := "Generated" + structName
+	tg.output.WriteString(fmt.Sprintf("export interface %s {\n", interfaceName))
+
+	for _, field := range fields {
+		if len(field.Names) == 0 {
+			// Embedded field - skip for now
+			continue
+		}
+
+		for _, name := range field.Names {
+			fieldName := tg.convertFieldName(name.Name, field)
+			fieldType := tg.convertGoTypeToTS(field.Type)
+			optional := tg.isOptionalField(field)
+
+			if optional {
+				tg.output.WriteString(fmt.Sprintf("  %s?: %s;\n", fieldName, fieldType))
+			} else {
+				tg.output.WriteString(fmt.Sprintf("  %s: %s;\n", fieldName, fieldType))
+			}
+		}
+	}
+
+	tg.output.WriteString("}\n\n")
+}
+
+// convertFieldName converts Go field names to camelCase for TypeScript
+func (tg *TypeGenerator) convertFieldName(goFieldName string, field *ast.Field) string {
+	// Look for json tag first
+	if field.Tag != nil {
+		tagValue := strings.Trim(field.Tag.Value, "`")
+		if strings.Contains(tagValue, "json:") {
+			// Extract JSON field name from tag
+			parts := strings.Fields(tagValue)
+			for _, part := range parts {
+				if strings.HasPrefix(part, "json:") {
+					jsonTag := strings.TrimPrefix(part, "json:")
+					jsonTag = strings.Trim(jsonTag, `"`)
+					jsonName := strings.Split(jsonTag, ",")[0]
+					if jsonName != "" && jsonName != "-" {
+						return jsonName
+					}
+				}
+			}
+		}
+	}
+
+	// No json tag, convert to camelCase
+	runes := []rune(goFieldName)
+	if len(runes) == 0 {
+		return goFieldName
+	}
+
+	// Convert first character to lowercase
+	runes[0] = rune(strings.ToLower(string(runes[0]))[0])
+	return string(runes)
+}
+
+// isOptionalField determines if a field should be optional in TypeScript
+func (tg *TypeGenerator) isOptionalField(field *ast.Field) bool {
+	// Check if field has json:",omitempty" tag
+	if field.Tag != nil {
+		tagValue := strings.Trim(field.Tag.Value, "`")
+		return strings.Contains(tagValue, "omitempty")
+	}
+
+	// Check if field is a pointer type
+	if _, ok := field.Type.(*ast.StarExpr); ok {
+		return true
+	}
+
+	return false
+}
+
+// convertGoTypeToTS converts Go types to TypeScript types
+func (tg *TypeGenerator) convertGoTypeToTS(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		switch t.Name {
+		case "string":
+			return "string"
+		case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "float32", "float64":
+			return "number"
+		case "bool":
+			return "boolean"
+		case "Time":
+			return "string" // time.Time serializes to string in JSON
+		case "Duration":
+			return "number" // time.Duration serializes to number in JSON
+		default:
+			// Check if it's a custom type that should reference generated interface
+			if _, exists := tg.structs[t.Name]; exists {
+				return "Generated" + t.Name
+			}
+			// Assume it's a simple type alias
+			return "string"
+		}
+	case *ast.StarExpr:
+		// Pointer types - recursively get the underlying type
+		return tg.convertGoTypeToTS(t.X)
+	case *ast.ArrayType:
+		// Arrays and slices
+		elementType := tg.convertGoTypeToTS(t.Elt)
+		return elementType + "[]"
+	case *ast.MapType:
+		// Maps
+		keyType := tg.convertGoTypeToTS(t.Key)
+		valueType := tg.convertGoTypeToTS(t.Value)
+		if keyType == "string" {
+			return fmt.Sprintf("Record<string, %s>", valueType)
+		}
+		return "Record<string, any>"
+	case *ast.InterfaceType:
+		// Interface{} types
+		return "any"
+	case *ast.SelectorExpr:
+		// Package.Type expressions (like time.Time)
+		if ident, ok := t.X.(*ast.Ident); ok {
+			if ident.Name == "time" && t.Sel.Name == "Time" {
+				return "string"
+			}
+			if ident.Name == "time" && t.Sel.Name == "Duration" {
+				return "number"
+			}
+		}
+		return "any"
+	default:
+		return "any"
+	}
+}
+
 func (tg *TypeGenerator) generateAll() {
 	tg.output.WriteString("// AUTO-GENERATED FILE - DO NOT EDIT\n")
 	tg.output.WriteString("// Generated from Go core package types\n")
 	tg.output.WriteString("// Run 'npm run generate:types' to update\n\n")
+	
+	// Initialize data structures
+	tg.fileSet = token.NewFileSet()
+	tg.structs = make(map[string]*ast.StructType)
+	tg.fields = make(map[string][]*ast.Field)
 	
 	// Parse the core types file
 	if err := tg.parseGoFile("../../core/types.go"); err != nil {

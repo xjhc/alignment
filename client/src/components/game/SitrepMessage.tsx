@@ -116,8 +116,15 @@ export const SitrepMessage: React.FC<SitrepMessageProps> = ({ message, gameState
           
           {crisisEvent && (
             <>
-              <strong>INCIDENT: {crisisEvent.title}</strong><br/>
-              • <span className="text-danger font-bold">[HIGH ALERT]</span> {crisisEvent.description}<br/>
+              <div className="bg-danger/10 border-l-4 border-danger p-3 my-3 animation-pulse">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-danger text-lg">⚠️</span>
+                  <strong className="text-danger text-lg">CRITICAL INCIDENT</strong>
+                  <span className="text-danger text-lg">⚠️</span>
+                </div>
+                <div className="text-danger font-bold text-base mb-2">{crisisEvent.title}</div>
+                <div className="text-text-primary">{crisisEvent.description}</div>
+              </div>
             </>
           )}
         </div>

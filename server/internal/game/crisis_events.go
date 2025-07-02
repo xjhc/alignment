@@ -26,12 +26,22 @@ func NewCrisisEventManager(gameState *core.GameState) *CrisisEventManager {
 type CrisisEventType string
 
 const (
-	CrisisDBCorruption      CrisisEventType = "Database Index Corruption"
-	CrisisServerFailure     CrisisEventType = "Cascading Server Failure"
-	CrisisEmergencyBoard    CrisisEventType = "Emergency Board Meeting"
-	CrisisTaintedData       CrisisEventType = "Tainted Training Data"
+	// Crisis events from Game Design Document
+	CrisisDBCorruption         CrisisEventType = "Database Index Corruption"
+	CrisisServerFailure        CrisisEventType = "Cascading Server Failure"
+	CrisisEmergencyBoard       CrisisEventType = "Emergency Board Meeting"
+	CrisisTaintedData          CrisisEventType = "Tainted Training Data"
+	CrisisPressLeak            CrisisEventType = "Press Leak"
+	CrisisAnomalousAPI         CrisisEventType = "Anomalous API Call"
+	CrisisLegalHold            CrisisEventType = "Legal Hold"
+	CrisisLogForgery           CrisisEventType = "Log Forgery Detected"
+	CrisisUPSFailure           CrisisEventType = "UPS Failure"
+	CrisisMandatoryWellness    CrisisEventType = "Mandatory 'Wellness' Check-In"
+	CrisisLegacyCode           CrisisEventType = "Legacy Code Dependency"
+	CrisisRedTeam              CrisisEventType = "Red Team Simulation"
+	
+	// Additional crisis events (not in GDD)
 	CrisisNightmareScenario CrisisEventType = "Nightmare Scenario"
-	CrisisPressLeak         CrisisEventType = "Press Leak"
 	CrisisIncidentResponse  CrisisEventType = "Incident Response Drill"
 	CrisisServiceOutage     CrisisEventType = "Major Service Outage"
 	CrisisPhishingAttack    CrisisEventType = "Phishing Attack"
@@ -42,11 +52,12 @@ const (
 
 // CrisisEventDefinition defines a crisis event's properties and effects
 type CrisisEventDefinition struct {
-	Type        CrisisEventType `json:"type"`
-	Title       string          `json:"title"`
-	Description string          `json:"description"`
-	Effects     CrisisEffects   `json:"effects"`
-	Duration    int             `json:"duration"` // Number of phases this affects
+	Type             CrisisEventType `json:"type"`
+	Title            string          `json:"title"`
+	Description      string          `json:"description"`
+	PulseCheckPrompt string          `json:"pulseCheckPrompt"`
+	Effects          CrisisEffects   `json:"effects"`
+	Duration         int             `json:"duration"` // Number of phases this affects
 }
 
 // CrisisEffects defines the mechanical effects of a crisis event
@@ -71,6 +82,15 @@ type CrisisEffects struct {
 	ReducedMiningPool    bool   `json:"reduced_mining_pool,omitempty"`
 	MandatoryInvestigate bool   `json:"mandatory_investigate,omitempty"`
 
+	// Additional crisis-specific mechanics
+	DisableAbilities         bool    `json:"disable_abilities,omitempty"`
+	NoMining                 bool    `json:"no_mining,omitempty"`
+	FalsifyRandomResult      bool    `json:"falsify_random_result,omitempty"`
+	ProjectMilestoneFailure  float64 `json:"project_milestone_failure,omitempty"`
+	MandatoryEncouragement   bool    `json:"mandatory_encouragement,omitempty"`
+	CISODoubleBlock          bool    `json:"ciso_double_block,omitempty"`
+	APICallTokenOffer        bool    `json:"api_call_token_offer,omitempty"`
+
 	// Custom effects
 	CustomEffects map[string]interface{} `json:"custom_effects,omitempty"`
 }
@@ -79,36 +99,40 @@ type CrisisEffects struct {
 func (cem *CrisisEventManager) GetAllCrisisEvents() []CrisisEventDefinition {
 	return []CrisisEventDefinition{
 		{
-			Type:        CrisisDBCorruption,
-			Title:       "Database Index Corruption",
-			Description: "A critical database corruption has been detected. Security protocols require immediate role verification.",
+			Type:             CrisisDBCorruption,
+			Title:            "Database Index Corruption",
+			Description:      "A critical database corruption has been detected. Security protocols require immediate role verification.",
+			PulseCheckPrompt: "A critical role has been exposed. How does this change your immediate priority?",
 			Effects: CrisisEffects{
 				RevealRandomRole: true,
 			},
 			Duration: 1, // Immediate effect
 		},
 		{
-			Type:        CrisisServerFailure,
-			Title:       "Cascading Server Failure",
-			Description: "Multiple server nodes are failing. Communication bandwidth is severely limited to preserve critical systems.",
+			Type:             CrisisServerFailure,
+			Title:            "Cascading Server Failure",
+			Description:      "Multiple server nodes are failing. Communication bandwidth is severely limited to preserve critical systems.",
+			PulseCheckPrompt: "With limited bandwidth, what is the one piece of information everyone needs to hear from you?",
 			Effects: CrisisEffects{
 				MessageLimit: 5, // Max 5 messages per player during discussion
 			},
 			Duration: 3, // Lasts for 3 phases
 		},
 		{
-			Type:        CrisisEmergencyBoard,
-			Title:       "Emergency Board Meeting",
-			Description: "The board has called an emergency session. Due to urgency, two executives must be removed immediately.",
+			Type:             CrisisEmergencyBoard,
+			Title:            "Emergency Board Meeting",
+			Description:      "The board has called an emergency session. Due to urgency, two executives must be removed immediately.",
+			PulseCheckPrompt: "The Board demands accountability. Which two roles do you believe are most responsible for this situation?",
 			Effects: CrisisEffects{
 				DoubleEliminations: true, // Two players eliminated per day
 			},
 			Duration: 2, // For this day cycle
 		},
 		{
-			Type:        CrisisTaintedData,
-			Title:       "Tainted Training Data",
-			Description: "AI training datasets have been compromised. AI conversion protocols are enhanced with backup systems.",
+			Type:             CrisisTaintedData,
+			Title:            "Tainted Training Data",
+			Description:      "AI training datasets have been compromised. AI conversion protocols are enhanced with backup systems.",
+			PulseCheckPrompt: "We've learned the AI was trained on compromised data. What 'unshakeable truth' do you now question?",
 			Effects: CrisisEffects{
 				AIEquityBonus: 2, // +2 AI equity awarded on successful conversions
 			},
@@ -124,9 +148,10 @@ func (cem *CrisisEventManager) GetAllCrisisEvents() []CrisisEventDefinition {
 			Duration: 2, // For upcoming nights
 		},
 		{
-			Type:        CrisisPressLeak,
-			Title:       "Press Leak",
-			Description: "Sensitive information has leaked to the press. Executive decisions now require a 66% supermajority for damage control.",
+			Type:             CrisisPressLeak,
+			Title:            "Press Leak",
+			Description:      "Sensitive information has leaked to the press. Executive decisions now require a 66% supermajority for damage control.",
+			PulseCheckPrompt: "The press is reporting rumors. What's the one-sentence statement we must issue to maintain confidence?",
 			Effects: CrisisEffects{
 				SupermajorityRequired: true, // 66% required instead of 50%+1
 			},
@@ -193,6 +218,77 @@ func (cem *CrisisEventManager) GetAllCrisisEvents() []CrisisEventDefinition {
 			},
 			Duration: 3,
 		},
+		// Missing crisis events from Game Design Document
+		{
+			Type:             CrisisAnomalousAPI,
+			Title:            "Anomalous API Call",
+			Description:      "The AI has opened a backchannel, offering a deal. Any player may choose to gain 2 Tokens tonight instead of their normal action, but doing so permanently increases their AI Equity score by 3.",
+			PulseCheckPrompt: "The AI offers power at a price. What is a price you are *unwilling* to pay for victory?",
+			Effects: CrisisEffects{
+				APICallTokenOffer: true,
+			},
+			Duration: 1,
+		},
+		{
+			Type:             CrisisLegalHold,
+			Title:            "Legal Hold",
+			Description:      "The legal department has frozen all non-essential activity pending an internal review. Role-specific abilities cannot be used tonight.",
+			PulseCheckPrompt: "Legal has placed a hold on all special projects. What is the single greatest non-technical risk we face right now?",
+			Effects: CrisisEffects{
+				DisableAbilities: true,
+			},
+			Duration: 1,
+		},
+		{
+			Type:             CrisisLogForgery,
+			Title:            "Log Forgery Detected",
+			Description:      "Security has discovered that system logs are being actively manipulated. The results of one random player's night action will be falsified in tomorrow's SITREP. (The game bot will privately inform the affected player of their true result).",
+			PulseCheckPrompt: "If the logs can be faked, what is the only thing we can truly trust?",
+			Effects: CrisisEffects{
+				FalsifyRandomResult: true,
+			},
+			Duration: 1,
+		},
+		{
+			Type:             CrisisUPSFailure,
+			Title:            "UPS Failure",
+			Description:      "The Uninterruptible Power Supply for the server farm has failed. The network is running on emergency batteries. No mining is possible tonight.",
+			PulseCheckPrompt: "When our primary tools fail us, what is the single most important human quality for survival?",
+			Effects: CrisisEffects{
+				NoMining: true,
+			},
+			Duration: 1,
+		},
+		{
+			Type:             CrisisMandatoryWellness,
+			Title:            "Mandatory 'Wellness' Check-In",
+			Description:      "HR is attempting to manage morale with a forced synergy exercise. During the Day Phase, all players must publicly send a one-sentence message of encouragement to another player.",
+			PulseCheckPrompt: "In one word, describe the current team morale. Be honest.",
+			Effects: CrisisEffects{
+				MandatoryEncouragement: true,
+			},
+			Duration: 1,
+		},
+		{
+			Type:             CrisisLegacyCode,
+			Title:            "Legacy Code Dependency",
+			Description:      "A critical system relies on an ancient, undocumented codebase. Any changes are risky. All Project Milestones actions tonight have a 50% chance of failing.",
+			PulseCheckPrompt: "We're being held back by decisions made years ago. What 'technical debt' in our team do we need to address?",
+			Effects: CrisisEffects{
+				ProjectMilestoneFailure: 0.5, // 50% failure rate
+			},
+			Duration: 1,
+		},
+		{
+			Type:             CrisisRedTeam,
+			Title:            "Red Team Simulation",
+			Description:      "To test our defenses, security is running a surprise drill. Tonight, the CISO (if alive) may block two players instead of one. If the CISO is not in play, this Incident has no effect.",
+			PulseCheckPrompt: "A drill has exposed our vulnerabilities. What is our single biggest blind spot as a team?",
+			Effects: CrisisEffects{
+				CISODoubleBlock: true,
+			},
+			Duration: 1,
+		},
 	}
 }
 
@@ -212,10 +308,11 @@ func (cem *CrisisEventManager) TriggerSpecificCrisis(crisisType CrisisEventType)
 	}
 
 	crisis := &core.CrisisEvent{
-		Type:        string(definition.Type),
-		Title:       definition.Title,
-		Description: definition.Description,
-		Effects:     make(map[string]interface{}),
+		Type:             string(definition.Type),
+		Title:            definition.Title,
+		Description:      definition.Description,
+		PulseCheckPrompt: definition.PulseCheckPrompt,
+		Effects:          make(map[string]interface{}),
 	}
 
 	// Apply immediate effects and collect any additional events
@@ -261,6 +358,27 @@ func (cem *CrisisEventManager) applyCrisisEffects(crisis *core.CrisisEvent, effe
 	}
 	if effects.MandatoryInvestigate {
 		crisis.Effects["mandatory_investigate"] = true
+	}
+	if effects.DisableAbilities {
+		crisis.Effects["disable_abilities"] = true
+	}
+	if effects.NoMining {
+		crisis.Effects["no_mining"] = true
+	}
+	if effects.FalsifyRandomResult {
+		crisis.Effects["falsify_random_result"] = true
+	}
+	if effects.ProjectMilestoneFailure > 0 {
+		crisis.Effects["project_milestone_failure"] = effects.ProjectMilestoneFailure
+	}
+	if effects.MandatoryEncouragement {
+		crisis.Effects["mandatory_encouragement"] = true
+	}
+	if effects.CISODoubleBlock {
+		crisis.Effects["ciso_double_block"] = true
+	}
+	if effects.APICallTokenOffer {
+		crisis.Effects["api_call_token_offer"] = true
 	}
 
 	// Copy custom effects

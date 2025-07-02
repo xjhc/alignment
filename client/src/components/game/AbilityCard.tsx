@@ -1,12 +1,32 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Player } from '../../types';
 
 interface AbilityCardProps {
   localPlayer: Player;
+  isViewingSelf: boolean;
 }
 
-export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer }) => {
+export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer, isViewingSelf }) => {
   const ability = localPlayer.role?.ability;
+  
+  // Only show ability details when viewing self
+  if (!isViewingSelf) {
+    return (
+      <div className="animation-fade-in">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-[11px] font-bold text-text-muted uppercase">🎯 ABILITY</span>
+          <span className="bg-background-tertiary border border-border text-text-muted px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase">
+            CLASSIFIED
+          </span>
+        </div>
+        <div className="bg-background-tertiary border border-border rounded-lg p-3 opacity-70">
+          <div className="font-bold text-sm mb-1.5">🔍 Classified Information</div>
+          <div className="text-text-secondary text-[11px] leading-snug mb-1.5">Role abilities are not visible in other players' dossiers.</div>
+        </div>
+      </div>
+    );
+  }
   
   if (!ability) {
     return (

@@ -47,6 +47,10 @@ func (m *MockPlayerActor) SendServerMessage(message interface{}) {
 	m.Messages <- message
 }
 
+func (m *MockPlayerActor) Stop() {
+	// Mock implementation for testing
+}
+
 // MockSessionManager for testing LobbyManager
 type MockSessionManager struct {
 	CreateGameCalls int
@@ -67,14 +71,14 @@ func (m *MockSessionManager) SendActionToGame(gameID string, action interface{})
 // TestLobbyManager_StartGame tests the full game start flow from the lobby
 func TestLobbyManager_StartGame(t *testing.T) {
 	mockSessionManager := &mocks.MockSessionManager{}
-	lobbyManager := NewLobbyManager(mockSessionManager)
+	lobbyManager := NewLobbyManager(mockSessionManager, nil)
 
 	// Create a lobby and add players
 	hostActor := &MockPlayerActor{PlayerID: "host", PlayerName: "Host"}
 	player2 := &MockPlayerActor{PlayerID: "player2", PlayerName: "Player 2"}
 
 	lobbyID := "test-lobby"
-	lobby := NewLobby(lobbyID, "Test Lobby", hostActor.GetPlayerID(), hostActor)
+	lobby := NewLobby(lobbyID, "Test Lobby", hostActor.GetPlayerID(), hostActor, false)
 	lobby.AddPlayer(player2) // Add enough players to meet min players
 
 	lobbyManager.lobbies[lobbyID] = lobby
@@ -99,12 +103,12 @@ func TestLobbyManager_StartGame(t *testing.T) {
 // TestLobbyManager_StartGame_NotEnoughPlayers tests starting with insufficient players
 func TestLobbyManager_StartGame_NotEnoughPlayers(t *testing.T) {
 	mockSessionManager := &mocks.MockSessionManager{}
-	lobbyManager := NewLobbyManager(mockSessionManager)
+	lobbyManager := NewLobbyManager(mockSessionManager, nil)
 
 	hostActor := &MockPlayerActor{PlayerID: "host", PlayerName: "Host"}
 	lobbyID := "test-lobby"
 
-	lobbyManager.lobbies[lobbyID] = NewLobby(lobbyID, "Test Lobby", hostActor.GetPlayerID(), hostActor)
+	lobbyManager.lobbies[lobbyID] = NewLobby(lobbyID, "Test Lobby", hostActor.GetPlayerID(), hostActor, false)
 
 	// Attempt to start with only one player
 	err := lobbyManager.StartGame(lobbyID, "host")
@@ -116,13 +120,13 @@ func TestLobbyManager_StartGame_NotEnoughPlayers(t *testing.T) {
 // TestLobbyManager_StartGame_NotHost tests starting by a non-host player
 func TestLobbyManager_StartGame_NotHost(t *testing.T) {
 	mockSessionManager := &mocks.MockSessionManager{}
-	lobbyManager := NewLobbyManager(mockSessionManager)
+	lobbyManager := NewLobbyManager(mockSessionManager, nil)
 
 	hostActor := &MockPlayerActor{PlayerID: "host", PlayerName: "Host"}
 	player2 := &MockPlayerActor{PlayerID: "player2", PlayerName: "Player 2"}
 
 	lobbyID := "test-lobby"
-	lobby := NewLobby(lobbyID, "Test Lobby", hostActor.GetPlayerID(), hostActor)
+	lobby := NewLobby(lobbyID, "Test Lobby", hostActor.GetPlayerID(), hostActor, false)
 	lobby.AddPlayer(player2)
 
 	lobbyManager.lobbies[lobbyID] = lobby
@@ -137,7 +141,7 @@ func TestLobbyManager_StartGame_NotHost(t *testing.T) {
 // TestLobby_AddAndRemovePlayer tests adding and removing players from a lobby
 func TestLobby_AddAndRemovePlayer(t *testing.T) {
 	hostActor := &MockPlayerActor{PlayerID: "host", PlayerName: "Host"}
-	lobby := NewLobby("test-lobby", "Test Lobby", hostActor.GetPlayerID(), hostActor)
+	lobby := NewLobby("test-lobby", "Test Lobby", hostActor.GetPlayerID(), hostActor, false)
 
 	// Add a player
 	player2 := &MockPlayerActor{PlayerID: "player2", PlayerName: "Player 2"}
@@ -161,7 +165,7 @@ func TestLobby_AddAndRemovePlayer(t *testing.T) {
 // TestLobby_LobbyFull tests joining a full lobby
 func TestLobby_LobbyFull(t *testing.T) {
 	hostActor := &MockPlayerActor{PlayerID: "host", PlayerName: "Host"}
-	lobby := NewLobby("test-lobby", "Test Lobby", hostActor.GetPlayerID(), hostActor)
+	lobby := NewLobby("test-lobby", "Test Lobby", hostActor.GetPlayerID(), hostActor, false)
 	lobby.MaxPlayers = 1
 
 	// Attempt to join full lobby
@@ -175,7 +179,7 @@ func TestLobby_LobbyFull(t *testing.T) {
 // TestLobby_StateUpdateBroadcast tests that state updates are broadcast correctly
 func TestLobby_StateUpdateBroadcast(t *testing.T) {
 	hostActor := &MockPlayerActor{PlayerID: "host", PlayerName: "Host"}
-	lobby := NewLobby("test-lobby", "Test Lobby", hostActor.GetPlayerID(), hostActor)
+	lobby := NewLobby("test-lobby", "Test Lobby", hostActor.GetPlayerID(), hostActor, false)
 
 	// Add player and check for broadcast
 	player2 := &MockPlayerActor{PlayerID: "player2", PlayerName: "Player 2"}

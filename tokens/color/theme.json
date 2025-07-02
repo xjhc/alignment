@@ -12,7 +12,7 @@
       "text": {
         "primary": { "value": "#0f172a" },
         "secondary": { "value": "#475569" },
-        "muted": { "value": "#64748b" }
+        "muted": { "value": "#374151" }
       },
       "border": { "value": "#e2e8f0" },
       "shadow": { "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)" }
@@ -29,7 +29,7 @@
       "text": {
         "primary": { "value": "#f8fafc" },
         "secondary": { "value": "#cbd5e1" },
-        "muted": { "value": "#94a3b8" }
+        "muted": { "value": "#9ca3af" }
       },
       "border": { "value": "#334155" },
       "shadow": { "value": "0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3)" }

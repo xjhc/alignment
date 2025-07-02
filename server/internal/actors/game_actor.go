@@ -2,6 +2,7 @@ package actors
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -11,6 +12,7 @@ import (
 	"github.com/xjhc/alignment/server/internal/ai"
 	"github.com/xjhc/alignment/server/internal/game"
 	"github.com/xjhc/alignment/server/internal/interfaces"
+	"github.com/xjhc/alignment/server/internal/store"
 )
 
 // Manager interfaces for better testability
@@ -66,14 +68,19 @@ type GameActor struct {
 	corporateMandateManager *game.CorporateMandateManager
 	kpiManager              *game.KPIManager
 	liaisonProtocolManager  *game.LiaisonProtocolManager
+	hintManager             *game.HintManager
 	rng                     *rand.Rand
-	
+
+	// Meta-game systems
+	postgresStore      *store.PostgresStore
+	achievementChecker *game.AchievementChecker
+
 	// Callback for event notifications (especially for timer-generated events)
 	eventCallback EventCallback
 }
 
 // NewGameActor creates a new game actor with empty state - call Initialize() after creation
-func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string, players map[string]*core.Player) *GameActor {
+func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string, players map[string]*core.Player, postgresStore *store.PostgresStore) *GameActor {
 	state := core.NewGameState(gameID, time.Now())
 	// Pre-populate with players from the lobby. This is safe as it happens before the actor starts.
 	state.Players = players
@@ -82,6 +89,12 @@ func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string,
 	// Create scheduler and phase manager
 	scheduler := game.NewScheduler(nil) // We'll set the callback after creating the actor
 	phaseManager := game.NewPhaseManager(scheduler, gameID, state.Settings)
+
+	// Create achievement checker if PostgreSQL store is available
+	var achievementChecker *game.AchievementChecker
+	if postgresStore != nil {
+		achievementChecker = game.NewAchievementChecker(postgresStore)
+	}
 
 	actor := &GameActor{
 		gameID:  gameID,
@@ -102,6 +115,11 @@ func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string,
 		corporateMandateManager: game.NewCorporateMandateManager(state),
 		kpiManager:              game.NewKPIManager(state),
 		liaisonProtocolManager:  game.NewLiaisonProtocolManager(state),
+		hintManager:             game.NewHintManager(state),
+
+		// Meta-game systems
+		postgresStore:      postgresStore,
+		achievementChecker: achievementChecker,
 	}
 
 	// Set the timer callback to route to this actor
@@ -127,10 +145,35 @@ func (ga *GameActor) Start() {
 func (ga *GameActor) Stop() {
 	log.Printf("[GameActor/%s] Stopping", ga.gameID)
 
-	// Stop the scheduler
-	ga.scheduler.Stop()
+	// Stop the scheduler to cancel any pending timers
+	if ga.scheduler != nil {
+		ga.scheduler.Stop()
+	}
 
+	// Cancel the context to signal all goroutines to shutdown
 	ga.cancel()
+
+	// Close the mailbox to prevent new requests and signal processLoop to exit
+	// Do this in a goroutine to avoid blocking if something is trying to send
+	go func() {
+		// Give a brief moment for any in-flight operations to complete
+		time.Sleep(100 * time.Millisecond)
+
+		// Close mailbox to signal shutdown (defensive check for already closed)
+		select {
+		case <-ga.ctx.Done():
+			// Context is done, safe to close
+			defer func() {
+				if r := recover(); r != nil {
+					// Channel might already be closed, that's fine
+				}
+			}()
+			close(ga.mailbox)
+		default:
+		}
+	}()
+
+	log.Printf("[GameActor/%s] Stop initiated", ga.gameID)
 }
 
 // SetEventCallback sets the callback function for event notifications
@@ -216,7 +259,7 @@ func (ga *GameActor) HandleTimer(timer game.Timer) {
 					log.Printf("[GameActor/%s] Error processing timer action: %v", ga.gameID, result.Error)
 					return
 				}
-				
+
 				// Use the event callback to notify about timer-generated events
 				if ga.eventCallback != nil {
 					ga.eventCallback(ga.gameID, result.Events)
@@ -281,7 +324,16 @@ func (ga *GameActor) processLoop() {
 					if nextPhase, ok := event.Payload["phase_type"].(string); ok {
 						log.Printf("[GameActor/%s] Phase changed to %s, scheduling next transition", ga.gameID, nextPhase)
 						ga.phaseManager.SchedulePhaseTransition(core.PhaseType(nextPhase), time.Now())
-						
+
+						// Check for Loebmate hints for the new phase
+						hintEvents := ga.hintManager.CheckForHints(core.PhaseType(nextPhase))
+						if len(hintEvents) > 0 {
+							// Send hint events through the event callback
+							if ga.eventCallback != nil {
+								ga.eventCallback(ga.gameID, hintEvents)
+							}
+						}
+
 						// Process AI actions for the new phase
 						ga.processAIActionsForPhase(core.PhaseType(nextPhase))
 					}
@@ -301,11 +353,18 @@ func (ga *GameActor) processLoop() {
 // generateEventsForAction validates an action and generates events to be persisted
 func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, error) {
 	log.Printf("[GameActor/%s] Processing action: %s", ga.gameID, action.Type)
+
+	// Validate action payload size to prevent memory exhaustion attacks
+	if err := ga.validateActionPayloadSize(action); err != nil {
+		return nil, fmt.Errorf("action validation failed: %v", err)
+	}
 	switch action.Type {
 	case core.ActionType("INITIALIZE_GAME"):
 		return ga.generateInitializeGameEvents(action)
 	case core.ActionLeaveGame:
 		return ga.validateAndGenerateLeaveGame(action)
+	case core.ActionAbandonGame:
+		return ga.validateAndGenerateAbandonGame(action)
 	case core.ActionSubmitVote:
 		return ga.handleVoteAction(action)
 	case core.ActionSubmitSkipVote:
@@ -324,6 +383,10 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 		return ga.handleStatusUpdate(action)
 	case core.ActionSubmitExitInterview:
 		return ga.handleExitInterview(action)
+	case core.ActionSubmitWhistleblowerVote:
+		return ga.handleWhistleblowerVote(action)
+	case core.ActionTriggerExtensionVoting:
+		return ga.handleExtensionVotingTrigger(action)
 	case core.ActionType("PHASE_TRANSITION"):
 		return ga.handlePhaseTransition(action)
 	default:
@@ -421,7 +484,7 @@ func (ga *GameActor) handleExitInterview(action core.Action) ([]core.Event, erro
 	if player == nil {
 		return nil, fmt.Errorf("invalid player submitting exit interview")
 	}
-	
+
 	// Allow exit interview only for eliminated players
 	if player.IsAlive {
 		return nil, fmt.Errorf("only eliminated players can submit exit interviews")
@@ -453,6 +516,109 @@ func (ga *GameActor) handleExitInterview(action core.Action) ([]core.Event, erro
 	return []core.Event{event}, nil
 }
 
+// handleWhistleblowerVote processes whistleblower votes from deactivated players
+func (ga *GameActor) handleWhistleblowerVote(action core.Action) ([]core.Event, error) {
+	// Extract crisis choice from payload
+	crisisChoice, ok := action.Payload["crisis_choice"].(string)
+	if !ok || crisisChoice == "" {
+		return nil, fmt.Errorf("invalid or missing crisis_choice")
+	}
+
+	// Use the whistleblower manager to submit the vote
+	whistleblowerManager := game.NewWhistleblowerManager(ga.state)
+	event, err := whistleblowerManager.SubmitVote(action.PlayerID, crisisChoice)
+	if err != nil {
+		return nil, err
+	}
+
+	events := []core.Event{*event}
+
+	// Check if voting is now complete and add completion event if needed
+	if completionEvent := whistleblowerManager.CheckVotingComplete(); completionEvent != nil {
+		events = append(events, *completionEvent)
+	}
+
+	return events, nil
+}
+
+// handleExtensionVotingTrigger handles the timer-triggered extension voting
+func (ga *GameActor) handleExtensionVotingTrigger(action core.Action) ([]core.Event, error) {
+	// This should only happen during Discussion phase
+	if ga.state.Phase.Type != core.PhaseDiscussion {
+		return nil, fmt.Errorf("extension voting trigger only valid during DISCUSSION phase")
+	}
+
+	// Extract remaining seconds from payload
+	remainingSeconds, ok := action.Payload["remaining_seconds"].(int)
+	if !ok {
+		remainingSeconds = 15 // Default fallback
+	}
+
+	// Create the extension voting triggered event
+	event := core.Event{
+		ID:        fmt.Sprintf("extension_voting_triggered_%d", time.Now().UnixNano()),
+		Type:      core.EventExtensionVotingTriggered,
+		GameID:    ga.gameID,
+		PlayerID:  "", // System event
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"remaining_seconds": remainingSeconds,
+		},
+	}
+
+	return []core.Event{event}, nil
+}
+
+// handleExtensionVoteResults processes the results of an extension vote
+func (ga *GameActor) handleExtensionVoteResults() []core.Event {
+	var events []core.Event
+
+	// Get vote results
+	extendVotes := ga.state.VoteState.Results["EXTEND"]
+	nominateVotes := ga.state.VoteState.Results["NOMINATE"]
+
+	// Determine winner - extend wins on majority or tie (giving benefit to discussion)
+	if extendVotes >= nominateVotes {
+		// Extend the discussion phase
+		extensionDuration := ga.state.Settings.ExtensionDuration
+		ga.phaseManager.CancelPhaseTransitions()                                  // Cancel current phase timer
+		ga.phaseManager.SchedulePhaseTransition(core.PhaseDiscussion, time.Now()) // Reschedule with new timing
+
+		// Create extension granted event
+		event := core.Event{
+			ID:        fmt.Sprintf("discussion_extended_%d", time.Now().UnixNano()),
+			Type:      core.EventSystemMessage,
+			GameID:    ga.gameID,
+			PlayerID:  "",
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"message": fmt.Sprintf("Discussion extended by %v (EXTEND: %d, NOMINATE: %d)",
+					extensionDuration, extendVotes, nominateVotes),
+				"extension_duration_seconds": int(extensionDuration.Seconds()),
+			},
+		}
+		events = append(events, event)
+	} else {
+		// Move to nomination phase immediately
+		phaseEvent := core.Event{
+			ID:        fmt.Sprintf("phase_transition_%d", time.Now().UnixNano()),
+			Type:      core.EventPhaseChanged,
+			GameID:    ga.gameID,
+			PlayerID:  "",
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"phase_type": string(core.PhaseNomination),
+				"duration":   ga.state.Settings.NominationDuration.Seconds(),
+				"message": fmt.Sprintf("Moving to nomination phase (EXTEND: %d, NOMINATE: %d)",
+					extendVotes, nominateVotes),
+			},
+		}
+		events = append(events, phaseEvent)
+	}
+
+	return events
+}
+
 // generatePulseCheckQuestion creates a pulse check question based on current crisis
 func (ga *GameActor) generatePulseCheckQuestion() string {
 	// If there's an active crisis event, use its specific prompt
@@ -462,7 +628,7 @@ func (ga *GameActor) generatePulseCheckQuestion() string {
 			return prompt
 		}
 	}
-	
+
 	// Fallback to generic crisis-themed questions
 	questions := []string{
 		"Given the current crisis situation, what is your immediate concern for the company?",
@@ -474,7 +640,7 @@ func (ga *GameActor) generatePulseCheckQuestion() string {
 		"What is your biggest worry about the current situation?",
 		"If you could give one directive to all personnel, what would it be?",
 	}
-	
+
 	// Select question based on day number to ensure some variety
 	index := (ga.state.DayNumber - 1) % len(questions)
 	return questions[index]
@@ -482,34 +648,8 @@ func (ga *GameActor) generatePulseCheckQuestion() string {
 
 // generateCrisisSpecificPrompt generates prompts based on specific crisis types
 func (ga *GameActor) generateCrisisSpecificPrompt(crisis *core.CrisisEvent) string {
-	switch crisis.Type {
-	case "Database Index Corruption":
-		return "A critical role has been exposed. How does this change your immediate priority?"
-	case "Cascading Server Failure":
-		return "With limited bandwidth, what is the one piece of information everyone needs to hear from you?"
-	case "Emergency Board Meeting":
-		return "The Board demands accountability. Which two roles do you believe are most responsible for this situation?"
-	case "Tainted Training Data":
-		return "We've learned the AI was trained on compromised data. What 'unshakeable truth' do you now question?"
-	case "Nightmare Scenario":
-		return "Emergency protocols are in effect. What is your immediate action to protect the company?"
-	case "Press Leak":
-		return "Sensitive information has leaked. What is your strategy to control the narrative?"
-	case "Incident Response Drill":
-		return "All communications are monitored. What would you say if you knew everyone was listening?"
-	case "Major Service Outage":
-		return "Critical services are down. What is your highest priority for recovery efforts?"
-	case "Phishing Attack":
-		return "Security has been compromised. Who do you trust most in this room and why?"
-	case "Data Privacy Audit":
-		return "External auditors are reviewing everything. What would concern you most if discovered?"
-	case "Vendor Security Breach":
-		return "A trusted partner has been compromised. How do you verify who you can still trust?"
-	case "Regulatory Review":
-		return "Government oversight is imminent. What would you want leadership to know before they arrive?"
-	default:
-		return ""
-	}
+	// Use the pulse check prompt defined in the crisis event
+	return crisis.PulseCheckPrompt
 }
 
 // generatePulseCheckRevelation creates an event revealing all pulse check responses
@@ -517,11 +657,11 @@ func (ga *GameActor) generatePulseCheckRevelation() core.Event {
 	if ga.state.PulseCheckResponses == nil || len(ga.state.PulseCheckResponses) == 0 {
 		return core.Event{} // Return empty event if no responses
 	}
-	
+
 	// Collect all player responses with names
 	playerResponses := make(map[string]string)
 	responseDetails := []map[string]interface{}{}
-	
+
 	for playerID, response := range ga.state.PulseCheckResponses {
 		player := ga.state.Players[playerID]
 		if player != nil {
@@ -533,11 +673,11 @@ func (ga *GameActor) generatePulseCheckRevelation() core.Event {
 			})
 		}
 	}
-	
+
 	// Generate formatted summary for the chat
 	totalResponses := len(ga.state.PulseCheckResponses)
 	summary := fmt.Sprintf("Pulse Check Results (%d responses)", totalResponses)
-	
+
 	return core.Event{
 		ID:        fmt.Sprintf("pulse_check_revealed_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
 		Type:      core.EventPulseCheckRevealed,
@@ -560,21 +700,24 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 	var events []core.Event
 
 	// Use the new persona assignment system
-	personaAssignments := game.AssignPersonas(ga.state.Players, ga.rng)
-	
+	personaAssignments := game.AssignPersonas(ga.state.Players, ga.state.Settings, ga.rng)
+
 	// Generate KPI pool for human players
 	kpis := []core.KPIType{
 		core.KPICapitalist, core.KPIGuardian, core.KPIInquisitor,
 		core.KPISuccessionPlanner, core.KPIScapegoat,
 	}
-	
+
 	// Shuffle KPIs for random assignment
 	ga.rng.Shuffle(len(kpis), func(i, j int) {
 		kpis[i], kpis[j] = kpis[j], kpis[i]
 	})
-	
+
 	kpiIndex := 0
 	for playerID, assignment := range personaAssignments {
+		// Get role ability information
+		roleAbility := getRoleAbility(assignment.Persona.Role)
+		
 		// Create a ROLE_ASSIGNED event for each player with their new persona
 		roleAssignedEvent := core.Event{
 			ID:        fmt.Sprintf("role_assigned_%s", playerID),
@@ -590,12 +733,13 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 				"persona_name":     assignment.Persona.Name,
 				"job_title":        assignment.Persona.JobTitle,
 				"lobby_handle":     assignment.LobbyHandle,
+				"ability":          roleAbility,
 			},
 		}
 		events = append(events, roleAssignedEvent)
 
-		// Create separate KPI assignment event for human players only
-		if assignment.Alignment == "HUMAN" && kpiIndex < len(kpis) {
+		// Create separate KPI assignment event for ALL players (not just humans)
+		if kpiIndex < len(kpis) {
 			kpiType := kpis[kpiIndex]
 			kpiAssignedEvent := core.Event{
 				ID:        fmt.Sprintf("kpi_assigned_%s", playerID),
@@ -612,6 +756,14 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 			}
 			events = append(events, kpiAssignedEvent)
 			kpiIndex++
+		}
+		
+		// If we run out of KPIs, shuffle and restart (to handle games with more than 5 players)
+		if kpiIndex >= len(kpis) {
+			ga.rng.Shuffle(len(kpis), func(i, j int) {
+				kpis[i], kpis[j] = kpis[j], kpis[i]
+			})
+			kpiIndex = 0
 		}
 	}
 
@@ -643,14 +795,14 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 		PlayerID:  "", // Public event
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"sender_id":    "SYSTEM",
-			"sender_name":  "Security Alert",
-			"message":      "[SEV-1] Critical Security Incident - Immediate Response Protocol",
-			"phase":        "LOBBY",
-			"day_number":   1,
-			"channel_id":   "#war-room",
-			"is_system":    true,
-			"type":         "INCITING_INCIDENT",
+			"sender_id":   "SYSTEM",
+			"sender_name": "Security Alert",
+			"message":     "[SEV-1] Critical Security Incident - Immediate Response Protocol",
+			"phase":       "LOBBY",
+			"day_number":  1,
+			"channel_id":  "#war-room",
+			"is_system":   true,
+			"type":        "INCITING_INCIDENT",
 			"metadata": map[string]interface{}{
 				"from":    "security@loebian.com",
 				"to":      "#all-senior-staff",
@@ -728,7 +880,58 @@ func (ga *GameActor) validateAndGenerateLeaveGame(action core.Action) ([]core.Ev
 	return []core.Event{event}, nil
 }
 
-// validateAndGenerateChatMessage handles chat message actions
+// validateAndGenerateAbandonGame handles abandon game actions
+func (ga *GameActor) validateAndGenerateAbandonGame(action core.Action) ([]core.Event, error) {
+	player, exists := ga.state.Players[action.PlayerID]
+	if !exists {
+		return nil, fmt.Errorf("player %s not in game", action.PlayerID)
+	}
+
+	// Check if game is in progress (can't abandon from lobby or when game is over)
+	if ga.state.Phase.Type == core.PhaseLobby || ga.state.Phase.Type == core.PhaseGameOver {
+		return nil, fmt.Errorf("cannot abandon game in phase %s", ga.state.Phase.Type)
+	}
+
+	// Extract the player's role for revelation
+	var revealedRole string
+	if player.Role != nil {
+		revealedRole = string(player.Role.Type)
+	} else {
+		revealedRole = "UNKNOWN"
+	}
+
+	// Create abandonment event
+	event := core.Event{
+		ID:        fmt.Sprintf("abandon_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventPlayerAbandoned,
+		GameID:    ga.gameID,
+		PlayerID:  action.PlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"revealed_role": revealedRole,
+			"player_name":   player.Name,
+		},
+	}
+
+	// Create a system message to announce the abandonment
+	chatEvent := core.Event{
+		ID:        fmt.Sprintf("chat_abandon_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventChatMessage,
+		GameID:    ga.gameID,
+		PlayerID:  "",
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"sender_name": "NEXUS",
+			"message":     fmt.Sprintf("%s has abandoned their post. Their role was %s.", player.Name, revealedRole),
+			"is_system":   true,
+			"channel_id":  "#war-room",
+		},
+	}
+
+	return []core.Event{event, chatEvent}, nil
+}
+
+// validateAndGenerateChatMessage handles chat message actions (both single and bulk)
 func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.Event, error) {
 	// Validate that the player exists and is alive
 	player, exists := ga.state.Players[action.PlayerID]
@@ -740,14 +943,50 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 		return nil, fmt.Errorf("dead players cannot send messages")
 	}
 
-	// Extract message from payload
-	message, ok := action.Payload["message"].(string)
-	if !ok || message == "" {
-		return nil, fmt.Errorf("invalid or missing message in payload")
+	// Extract messages from payload (PlayerActor already processed and validated this)
+	messages, ok := action.Payload["messages"].([]string)
+	if !ok {
+		return nil, fmt.Errorf("invalid or missing messages array in payload")
 	}
 
+	if len(messages) == 0 {
+		return nil, fmt.Errorf("messages array cannot be empty")
+	}
+
+	// Process each message and collect events
+	var events []core.Event
+	for i, message := range messages {
+		if message == "" {
+			return nil, fmt.Errorf("message at index %d is empty", i)
+		}
+
+		// Check for /help command
+		if message == "/help" {
+			helpEvents, err := ga.handleHelpCommand(action.PlayerID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to handle help command: %v", err)
+			}
+			events = append(events, helpEvents...)
+			continue
+		}
+
+		// Create individual event for this message
+		event, err := ga.createChatMessageEvent(action.PlayerID, message, action.Payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create event for message %d: %v", i, err)
+		}
+		events = append(events, event)
+	}
+
+	return events, nil
+}
+
+// createChatMessageEvent creates a single chat message event
+func (ga *GameActor) createChatMessageEvent(playerID, message string, actionPayload map[string]interface{}) (core.Event, error) {
+	player := ga.state.Players[playerID]
+
 	// Extract channel ID (default to #war-room for backward compatibility)
-	channelID, ok := action.Payload["channel_id"].(string)
+	channelID, ok := actionPayload["channel_id"].(string)
 	if !ok || channelID == "" {
 		channelID = "#war-room"
 	}
@@ -757,37 +996,37 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 		switch channelID {
 		case "#war-room":
 			if ga.state.Phase.Type == core.PhasePulseCheck && !player.HasSubmittedPulseCheck {
-				return nil, fmt.Errorf("must submit pulse check response before chatting")
+				return core.Event{}, fmt.Errorf("must submit pulse check response before chatting")
 			} else if ga.state.Phase.Type == core.PhaseNight {
-				return nil, fmt.Errorf("war room chat is locked during night phase")
+				return core.Event{}, fmt.Errorf("war room chat is locked during night phase")
 			} else {
-				return nil, fmt.Errorf("cannot send messages in war room during %s phase", ga.state.Phase.Type)
+				return core.Event{}, fmt.Errorf("cannot send messages in war room during %s phase", ga.state.Phase.Type)
 			}
 		case "#aligned":
 			if player.Alignment != "ALIGNED" {
-				return nil, fmt.Errorf("only AI faction members can access aligned channel")
+				return core.Event{}, fmt.Errorf("only AI faction members can access aligned channel")
 			}
 		default:
-			return nil, fmt.Errorf("invalid channel: %s", channelID)
+			return core.Event{}, fmt.Errorf("invalid channel: %s", channelID)
 		}
 	}
 
 	// Check if this is a private message (legacy support)
-	targetID, isPrivate := action.Payload["target_id"].(string)
+	targetID, isPrivate := actionPayload["target_id"].(string)
 
 	// Check mandate restrictions for private messages
 	if isPrivate && targetID != "" {
 		if ga.corporateMandateManager.IsMandateActive() {
 			_, noDirectMessages := ga.corporateMandateManager.CheckCommunicationRestrictions()
 			if noDirectMessages {
-				return nil, fmt.Errorf("private messaging suspended due to Total Transparency Initiative")
+				return core.Event{}, fmt.Errorf("private messaging suspended due to Total Transparency Initiative")
 			}
 		}
 	}
 
 	// Basic message validation
 	if len(message) > 500 {
-		return nil, fmt.Errorf("message too long (max 500 characters)")
+		return core.Event{}, fmt.Errorf("message too long (max 500 characters)")
 	}
 
 	// Check for System Shock effects that might corrupt the message
@@ -796,7 +1035,7 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 	// Create chat message event
 	eventPlayerID := "" // Public event by default
 	payload := map[string]interface{}{
-		"sender_id":   action.PlayerID,
+		"sender_id":   playerID,
 		"sender_name": player.Name,
 		"message":     message,
 		"phase":       string(ga.state.Phase.Type),
@@ -817,7 +1056,7 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 	}
 
 	event := core.Event{
-		ID:        fmt.Sprintf("chat_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		ID:        fmt.Sprintf("chat_%s_%d", playerID, time.Now().UnixNano()),
 		Type:      core.EventChatMessage,
 		GameID:    ga.gameID,
 		PlayerID:  eventPlayerID,
@@ -825,7 +1064,7 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 		Payload:   payload,
 	}
 
-	return []core.Event{event}, nil
+	return event, nil
 }
 
 // validateAndGenerateReaction handles emoji reaction actions
@@ -872,13 +1111,13 @@ func (ga *GameActor) validateAndGenerateReaction(action core.Action) ([]core.Eve
 
 	// Create reaction event
 	payload := map[string]interface{}{
-		"player_id":    action.PlayerID,
-		"player_name":  player.Name,
-		"message_id":   messageID,
-		"emoji":        emoji,
-		"channel_id":   channelID,
-		"phase":        string(ga.state.Phase.Type),
-		"day_number":   ga.state.DayNumber,
+		"player_id":   action.PlayerID,
+		"player_name": player.Name,
+		"message_id":  messageID,
+		"emoji":       emoji,
+		"channel_id":  channelID,
+		"phase":       string(ga.state.Phase.Type),
+		"day_number":  ga.state.DayNumber,
 	}
 
 	// For #aligned channel, restrict visibility to AI faction members
@@ -1001,6 +1240,65 @@ func getRoleDescription(roleType core.RoleType) string {
 		return "Shadows experienced employees to learn their abilities. Use BOOTCAMP to gain Bootcamp Points, then SHADOW other players to copy their role abilities."
 	default:
 		return "Manages corporate responsibilities"
+	}
+}
+
+func getRoleAbility(roleType core.RoleType) map[string]interface{} {
+	switch roleType {
+	case core.RoleCISO:
+		return map[string]interface{}{
+			"name":        "Isolate Node",
+			"description": "Block a player from taking any actions tonight. If you are aligned and target another aligned player, the action appears to work but doesn't actually block them.",
+			"isReady":     false, // Starts locked until unlocked
+		}
+	case core.RoleCTO:
+		return map[string]interface{}{
+			"name":        "Overclock Servers",
+			"description": "Mine tokens for yourself and a target player with 100% success rate. If you are aligned, your target gains +2 AI Equity.",
+			"isReady":     false,
+		}
+	case core.RoleCEO:
+		return map[string]interface{}{
+			"name":        "Performance Review",
+			"description": "Force a target player to use Project Milestones tonight instead of their normal night action.",
+			"isReady":     false,
+		}
+	case core.RoleCFO:
+		return map[string]interface{}{
+			"name":        "Reallocate Budget",
+			"description": "Transfer 1 token from one player to another player of your choice.",
+			"isReady":     false,
+		}
+	case core.RoleCOO:
+		return map[string]interface{}{
+			"name":        "Pivot",
+			"description": "Choose the next crisis event from available options, steering the company's response to challenges.",
+			"isReady":     false,
+		}
+	case core.RoleEthics:
+		return map[string]interface{}{
+			"name":        "Run Audit",
+			"description": "Publicly audit a player, showing them as 'not corrupt'. However, their true alignment is privately revealed to the AI faction.",
+			"isReady":     false,
+		}
+	case core.RolePlatforms:
+		return map[string]interface{}{
+			"name":        "Deploy Hotfix",
+			"description": "Redact one section of the next day's SITREP, hiding critical information from other players.",
+			"isReady":     false,
+		}
+	case core.RoleIntern:
+		return map[string]interface{}{
+			"name":        "Shadow & Bootcamp",
+			"description": "Use BOOTCAMP to gain Bootcamp Points, then SHADOW other players to copy their role abilities. Gain experience by learning from veterans.",
+			"isReady":     true, // Intern abilities start unlocked
+		}
+	default:
+		return map[string]interface{}{
+			"name":        "Unknown Ability",
+			"description": "Role ability not yet defined",
+			"isReady":     false,
+		}
 	}
 }
 
@@ -1144,6 +1442,12 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 		ga.votingManager.ClearVote()
 		ga.state.NominatedPlayer = ""
 
+		// Start whistleblower voting for deactivated players
+		whistleblowerManager := game.NewWhistleblowerManager(ga.state)
+		if whistleblowerEvent := whistleblowerManager.StartWhistleblowerVoting(); whistleblowerEvent != nil {
+			events = append(events, *whistleblowerEvent)
+		}
+
 	case core.PhaseSitrep:
 		// Resolve all night actions
 		if ga.state.Phase.Type == core.PhaseNight {
@@ -1153,11 +1457,52 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 		}
 		// Increment day number
 		ga.state.DayNumber++
-		
+
+		// Trigger crisis event at start of each day (if none active)
+		if ga.state.CrisisEvent == nil && ga.shouldTriggerCrisisEvent() {
+			crisisManager := game.NewCrisisEventManager(ga.state)
+			whistleblowerManager := game.NewWhistleblowerManager(ga.state)
+
+			// Check if whistleblower protocol selected a crisis
+			var crisis *core.CrisisEvent
+			var crisisEvents []core.Event
+			selectedCrisisType := whistleblowerManager.GetSelectedCrisis()
+
+			if selectedCrisisType != "" {
+				// Use whistleblower-selected crisis
+				crisis, crisisEvents = crisisManager.TriggerSpecificCrisis(game.CrisisEventType(selectedCrisisType))
+				// Clear the whistleblower voting for next night
+				whistleblowerManager.ClearVoting()
+			} else {
+				// Fall back to random crisis selection
+				crisis, crisisEvents = crisisManager.TriggerRandomCrisis()
+			}
+
+			if crisis != nil {
+				// Create crisis triggered event
+				crisisEvent := core.Event{
+					ID:        fmt.Sprintf("crisis_triggered_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
+					Type:      core.EventCrisisTriggered,
+					GameID:    ga.gameID,
+					PlayerID:  "",
+					Timestamp: time.Now(),
+					Payload: map[string]interface{}{
+						"crisis_type":        crisis.Type,
+						"title":              crisis.Title,
+						"description":        crisis.Description,
+						"pulse_check_prompt": crisis.PulseCheckPrompt,
+						"effects":            crisis.Effects,
+					},
+				}
+				events = append(events, crisisEvent)
+				events = append(events, crisisEvents...)
+			}
+		}
+
 		// Generate SITREP message
 		sitrepGenerator := game.NewSitrepGenerator(ga.state)
 		sitrep := sitrepGenerator.GenerateDailySitrep()
-		
+
 		sitrepEvent := core.Event{
 			ID:        fmt.Sprintf("sitrep_generated_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
 			Type:      core.EventSystemMessage,
@@ -1171,11 +1516,11 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 			},
 		}
 		events = append(events, sitrepEvent)
-		
+
 	case core.PhasePulseCheck:
 		// Generate pulse check question
 		question := ga.generatePulseCheckQuestion()
-		
+
 		pulseCheckEvent := core.Event{
 			ID:        fmt.Sprintf("pulse_check_started_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
 			Type:      core.EventPulseCheckStarted,
@@ -1183,12 +1528,12 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 			PlayerID:  "",
 			Timestamp: time.Now(),
 			Payload: map[string]interface{}{
-				"question": question,
+				"question":   question,
 				"day_number": ga.state.DayNumber,
 			},
 		}
 		events = append(events, pulseCheckEvent)
-		
+
 		// Also generate the initial pulse check message
 		initialMessageEvent := core.Event{
 			ID:        fmt.Sprintf("pulse_check_initial_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
@@ -1205,7 +1550,7 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 			},
 		}
 		events = append(events, initialMessageEvent)
-		
+
 	case core.PhaseDiscussion:
 		// Pulse check results are already visible from individual submissions
 		// No need to reveal them again during phase transition
@@ -1251,11 +1596,11 @@ func (ga *GameActor) processVoteCompletion() []core.Event {
 			PlayerID:  "",
 			Timestamp: time.Now(),
 			Payload: map[string]interface{}{
-				"vote_type": string(ga.state.VoteState.Type),
-				"results":   ga.state.VoteState.Results,
-				"vote_breakdown": ga.createVoteBreakdown(),
-				"winner_info": ga.createWinnerInfo(),
-				"total_votes": len(ga.state.VoteState.Votes),
+				"vote_type":          string(ga.state.VoteState.Type),
+				"results":            ga.state.VoteState.Results,
+				"vote_breakdown":     ga.createVoteBreakdown(),
+				"winner_info":        ga.createWinnerInfo(),
+				"total_votes":        len(ga.state.VoteState.Votes),
 				"total_token_weight": ga.calculateTotalTokenWeight(),
 			},
 		}
@@ -1264,6 +1609,12 @@ func (ga *GameActor) processVoteCompletion() []core.Event {
 		// Create chat message for vote results display
 		voteResultChatEvent := ga.createVoteResultChatMessage()
 		events = append(events, voteResultChatEvent)
+
+		// Handle extension vote results
+		if ga.state.VoteState.Type == core.VoteExtension {
+			extensionEvents := ga.handleExtensionVoteResults()
+			events = append(events, extensionEvents...)
+		}
 	}
 
 	return events
@@ -1276,7 +1627,7 @@ func (ga *GameActor) createVoteBreakdown() []map[string]interface{} {
 	for voterID, targetID := range ga.state.VoteState.Votes {
 		voter := ga.state.Players[voterID]
 		target := ga.state.Players[targetID]
-		
+
 		if voter != nil {
 			entry := map[string]interface{}{
 				"voter_id":     voterID,
@@ -1284,14 +1635,14 @@ func (ga *GameActor) createVoteBreakdown() []map[string]interface{} {
 				"target_id":    targetID,
 				"token_weight": ga.state.VoteState.TokenWeights[voterID],
 			}
-			
+
 			if target != nil {
 				entry["target_name"] = target.Name
 			} else {
 				// Special votes like "GUILTY", "INNOCENT", "YES", "NO"
 				entry["target_name"] = targetID
 			}
-			
+
 			breakdown = append(breakdown, entry)
 		}
 	}
@@ -1302,14 +1653,14 @@ func (ga *GameActor) createVoteBreakdown() []map[string]interface{} {
 // createWinnerInfo creates information about the vote winner
 func (ga *GameActor) createWinnerInfo() map[string]interface{} {
 	winner, votes, hasTie := ga.votingManager.GetWinner()
-	
+
 	winnerInfo := map[string]interface{}{
-		"has_winner": !hasTie && winner != "",
-		"has_tie":    hasTie,
-		"winner_id":  winner,
+		"has_winner":   !hasTie && winner != "",
+		"has_tie":      hasTie,
+		"winner_id":    winner,
 		"winner_votes": votes,
 	}
-	
+
 	if !hasTie && winner != "" {
 		if player := ga.state.Players[winner]; player != nil {
 			winnerInfo["winner_name"] = player.Name
@@ -1318,7 +1669,7 @@ func (ga *GameActor) createWinnerInfo() map[string]interface{} {
 			winnerInfo["winner_name"] = winner
 		}
 	}
-	
+
 	return winnerInfo
 }
 
@@ -1331,7 +1682,7 @@ func (ga *GameActor) createVoteResultChatMessage() core.Event {
 	// Create a summary message based on vote type
 	var question string
 	var outcome string
-	
+
 	switch ga.state.VoteState.Type {
 	case core.VoteNomination:
 		question = "Who should be eliminated from the company?"
@@ -1345,14 +1696,14 @@ func (ga *GameActor) createVoteResultChatMessage() core.Event {
 				outcome = fmt.Sprintf("%s nominated (%d tokens)", winner, votes)
 			}
 		}
-		
+
 	case core.VoteVerdict:
 		if nominatedPlayer := ga.state.Players[ga.state.NominatedPlayer]; nominatedPlayer != nil {
 			question = fmt.Sprintf("Should %s be eliminated?", nominatedPlayer.Name)
 		} else {
 			question = "Final elimination vote"
 		}
-		
+
 		guiltyVotes := ga.state.VoteState.Results["GUILTY"]
 		innocentVotes := ga.state.VoteState.Results["INNOCENT"]
 		if guiltyVotes > innocentVotes {
@@ -1360,7 +1711,7 @@ func (ga *GameActor) createVoteResultChatMessage() core.Event {
 		} else {
 			outcome = "INNOCENT - Player is spared"
 		}
-		
+
 	default:
 		question = "Vote completed"
 		outcome = "Vote has concluded"
@@ -1380,11 +1731,11 @@ func (ga *GameActor) createVoteResultChatMessage() core.Event {
 
 	// Create vote result metadata for the VoteResultMessage component
 	voteResultMetadata := map[string]interface{}{
-		"question":        question,
-		"outcome":         outcome,
-		"votes":           ga.state.VoteState.Votes,
-		"tokenWeights":    ga.state.VoteState.TokenWeights,
-		"results":         ga.state.VoteState.Results,
+		"question":         question,
+		"outcome":          outcome,
+		"votes":            ga.state.VoteState.Votes,
+		"tokenWeights":     ga.state.VoteState.TokenWeights,
+		"results":          ga.state.VoteState.Results,
 		"eliminatedPlayer": eliminatedPlayer,
 	}
 
@@ -1479,15 +1830,33 @@ func (ga *GameActor) handlePostEventProcessing(event core.Event) []core.Event {
 }
 
 func (ga *GameActor) endGame(winCondition core.WinCondition) core.Event {
+	// Generate comprehensive game analysis using StatsProcessor
+	statsProcessor := game.NewStatsProcessor()
+
+	// Collect all events from the datastore for analysis
+	allEvents, err := ga.collectGameEvents()
+	if err != nil {
+		log.Printf("[GameActor/%s] Failed to collect events for analysis: %v", ga.gameID, err)
+		allEvents = []core.Event{} // Fallback to empty events
+	}
+
+	// Generate analysis data
+	gameAnalysis := statsProcessor.ProcessGameAnalysis(ga.state, allEvents)
+
+	// Check for achievements and send notifications
+	unlockedAchievements := ga.processAchievements(gameAnalysis)
+
 	endEvent := core.Event{
 		ID:        fmt.Sprintf("game_ended_%d", time.Now().UnixNano()),
 		Type:      core.EventVictoryCondition,
 		GameID:    ga.gameID,
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"winner":      winCondition.Winner,
-			"condition":   winCondition.Condition,
-			"description": winCondition.Description,
+			"winner":                winCondition.Winner,
+			"condition":             winCondition.Condition,
+			"description":           winCondition.Description,
+			"analysis":              gameAnalysis,         // Include comprehensive analysis data
+			"unlocked_achievements": unlockedAchievements, // Include newly unlocked achievements
 		},
 	}
 
@@ -1499,22 +1868,79 @@ func (ga *GameActor) endGame(winCondition core.WinCondition) core.Event {
 	return endEvent
 }
 
+// collectGameEvents retrieves all events for this game from the datastore for analysis
+func (ga *GameActor) collectGameEvents() ([]core.Event, error) {
+	// This would typically interface with the datastore to retrieve all events
+	// For now, we'll return an empty slice since we don't have direct datastore access
+	// In a full implementation, this would:
+	// 1. Query the Redis datastore for all events in the game stream
+	// 2. Parse and return the complete event history
+	log.Printf("[GameActor/%s] Collecting events for analysis (placeholder implementation)", ga.gameID)
+	return []core.Event{}, nil
+}
+
+// processAchievements checks for newly unlocked achievements and sends notifications
+func (ga *GameActor) processAchievements(gameAnalysis *core.GameAnalysis) map[string][]string {
+	if ga.achievementChecker == nil {
+		return map[string][]string{}
+	}
+
+	// Check achievements for all players
+	unlockedAchievements := ga.achievementChecker.CheckAchievements(ga.state, gameAnalysis)
+
+	// Send achievement notifications to players
+	for playerID, achievementIDs := range unlockedAchievements {
+		for _, achievementID := range achievementIDs {
+			achievement := ga.achievementChecker.GetAchievementByID(achievementID)
+			if achievement != nil {
+				// Create achievement unlocked notification
+				notification := core.Event{
+					ID:        fmt.Sprintf("achievement_unlocked_%s_%s_%d", playerID, achievementID, time.Now().UnixNano()),
+					Type:      core.EventPrivateNotification,
+					GameID:    ga.gameID,
+					PlayerID:  playerID, // Private notification to this player
+					Timestamp: time.Now(),
+					Payload: map[string]interface{}{
+						"type": "ACHIEVEMENT_UNLOCKED",
+						"achievement": map[string]interface{}{
+							"id":           achievement.ID,
+							"name":         achievement.Name,
+							"description":  achievement.Description,
+							"rarity":       achievement.Rarity,
+							"iconUrl":      achievement.IconURL,
+							"avatarReward": achievement.AvatarReward,
+							"titleReward":  achievement.TitleReward,
+						},
+					},
+				}
+
+				// Send the notification through the event callback
+				if ga.eventCallback != nil {
+					ga.eventCallback(ga.gameID, []core.Event{notification})
+				}
+			}
+		}
+	}
+
+	return unlockedAchievements
+}
+
 // processAIActionsForPhase triggers AI actions when phases change
 func (ga *GameActor) processAIActionsForPhase(phase core.PhaseType) {
 	aiActions := ga.aiManager.ProcessAIActions()
-	
+
 	for _, action := range aiActions {
 		// Process each AI action asynchronously to avoid blocking
 		go func(aiAction core.Action) {
 			log.Printf("[GameActor/%s] Processing AI action: %s for player %s", ga.gameID, aiAction.Type, aiAction.PlayerID)
-			
+
 			// Create a response channel for the AI action
 			responseChan := make(chan interfaces.ProcessActionResult, 1)
 			request := actorRequest{
 				action:       aiAction,
 				responseChan: responseChan,
 			}
-			
+
 			// Send AI action to the mailbox
 			select {
 			case ga.mailbox <- request:
@@ -1633,17 +2059,17 @@ func (ga *GameActor) applySystemShockEffects(player *core.Player, message string
 	}
 
 	currentTime := time.Now()
-	
+
 	// Check each active system shock
 	for i := range player.SystemShocks {
 		shock := &player.SystemShocks[i]
-		
+
 		// Skip expired or inactive shocks
 		if !shock.IsActive || currentTime.After(shock.ExpiresAt) {
 			shock.IsActive = false
 			continue
 		}
-		
+
 		// Apply message corruption for MessageCorruption shock type
 		if shock.Type == core.ShockMessageCorruption {
 			// 25% chance to corrupt the message
@@ -1652,7 +2078,7 @@ func (ga *GameActor) applySystemShockEffects(player *core.Player, message string
 			}
 		}
 	}
-	
+
 	return message
 }
 
@@ -1662,4 +2088,212 @@ func (ga *GameActor) shouldCorruptMessage() bool {
 	// 25% chance means values 0, 1, 2 out of 0-15 (4/16 = 25%)
 	randomValue := time.Now().UnixNano() % 16
 	return randomValue < 4
+}
+
+// shouldTriggerCrisisEvent determines whether a crisis event should be triggered
+func (ga *GameActor) shouldTriggerCrisisEvent() bool {
+	// Trigger crisis events starting from Day 2, with a 75% chance each day
+	if ga.state.DayNumber < 2 {
+		return false
+	}
+
+	// 75% chance to trigger a crisis (values 0-11 out of 0-15)
+	randomValue := time.Now().UnixNano() % 16
+	return randomValue < 12
+}
+
+// handleHelpCommand processes /help commands and returns phase-specific rule summaries
+func (ga *GameActor) handleHelpCommand(playerID string) ([]core.Event, error) {
+	player := ga.state.Players[playerID]
+	if player == nil {
+		return nil, fmt.Errorf("player not found")
+	}
+
+	// Get help content based on current phase
+	helpContent := ga.getPhaseHelp(ga.state.Phase.Type)
+
+	// Create private notification event
+	helpEvent := core.Event{
+		ID:        fmt.Sprintf("help_response_%s_%d", playerID, time.Now().UnixNano()),
+		Type:      core.EventPrivateNotification,
+		GameID:    ga.gameID,
+		PlayerID:  playerID, // Private notification to requesting player
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"type":    "HELP_RESPONSE",
+			"phase":   string(ga.state.Phase.Type),
+			"message": helpContent,
+			"sender":  "Loebmate",
+		},
+	}
+
+	return []core.Event{helpEvent}, nil
+}
+
+// validateActionPayloadSize validates that action payloads are within reasonable limits
+func (ga *GameActor) validateActionPayloadSize(action core.Action) error {
+	// Check overall payload size by serializing to JSON and measuring
+	payloadBytes, err := json.Marshal(action.Payload)
+	if err != nil {
+		return fmt.Errorf("invalid action payload: %v", err)
+	}
+
+	// Limit total payload to 10KB to prevent memory exhaustion
+	const maxPayloadSize = 10 * 1024 // 10KB
+	if len(payloadBytes) > maxPayloadSize {
+		return fmt.Errorf("action payload too large: %d bytes (max %d bytes)", len(payloadBytes), maxPayloadSize)
+	}
+
+	// Validate specific string fields based on action type
+	switch action.Type {
+	case core.ActionSendMessage:
+		if messages, ok := action.Payload["messages"].([]interface{}); ok {
+			if len(messages) > 10 {
+				return fmt.Errorf("too many messages in batch: %d (max 10)", len(messages))
+			}
+			for i, msg := range messages {
+				if msgStr, ok := msg.(string); ok {
+					if len(msgStr) > 500 {
+						return fmt.Errorf("message %d too long: %d characters (max 500)", i, len(msgStr))
+					}
+				}
+			}
+		}
+
+	case core.ActionSubmitPulseCheck:
+		if response, ok := action.Payload["response"].(string); ok {
+			if len(response) > 200 {
+				return fmt.Errorf("pulse check response too long: %d characters (max 200)", len(response))
+			}
+		}
+
+	case core.ActionSetSlackStatus:
+		if status, ok := action.Payload["status_message"].(string); ok {
+			if len(status) > 100 {
+				return fmt.Errorf("status message too long: %d characters (max 100)", len(status))
+			}
+		}
+
+	case core.ActionSubmitExitInterview:
+		if partingShot, ok := action.Payload["parting_shot"].(string); ok {
+			if len(partingShot) > 50 {
+				return fmt.Errorf("parting shot too long: %d characters (max 50)", len(partingShot))
+			}
+		}
+	}
+
+	return nil
+}
+
+// getPhaseHelp returns detailed help content for the current phase
+func (ga *GameActor) getPhaseHelp(phase core.PhaseType) string {
+	switch phase {
+	case core.PhaseSitrep:
+		return `**SITREP Phase Help**
+
+**Objective:** Review the daily situation report
+**Duration:** 30 seconds
+
+**What to do:**
+• Read the SITREP message carefully - it contains vital information about overnight events
+• Look for personnel changes, security alerts, or other critical updates
+• Use this information to inform your strategy for the day
+
+**Available actions:** Chat in #war-room`
+
+	case core.PhasePulseCheck:
+		return `**Pulse Check Phase Help**
+
+**Objective:** Share your thoughts on the current crisis
+**Duration:** 45 seconds
+
+**What to do:**
+• Answer the pulse check question honestly and thoughtfully
+• Your response will be shared with all players after this phase
+• Use this to gauge team sentiment and share your perspective
+
+**Available actions:** Submit pulse check response, chat in #war-room (after submitting)`
+
+	case core.PhaseDiscussion:
+		return `**Discussion Phase Help**
+
+**Objective:** Collaborate and build consensus
+**Duration:** 3 minutes
+
+**What to do:**
+• Share information and observations with your team
+• Voice any suspicions about potential AI infiltrators
+• Coordinate strategy and build alliances
+• Analyze pulse check responses for insights
+
+**Available actions:** Chat in #war-room, react to messages`
+
+	case core.PhaseNomination:
+		return `**Nomination Phase Help**
+
+**Objective:** Vote to nominate someone for elimination
+**Duration:** 1 minute
+
+**What to do:**
+• Choose carefully - your tokens add weight to your vote
+• The person with the most token-weighted votes will face elimination
+• Consider all available information before voting
+
+**Available actions:** Cast nomination vote`
+
+	case core.PhaseVerdict:
+		return `**Verdict Phase Help**
+
+**Objective:** Decide the nominated person's fate
+**Duration:** 45 seconds
+
+**What to do:**
+• Vote GUILTY to eliminate the nominated person
+• Vote INNOCENT to spare them
+• Your tokens determine the weight of your vote
+
+**Available actions:** Cast verdict vote (GUILTY/INNOCENT)`
+
+	case core.PhaseNight:
+		return `**Night Phase Help**
+
+**Objective:** Use your role abilities and gather resources
+**Duration:** 30 seconds
+
+**What to do:**
+• Use your role's special ability to help your team
+• Mine tokens to increase your voting power
+• Project milestones to advance team objectives
+• The war room chat is locked during this phase
+
+**Available actions:** Role abilities, mine tokens, project milestones`
+
+	case core.PhaseLobby:
+		return `**Lobby Phase Help**
+
+**Objective:** Prepare for the game to begin
+
+**What to do:**
+• Review your role assignment and personal KPI in the right panel
+• Understand your special abilities and objectives
+• Wait for all players to be ready
+
+**Available actions:** Chat in #war-room, ready up`
+
+	case core.PhaseGameOver:
+		return `**Game Over**
+
+The game has concluded. Review the post-game analysis to see how everyone performed!`
+
+	default:
+		return `**Help**
+
+Use /help during any phase to get specific guidance for that phase. 
+
+**General Tips:**
+• Check your Personal Terminal (right panel) for your role and KPI
+• Your tokens determine your voting power
+• Trust carefully - the AI walks among us
+• Work together to identify and eliminate the threat`
+	}
 }

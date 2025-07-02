@@ -46,7 +46,7 @@
   --theme-light-bg-mention: rgba(245, 158, 11, 0.2);
   --theme-light-text-primary: #0f172a;
   --theme-light-text-secondary: #475569;
-  --theme-light-text-muted: #64748b;
+  --theme-light-text-muted: #374151;
   --theme-light-border: #e2e8f0;
   --theme-light-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --theme-dark-bg-primary: #0f172a;
@@ -57,7 +57,7 @@
   --theme-dark-bg-mention: rgba(251, 191, 36, 0.4);
   --theme-dark-text-primary: #f8fafc;
   --theme-dark-text-secondary: #cbd5e1;
-  --theme-dark-text-muted: #94a3b8;
+  --theme-dark-text-muted: #9ca3af;
   --theme-dark-border: #334155;
   --theme-dark-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
   --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

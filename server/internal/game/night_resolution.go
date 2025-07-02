@@ -3,6 +3,8 @@ package game
 import (
 	"fmt"
 	"log"
+	"math/rand"
+	"time"
 
 	"github.com/xjhc/alignment/core"
 )
@@ -10,17 +12,48 @@ import (
 // NightResolutionManager handles the resolution of all night actions
 type NightResolutionManager struct {
 	gameState *core.GameState
+	rng       *rand.Rand
 }
 
 // NewNightResolutionManager creates a new night resolution manager
 func NewNightResolutionManager(gameState *core.GameState) *NightResolutionManager {
 	return &NightResolutionManager{
 		gameState: gameState,
+		rng:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
 // ResolveNightActions processes all submitted night actions in precedence order
 func (nrm *NightResolutionManager) ResolveNightActions() []core.Event {
+	// Default to mining for players who didn't submit an action
+	for playerID, player := range nrm.gameState.Players {
+		if player.IsAlive {
+			if _, submitted := nrm.gameState.NightActions[playerID]; !submitted {
+				// Find a random living target that is not the player themselves
+				var possibleTargets []string
+				for otherPlayerID, otherPlayer := range nrm.gameState.Players {
+					if otherPlayer.IsAlive && otherPlayerID != playerID {
+						possibleTargets = append(possibleTargets, otherPlayerID)
+					}
+				}
+
+				if len(possibleTargets) > 0 {
+					targetID := possibleTargets[nrm.rng.Intn(len(possibleTargets))]
+					if nrm.gameState.NightActions == nil {
+						nrm.gameState.NightActions = make(map[string]*core.SubmittedNightAction)
+					}
+					nrm.gameState.NightActions[playerID] = &core.SubmittedNightAction{
+						PlayerID:  playerID,
+						Type:      "MINE",
+						TargetID:  targetID,
+						Timestamp: time.Now(),
+					}
+					log.Printf("Player %s defaulted to mining for %s", player.Name, targetID)
+				}
+			}
+		}
+	}
+
 	if nrm.gameState.NightActions == nil || len(nrm.gameState.NightActions) == 0 {
 		log.Printf("No night actions to resolve")
 		return []core.Event{}
@@ -131,7 +164,7 @@ func (nrm *NightResolutionManager) processConversionActions(results *NightAction
 				if player != nil && target != nil && player.Alignment == "ALIGNED" {
 					// Calculate conversion success - use AI equity from player
 					success := core.CalculateAIConversionSuccess(*target, player.AIEquity, *nrm.gameState)
-					
+
 					if success {
 						// Successful conversion
 						results.ConvertedPlayers = append(results.ConvertedPlayers, map[string]interface{}{
@@ -150,7 +183,7 @@ func (nrm *NightResolutionManager) processConversionActions(results *NightAction
 					} else {
 						// Failed conversion - system shock
 						shockMessage := fmt.Sprintf("System shock: Failed AI conversion by %s", player.Name)
-						
+
 						results.ShockedPlayers = append(results.ShockedPlayers, map[string]interface{}{
 							"player_id":      targetID,
 							"player_name":    target.Name,
@@ -402,7 +435,7 @@ func (nrm *NightResolutionManager) isPlayerBlocked(playerID string) bool {
 // isRoleAbility checks if an action type is a role ability
 func (nrm *NightResolutionManager) isRoleAbility(actionType string) bool {
 	roleAbilities := []string{
-		"RUN_AUDIT", "OVERCLOCK_SERVERS", "ISOLATE_NODE", 
+		"RUN_AUDIT", "OVERCLOCK_SERVERS", "ISOLATE_NODE",
 		"PERFORMANCE_REVIEW", "REALLOCATE_BUDGET", "PIVOT", "DEPLOY_HOTFIX",
 	}
 	for _, ability := range roleAbilities {
@@ -426,7 +459,7 @@ func (nrm *NightResolutionManager) processMiningAction(playerID string, action *
 		if success {
 			// Successful mining
 			reward := core.CalculateTokenReward(core.EventMiningSuccessful, *player, *nrm.gameState)
-			
+
 			results.MiningResults = append(results.MiningResults, map[string]interface{}{
 				"miner_id":     playerID,
 				"miner_name":   player.Name,
@@ -526,7 +559,7 @@ func (nrm *NightResolutionManager) resolveBlockActions() []core.Event {
 		} else if action.Type == "ISOLATE_NODE" {
 			// ISOLATE_NODE is a blocking ability that must be processed first
 			targetID := action.TargetID
-			
+
 			// Use the role ability manager to process the ISOLATE_NODE
 			roleAbilityManager := NewRoleAbilityManager(nrm.gameState)
 			roleAbilityAction := &RoleAbilityAction{
@@ -534,13 +567,13 @@ func (nrm *NightResolutionManager) resolveBlockActions() []core.Event {
 				AbilityType: "ISOLATE_NODE",
 				TargetID:    targetID,
 			}
-			
+
 			result, err := roleAbilityManager.UseRoleAbility(*roleAbilityAction)
 			if err == nil && result != nil {
 				// The role ability manager should have set BlockedPlayersTonight
 				if nrm.gameState.BlockedPlayersTonight != nil && nrm.gameState.BlockedPlayersTonight[targetID] {
 					blockedPlayers[targetID] = true
-					
+
 					event := core.Event{
 						ID:        fmt.Sprintf("isolate_node_%s_%s", playerID, targetID),
 						Type:      "ISOLATE_NODE",
@@ -946,7 +979,7 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 	if conversionThreshold > target.Tokens {
 		// Successful conversion - target becomes AI aligned
 		target.Alignment = "ALIGNED"
-		
+
 		// Apply any crisis equity bonus to the target's actual AIEquity
 		if nrm.gameState.CrisisEvent != nil {
 			if bonus, exists := nrm.gameState.CrisisEvent.Effects["ai_equity_bonus"]; exists {
@@ -1033,7 +1066,7 @@ func (nrm *NightResolutionManager) createNightResolutionSummary(results *NightAc
 // createHumanReadableSummary generates a text summary for display in SITREP
 func (nrm *NightResolutionManager) createHumanReadableSummary(results *NightActionResults) string {
 	summary := fmt.Sprintf("Night %d Summary:\n", nrm.gameState.DayNumber)
-	
+
 	if len(results.BlockedPlayers) > 0 {
 		summary += "• Players blocked from actions: "
 		for i, p := range results.BlockedPlayers {
@@ -1044,7 +1077,7 @@ func (nrm *NightResolutionManager) createHumanReadableSummary(results *NightActi
 		}
 		summary += "\n"
 	}
-	
+
 	if len(results.ConvertedPlayers) > 0 {
 		summary += "• Players converted by AI: "
 		for i, p := range results.ConvertedPlayers {
@@ -1055,7 +1088,7 @@ func (nrm *NightResolutionManager) createHumanReadableSummary(results *NightActi
 		}
 		summary += "\n"
 	}
-	
+
 	if len(results.ShockedPlayers) > 0 {
 		summary += "• Players experienced system shock: "
 		for i, p := range results.ShockedPlayers {
@@ -1066,15 +1099,15 @@ func (nrm *NightResolutionManager) createHumanReadableSummary(results *NightActi
 		}
 		summary += "\n"
 	}
-	
+
 	if len(results.MiningResults) > 0 {
 		summary += fmt.Sprintf("• %d successful mining operations completed\n", len(results.MiningResults))
 	}
-	
+
 	if len(results.RoleAbilityResults) > 0 {
 		summary += fmt.Sprintf("• %d role abilities were used\n", len(results.RoleAbilityResults))
 	}
-	
+
 	if len(results.MilestoneResults) > 0 {
 		summary += "• Project milestone advancement: "
 		rolesUnlocked := 0
@@ -1092,7 +1125,7 @@ func (nrm *NightResolutionManager) createHumanReadableSummary(results *NightActi
 			summary += fmt.Sprintf("• %d role abilities unlocked!\n", rolesUnlocked)
 		}
 	}
-	
+
 	return summary
 }
 

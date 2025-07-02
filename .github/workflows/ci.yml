@@ -168,6 +168,16 @@ jobs:
   verify-integration:
     runs-on: ubuntu-latest
     needs: [test-backend, test-frontend, visual-tests]
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
     - name: Download backend artifact
       uses: actions/download-artifact@v4
@@ -180,9 +190,89 @@ jobs:
         name: frontend-dist
         path: client/dist
 
-    - name: Verify artifacts
+    - name: Set up Node.js for file server
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Make backend executable and start it
       run: |
-        echo "Verifying downloaded artifacts..."
-        ls -la alignment-server
-        ls -la client/dist/
-        echo "✅ Integration artifacts successfully verified."
+        chmod +x alignment-server
+        echo "Starting alignment-server in background..."
+        ./alignment-server &
+        BACKEND_PID=$!
+        echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+        sleep 5  # Give server time to start
+      env:
+        REDIS_ADDR: localhost:6379
+
+    - name: Start simple file server for frontend
+      run: |
+        echo "Starting simple HTTP server for frontend..."
+        cd client/dist && python3 -m http.server 3000 &
+        FRONTEND_PID=$!
+        echo "FRONTEND_PID=$FRONTEND_PID" >> $GITHUB_ENV
+        sleep 3  # Give server time to start
+
+    - name: Verify backend health endpoint
+      run: |
+        echo "Testing backend health endpoint..."
+        max_attempts=10
+        attempt=0
+        while [ $attempt -lt $max_attempts ]; do
+          if curl -f http://localhost:8080/health; then
+            echo "✅ Backend health check successful"
+            break
+          else
+            echo "⏳ Attempt $((attempt + 1))/$max_attempts failed, retrying..."
+            sleep 2
+            attempt=$((attempt + 1))
+          fi
+        done
+        if [ $attempt -eq $max_attempts ]; then
+          echo "❌ Backend health check failed after $max_attempts attempts"
+          exit 1
+        fi
+
+    - name: Verify frontend is served correctly
+      run: |
+        echo "Testing frontend file serving..."
+        max_attempts=5
+        attempt=0
+        while [ $attempt -lt $max_attempts ]; do
+          if curl -f http://localhost:3000/index.html | grep -q "<title>"; then
+            echo "✅ Frontend serving successful"
+            break
+          else
+            echo "⏳ Attempt $((attempt + 1))/$max_attempts failed, retrying..."
+            sleep 2
+            attempt=$((attempt + 1))
+          fi
+        done
+        if [ $attempt -eq $max_attempts ]; then
+          echo "❌ Frontend serving check failed after $max_attempts attempts"
+          exit 1
+        fi
+
+    - name: Verify WebSocket endpoint responds
+      run: |
+        echo "Testing WebSocket endpoint availability..."
+        # Test that the WebSocket upgrade endpoint is available (should return 400 for GET requests)
+        if curl -f http://localhost:8080/ws || curl -s http://localhost:8080/ws | grep -q "websocket"; then
+          echo "✅ WebSocket endpoint is available"
+        else
+          echo "❌ WebSocket endpoint test failed"
+          exit 1
+        fi
+
+    - name: Cleanup background processes
+      if: always()
+      run: |
+        echo "Cleaning up background processes..."
+        if [ ! -z "$BACKEND_PID" ]; then
+          kill $BACKEND_PID || echo "Backend process already stopped"
+        fi
+        if [ ! -z "$FRONTEND_PID" ]; then
+          kill $FRONTEND_PID || echo "Frontend process already stopped"
+        fi
+        echo "✅ Integration smoke tests completed."

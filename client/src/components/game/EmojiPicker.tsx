@@ -23,6 +23,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
   anchorElement,
 }) => {
   const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,29 +52,85 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
     }
   }, [isOpen, anchorElement]);
 
+  // Reset selection when opened
   useEffect(() => {
+    if (isOpen) {
+      setSelectedIndex(0);
+    }
+  }, [isOpen]);
+
+  // Enhanced keyboard navigation
+  useEffect(() => {
+    const handleKeyboard = (event: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      switch (event.key) {
+        case 'Escape':
+          event.preventDefault();
+          onClose();
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          setSelectedIndex(prev => (prev + 1) % ALLOWED_EMOJIS.length);
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          setSelectedIndex(prev => (prev - 1 + ALLOWED_EMOJIS.length) % ALLOWED_EMOJIS.length);
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          // Move down one row (3 columns)
+          setSelectedIndex(prev => (prev + 3) % ALLOWED_EMOJIS.length);
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          // Move up one row (3 columns)
+          setSelectedIndex(prev => (prev - 3 + ALLOWED_EMOJIS.length) % ALLOWED_EMOJIS.length);
+          break;
+        case 'Enter':
+        case ' ':
+          event.preventDefault();
+          const selectedEmoji = ALLOWED_EMOJIS[selectedIndex];
+          if (selectedEmoji) {
+            onEmojiSelect(selectedEmoji.emoji);
+            onClose();
+          }
+          break;
+        case 'Tab':
+          // Allow tab navigation within the picker
+          const buttons = pickerRef.current?.querySelectorAll('button');
+          if (buttons && event.shiftKey) {
+            // Shift+Tab - go backwards
+            event.preventDefault();
+            setSelectedIndex(prev => (prev - 1 + ALLOWED_EMOJIS.length) % ALLOWED_EMOJIS.length);
+          } else if (buttons) {
+            // Tab - go forwards
+            event.preventDefault();
+            setSelectedIndex(prev => (prev + 1) % ALLOWED_EMOJIS.length);
+          }
+          break;
+      }
+    };
+
     const handleClickOutside = (event: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
         onClose();
       }
     };
 
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
     if (isOpen) {
+      document.addEventListener('keydown', handleKeyboard);
       document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscape);
+      
+      // Focus the picker when opened
+      pickerRef.current?.focus();
     }
 
     return () => {
+      document.removeEventListener('keydown', handleKeyboard);
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, onEmojiSelect, selectedIndex]);
 
   if (!isOpen) return null;
 
@@ -85,17 +142,31 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
         top: position.top,
         left: position.left,
       }}
+      tabIndex={-1}
+      role="dialog"
+      aria-label="Emoji picker"
     >
-      <div className="grid grid-cols-3 gap-1">
-        {ALLOWED_EMOJIS.map(({ emoji, name, label }) => (
+      <div className="text-xs text-text-muted mb-2 px-1">
+        Use arrow keys to navigate, Enter to select
+      </div>
+      <div className="grid grid-cols-3 gap-1" role="grid">
+        {ALLOWED_EMOJIS.map(({ emoji, name, label }, index) => (
           <button
             key={name}
             onClick={() => {
               onEmojiSelect(emoji);
               onClose();
             }}
-            className="w-10 h-10 flex items-center justify-center text-lg hover:bg-background-secondary rounded transition-colors"
+            onMouseEnter={() => setSelectedIndex(index)}
+            className={`w-10 h-10 flex items-center justify-center text-lg rounded transition-colors ${
+              index === selectedIndex 
+                ? 'bg-primary text-white' 
+                : 'hover:bg-background-secondary'
+            }`}
             title={label}
+            aria-label={`${label} emoji`}
+            role="gridcell"
+            tabIndex={index === selectedIndex ? 0 : -1}
           >
             {emoji}
           </button>

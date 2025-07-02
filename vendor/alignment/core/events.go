@@ -130,6 +130,12 @@ var ActionTypeValues = []ActionType{
 	ActionLeaveGame,
 	ActionStartGame,
 
+	// Party actions
+	ActionCreateParty,
+	ActionInviteToParty,
+	ActionJoinParty,
+	ActionLeaveParty,
+
 	// Communication actions
 	ActionSendMessage,
 	ActionSubmitPulseCheck,

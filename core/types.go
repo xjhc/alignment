@@ -31,17 +31,19 @@ const (
 	EventPlayerJoined       EventType = "PLAYER_JOINED"
 	EventPlayerLeft         EventType = "PLAYER_LEFT"
 	EventPlayerEliminated   EventType = "PLAYER_ELIMINATED"
+	EventPlayerAbandoned    EventType = "PLAYER_ABANDONED"
 	EventPlayerRoleRevealed EventType = "PLAYER_ROLE_REVEALED"
 	EventPlayerAligned      EventType = "PLAYER_ALIGNED"
 	EventPlayerShocked      EventType = "PLAYER_SHOCKED"
 	EventHostTransferred    EventType = "HOST_TRANSFERRED"
 
 	// Voting events
-	EventVoteStarted      EventType = "VOTE_STARTED"
-	EventVoteCast         EventType = "VOTE_CAST"
-	EventVoteTallyUpdated EventType = "VOTE_TALLY_UPDATED"
-	EventVoteCompleted    EventType = "VOTE_COMPLETED"
-	EventPlayerNominated  EventType = "PLAYER_NOMINATED"
+	EventVoteStarted             EventType = "VOTE_STARTED"
+	EventVoteCast                EventType = "VOTE_CAST"
+	EventVoteTallyUpdated        EventType = "VOTE_TALLY_UPDATED"
+	EventVoteCompleted           EventType = "VOTE_COMPLETED"
+	EventPlayerNominated         EventType = "PLAYER_NOMINATED"
+	EventExtensionVotingTriggered EventType = "EXTENSION_VOTING_TRIGGERED"
 
 	// Token and Mining events
 	EventTokensAwarded    EventType = "TOKENS_AWARDED"
@@ -114,6 +116,7 @@ const (
 	EventPlayerReconnected   EventType = "PLAYER_RECONNECTED"
 	EventPlayerDisconnected  EventType = "PLAYER_DISCONNECTED"
 	EventSyncComplete        EventType = "SYNC_COMPLETE"
+	EventRateLimitExceeded   EventType = "RATE_LIMIT_EXCEEDED"
 
 	// Phase skipping events
 	EventSkipVoteUpdated EventType = "SKIP_VOTE_UPDATED"
@@ -150,6 +153,11 @@ const (
 	// AI Equity events
 	EventAIEquityChanged EventType = "AI_EQUITY_CHANGED"
 	EventEquityThreshold EventType = "EQUITY_THRESHOLD"
+
+	// Whistleblower Protocol events
+	EventWhistleblowerVotingStarted   EventType = "WHISTLEBLOWER_VOTING_STARTED"
+	EventWhistleblowerVoteCast        EventType = "WHISTLEBLOWER_VOTE_CAST"
+	EventWhistleblowerVotingCompleted EventType = "WHISTLEBLOWER_VOTING_COMPLETED"
 )
 
 // Action represents a player action that can generate events
@@ -171,15 +179,22 @@ const (
 	ActionLeaveGame  ActionType = "LEAVE_GAME"
 	ActionStartGame  ActionType = "START_GAME"
 
+	// Party actions
+	ActionCreateParty   ActionType = "CREATE_PARTY"
+	ActionInviteToParty ActionType = "INVITE_TO_PARTY"
+	ActionJoinParty     ActionType = "JOIN_PARTY"
+	ActionLeaveParty    ActionType = "LEAVE_PARTY"
+
 	// Communication actions
 	ActionSendMessage      ActionType = "SEND_MESSAGE"
 	ActionReactToMessage   ActionType = "REACT_TO_MESSAGE"
 	ActionSubmitPulseCheck ActionType = "SUBMIT_PULSE_CHECK"
 
 	// Voting actions
-	ActionSubmitVote       ActionType = "SUBMIT_VOTE"
-	ActionExtendDiscussion ActionType = "EXTEND_DISCUSSION"
-	ActionSubmitSkipVote   ActionType = "SUBMIT_SKIP_VOTE"
+	ActionSubmitVote             ActionType = "SUBMIT_VOTE"
+	ActionExtendDiscussion       ActionType = "EXTEND_DISCUSSION"
+	ActionSubmitSkipVote         ActionType = "SUBMIT_SKIP_VOTE"
+	ActionTriggerExtensionVoting ActionType = "TRIGGER_EXTENSION_VOTING"
 
 	// Night actions
 	ActionSubmitNightAction ActionType = "SUBMIT_NIGHT_ACTION"
@@ -202,7 +217,11 @@ const (
 	ActionSubmitExitInterview ActionType = "SUBMIT_EXIT_INTERVIEW"
 
 	// Meta actions
-	ActionReconnect ActionType = "RECONNECT"
+	ActionReconnect  ActionType = "RECONNECT"
+	ActionAbandonGame ActionType = "ABANDON_GAME"
+
+	// Whistleblower Protocol actions
+	ActionSubmitWhistleblowerVote ActionType = "SUBMIT_WHISTLEBLOWER_VOTE"
 )
 
 // Phase represents the current game phase
@@ -233,8 +252,9 @@ type Player struct {
 	ID                string    `json:"id"`
 	Name              string    `json:"name"`
 	JobTitle          string    `json:"jobTitle"`
-	ControlType       string    `json:"controlType"` // "HUMAN" or "AI"
-	IsAlive           bool      `json:"isAlive"`
+	ControlType       string       `json:"controlType"` // "HUMAN" or "AI"
+	Status            PlayerStatus `json:"status"`
+	IsAlive           bool         `json:"isAlive"`
 	Tokens            int       `json:"tokens"`
 	ProjectMilestones int       `json:"projectMilestones"`
 	StatusMessage     string    `json:"statusMessage"`
@@ -250,6 +270,10 @@ type Player struct {
 	HasSubmittedPulseCheck bool         `json:"hasSubmittedPulseCheck,omitempty"`
 	LobbyHandle            string       `json:"lobbyHandle,omitempty"` // Original lobby identity for post-game reveal
 	BootcampPoints         int          `json:"bootcampPoints,omitempty"` // Intern role resource for shadowing abilities
+	
+	// FTUE and Assistance Settings
+	SeenHints             map[string]bool `json:"seenHints,omitempty"`             // Phase hints the player has seen (key: phase name)
+	DisableLoebmateHints  bool            `json:"disableLoebmateHints,omitempty"`  // Whether to disable Loebmate assistance
 
 	// Public status and effects
 	SlackStatus           string        `json:"slackStatus,omitempty"`
@@ -257,6 +281,15 @@ type Player struct {
 	SystemShocks          []SystemShock `json:"systemShocks,omitempty"`
 	IsRolePubliclyRevealed bool         `json:"isRolePubliclyRevealed"`
 }
+
+// PlayerStatus represents the status of a player in the game
+type PlayerStatus string
+
+const (
+	PlayerStatusAlive       PlayerStatus = "ALIVE"
+	PlayerStatusEliminated  PlayerStatus = "ELIMINATED"
+	PlayerStatusAbandoned   PlayerStatus = "ABANDONED"
+)
 
 // Role represents a player's role and abilities
 type Role struct {
@@ -366,10 +399,11 @@ const (
 
 // CrisisEvent represents a daily crisis that affects game rules
 type CrisisEvent struct {
-	Type        string                 `json:"type"`
-	Title       string                 `json:"title"`
-	Description string                 `json:"description"`
-	Effects     map[string]interface{} `json:"effects"`
+	Type             string                 `json:"type"`
+	Title            string                 `json:"title"`
+	Description      string                 `json:"description"`
+	PulseCheckPrompt string                 `json:"pulseCheckPrompt"`
+	Effects          map[string]interface{} `json:"effects"`
 }
 
 // ChatMessage represents a chat message
@@ -434,6 +468,7 @@ type GameSettings struct {
 	NightDuration      time.Duration          `json:"nightDuration"`
 	StartingTokens     int                    `json:"startingTokens"`
 	VotingThreshold    float64                `json:"votingThreshold"`
+	InitialAlignedHumanCount int             `json:"initialAlignedHumanCount"`
 	CustomSettings     map[string]interface{} `json:"customSettings,omitempty"`
 }
 
@@ -444,4 +479,29 @@ type SubmittedNightAction struct {
 	TargetID  string                 `json:"targetID"`
 	Payload   map[string]interface{} `json:"payload,omitempty"`
 	Timestamp time.Time              `json:"timestamp"`
+}
+
+// WhistleblowerVote represents a vote by a deactivated player on crisis options
+type WhistleblowerVote struct {
+	PlayerID     string    `json:"playerID"`
+	PlayerName   string    `json:"playerName"`
+	CrisisChoice string    `json:"crisisChoice"` // Crisis type they voted for
+	Timestamp    time.Time `json:"timestamp"`
+}
+
+// WhistleblowerVoting represents the current whistleblower voting state
+type WhistleblowerVoting struct {
+	IsActive        bool                       `json:"isActive"`
+	CrisisOptions   []CrisisEventOption        `json:"crisisOptions"`   // 3 options to choose from
+	Votes           map[string]string          `json:"votes"`           // PlayerID -> CrisisType
+	VoteResults     map[string]int             `json:"voteResults"`     // CrisisType -> Vote count
+	SelectedCrisis  string                     `json:"selectedCrisis"`  // Winning crisis type
+	IsComplete      bool                       `json:"isComplete"`
+}
+
+// CrisisEventOption represents a crisis option for whistleblower voting
+type CrisisEventOption struct {
+	Type        string `json:"type"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
 }

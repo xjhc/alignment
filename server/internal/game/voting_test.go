@@ -258,17 +258,17 @@ func TestVoteValidator_PhaseValidation(t *testing.T) {
 	validator := NewVoteValidator(state)
 
 	// Test extension vote in wrong phase
-	state.Phase.Type = core.PhaseDiscussion
+	state.Phase.Type = core.PhaseExtension
 	err := validator.IsValidVotePhase(core.VoteExtension)
 	if err == nil {
-		t.Error("Expected extension vote to be invalid in discussion phase")
+		t.Error("Expected extension vote to be invalid in extension phase")
 	}
 
-	// Test extension vote in correct phase
-	state.Phase.Type = core.PhaseExtension
+	// Test extension vote in correct phase (Discussion)
+	state.Phase.Type = core.PhaseDiscussion
 	err = validator.IsValidVotePhase(core.VoteExtension)
 	if err != nil {
-		t.Errorf("Expected extension vote to be valid in extension phase, got error: %v", err)
+		t.Errorf("Expected extension vote to be valid in discussion phase, got error: %v", err)
 	}
 
 	// Test nomination vote in correct phase

@@ -32,9 +32,11 @@ type MockGameLifecycleManager struct {
 }
 
 type GLMCreateLobbyViaHTTPCall struct {
+	UserID         string
 	HostPlayerName string
 	LobbyName      string
 	PlayerAvatar   string
+	IsPrivate      bool
 }
 
 type GLMCreateLobbyViaHTTPResult struct {
@@ -46,6 +48,7 @@ type GLMCreateLobbyViaHTTPResult struct {
 
 type GLMJoinLobbyCall struct {
 	LobbyID      string
+	UserID       string
 	PlayerName   string
 	PlayerAvatar string
 }
@@ -96,14 +99,16 @@ type GLMStopCall struct{}
 // Ensure MockGameLifecycleManager implements the interface at compile time
 var _ interfaces.GameLifecycleManagerInterface = (*MockGameLifecycleManager)(nil)
 
-func (m *MockGameLifecycleManager) CreateLobbyViaHTTP(hostPlayerName, lobbyName, playerAvatar string) (string, string, string, error) {
+func (m *MockGameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool) (string, string, string, error) {
 	m.Lock()
 	defer m.Unlock()
 
 	m.CreateLobbyViaHTTPCalls = append(m.CreateLobbyViaHTTPCalls, GLMCreateLobbyViaHTTPCall{
+		UserID:         userID,
 		HostPlayerName: hostPlayerName,
 		LobbyName:      lobbyName,
 		PlayerAvatar:   playerAvatar,
+		IsPrivate:      isPrivate,
 	})
 
 	if len(m.CreateLobbyViaHTTPResults) > 0 {
@@ -117,12 +122,13 @@ func (m *MockGameLifecycleManager) CreateLobbyViaHTTP(hostPlayerName, lobbyName,
 	return "", "", "", nil
 }
 
-func (m *MockGameLifecycleManager) JoinLobby(lobbyID, playerName, playerAvatar string) (string, string, error) {
+func (m *MockGameLifecycleManager) JoinLobby(lobbyID, userID, playerName, playerAvatar string) (string, string, error) {
 	m.Lock()
 	defer m.Unlock()
 
 	m.JoinLobbyCalls = append(m.JoinLobbyCalls, GLMJoinLobbyCall{
 		LobbyID:      lobbyID,
+		UserID:       userID,
 		PlayerName:   playerName,
 		PlayerAvatar: playerAvatar,
 	})

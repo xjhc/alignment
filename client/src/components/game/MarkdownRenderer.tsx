@@ -3,9 +3,10 @@ import React from 'react';
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  localPlayerName?: string; // For highlighting mentions of the current player
 }
 
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '', localPlayerName }) => {
   const parseMarkdown = (text: string): React.ReactNode[] => {
     const elements: React.ReactNode[] = [];
     
@@ -93,9 +94,19 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
       // @mentions: @PlayerName
       const mentionMatch = remaining.match(/^@(\w+)/);
       if (mentionMatch) {
+        const mentionedPlayer = mentionMatch[1];
+        const isLocalPlayerMention = localPlayerName && mentionedPlayer === localPlayerName;
+        
         elements.push(
-          <span key={`mention-${keyCounter++}`} className="bg-blue-500/20 text-blue-400 px-1 py-0.5 rounded font-medium">
-            @{mentionMatch[1]}
+          <span 
+            key={`mention-${keyCounter++}`} 
+            className={`px-1 py-0.5 rounded font-medium ${
+              isLocalPlayerMention 
+                ? 'bg-yellow-500/30 text-yellow-400 ring-1 ring-yellow-500/50' 
+                : 'bg-blue-500/20 text-blue-400'
+            }`}
+          >
+            @{mentionedPlayer}
           </span>
         );
         remaining = remaining.slice(mentionMatch[0].length);

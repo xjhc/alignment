@@ -1,14 +1,13 @@
-import React from 'react';
-import { useGameContext } from '../../contexts/GameContext';
-import { useGameActions } from '../../hooks/useGameActions';
-import { VoteUI } from './VoteUI';
-import { NightActionSelection } from './NightActionSelection';
-import { PulseCheckInput } from './PulseCheckInput';
-import { Button } from '../ui/Button';
-import { CrisisEvent } from '../../types';
+import React, { KeyboardEvent } from "react";
+import { useGameContext } from "../../contexts/GameContext";
+import { VoteUI } from "./VoteUI";
+import { NightActionSelection } from "./NightActionSelection";
+import { PulseCheckInput } from "./PulseCheckInput";
+import { Button } from "../ui/Button";
+import { CrisisEvent } from "../../types";
 
-// Generate context-specific pulse check questions based on crisis
-const generateCrisisQuestion = (crisis: CrisisEvent): string => {
+const generateCrisisQuestion = (crisis?: CrisisEvent): string => {
+  if (!crisis) return "What is your immediate response to the current crisis?";
   switch (crisis.type) {
     case "Database Index Corruption":
       return "A critical role has been exposed. How does this change your immediate priority?";
@@ -39,107 +38,96 @@ const generateCrisisQuestion = (crisis: CrisisEvent): string => {
   }
 };
 
-interface ContextualInputAreaProps {
-  // No props needed - everything comes from context
-}
+interface ContextualInputAreaProps {}
 
 export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
-  const { gameState, localPlayer, isConnected } = useGameContext();
-  const gameActions = useGameActions();
-  const { replyingTo, cancelReply } = gameActions;
-  
+  const {
+    gameState,
+    localPlayer,
+    isConnected,
+    replyingTo,
+    cancelReply,
+    rateLimitError,
+    getBufferStatus,
+    chatInput,
+    setChatInput,
+    handleKeyDown,
+    handleSendMessage,
+    handlePulseCheck,
+  } = useGameContext();
+
   if (!localPlayer) return null;
-  
+
   switch (gameState.phase.type) {
-    case 'NOMINATION':
-    case 'VERDICT':
-      return (
-        <VoteUI />
-      );
+    case "NOMINATION":
+    case "VERDICT":
+      return <VoteUI />;
 
-    case 'NIGHT':
-      return (
-        <NightActionSelection />
-      );
+    case "NIGHT":
+      return <NightActionSelection />;
 
-    case 'PULSE_CHECK':
-      // Only show pulse check input if player hasn't submitted yet
+    case "PULSE_CHECK":
       if (!localPlayer?.hasSubmittedPulseCheck) {
-        const pulseCheckQuestion = gameState.crisisEvent 
-          ? generateCrisisQuestion(gameState.crisisEvent)
-          : "What is your immediate response to the current crisis?";
-        
+        const pulseCheckQuestion = generateCrisisQuestion(
+          gameState.crisisEvent
+        );
         return (
           <PulseCheckInput
-            handlePulseCheck={gameActions.handlePulseCheck}
+            handlePulseCheck={handlePulseCheck}
             localPlayerName={localPlayer.name}
             question={pulseCheckQuestion}
           />
         );
       }
-      break; // Handled above if not submitted
-    case 'SITREP':
-    case 'DISCUSSION':
-    case 'TRIAL':
+    // After submission, fall through to the default case to show the chat input
+    // Fallthrough is intentional here.
+
+    case "SITREP":
+    case "DISCUSSION":
+    case "TRIAL":
     default:
       const isChatEnabled = () => {
         if (!isConnected) return false;
-        
+
         switch (gameState.phase.type) {
-          case 'SITREP':
-            // Players can send messages in #war-room during SITREP
+          case "SITREP":
+          case "DISCUSSION":
+          case "TRIAL":
             return true;
-          case 'PULSE_CHECK':
-            // Players can only send messages after submitting their pulse check
+          case "PULSE_CHECK":
             return localPlayer?.hasSubmittedPulseCheck === true;
-          case 'DISCUSSION':
-            // Chat enabled during discussion phases
-            return true;
-          case 'TRIAL':
-            // Only nominated player can speak during trial
-            return localPlayer?.id === gameState.nominatedPlayer;
-          case 'NIGHT':
-            // Chat disabled during night phase for #war-room
-            // TODO: Enable if current channel is #aligned and player is AI faction
-            return false;
           default:
             return false;
         }
       };
 
       const getPlaceholder = () => {
-        if (!isConnected) return 'Reconnecting...';
+        if (!isConnected) return "Reconnecting...";
         if (replyingTo) return `Reply to ${replyingTo.playerName}...`;
-        
+
         switch (gameState.phase.type) {
-          case 'SITREP':
-            return 'Message #war-room';
-          case 'PULSE_CHECK':
+          case "SITREP":
+          case "DISCUSSION":
+            return "Message #war-room";
+          case "PULSE_CHECK":
             if (!localPlayer?.hasSubmittedPulseCheck) {
-              return 'Submit your pulse check response to enable chat';
+              return "Submit your pulse check response to enable chat";
             }
-            return 'Message #war-room';
-          case 'DISCUSSION':
-            return 'Message #war-room';
-          case 'TRIAL':
-            return localPlayer?.id === gameState.nominatedPlayer 
-              ? 'Present your defense...' 
-              : 'Only the nominated player can speak during trial';
-          case 'NIGHT':
-            return 'Channel locked during Night Phase';
+            return "Message #war-room";
+          case "TRIAL":
+            return localPlayer?.id === gameState.nominatedPlayer
+              ? "Present your defense..."
+              : "Question the nominated player...";
+          case "NIGHT":
+            return "Channel locked during Night Phase";
           default:
             return `Channel locked during ${gameState.phase.type}`;
         }
       };
 
-      const handleSendMessage = () => {
-        if (gameActions.chatInput.trim() && isChatEnabled()) {
-          const syntheticEvent = {
-            key: 'Enter',
-            preventDefault: () => {},
-            stopPropagation: () => {}
-          } as React.KeyboardEvent<HTMLInputElement>;
-          gameActions.handleKeyDown(syntheticEvent);
+      const handleSendButtonClick = () => {
+        if (chatInput.trim() && isChatEnabled()) {
+          handleSendMessage();
         }
       };
 
@@ -149,8 +137,12 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
             <div className="flex items-center justify-between bg-background-secondary border border-border rounded-md px-3 py-2 mb-3 text-sm">
               <div className="flex items-center gap-2 text-text-secondary">
                 <span className="text-text-muted">↩️ Replying to</span>
-                <span className="font-semibold text-text-primary">{replyingTo.playerName}</span>
-                <span className="text-text-muted truncate max-w-xs">"{replyingTo.message}"</span>
+                <span className="font-semibold text-text-primary">
+                  {replyingTo.playerName}
+                </span>
+                <span className="text-text-muted truncate max-w-xs">
+                  "{replyingTo.message}"
+                </span>
               </div>
               <button
                 onClick={cancelReply}
@@ -161,33 +153,68 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
               </button>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <input
-              className="flex-1 bg-background-secondary border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-              type="text"
-              placeholder={getPlaceholder()}
-              value={gameActions.chatInput}
-              onChange={(e) => gameActions.setChatInput(e.target.value)}
-              onKeyDown={gameActions.handleKeyDown}
-              disabled={!isChatEnabled()}
-            />
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleSendMessage}
-              disabled={!isChatEnabled() || !gameActions.chatInput.trim()}
-              rightIcon={
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              }
-              title="Send message"
-            >
-              Send
-            </Button>
+
+          {rateLimitError && (
+            <div className="flex items-center justify-between bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2 mb-3 text-sm">
+              <div className="flex items-center gap-2 text-red-600">
+                <span>⚠️</span>
+                <span>{rateLimitError}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                className="flex-1 bg-background-secondary border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
+                type="text"
+                placeholder={getPlaceholder()}
+                value={chatInput}
+                maxLength={280}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => handleKeyDown(e as any)} // Cast event type for compatibility
+                disabled={!isChatEnabled()}
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSendButtonClick}
+                disabled={
+                  !isChatEnabled() ||
+                  !chatInput.trim() ||
+                  chatInput.length > 280
+                }
+                rightIcon={
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                    />
+                  </svg>
+                }
+                title="Send message"
+              >
+                Send
+              </Button>
+            </div>
+            {isChatEnabled() && (
+              <div className="flex justify-end">
+                <span
+                  className={`text-xs ${chatInput.length > 280 ? "text-red-500" : "text-text-muted"}`}
+                >
+                  {chatInput.length}/280
+                </span>
+              </div>
+            )}
           </div>
         </div>
       );
   }
 };
-

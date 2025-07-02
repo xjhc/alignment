@@ -165,7 +165,7 @@ func TestPlayerActor_StateMachine(t *testing.T) {
 
 			mockConn := createMockWebSocketConnection(t)
 			actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "👤", "test-token", mockConn)
-			actor.SetDependencies(mockLifecycleManager, eventBus)
+			actor.SetDependencies(mockLifecycleManager, eventBus, nil)
 
 			// Set initial state
 			actor.stateMutex.Lock()
@@ -313,7 +313,7 @@ func TestPlayerActor_DisconnectHandling(t *testing.T) {
 	eventBus.Subscribe("player_disconnected", eventCapture)
 
 	actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "👤", "test-token", nil)
-	actor.SetDependencies(mockLifecycleManager, eventBus)
+	actor.SetDependencies(mockLifecycleManager, eventBus, nil)
 
 	// Test disconnect from InLobby state
 	actor.TransitionToLobby("test-lobby")

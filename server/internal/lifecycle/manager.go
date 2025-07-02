@@ -14,7 +14,13 @@ import (
 	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/lobby"
+	"github.com/xjhc/alignment/server/internal/store"
 )
+
+// ActiveUserTrackerInterface defines the interface for tracking active users
+type ActiveUserTrackerInterface interface {
+	RemoveUserSessionByGameAndPlayer(gameID, playerID string)
+}
 
 
 // GameLifecycleManager unifies lobby and session management with event-driven architecture
@@ -36,10 +42,12 @@ type GameLifecycleManager struct {
 	ctx   context.Context
 
 	// Dependencies
-	datastore   interfaces.DataStore
-	broadcaster interfaces.Broadcaster
-	supervisor  interfaces.SupervisorInterface
-	eventBus    *events.EventBus
+	datastore         interfaces.DataStore
+	broadcaster       interfaces.Broadcaster
+	supervisor        interfaces.SupervisorInterface
+	eventBus          *events.EventBus
+	postgresStore     *store.PostgresStore
+	activeUserTracker ActiveUserTrackerInterface
 
 	// Event handling
 	eventChannel chan events.Event
@@ -53,21 +61,25 @@ func NewGameLifecycleManager(
 	broadcaster interfaces.Broadcaster,
 	supervisor interfaces.SupervisorInterface,
 	eventBus *events.EventBus,
+	postgresStore *store.PostgresStore,
+	activeUserTracker ActiveUserTrackerInterface,
 ) *GameLifecycleManager {
 	glm := &GameLifecycleManager{
-		lobbies:         make(map[string]*lobby.Lobby),
-		tokens:          make(map[string]*lobby.JoinToken),
-		gameSessions:    make(map[string]map[string]interfaces.PlayerActorInterface),
-		gameActors:      make(map[string]interfaces.GameActorInterface),
-		countdownTimers: make(map[string]*time.Timer),
-		countdownCancel: make(map[string]context.CancelFunc),
-		ctx:             ctx,
-		datastore:       datastore,
-		broadcaster:     broadcaster,
-		supervisor:      supervisor,
-		eventBus:        eventBus,
-		eventChannel:    make(chan events.Event, 100), // Buffered to prevent blocking
-		stopChannel:     make(chan struct{}),
+		lobbies:           make(map[string]*lobby.Lobby),
+		tokens:            make(map[string]*lobby.JoinToken),
+		gameSessions:      make(map[string]map[string]interfaces.PlayerActorInterface),
+		gameActors:        make(map[string]interfaces.GameActorInterface),
+		countdownTimers:   make(map[string]*time.Timer),
+		countdownCancel:   make(map[string]context.CancelFunc),
+		ctx:               ctx,
+		datastore:         datastore,
+		broadcaster:       broadcaster,
+		supervisor:        supervisor,
+		eventBus:          eventBus,
+		postgresStore:     postgresStore,
+		activeUserTracker: activeUserTracker,
+		eventChannel:      make(chan events.Event, 100), // Buffered to prevent blocking
+		stopChannel:       make(chan struct{}),
 	}
 
 	// Subscribe to relevant events
@@ -76,6 +88,9 @@ func NewGameLifecycleManager(
 
 	// Start event processing goroutine
 	go glm.processEvents()
+
+	// Start periodic cleanup goroutine for stale lobbies and games
+	go glm.periodicCleanup()
 
 	return glm
 }
@@ -112,6 +127,16 @@ func (glm *GameLifecycleManager) handleEvent(event events.Event) {
 // handlePlayerDisconnected removes disconnected players from lobbies/games
 func (glm *GameLifecycleManager) handlePlayerDisconnected(event events.PlayerDisconnectedEvent) {
 	log.Printf("GameLifecycleManager: Handling player disconnection: %s", event.PlayerID)
+
+	// Remove from active user tracker
+	if glm.activeUserTracker != nil {
+		if event.LobbyID != "" {
+			glm.activeUserTracker.RemoveUserSessionByGameAndPlayer(event.LobbyID, event.PlayerID)
+		}
+		if event.GameID != "" {
+			glm.activeUserTracker.RemoveUserSessionByGameAndPlayer(event.GameID, event.PlayerID)
+		}
+	}
 
 	// Handle lobby disconnection
 	if event.LobbyID != "" {
@@ -197,6 +222,7 @@ func (glm *GameLifecycleManager) handlePlayerDisconnected(event events.PlayerDis
 		// Notify the GameActor about the disconnection
 		glm.mutex.RLock()
 		gameActor, exists := glm.gameActors[event.GameID]
+		session := glm.gameSessions[event.GameID]
 		glm.mutex.RUnlock()
 
 		if exists {
@@ -213,6 +239,26 @@ func (glm *GameLifecycleManager) handlePlayerDisconnected(event events.PlayerDis
 					log.Printf("GameLifecycleManager: Error handling player disconnection: %v", result.Error)
 				}
 			}()
+
+			// Check if this was the last player out and trigger garbage collection
+			if session != nil && len(session) == 0 {
+				log.Printf("GameLifecycleManager: Last player left game %s, triggering garbage collection", event.GameID)
+				glm.mutex.Lock()
+				delete(glm.gameSessions, event.GameID)
+				delete(glm.gameActors, event.GameID)
+				glm.mutex.Unlock()
+
+				// Stop the GameActor via supervisor (safer than calling Stop directly)
+				if glm.supervisor != nil {
+					glm.supervisor.RemoveGame(event.GameID)
+				}
+
+				// Publish game ended event for any other cleanup
+				glm.eventBus.Publish(events.GameEndedEvent{
+					GameID: event.GameID,
+					Reason: "abandoned", // All players left
+				})
+			}
 		}
 	}
 }
@@ -231,13 +277,135 @@ func (glm *GameLifecycleManager) handleGameEnded(event events.GameEndedEvent) {
 	log.Printf("GameLifecycleManager: Cleaned up game %s", event.GameID)
 }
 
+// periodicCleanup runs periodically to clean up stale lobbies and sessions
+func (glm *GameLifecycleManager) periodicCleanup() {
+	ticker := time.NewTicker(5 * time.Minute) // Run cleanup every 5 minutes
+	defer ticker.Stop()
+
+	log.Println("GameLifecycleManager: Periodic cleanup started")
+	defer log.Println("GameLifecycleManager: Periodic cleanup stopped")
+
+	for {
+		select {
+		case <-glm.ctx.Done():
+			return
+		case <-glm.stopChannel:
+			return
+		case <-ticker.C:
+			glm.cleanupStaleLobbies()
+			glm.cleanupStaleGameSessions()
+		}
+	}
+}
+
+// cleanupStaleLobbies removes lobbies that have been inactive for too long
+func (glm *GameLifecycleManager) cleanupStaleLobbies() {
+	const maxInactivityDuration = 30 * time.Minute // Clean up lobbies inactive for 30+ minutes
+	const maxEmptyDuration = 2 * time.Minute       // Clean up empty lobbies after 2 minutes
+
+	now := time.Now()
+	var staleLobbyIDs []string
+
+	glm.mutex.RLock()
+	for lobbyID, lobby := range glm.lobbies {
+		playerCount := len(lobby.GetPlayerActors())
+		
+		// Check for completely empty lobbies (should be cleaned up quickly)
+		if playerCount == 0 {
+			if now.Sub(lobby.LastActivity) > maxEmptyDuration {
+				staleLobbyIDs = append(staleLobbyIDs, lobbyID)
+				log.Printf("GameLifecycleManager: Marking empty lobby %s for cleanup (empty for %v)", 
+					lobbyID, now.Sub(lobby.LastActivity))
+			}
+			continue
+		}
+
+		// Check for lobbies with players but no activity for a long time
+		if now.Sub(lobby.LastActivity) > maxInactivityDuration {
+			staleLobbyIDs = append(staleLobbyIDs, lobbyID)
+			log.Printf("GameLifecycleManager: Marking stale lobby %s for cleanup (inactive for %v, %d players)", 
+				lobbyID, now.Sub(lobby.LastActivity), playerCount)
+		}
+	}
+	glm.mutex.RUnlock()
+
+	// Remove stale lobbies
+	if len(staleLobbyIDs) > 0 {
+		glm.mutex.Lock()
+		for _, lobbyID := range staleLobbyIDs {
+			if lobby, exists := glm.lobbies[lobbyID]; exists {
+				// Notify remaining players that the lobby is being closed
+				closeEvent := core.Event{
+					ID:        fmt.Sprintf("lobby_closed_%d", time.Now().UnixNano()),
+					Type:      "LOBBY_CLOSED",
+					GameID:    lobbyID,
+					Timestamp: time.Now(),
+					Payload: map[string]interface{}{
+						"reason": "inactivity",
+						"message": "Lobby closed due to inactivity",
+					},
+				}
+
+				players := lobby.GetPlayerActors()
+				for _, actor := range players {
+					actor.SendServerMessage(closeEvent)
+					// Transition players back to idle state
+					actor.TransitionToIdle()
+				}
+
+				// Cancel any running countdown
+				if cancelFunc, exists := glm.countdownCancel[lobbyID]; exists {
+					cancelFunc()
+					delete(glm.countdownCancel, lobbyID)
+					delete(glm.countdownTimers, lobbyID)
+				}
+
+				delete(glm.lobbies, lobbyID)
+			}
+		}
+		glm.mutex.Unlock()
+		log.Printf("GameLifecycleManager: Cleaned up %d stale lobbies", len(staleLobbyIDs))
+	}
+}
+
+// cleanupStaleGameSessions removes game sessions that might be leaking
+func (glm *GameLifecycleManager) cleanupStaleGameSessions() {
+	var staleGameIDs []string
+
+	glm.mutex.RLock()
+	for gameID, session := range glm.gameSessions {
+		// Check if there's no corresponding GameActor (orphaned session)
+		if _, hasActor := glm.gameActors[gameID]; !hasActor {
+			staleGameIDs = append(staleGameIDs, gameID)
+			log.Printf("GameLifecycleManager: Found orphaned game session %s (no corresponding GameActor)", gameID)
+			continue
+		}
+
+		// For sessions with GameActors, we can't easily determine creation time
+		// without adding more tracking, so we rely on the GameActor's own health monitoring
+		_ = session // Keep the session alive if it has a GameActor
+	}
+	glm.mutex.RUnlock()
+
+	// Clean up orphaned sessions
+	if len(staleGameIDs) > 0 {
+		glm.mutex.Lock()
+		for _, gameID := range staleGameIDs {
+			delete(glm.gameSessions, gameID)
+		}
+		glm.mutex.Unlock()
+		log.Printf("GameLifecycleManager: Cleaned up %d orphaned game sessions", len(staleGameIDs))
+	}
+}
+
 // CreateLobbyViaHTTP creates a lobby via HTTP and returns join credentials
-func (glm *GameLifecycleManager) CreateLobbyViaHTTP(hostPlayerName, lobbyName, playerAvatar string) (string, string, string, error) {
+func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool) (string, string, string, error) {
 	lobbyID := uuid.New().String()
-	hostPlayerID := fmt.Sprintf("player_%s_%d", hostPlayerName, time.Now().UnixNano())
+	// Use the userID as the playerID to ensure consistency
+	hostPlayerID := userID
 
 	// Generate session token
-	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(lobbyID, hostPlayerID, hostPlayerName, playerAvatar, lobbyName, true)
+	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(lobbyID, hostPlayerID, hostPlayerName, playerAvatar, lobbyName, true, isPrivate)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}
@@ -260,6 +428,7 @@ func (glm *GameLifecycleManager) CreateLobbyViaHTTP(hostPlayerName, lobbyName, p
 		MinPlayers:   2,
 		CreatedAt:    time.Now(),
 		Status:       "WAITING_FOR_HOST",
+		IsPrivate:    isPrivate,
 	}
 
 	glm.lobbies[lobbyID] = newLobby
@@ -307,8 +476,14 @@ func (glm *GameLifecycleManager) JoinLobbyWithActor(lobbyID string, playerActor 
 	targetLobby.Unlock() // Unlock the lobby after status check/update
 	glm.mutex.Unlock() // Unlock the manager after getting the lobby ref
 
+	// Check for blocked players before allowing the join
+	err := glm.checkForBlockedPlayers(playerActor.GetPlayerID(), targetLobby)
+	if err != nil {
+		return err
+	}
+
 	// Add player to lobby (this will handle its own locking and broadcasting)
-	err := targetLobby.AddPlayer(playerActor)
+	err = targetLobby.AddPlayer(playerActor)
 	if err != nil {
 		return err
 	}
@@ -649,7 +824,7 @@ func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActor
 
 
 // Helper methods for token management (copied from original LobbyManager)
-func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost bool) (string, error) {
+func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost, isPrivate bool) (string, error) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return "", err
@@ -664,6 +839,7 @@ func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo(lobbyID, play
 		PlayerAvatar: playerAvatar,
 		LobbyName:    lobbyName,
 		IsHost:       isHost,
+		IsPrivate:    isPrivate,
 		ExpiresAt:    time.Now().Add(30 * time.Minute),
 	}
 
@@ -708,7 +884,7 @@ func (glm *GameLifecycleManager) Stop() {
 }
 
 // JoinLobby creates credentials for joining an existing lobby via HTTP
-func (glm *GameLifecycleManager) JoinLobby(lobbyID, playerName, playerAvatar string) (string, string, error) {
+func (glm *GameLifecycleManager) JoinLobby(lobbyID, userID, playerName, playerAvatar string) (string, string, error) {
 	// Check if lobby exists
 	glm.mutex.RLock()
 	lobby, exists := glm.lobbies[lobbyID]
@@ -723,9 +899,9 @@ func (glm *GameLifecycleManager) JoinLobby(lobbyID, playerName, playerAvatar str
 		return "", "", fmt.Errorf("lobby is full")
 	}
 
-	// Generate player ID and token
-	playerID := fmt.Sprintf("player_%s_%d", playerName, time.Now().UnixNano())
-	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, "", false)
+	// Use the userID as the playerID to ensure consistency
+	playerID := userID
+	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, "", false, lobby.IsPrivate)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}
@@ -838,4 +1014,48 @@ func (glm *GameLifecycleManager) GetLobbyList() []interface{} {
 // GetGameActor returns the game actor for a given game ID
 func (glm *GameLifecycleManager) GetGameActor(gameID string) (interfaces.GameActorInterface, bool) {
 	return glm.supervisor.GetActor(gameID)
+}
+
+// checkForBlockedPlayers checks if the joining player or existing players have blocked each other
+func (glm *GameLifecycleManager) checkForBlockedPlayers(joiningPlayerID string, targetLobby *lobby.Lobby) error {
+	if glm.postgresStore == nil {
+		// If PostgreSQL is not available, allow all joins (graceful degradation)
+		return nil
+	}
+
+	// Get the list of blocked players for the joining player
+	joiningPlayerBlocked, err := glm.postgresStore.GetBlockedPlayers(joiningPlayerID)
+	if err != nil {
+		log.Printf("Warning: Failed to get blocked players for %s: %v", joiningPlayerID, err)
+		// Don't block the join if we can't check - graceful degradation
+		return nil
+	}
+
+	// Check each existing player in the lobby
+	targetLobby.Lock()
+	defer targetLobby.Unlock()
+
+	for existingPlayerID := range targetLobby.Players {
+		// Check if the joining player has blocked this existing player
+		for _, blockedID := range joiningPlayerBlocked {
+			if blockedID == existingPlayerID {
+				return fmt.Errorf("cannot join lobby: you have blocked a player in this game")
+			}
+		}
+
+		// Check if the existing player has blocked the joining player
+		existingPlayerBlocked, err := glm.postgresStore.GetBlockedPlayers(existingPlayerID)
+		if err != nil {
+			log.Printf("Warning: Failed to get blocked players for %s: %v", existingPlayerID, err)
+			continue // Skip this check if we can't verify
+		}
+
+		for _, blockedID := range existingPlayerBlocked {
+			if blockedID == joiningPlayerID {
+				return fmt.Errorf("cannot join lobby: another player has blocked you")
+			}
+		}
+	}
+
+	return nil
 }

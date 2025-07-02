@@ -1,52 +1,69 @@
 {
-    "name": "Claude Code Sandbox",
-    "build": {
-        "dockerfile": "Dockerfile",
-        "args": {
-            "TZ": "${localEnv:TZ:America/Los_Angeles}"
+  "name": "Claude Code Sandbox",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "TZ": "${localEnv:TZ:America/Los_Angeles}"
+    }
+  },
+  "runArgs": ["--cap-add=NET_ADMIN", "--cap-add=NET_RAW"],
+  "forwardPorts": [
+    // 3000,
+    5173
+    // 8080
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "Dev Server",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Vite Dev Server",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Preview Server",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "zsh"
+          }
         }
-    },
-    "runArgs": [
-        "--cap-add=NET_ADMIN",
-        "--cap-add=NET_RAW"
-    ],
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "dbaeumer.vscode-eslint",
-                "esbenp.prettier-vscode",
-                "eamodio.gitlens"
-            ],
-            "settings": {
-                "editor.formatOnSave": true,
-                "editor.defaultFormatter": "esbenp.prettier-vscode",
-                "editor.codeActionsOnSave": {
-                    "source.fixAll.eslint": "explicit"
-                },
-                "terminal.integrated.defaultProfile.linux": "zsh",
-                "terminal.integrated.profiles.linux": {
-                    "bash": {
-                        "path": "bash",
-                        "icon": "terminal-bash"
-                    },
-                    "zsh": {
-                        "path": "zsh"
-                    }
-                }
-            }
-        }
-    },
-    "remoteUser": "node",
-    "mounts": [
-        "source=claude-code-bashhistory,target=/commandhistory,type=volume",
-        "source=claude-code-config,target=/home/node/.claude,type=volume"
-    ],
-    "remoteEnv": {
-        "NODE_OPTIONS": "--max-old-space-size=4096",
-        "CLAUDE_CONFIG_DIR": "/home/node/.claude",
-        "POWERLEVEL9K_DISABLE_GITSTATUS": "true"
-    },
-    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
-    "workspaceFolder": "/workspace",
-    "postCreateCommand": "sudo /usr/local/bin/init-firewall.sh"
+      }
+    }
+  },
+  "remoteUser": "node",
+  "mounts": [
+    "source=claude-code-bashhistory,target=/commandhistory,type=volume",
+    "source=claude-code-config,target=/home/node/.claude,type=volume"
+  ],
+  "remoteEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    "POWERLEVEL9K_DISABLE_GITSTATUS": "true"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "sudo /usr/local/bin/init-firewall.sh && /usr/local/bin/start-redis.sh && make vendor && npm install",
+  "postStartCommand": "/usr/local/bin/start-redis.sh"
 }

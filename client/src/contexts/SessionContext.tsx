@@ -9,6 +9,7 @@ export interface SessionContextType {
     lobbyState: LobbyState;
     gameState: GameState;
     roleAssignment: RoleAssignment | null;
+    gameAnalysis: any | null;
     isConnected: boolean;
     onLogin: (playerName: string, avatar: string) => void;
     onJoinLobby: (gameId: string, playerId: string, sessionToken: string) => void;

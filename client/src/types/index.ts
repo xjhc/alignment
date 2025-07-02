@@ -13,7 +13,8 @@ import {
   GeneratedPhase,
   GeneratedVoteState,
   GeneratedCrisisEvent,
-  GeneratedWinCondition
+  GeneratedWinCondition,
+  GeneratedWhistleblowerVoting
 } from './generated';
 
 // WebSocket message types
@@ -115,6 +116,7 @@ export interface GameState {
   privateNotifications?: PrivateNotification[];
   skipVotes?: Record<string, boolean>;
   pulseCheckResponses?: Record<string, string>;
+  whistleblowerVoting?: GeneratedWhistleblowerVoting;
 }
 
 // Corporate Mandate information
@@ -140,7 +142,7 @@ export interface NightActionResult {
 // Private notifications for individual players
 export interface PrivateNotification {
   id: string;
-  type: 'system_shock' | 'kpi_progress' | 'role_ability' | 'conversion' | 'investigation';
+  type: 'system_shock' | 'kpi_progress' | 'role_ability' | 'conversion' | 'investigation' | 'loebmate_hint' | 'help_response';
   title: string;
   message: string;
   timestamp: string;
@@ -167,6 +169,24 @@ export interface LobbyInfo {
   created_at: string;
 }
 
+// User identity types for authentication system
+export interface AuthenticatedUser {
+  id: string;
+  name: string;
+  avatar: string;
+  provider: 'discord';
+  isAuthenticated: true;
+}
+
+export interface GuestUser {
+  id: string;
+  name: string;
+  avatar: string;
+  isAuthenticated: false;
+}
+
+export type UserIdentity = AuthenticatedUser | GuestUser;
+
 // Application state
 export interface AppState {
   playerName: string;
@@ -176,4 +196,5 @@ export interface AppState {
   joinToken?: string;
   sessionToken?: string;
   lobbyInfo?: LobbyInfo;
+  userIdentity?: UserIdentity;
 }

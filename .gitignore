@@ -63,3 +63,6 @@ dump.rdb
 *.log
 *storybook.log
 storybook-static
+
+# Azure deployment files
+.azure_vm_ip

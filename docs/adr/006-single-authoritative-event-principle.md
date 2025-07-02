@@ -84,7 +84,7 @@ We will formally adopt and enforce the **"Single, Authoritative Event"** princip
 This principle is now enforced through:
 
 1. **Code Review Guidelines:** PR template includes checklist for single authoritative events
-2. **Documentation Updates:** `CLAUDE.md` and API documentation reflect this standard
+2. **Documentation Updates:** `CONTRIBUTING_AI.md` and API documentation reflect this standard
 3. **Architectural Decision:** Future development must adhere to this pattern
 4. **Type System:** Specific event types prevent accidental dual-event patterns
 

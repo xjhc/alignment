@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input } from './ui';
 
 interface LoginScreenProps {
@@ -10,12 +11,34 @@ const avatarOptions = ['👤', '🧑‍💻', '🕵️', '🤖', '🧑‍🚀'];
 export function LoginScreen({ onLogin }: LoginScreenProps) {
   const [selectedAvatar, setSelectedAvatar] = useState(avatarOptions[0]);
   const [playerName, setPlayerName] = useState('');
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (playerName.trim()) {
       onLogin(playerName.trim(), selectedAvatar);
+      
+      // Check if there's a return URL for invite links
+      const returnUrl = searchParams.get('return');
+      if (returnUrl) {
+        // Small delay to ensure login completes
+        setTimeout(() => {
+          navigate(decodeURIComponent(returnUrl));
+        }, 100);
+      }
     }
+  };
+
+  const handleDiscordLogin = () => {
+    // Store the return URL in localStorage before redirecting to Discord
+    const returnUrl = searchParams.get('return');
+    if (returnUrl) {
+      localStorage.setItem('discord_login_return_url', returnUrl);
+    }
+    
+    // Redirect to Discord OAuth
+    window.location.href = '/api/auth/login';
   };
 
   return (
@@ -23,6 +46,26 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       <h1 className="font-mono text-3xl font-semibold tracking-[2px]">
         LOEBIAN INC. // <span className="inline-block animate-pulse">EMERGENCY BRIDGE</span>
       </h1>
+      
+      {/* Discord Login Option */}
+      <div className="w-80 text-center">
+        <Button
+          type="button"
+          onClick={handleDiscordLogin}
+          variant="primary"
+          size="lg"
+          fullWidth
+          className="text-xl font-semibold mb-6 bg-indigo-600 hover:enabled:bg-indigo-700 text-white"
+        >
+          🎮 Login with Discord
+        </Button>
+        
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex-1 border-t border-border"></div>
+          <span className="text-text-secondary text-sm">OR PLAY AS GUEST</span>
+          <div className="flex-1 border-t border-border"></div>
+        </div>
+      </div>
       
       <form className="flex flex-col gap-4 items-center w-80" onSubmit={handleSubmit}>
         <div className="flex gap-2 mb-4 justify-center">
@@ -63,7 +106,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           disabled={!playerName.trim()}
           className="text-xl font-semibold text-black bg-amber hover:enabled:bg-amber-light"
         >
-          [ &gt; BROWSE LOBBIES ]
+          [ &gt; CONTINUE AS GUEST ]
         </Button>
       </form>
     </div>

@@ -35,7 +35,7 @@ func createTestGameActor(t *testing.T) *GameActor {
 		},
 	}
 
-	actor := NewGameActor(ctx, cancel, "test-game", players)
+	actor := NewGameActor(ctx, cancel, "test-game", players, nil) // nil PostgreSQL store for tests
 
 	actor.Start()
 	t.Cleanup(actor.Stop)
@@ -182,5 +182,86 @@ func TestGameActor_CreatePlayerStateUpdateEvent(t *testing.T) {
 	// Player2 should have stripped information
 	if player2, exists := gameState.Players["player2"]; !exists || player2.Role != nil {
 		t.Error("Player2 should exist but not have role info in Player1's snapshot")
+	}
+}
+
+func TestGameActor_ProcessAction_WhistleblowerVote(t *testing.T) {
+	actor := createTestGameActor(t)
+	
+	// Set up a deactivated player (eliminate one player)
+	gameState := actor.GetGameState()
+	gameState.Players["player1"].IsAlive = false
+	
+	// Set up whistleblower voting state manually for testing
+	gameState.WhistleblowerVoting = &core.WhistleblowerVoting{
+		IsActive: true,
+		CrisisOptions: []core.CrisisEventOption{
+			{Type: "SYSTEM_SHOCK", Title: "System Shock", Description: "Test crisis"},
+			{Type: "DATA_BREACH", Title: "Data Breach", Description: "Test crisis"},
+			{Type: "INSIDER_THREAT", Title: "Insider Threat", Description: "Test crisis"},
+		},
+		Votes:       make(map[string]string),
+		VoteResults: make(map[string]int),
+	}
+
+	// Test valid whistleblower vote action
+	whistleblowerAction := core.Action{
+		Type:      core.ActionSubmitWhistleblowerVote,
+		PlayerID:  "player1", // Deactivated player
+		GameID:    "test-game",
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"crisis_choice": "SYSTEM_SHOCK",
+		},
+	}
+
+	responseChan := actor.PostAction(whistleblowerAction)
+	result := <-responseChan
+	
+	if result.Error != nil {
+		t.Errorf("Expected no error for valid whistleblower vote, got: %v", result.Error)
+	}
+
+	if len(result.Events) == 0 {
+		t.Error("Expected at least one event for whistleblower vote")
+	}
+
+	// Verify the first event is a whistleblower vote cast event
+	if result.Events[0].Type != core.EventWhistleblowerVoteCast {
+		t.Errorf("Expected event type to be WHISTLEBLOWER_VOTE_CAST, got %s", result.Events[0].Type)
+	}
+
+	// Test invalid player (alive player trying to vote)
+	invalidAction := core.Action{
+		Type:      core.ActionSubmitWhistleblowerVote,
+		PlayerID:  "player2", // Alive player
+		GameID:    "test-game",
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"crisis_choice": "SYSTEM_SHOCK",
+		},
+	}
+
+	responseChan2 := actor.PostAction(invalidAction)
+	result2 := <-responseChan2
+	
+	if result2.Error == nil {
+		t.Error("Expected error for alive player trying to submit whistleblower vote")
+	}
+
+	// Test missing crisis_choice
+	missingPayloadAction := core.Action{
+		Type:      core.ActionSubmitWhistleblowerVote,
+		PlayerID:  "player1",
+		GameID:    "test-game",
+		Timestamp: time.Now(),
+		Payload:   map[string]interface{}{}, // Missing crisis_choice
+	}
+
+	responseChan3 := actor.PostAction(missingPayloadAction)
+	result3 := <-responseChan3
+	
+	if result3.Error == nil {
+		t.Error("Expected error for missing crisis_choice in payload")
 	}
 }

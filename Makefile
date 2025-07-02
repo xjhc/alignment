@@ -80,7 +80,7 @@ vendor: ## 🤝 Synchronize Go backend dependencies into the server/vendor direc
 .PHONY: build-backend
 build-backend:
 	@echo ">>> Building Go backend binary..."
-	@cd server && go build -o ../../alignment-server ./cmd/server/
+	@cd server && go build -o ../alignment-server ./cmd/server/
 
 .PHONY: build-frontend
 build-frontend: $(WASM_FILE)

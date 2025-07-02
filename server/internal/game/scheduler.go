@@ -22,9 +22,10 @@ type Timer struct {
 type TimerType string
 
 const (
-	TimerPhaseEnd  TimerType = "PHASE_END"
-	TimerGameStart TimerType = "GAME_START"
-	TimerHeartbeat TimerType = "HEARTBEAT"
+	TimerPhaseEnd         TimerType = "PHASE_END"
+	TimerGameStart        TimerType = "GAME_START"
+	TimerHeartbeat        TimerType = "HEARTBEAT"
+	TimerExtensionTrigger TimerType = "EXTENSION_TRIGGER"
 )
 
 // TimerAction represents an action to execute when timer expires
@@ -194,6 +195,25 @@ func (pm *PhaseManager) SchedulePhaseTransition(currentPhase core.PhaseType, pha
 		return // Unknown phase or end of game, don't schedule
 	}
 
+	// Special handling for Discussion phase: schedule extension voting trigger 15 seconds before end
+	if currentPhase == core.PhaseDiscussion && duration > 15*time.Second {
+		extensionTriggerTime := phaseStartTime.Add(duration - 15*time.Second)
+		extensionTriggerTimer := Timer{
+			ID:        pm.gameID + "_extension_trigger",
+			GameID:    pm.gameID,
+			Type:      TimerExtensionTrigger,
+			ExpiresAt: extensionTriggerTime,
+			Action: TimerAction{
+				Type: core.ActionTriggerExtensionVoting,
+				Payload: map[string]interface{}{
+					"remaining_seconds": 15,
+				},
+			},
+		}
+		pm.scheduler.ScheduleTimer(extensionTriggerTimer)
+	}
+
+	// Schedule the main phase end timer
 	timerID := pm.gameID + "_phase_" + string(currentPhase)
 	expiresAt := phaseStartTime.Add(duration)
 

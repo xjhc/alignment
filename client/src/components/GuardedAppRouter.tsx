@@ -10,12 +10,15 @@ import { GameScreen } from './GameScreen';
 import { GameOverScreen } from './GameOverScreen';
 import { PostGameAnalysis } from './PostGameAnalysis';
 import { WasmTestScreen } from './WasmTestScreen';
+import { JoinLobbyScreen } from './JoinLobbyScreen';
+import { PartyJoinScreen } from './PartyJoinScreen';
 
 
 export function GuardedAppRouter() {
   const {
     sessionState,
     appState,
+    gameAnalysis,
     onLogin,
     onBackToLogin,
     onJoinLobby,
@@ -92,7 +95,9 @@ export function GuardedAppRouter() {
         <Route path="/role-reveal" element={<RoleRevealScreen onEnterGame={onEnterGame} />} />
         <Route path="/game" element={<GameScreen />} />
         <Route path="/game-over" element={<GameOverScreen />} />
-        <Route path="/analysis" element={<PostGameAnalysis />} />
+        <Route path="/analysis" element={<PostGameAnalysis analysisData={gameAnalysis} />} />
+        <Route path="/join/:lobbyId" element={<JoinLobbyScreen />} />
+        <Route path="/party/join/:inviteCode" element={<PartyJoinScreen />} />
 
         {/* Default route */}
         <Route path="/" element={<Navigate to="/login" replace />} />
