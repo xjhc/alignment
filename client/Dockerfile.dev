@@ -1,16 +1,25 @@
-FROM node:20-alpine
+FROM node:18-alpine
 
-RUN apk add --no-cache su-exec netcat-openbsd
+# Set up a non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy the entrypoint script from the project root
-COPY scripts/entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh
+WORKDIR /app
+
+# Copy package files and install dependencies as root
+COPY client/package*.json ./client/
+RUN cd client && npm install
+
+# Copy the rest of the app files
+COPY . .
+
+# Change ownership to the non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to the non-root user
+USER appuser
 
 WORKDIR /app/client
 
-# Copy package files and install dependencies first to leverage caching
-COPY client/package.json client/package-lock.json ./
-RUN npm install
+EXPOSE 5173
 
-ENTRYPOINT ["entrypoint.sh"]
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "dev", "--", "--host"]

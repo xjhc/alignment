@@ -1,0 +1,36 @@
+run:
+  timeout: 5m
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  gocyclo:
+    min-complexity: 15
+  maligned:
+    suggest-new: true
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 2
+    min-occurrences: 3
+
+linters:
+  enable-all: true
+  disable:
+    - exhaustivestruct
+    - golint
+    - interfacer
+    - maligned
+    - scopelint
+    - gochecknoinits
+    - testpackage # Can be annoying for actor tests
+    - exhaustruct # Annoying for mocks and test setup
+    - nlreturn # Style preference
+    - wsl # Style preference
+    - gomnd # Sometimes magic numbers are fine for clarity
+    - paralleltest # Our tests are not designed for parallel execution yet
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

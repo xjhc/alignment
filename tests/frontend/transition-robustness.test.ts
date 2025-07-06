@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { websocketClient } from '../services/websocket';
-import { gameEngine } from '../services/gameEngine';
-import { ServerEventType } from '../types/generated';
+import { websocketClient } from '../../client/src/services/websocket';
+import { gameEngine } from '../../client/src/services/gameEngine';
+import { ServerEventType } from '../../client/src/types/generated';
 
 // This test focuses specifically on the robustness of the lobby-to-game transition
 // without UI components, focusing on the core data flow and edge cases.

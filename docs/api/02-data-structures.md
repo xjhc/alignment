@@ -32,19 +32,36 @@ These are the most common objects used in payloads.
 **`Player` Object**
 ```go
 type Player struct {
-    ID                string    `json:"id"`
-    Name              string    `json:"name"`
-    IsAlive           bool      `json:"is_alive"`
-    Tokens            int       `json:"tokens"`
-    ProjectMilestones int       `json:"project_milestones"`
-    StatusMessage     string    `json:"status_message"`
-    // --- Local Player Only ---
-    // These fields are populated for the viewing client via private, targeted events.
-    // The client uses the payload of events like ROLE_ASSIGNED or ALIGNMENT_CHANGED
-    // to update the state of its local player object.
-    Role              string    `json:"role,omitempty"`
-    Alignment         string    `json:"alignment,omitempty"`
-    PersonalKPI       string    `json:"personal_kpi,omitempty"`
+    ID                string       `json:"id"`
+    Name              string       `json:"name"`
+    JobTitle          string       `json:"jobTitle"`
+    ControlType       string       `json:"controlType"` // "HUMAN" or "AI"
+    Status            PlayerStatus `json:"status"`
+    IsAlive           bool         `json:"isAlive"`
+    Tokens            int          `json:"tokens"`
+    ProjectMilestones int          `json:"projectMilestones"`
+    StatusMessage     string       `json:"statusMessage"`
+    JoinedAt          time.Time    `json:"joinedAt"`
+
+    // Private fields (only visible to the player themselves)
+    Alignment              string       `json:"alignment,omitempty"` // "HUMAN" or "AI" or "ALIGNED"
+    Role                   *Role        `json:"role,omitempty"`
+    PersonalKPI            *PersonalKPI `json:"personalKPI,omitempty"`
+    AIEquity               int          `json:"aiEquity,omitempty"` // For alignment conversion
+    HasUsedAbility         bool         `json:"hasUsedAbility,omitempty"`
+    LastNightAction        *NightAction `json:"lastNightAction,omitempty"`
+    HasSubmittedPulseCheck bool         `json:"hasSubmittedPulseCheck,omitempty"`
+    LobbyHandle            string       `json:"lobbyHandle,omitempty"` // Original lobby identity for post-game reveal
+    BootcampPoints         int          `json:"bootcampPoints,omitempty"` // Intern role resource for shadowing abilities
+
+    // FTUE and Assistance Settings
+    SeenHints            map[string]bool `json:"seenHints,omitempty"`             // Phase hints the player has seen
+    DisableLoebmateHints bool            `json:"disableLoebmateHints,omitempty"`  // Whether to disable Loebmate assistance
+
+    // Public status and effects
+    SlackStatus            string        `json:"slackStatus,omitempty"`
+    PartingShot            string        `json:"partingShot,omitempty"`
+    SystemShocks           []SystemShock `json:"systemShocks,omitempty"`
 }
 ```
 

@@ -1,23 +1,35 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useWebSocketEvent } from "./useWebSocket";
-import { Player } from "../types";
+import { Player, ClientAction, ClientActionType } from "../types";
 
 export interface PendingMessage {
   id: string;
+  clientMessageId: string;
   message: string;
   timestamp: number;
   status: "pending" | "sent" | "failed";
+  channelId: string;
 }
 
-export function useChatBuffer(localPlayer: Player | null) {
-  const [messageBuffer, setMessageBuffer] = useState<string[]>([]);
-  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
+export function useChatBuffer(
+  localPlayer: Player | null,
+  gameId: string | undefined,
+  sendAction: (action: ClientAction) => void
+) {
+  const [messageBuffer, setMessageBuffer] = useState<{ message: string; clientMessageId: string; channelId: string }[]>([]);
+  const [pendingMessages, setPendingMessages] = useState<Record<string, PendingMessage[]>>({});
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const bufferTimer = useRef<NodeJS.Timeout | null>(null);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const FLUSH_INTERVAL = 500; // Send batch every 0.5 seconds
   const MAX_BUFFER_SIZE = 5;
+
+  // Use a ref to hold the latest props to avoid stale closures in callbacks
+  const latestProps = useRef({ localPlayer, gameId, sendAction });
+  useEffect(() => {
+    latestProps.current = { localPlayer, gameId, sendAction };
+  });
 
   // Listen for rate limit exceeded events from server
   useWebSocketEvent("RATE_LIMIT_EXCEEDED", (payload: { message: string }) => {
@@ -30,109 +42,147 @@ export function useChatBuffer(localPlayer: Player | null) {
   useWebSocketEvent(
     "CHAT_MESSAGE",
     (payload: {
-      id?: string;
+      client_message_id?: string;
       sender_id?: string;
+      channel_id?: string;
       message?: string;
-      player_id?: string;
     }) => {
-      if (!localPlayer) return;
-
-      // Check if the message is from the current user
-      if ((payload.sender_id || payload.player_id) === localPlayer.id) {
-        setPendingMessages((prev) =>
-          // Remove the first pending message that matches the content.
-          // This handles the optimistic UI confirmation.
-          prev.filter((msg, index) => {
-            const messageMatches = msg.message === payload.message;
-            // Only remove the first match to prevent accidentally removing multiple identical pending messages.
-            if (
-              messageMatches &&
-              index === prev.findIndex((p) => p.message === payload.message)
-            ) {
-              return false;
-            }
-            return true;
-          })
-        );
+      const { localPlayer } = latestProps.current;
+      if (!localPlayer || (payload.sender_id && payload.sender_id !== localPlayer.id)) {
+        return;
       }
+      
+      const channelId = payload.channel_id || "#war-room";
+      const clientMessageId = payload.client_message_id;
+
+      setPendingMessages((prev) => {
+        const channelPending = prev[channelId] || [];
+        const updatedPending = clientMessageId
+          ? channelPending.filter((msg) => msg.clientMessageId !== clientMessageId)
+          : channelPending.filter((msg) => msg.message !== payload.message); // Fallback
+          
+        return { ...prev, [channelId]: updatedPending };
+      });
     }
   );
 
-  const flushBuffer = useCallback(() => {
-    if (messageBuffer.length === 0) return;
-
-    // Dispatch the custom event to be handled by useGameActions
-    window.dispatchEvent(
-      new CustomEvent("flushChatBuffer", {
-        detail: { messages: [...messageBuffer] },
-      })
-    );
-
-    setMessageBuffer([]);
+  const sendBufferedMessages = useCallback(() => {
     if (bufferTimer.current) {
       clearTimeout(bufferTimer.current);
       bufferTimer.current = null;
     }
-  }, [messageBuffer]);
+
+    setMessageBuffer(currentBuffer => {
+      if (currentBuffer.length === 0) {
+        return currentBuffer;
+      }
+
+      const { localPlayer, gameId, sendAction } = latestProps.current;
+      if (!localPlayer || !gameId) {
+        console.warn("Cannot flush chat buffer: missing player or gameId. Re-queuing messages.");
+        return currentBuffer;
+      }
+
+      const messagesByChannel = currentBuffer.reduce((acc, msg) => {
+        if (!acc[msg.channelId]) {
+          acc[msg.channelId] = [];
+        }
+        acc[msg.channelId].push({
+          message: msg.message,
+          client_message_id: msg.clientMessageId,
+        });
+        return acc;
+      }, {} as Record<string, { message: string; client_message_id: string }[]>);
+
+      Object.entries(messagesByChannel).forEach(([channelId, channelMessages]) => {
+        sendAction({
+          type: ClientActionType.SendMessage,
+          payload: {
+            game_id: gameId,
+            player_id: localPlayer.id,
+            messages: channelMessages,
+            player_name: localPlayer.name,
+            channel_id: channelId,
+          },
+        });
+      });
+
+      return [];
+    });
+  }, []);
 
   useEffect(() => {
-    if (messageBuffer.length > 0 && !bufferTimer.current) {
-      bufferTimer.current = setTimeout(flushBuffer, FLUSH_INTERVAL);
+    if (messageBuffer.length >= MAX_BUFFER_SIZE) {
+      sendBufferedMessages();
+    } else if (messageBuffer.length > 0 && !bufferTimer.current) {
+      bufferTimer.current = setTimeout(sendBufferedMessages, FLUSH_INTERVAL);
     }
 
     return () => {
-      if (bufferTimer.current) clearTimeout(bufferTimer.current);
-      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+      if (bufferTimer.current) {
+        clearTimeout(bufferTimer.current);
+        bufferTimer.current = null;
+      }
     };
-  }, [messageBuffer.length, flushBuffer]);
+  }, [messageBuffer, sendBufferedMessages]);
 
   const addMessageToBuffer = useCallback(
-    (message: string): string => {
+    (message: string, channelId: string = "#war-room"): string => {
+      const clientMessageId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const newPendingMessage: PendingMessage = {
-        id: `pending_${Date.now()}_${Math.random()}`,
+        id: `pending_${clientMessageId}`,
+        clientMessageId,
         message,
         timestamp: Date.now(),
         status: "pending",
+        channelId,
       };
 
-      setPendingMessages((prev) => [...prev, newPendingMessage]);
-
-      setMessageBuffer((prev) => {
-        const newBuffer = [...prev, message];
-        if (newBuffer.length >= MAX_BUFFER_SIZE) {
-          setTimeout(flushBuffer, 0);
-        }
-        return newBuffer;
+      // Add to pending messages by channel
+      setPendingMessages((prev) => {
+        const channelPending = prev[channelId] || [];
+        return {
+          ...prev,
+          [channelId]: [...channelPending, newPendingMessage],
+        };
       });
 
-      return newPendingMessage.id;
+      // Add to buffer (let useEffect handle flushing)
+      setMessageBuffer((prev) => [
+        ...prev,
+        { message, clientMessageId, channelId },
+      ]);
+
+      return clientMessageId;
     },
-    [flushBuffer]
+    []
   );
 
   const clearBuffer = useCallback(() => {
     setMessageBuffer([]);
-    setPendingMessages([]);
+    setPendingMessages({});
     if (bufferTimer.current) {
       clearTimeout(bufferTimer.current);
       bufferTimer.current = null;
     }
   }, []);
 
-  const getBufferStatus = useCallback(() => {
-    return {
+  const getBufferStatus = useCallback(() => ({
       bufferLength: messageBuffer.length,
-      hasPendingMessages: pendingMessages.length > 0,
-      nextFlushETA:
-        messageBuffer.length > 0 ? Math.ceil(FLUSH_INTERVAL / 1000) : 0,
-    };
-  }, [messageBuffer.length, pendingMessages.length]);
+      hasPendingMessages: Object.values(pendingMessages).some(p => p.length > 0),
+      nextFlushETA: messageBuffer.length > 0 ? Math.ceil(FLUSH_INTERVAL / 1000) : 0,
+  }), [messageBuffer.length, pendingMessages]);
+
+  const getPendingMessagesForChannel = useCallback(
+    (channelId: string = "#war-room"): PendingMessage[] => pendingMessages[channelId] || [],
+    [pendingMessages]
+  );
 
   return {
     addMessageToBuffer,
-    flushBuffer,
     clearBuffer,
     pendingMessages,
+    getPendingMessagesForChannel,
     rateLimitError,
     getBufferStatus,
     bufferLength: messageBuffer.length,

@@ -1,0 +1,2 @@
+-- This file is intentionally left blank.
+-- Migrations are applied starting from 001.

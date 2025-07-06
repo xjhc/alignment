@@ -84,6 +84,7 @@ type Server struct {
 	authService         *auth.AuthService
 	authHandlers        *auth.AuthHandlers
 	rateLimiter         *rate.Limiter
+	lobbyListRateLimiter *rate.Limiter
 }
 
 // NewServer creates a new server instance
@@ -211,6 +212,7 @@ func NewServer() (*Server, error) {
 		authService:         authService,
 		authHandlers:        authHandlers,
 		rateLimiter:         rate.NewLimiter(rate.Every(2*time.Second), 5), // Allow 1 request every 2s, burst of 5
+		lobbyListRateLimiter: rate.NewLimiter(rate.Every(5*time.Second), 10), // More generous: 1 request every 5s, burst of 10
 	}
 
 	return server, nil
@@ -271,52 +273,61 @@ func (s *Server) Stop() {
 
 // HTTP handlers
 func (s *Server) setupRoutes() {
-	http.HandleFunc("/health", s.healthHandler)
-	http.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
-	http.HandleFunc("/ws", s.wsManager.HandleWebSocket)
-	http.HandleFunc("/api/games/", s.rateLimitMiddleware(s.gameByIDHandler)) // Rate limit game operations
-	http.HandleFunc("/api/games", s.rateLimitMiddleware(s.gamesHandler))     // Rate limit game creation
-	http.HandleFunc("/api/stats", s.statsHandler)
-	http.HandleFunc("/api/debug/event-types", s.debugEventTypesHandler)
-
+	mux := http.NewServeMux()
+	
+	// Basic endpoints
+	mux.HandleFunc("/health", s.healthHandler)
+	mux.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
+	mux.HandleFunc("/ws", s.wsManager.HandleWebSocket)
+	mux.HandleFunc("/api/stats", s.statsHandler)
+	mux.HandleFunc("/api/debug/event-types", s.debugEventTypesHandler)
+	
+	// Game endpoints with proper routing
+	mux.HandleFunc("/api/games", s.gamesHandlerWithDifferentiatedRateLimit)
+	mux.HandleFunc("POST /api/games/{gameId}/join", s.rateLimitMiddleware(s.joinLobbyHandler))
+	
 	// Admin endpoints
 	s.adminHandlers.SetupRoutes()
 
 	// Auth endpoints (only if auth service is available)
 	if s.authHandlers != nil {
-		http.HandleFunc("/api/auth/login", s.authHandlers.LoginHandler)       // GET to start OAuth flow
-		http.HandleFunc("/api/auth/callback", s.authHandlers.CallbackHandler) // GET OAuth callback
-		http.HandleFunc("/api/auth/logout", s.authHandlers.LogoutHandler)     // POST to logout
-		http.HandleFunc("/api/me", s.authHandlers.MeHandler)                  // GET current user info
+		mux.HandleFunc("/api/auth/login", s.authHandlers.LoginHandler)       // GET to start OAuth flow
+		mux.HandleFunc("/api/auth/callback", s.authHandlers.CallbackHandler) // GET OAuth callback
+		mux.HandleFunc("/api/auth/logout", s.authHandlers.LogoutHandler)     // POST to logout
+		mux.HandleFunc("/api/me", s.authHandlers.MeHandler)                  // GET current user info
 	} else {
 		// Fallback /api/me endpoint when auth is disabled
-		http.HandleFunc("/api/me", s.unauthenticatedMeHandler)
+		mux.HandleFunc("/api/me", s.unauthenticatedMeHandler)
 	}
 
 	// User profile endpoints (only if PostgreSQL is available)
 	if s.userHandlers != nil {
-		http.HandleFunc("/api/users", s.userHandlers.CreateUser)             // POST to create user
-		http.HandleFunc("/api/users/me", s.userHandlers.GetUserProfile)      // GET user profile
-		http.HandleFunc("/api/users/me/equip", s.userHandlers.EquipItem)     // POST to equip items
-		http.HandleFunc("/api/users/me/kudos", s.userHandlers.GiveKudos)     // POST to give kudos
-		http.HandleFunc("/api/users/me/report", s.userHandlers.ReportPlayer) // POST to report player
-		http.HandleFunc("/api/users/me/block", s.userHandlers.BlockPlayer)   // POST to block player
+		mux.HandleFunc("/api/users", s.userHandlers.CreateUser)             // POST to create user
+		mux.HandleFunc("/api/users/me", s.userHandlers.GetUserProfile)      // GET user profile
+		mux.HandleFunc("/api/users/me/equip", s.userHandlers.EquipItem)     // POST to equip items
+		mux.HandleFunc("/api/users/me/kudos", s.userHandlers.GiveKudos)     // POST to give kudos
+		mux.HandleFunc("/api/users/me/report", s.userHandlers.ReportPlayer) // POST to report player
+		mux.HandleFunc("/api/users/me/block", s.userHandlers.BlockPlayer)   // POST to block player
 	}
 
-	// Friends system endpoints (only if PostgreSQL is available)
+	// Friends system endpoints with proper routing (only if PostgreSQL is available)
 	if s.friendsHandlers != nil {
-		http.HandleFunc("/api/friends", s.friendsHandlers.GetFriendsList)             // GET friends list
-		http.HandleFunc("/api/friends/requests", s.friendsHandlers.SendFriendRequest) // POST to send request
-		http.HandleFunc("/api/friends/requests/", s.handleFriendRequests)             // Accept/decline requests
-		http.HandleFunc("/api/friends/remove", s.friendsHandlers.RemoveFriend)        // DELETE to remove friend
-		http.HandleFunc("/api/friends/status", s.friendsHandlers.GetFriendsStatus)    // GET friends status
+		mux.HandleFunc("/api/friends", s.friendsHandlers.GetFriendsList)                       // GET friends list
+		mux.HandleFunc("/api/friends/requests", s.friendsHandlers.SendFriendRequest)           // POST to send request
+		mux.HandleFunc("POST /api/friends/requests/{requestId}/accept", s.friendsHandlers.AcceptFriendRequest) // Accept request
+		mux.HandleFunc("DELETE /api/friends/requests/{requestId}", s.friendsHandlers.DeclineFriendRequest)     // Decline request
+		mux.HandleFunc("/api/friends/remove", s.friendsHandlers.RemoveFriend)                  // DELETE to remove friend
+		mux.HandleFunc("/api/friends/status", s.friendsHandlers.GetFriendsStatus)              // GET friends status
 	}
 
-	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Test endpoint works"))
 	})
 	// Swagger documentation endpoint
-	http.HandleFunc("/swagger/", httpSwagger.WrapHandler)
+	mux.HandleFunc("/swagger/", httpSwagger.WrapHandler)
+	
+	// Set the mux as the default handler
+	http.Handle("/", mux)
 }
 
 // rateLimitMiddleware applies rate limiting to HTTP endpoints
@@ -324,6 +335,18 @@ func (s *Server) rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !s.rateLimiter.Allow() {
 			logger.GetLogger().Warn("Rate limit exceeded", "ip", r.RemoteAddr, "endpoint", r.URL.Path)
+			http.Error(w, "Too many requests. Please try again later.", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
+// lobbyListRateLimitMiddleware applies more generous rate limiting for lobby listing
+func (s *Server) lobbyListRateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !s.lobbyListRateLimiter.Allow() {
+			logger.GetLogger().Warn("Lobby list rate limit exceeded", "ip", r.RemoteAddr, "endpoint", r.URL.Path)
 			http.Error(w, "Too many requests. Please try again later.", http.StatusTooManyRequests)
 			return
 		}
@@ -469,6 +492,20 @@ func (s *Server) gamesHandler(w http.ResponseWriter, r *http.Request) {
 		s.listLobbies(w, r)
 	case http.MethodPost:
 		s.createLobby(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// gamesHandlerWithDifferentiatedRateLimit applies different rate limits for GET vs POST on /api/games
+func (s *Server) gamesHandlerWithDifferentiatedRateLimit(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// Use more generous rate limiting for lobby listing
+		s.lobbyListRateLimitMiddleware(s.listLobbies)(w, r)
+	case http.MethodPost:
+		// Use strict rate limiting for lobby creation
+		s.rateLimitMiddleware(s.createLobby)(w, r)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -623,43 +660,14 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func (s *Server) gameByIDHandler(w http.ResponseWriter, r *http.Request) {
-	log := logger.WithField("endpoint", "gameByIDHandler")
-	log.Debug("Handler called", "path", r.URL.Path)
-
-	// Extract game ID from URL path
-	path := r.URL.Path
-	if len(path) < 11 { // "/api/games/"
-		log.Warn("Path too short", "path_length", len(path))
+// joinLobbyHandler handles lobby join requests using path parameters
+func (s *Server) joinLobbyHandler(w http.ResponseWriter, r *http.Request) {
+	gameID := r.PathValue("gameId")
+	if gameID == "" {
 		http.Error(w, "Invalid game ID", http.StatusBadRequest)
 		return
 	}
-
-	parts := strings.Split(path[11:], "/") // Remove "/api/games/" prefix
-	log.Debug("Path parts extracted", "parts", parts)
-
-	if len(parts) < 1 || parts[0] == "" {
-		log.Warn("Invalid path parts", "parts", parts)
-		http.Error(w, "Invalid game ID", http.StatusBadRequest)
-		return
-	}
-
-	gameID := parts[0]
-	log.Debug("Game ID extracted", "game_id", gameID)
-
-	// Handle different sub-endpoints
-	if len(parts) > 1 && parts[1] == "join" {
-		log.Info("Join endpoint requested", "game_id", gameID)
-		if r.Method == http.MethodPost {
-			s.joinLobby(w, r, gameID)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-		return
-	}
-
-	log.Warn("No matching endpoint", "path", path)
-	http.Error(w, "Endpoint not found", http.StatusNotFound)
+	s.joinLobby(w, r, gameID)
 }
 
 // JoinLobbyRequest represents the request to join an existing lobby
@@ -834,27 +842,6 @@ func (s *Server) debugEventTypesHandler(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(response)
 }
 
-// handleTimerExpired processes expired timers
-func handleTimerExpired(sessionManager *game.SessionManager, timer game.Timer) {
-	log := logger.WithFields(map[string]interface{}{
-		"timer_id": timer.ID,
-		"game_id":  timer.GameID,
-	})
-	log.Info("Timer expired")
-
-	// Convert timer action to game action
-	action := core.Action{
-		Type:     core.ActionType(timer.Action.Type),
-		GameID:   timer.GameID,
-		PlayerID: "SYSTEM",
-		Payload:  timer.Action.Payload,
-	}
-
-	// Send to session manager to ensure events are broadcast
-	if err := sessionManager.SendActionToGame(timer.GameID, action); err != nil {
-		log.Error("Failed to send timer action to game", "error", err)
-	}
-}
 
 func main() {
 	// Parse command-line flags
@@ -920,18 +907,3 @@ func main() {
 	}
 }
 
-// handleFriendRequests routes friend request operations (accept/decline)
-func (s *Server) handleFriendRequests(w http.ResponseWriter, r *http.Request) {
-	// Extract the path after "/api/friends/requests/"
-	path := strings.TrimPrefix(r.URL.Path, "/api/friends/requests/")
-	parts := strings.Split(path, "/")
-
-	if len(parts) >= 2 && parts[1] == "accept" {
-		s.friendsHandlers.AcceptFriendRequest(w, r)
-	} else if len(parts) >= 1 && parts[0] != "" {
-		// This is a decline request (DELETE method)
-		s.friendsHandlers.DeclineFriendRequest(w, r)
-	} else {
-		http.Error(w, "Invalid friend request endpoint", http.StatusBadRequest)
-	}
-}

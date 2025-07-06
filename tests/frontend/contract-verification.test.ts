@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ServerEventType, ClientActionType } from '../types/generated';
+import { ServerEventType, ClientActionType } from '../../client/src/types/generated';
 
 describe('Contract Verification', () => {
   const isE2EMode = process.env.NODE_ENV === 'test' && process.env.E2E_SERVER_URL;

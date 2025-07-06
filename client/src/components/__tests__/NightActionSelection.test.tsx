@@ -5,6 +5,17 @@ import { GameProvider } from '../../contexts/GameContext'
 import { Player, GameState } from '../../types'
 import { KPIType } from '../../types/generated'
 
+// Mock the sound manager
+vi.mock('../../services/soundManager', () => ({
+  soundManager: {
+    playSound: vi.fn(),
+    playMusic: vi.fn(),
+    stopMusic: vi.fn(),
+    isMutedState: vi.fn(() => false),
+    toggleMute: vi.fn(() => false),
+  },
+}))
+
 // Mock the WebSocket context
 vi.mock('../../contexts/WebSocketContext', () => ({
   useWebSocketContext: () => ({
@@ -72,8 +83,56 @@ const createTestGameState = (): GameState => ({
 })
 
 const renderWithGameContext = (gameState: GameState, localPlayerId: string) => {
+  const localPlayer = gameState.players.find(p => p.id === localPlayerId) || null;
+  const mockGameContext = {
+    gameState,
+    localPlayerId,
+    viewedPlayerId: localPlayerId,
+    localPlayer,
+    viewedPlayer: localPlayer,
+    isConnected: true,
+    activeChannel: '#war-room',
+    sendAction: vi.fn(),
+    setViewedPlayer: vi.fn(),
+    setActiveChannel: vi.fn(),
+    chatInput: '',
+    setChatInput: vi.fn(),
+    selectedNominee: '',
+    setSelectedNominee: vi.fn(),
+    selectedVote: '' as '',
+    setSelectedVote: vi.fn(),
+    conversionTarget: '',
+    setConversionTarget: vi.fn(),
+    miningTarget: '',
+    setMiningTarget: vi.fn(),
+    replyingTo: null,
+    handleSendMessage: vi.fn(),
+    handleMineTokens: vi.fn(),
+    handleUseAbility: vi.fn(),
+    handleProjectMilestones: vi.fn(),
+    handleConversionAttempt: vi.fn(),
+    handleNominate: vi.fn(),
+    handleVote: vi.fn(),
+    handleExtensionVote: vi.fn(),
+    handlePulseCheck: vi.fn(),
+    handleKeyDown: vi.fn(),
+    startReply: vi.fn(),
+    cancelReply: vi.fn(),
+    handleSkipPhase: vi.fn(),
+    handleEmojiReaction: vi.fn(),
+    handleSubmitPartingShot: vi.fn(),
+    submitWhistleblowerVote: vi.fn(),
+    getPhaseDisplayName: vi.fn(),
+    canPlayerAffordAbility: vi.fn(() => true),
+    isValidNightActionTarget: vi.fn(() => true),
+    pendingMessages: {},
+    getPendingMessagesForChannel: vi.fn(() => []),
+    rateLimitError: null,
+    getBufferStatus: vi.fn(() => ({ hasMessages: false, messageCount: 0 })),
+  };
+
   return render(
-    <GameProvider gameState={gameState} localPlayerId={localPlayerId}>
+    <GameProvider value={mockGameContext}>
       <NightActionSelection />
     </GameProvider>
   )

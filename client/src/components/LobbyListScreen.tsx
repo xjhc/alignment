@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui';
 import { FriendsPanel } from './FriendsPanel';
 import { PartyPanel } from './PartyPanel';
 import { getUserIdForApi } from '../services/guestIdentity';
+import { websocketClient } from '../services/websocket';
 
 interface LobbyInfo {
   id: string;
@@ -29,17 +30,70 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
   const [error, setError] = useState<string | null>(null);
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [showPartyPanel, setShowPartyPanel] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [pollingInterval, setPollingInterval] = useState(10000); // Start with 10 seconds instead of 5
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [showSessionConflict, setShowSessionConflict] = useState(false);
 
-  // Fetch lobby list from REST API
-  const fetchLobbies = async () => {
+  // Clear any existing WebSocket session to reset backend state
+  const clearSession = async () => {
     try {
+      console.log('Clearing existing session...');
+      websocketClient.disconnect();
+      setShowSessionConflict(false);
       setError(null);
+      // Refresh lobbies after clearing session
+      await fetchLobbies();
+    } catch (error) {
+      console.error('Error clearing session:', error);
+    }
+  };
+
+  // Restart polling with current interval
+  const restartPolling = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    intervalRef.current = setInterval(() => fetchLobbies(), pollingInterval);
+  };
+
+  // Fetch lobby list from REST API with exponential backoff for rate limiting
+  const fetchLobbies = async (isRetry = false) => {
+    try {
+      if (!isRetry) {
+        setError(null);
+      }
       const response = await fetch('/api/games');
+      
+      if (response.status === 429) {
+        // Rate limited - implement exponential backoff
+        const newRetryCount = retryCount + 1;
+        const backoffDelay = Math.min(1000 * Math.pow(2, newRetryCount), 60000); // Max 1 minute
+        setRetryCount(newRetryCount);
+        const newPollingInterval = Math.max(backoffDelay, 30000);
+        setPollingInterval(newPollingInterval); // Increase polling interval when rate limited
+        console.warn(`Rate limited. Backing off for ${backoffDelay}ms. Next poll in ${newPollingInterval}ms`);
+        
+        restartPolling();
+        setTimeout(() => {
+          fetchLobbies(true);
+        }, backoffDelay);
+        return;
+      }
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch lobbies: ${response.statusText}`);
       }
+      
       const data = await response.json();
       setLobbies(data.lobbies || []);
+      
+      // Reset retry count and polling interval on success
+      if (retryCount > 0) {
+        setRetryCount(0);
+        setPollingInterval(10000); // Reset to normal 10-second interval
+        restartPolling();
+      }
     } catch (error) {
       console.error('Error fetching lobbies:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch lobbies');
@@ -50,10 +104,14 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
 
   useEffect(() => {
     fetchLobbies();
-    // Poll for updates every 5 seconds
-    const interval = setInterval(fetchLobbies, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    restartPolling();
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []); // Only run once on mount
 
   const handleJoinLobby = async (gameId: string) => {
     try {
@@ -73,6 +131,9 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
 
       if (!response.ok) {
         const errorText = await response.text();
+        if (response.status === 409 && errorText.includes('already in an active game session')) {
+          setShowSessionConflict(true);
+        }
         throw new Error(errorText || 'Failed to join lobby');
       }
 
@@ -104,6 +165,9 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
 
       if (!response.ok) {
         const errorText = await response.text();
+        if (response.status === 409 && errorText.includes('already in an active game session')) {
+          setShowSessionConflict(true);
+        }
         throw new Error(errorText || 'Failed to create game');
       }
 
@@ -168,6 +232,33 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
         {error && (
           <div className="text-red my-4 p-2 bg-red/10 rounded">
             {error}
+          </div>
+        )}
+
+        {showSessionConflict && (
+          <div className="bg-danger/10 border border-danger/20 rounded-lg p-4 my-4">
+            <h3 className="text-danger font-semibold mb-2">🚨 Active Session Detected</h3>
+            <p className="text-text-secondary text-sm mb-4">
+              You're already in an active game session. To join a new game, you need to leave your current session first.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={clearSession}
+                className="text-sm font-medium"
+              >
+                Clear Current Session
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSessionConflict(false)}
+                className="text-sm"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         )}
         

@@ -23,6 +23,7 @@ export const CommsPanel: React.FC = () => {
     handleSkipPhase,
     handleEmojiReaction,
     pendingMessages,
+    getPendingMessagesForChannel,
   } = useGameContext();
 
   const timeRemaining = usePhaseTimer(gameState.phase);
@@ -128,11 +129,13 @@ export const CommsPanel: React.FC = () => {
   };
 
   const chatLogRef = React.useRef<HTMLDivElement>(null);
+  const currentChannelPendingMessages = getPendingMessagesForChannel ? getPendingMessagesForChannel(activeChannel) : [];
+
   React.useEffect(() => {
     if (chatLogRef.current) {
       chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
     }
-  }, [filteredMessages, pendingMessages]);
+  }, [filteredMessages, currentChannelPendingMessages]);
 
   const parseMessageContent = (message: string) => {
     const quoteRegex = /\[quote=([^\]]+)\]([^[]*)\[\/quote\]\n?(.*)/s;
@@ -260,7 +263,7 @@ export const CommsPanel: React.FC = () => {
           )}
 
         {(!filteredMessages || filteredMessages.length === 0) &&
-          pendingMessages.length === 0 && (
+          currentChannelPendingMessages.length === 0 && (
             <div className="empty-chat-message">
               <span className="text-text-muted italic">
                 No messages in {activeChannel} yet...
@@ -435,7 +438,7 @@ export const CommsPanel: React.FC = () => {
           );
         })}
 
-        {pendingMessages.map((pendingMsg) => {
+        {currentChannelPendingMessages.map((pendingMsg) => {
           const formatTimestamp = (timestamp: number) =>
             new Date(timestamp).toLocaleTimeString([], {
               hour: "2-digit",

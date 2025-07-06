@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { appReducer, initialAppState, ConsolidatedAppState } from '../state/appReducer';
+import { appReducer, initialAppState, ConsolidatedAppState } from '../../client/src/state/appReducer';
 
 describe('Session Restoration', () => {
   let mockSessionStorage: { [key: string]: string };

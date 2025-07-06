@@ -1,3 +1,4 @@
+
 package game
 
 import (
@@ -311,17 +312,16 @@ func TestEliminationManager_PlayerElimination(t *testing.T) {
 		t.Fatalf("Failed to eliminate player: %v", err)
 	}
 
-	if len(events) == 0 {
-		t.Error("Expected at least one event from elimination")
-	}
-
-	// Check that player is actually eliminated
-	player := state.Players["player1"]
-	if player.IsAlive {
-		t.Error("Expected eliminated player to be dead")
+	if len(events) < 2 {
+		t.Errorf("Expected at least two events (elimination, role reveal), got %d", len(events))
 	}
 
 	// Test cannot eliminate same player twice
+	// Re-apply state change before next test
+	for _, event := range events {
+		*state = core.ApplyEvent(*state, event)
+	}
+
 	_, err = em.EliminatePlayer("player1")
 	if err == nil {
 		t.Error("Expected error when trying to eliminate already dead player")

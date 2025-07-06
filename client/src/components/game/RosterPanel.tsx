@@ -41,10 +41,16 @@ export const RosterPanel: React.FC = () => {
   const getPlayerCounts = () => {
     if (!Array.isArray(players)) return { humanCount: 0, alignedCount: 0, deactivatedCount: 0 };
     
-    const humanCount = players.filter(p => p.isAlive && p.alignment !== 'AI' && p.alignment !== 'ALIGNED').length;
-    const alignedCount = players.filter(p => p.isAlive && (p.alignment === 'AI' || p.alignment === 'ALIGNED')).length;
-    const deactivatedCount = players.filter(p => !p.isAlive).length;
-    return { humanCount, alignedCount, deactivatedCount };
+    return players.reduce((counts, player) => {
+      if (!player.isAlive) {
+        counts.deactivatedCount++;
+      } else if (player.alignment === 'AI' || player.alignment === 'ALIGNED') {
+        counts.alignedCount++;
+      } else {
+        counts.humanCount++;
+      }
+      return counts;
+    }, { humanCount: 0, alignedCount: 0, deactivatedCount: 0 });
   };
 
   const { humanCount, alignedCount, deactivatedCount } = getPlayerCounts();

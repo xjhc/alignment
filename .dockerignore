@@ -2,16 +2,28 @@
 .git
 .gitignore
 
-# Node
+# Node.js
 node_modules
-client/node_modules
-client/dist
+npm-debug.log
+yarn-error.log
 
-# Go build artifacts
-alignment-server
-server/tmp
+# Docker
+Dockerfile
+Dockerfile.dev
+docker-compose.yml
+docker-compose.dev.yml
+.dockerignore
 
-# IDE / OS specific
-.vscode
+# IDE/Editor
 .idea
-*.DS_Store
+.vscode
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+alignment-server
+simulator-bin
+client/dist
+tmp

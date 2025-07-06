@@ -3,10 +3,10 @@ import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
-import App from '../App';
-import { websocketClient } from '../services/websocket';
-import { gameEngine } from '../services/gameEngine';
-import { ServerEventType } from '../types/generated';
+import App from '../../client/src/App';
+import { websocketClient } from '../../client/src/services/websocket';
+import { gameEngine } from '../../client/src/services/gameEngine';
+import { ServerEventType } from '../../client/src/types/generated';
 
 // Mock WASM loader
 vi.mock('../services/wasmLoader', () => ({

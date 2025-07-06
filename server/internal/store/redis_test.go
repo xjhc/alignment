@@ -1,3 +1,4 @@
+
 package store
 
 import (
@@ -34,7 +35,7 @@ func TestRedisDataStore_Connection(t *testing.T) {
 	if os.Getenv("CI") == "" && os.Getenv("REDIS_ADDR") == "" {
 		t.Skip("Skipping Redis test locally; set REDIS_ADDR to run.")
 	}
-	
+
 	rds := setupTestRedis(t)
 	assert.NotNil(t, rds)
 }
@@ -43,7 +44,7 @@ func TestRedisDataStore_AppendAndLoadEvents(t *testing.T) {
 	if os.Getenv("CI") == "" && os.Getenv("REDIS_ADDR") == "" {
 		t.Skip("Skipping Redis test locally; set REDIS_ADDR to run.")
 	}
-	
+
 	rds := setupTestRedis(t)
 	gameID := "test-game-1"
 
@@ -78,7 +79,7 @@ func TestRedisDataStore_AppendAndLoadEvents(t *testing.T) {
 	assert.Equal(t, event1.ID, loadedEvents[0].ID)
 	assert.Equal(t, event1.Type, loadedEvents[0].Type)
 	assert.Equal(t, event1.Payload["data"], loadedEvents[0].Payload["data"])
-	
+
 	assert.Equal(t, event2.ID, loadedEvents[1].ID)
 	assert.Equal(t, event2.Type, loadedEvents[1].Type)
 	assert.Equal(t, event2.Payload["data"], loadedEvents[1].Payload["data"])
@@ -88,7 +89,7 @@ func TestRedisDataStore_CreateAndLoadSnapshot(t *testing.T) {
 	if os.Getenv("CI") == "" && os.Getenv("REDIS_ADDR") == "" {
 		t.Skip("Skipping Redis test locally; set REDIS_ADDR to run.")
 	}
-	
+
 	rds := setupTestRedis(t)
 	gameID := "test-game-2"
 
@@ -139,7 +140,7 @@ func TestRedisDataStore_GetEventCount(t *testing.T) {
 	if os.Getenv("CI") == "" && os.Getenv("REDIS_ADDR") == "" {
 		t.Skip("Skipping Redis test locally; set REDIS_ADDR to run.")
 	}
-	
+
 	rds := setupTestRedis(t)
 	gameID := "test-game-3"
 
@@ -170,7 +171,7 @@ func TestRedisDataStore_DeleteGame(t *testing.T) {
 	if os.Getenv("CI") == "" && os.Getenv("REDIS_ADDR") == "" {
 		t.Skip("Skipping Redis test locally; set REDIS_ADDR to run.")
 	}
-	
+
 	rds := setupTestRedis(t)
 	gameID := "test-game-4"
 
@@ -222,7 +223,7 @@ func TestRedisDataStore_GetGameMetadata(t *testing.T) {
 	if os.Getenv("CI") == "" && os.Getenv("REDIS_ADDR") == "" {
 		t.Skip("Skipping Redis test locally; set REDIS_ADDR to run.")
 	}
-	
+
 	rds := setupTestRedis(t)
 	gameID := "test-game-5"
 

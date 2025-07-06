@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { GameProvider } from '../contexts/GameContext';
-import { ThemeProvider } from '../contexts/ThemeContext';
+import { GameProvider } from '../../client/src/contexts/GameContext';
+import { ThemeProvider } from '../../client/src/contexts/ThemeContext';
 import { BrowserRouter } from 'react-router-dom';
-import { RosterPanel } from '../components/game/RosterPanel';
-import { CommsPanel } from '../components/game/CommsPanel';
-import { VoteUI } from '../components/game/VoteUI';
-import { NightActionSelection } from '../components/game/NightActionSelection';
-import { SitrepMessage } from '../components/game/SitrepMessage';
+import { RosterPanel } from '../../client/src/components/game/RosterPanel';
+import { CommsPanel } from '../../client/src/components/game/CommsPanel';
+import { VoteUI } from '../../client/src/components/game/VoteUI';
+import { NightActionSelection } from '../../client/src/components/game/NightActionSelection';
+import { SitrepMessage } from '../../client/src/components/game/SitrepMessage';
 
 // Mock hooks and dependencies
-vi.mock('../hooks/useTheme', () => ({
+vi.mock('../../client/src/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'dark', toggleTheme: vi.fn() }),
 }));
 

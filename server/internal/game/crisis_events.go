@@ -465,48 +465,38 @@ func (cem *CrisisEventManager) assignRandomRole(player *core.Player) {
 	}
 }
 
+// RoleInfo contains display information for a role
+type RoleInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// roleInfoMap provides a data-driven mapping of role types to their information
+var roleInfoMap = map[core.RoleType]RoleInfo{
+	core.RoleCISO:      {"CISO", "Protects company systems by blocking threatening actions"},
+	core.RoleCTO:       {"CTO", "Manages technical infrastructure and server resources"},
+	core.RoleCFO:       {"CFO", "Controls financial resources and token distribution"},
+	core.RoleCEO:       {"CEO", "Sets strategic direction and manages personnel"},
+	core.RoleCOO:       {"COO", "Handles operations and crisis management"},
+	core.RoleEthics:    {"VP Ethics", "Ensures ethical compliance and conducts audits"},
+	core.RolePlatforms: {"VP Platforms", "Maintains platform stability and information systems"},
+	core.RoleIntern:    {"Intern", "Learns the corporate culture and assists with research"},
+}
+
 // getRoleName returns the display name for a role type
 func (cem *CrisisEventManager) getRoleName(roleType core.RoleType) string {
-	switch roleType {
-	case core.RoleCISO:
-		return "CISO"
-	case core.RoleCTO:
-		return "CTO"
-	case core.RoleCFO:
-		return "CFO"
-	case core.RoleCEO:
-		return "CEO"
-	case core.RoleCOO:
-		return "COO"
-	case core.RoleEthics:
-		return "VP Ethics"
-	case core.RolePlatforms:
-		return "VP Platforms"
-	default:
-		return "Unknown Role"
+	if info, exists := roleInfoMap[roleType]; exists {
+		return info.Name
 	}
+	return "Unknown Role"
 }
 
 // getRoleDescription returns the description for a role type
 func (cem *CrisisEventManager) getRoleDescription(roleType core.RoleType) string {
-	switch roleType {
-	case core.RoleCISO:
-		return "Protects company systems by blocking threatening actions"
-	case core.RoleCTO:
-		return "Manages technical infrastructure and server resources"
-	case core.RoleCFO:
-		return "Controls financial resources and token distribution"
-	case core.RoleCEO:
-		return "Sets strategic direction and manages personnel"
-	case core.RoleCOO:
-		return "Handles operations and crisis management"
-	case core.RoleEthics:
-		return "Ensures ethical compliance and conducts audits"
-	case core.RolePlatforms:
-		return "Maintains platform stability and information systems"
-	default:
-		return "Manages corporate responsibilities"
+	if info, exists := roleInfoMap[roleType]; exists {
+		return info.Description
 	}
+	return "Manages corporate responsibilities"
 }
 
 // getCrisisDefinition retrieves the definition for a specific crisis type

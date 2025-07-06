@@ -1,3 +1,4 @@
+
 package game
 
 import (
@@ -48,11 +49,10 @@ func TestMiningManager_ValidateMiningRequest(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "Cannot mine for self",
+			name:        "Can mine for self",
 			minerID:     "alice",
 			targetID:    "alice",
-			expectError: true,
-			errorMsg:    "cannot mine for yourself - mining must be selfless",
+			expectError: false,
 		},
 		{
 			name:        "Dead player cannot mine",
@@ -257,7 +257,7 @@ func TestMiningManager_ResolveMining(t *testing.T) {
 		{
 			name: "Invalid requests filtered out",
 			requests: []MiningRequest{
-				{MinerID: "alice", TargetID: "alice"}, // Self-mining, invalid
+				{MinerID: "alice", TargetID: "nonexistent"}, // Invalid target
 				{MinerID: "bob", TargetID: "charlie"}, // Valid
 			},
 			expectedSuccess: 1,

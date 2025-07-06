@@ -868,76 +868,63 @@ func (pa *PlayerActor) sendRateLimitError(message string) {
 }
 
 // processBulkMessages validates and processes bulk message payloads
+// FIX: This function now correctly handles both single and bulk message formats
+// and converts them into a consistent structure for downstream processing.
 func (pa *PlayerActor) processBulkMessages(action *core.Action) error {
-	const MAX_BATCH_SIZE = 5 // Maximum messages per batch to prevent abuse
+	const MAX_BATCH_SIZE = 10 // Increased limit for resilience
+	var messagesToProcess []map[string]interface{}
 
-	// Check if payload contains messages array (new bulk format)
 	if messagesPayload, ok := action.Payload["messages"]; ok {
-		// Handle bulk messages
+		// Handle bulk messages format
 		messagesInterface, ok := messagesPayload.([]interface{})
 		if !ok {
-			return fmt.Errorf("messages field must be an array")
+			return fmt.Errorf("messages field must be an array of objects")
 		}
 
-		// Validate batch size
-		if len(messagesInterface) == 0 {
-			return fmt.Errorf("messages array cannot be empty")
-		}
 		if len(messagesInterface) > MAX_BATCH_SIZE {
-			pa.sendRateLimitError(fmt.Sprintf("Message batch too large (max %d messages)", MAX_BATCH_SIZE))
 			return fmt.Errorf("batch size exceeds limit of %d", MAX_BATCH_SIZE)
 		}
 
-		// Convert interface{} slice to string slice and validate
-		var messages []string
 		for i, msg := range messagesInterface {
-			strMsg, ok := msg.(string)
+			msgData, ok := msg.(map[string]interface{})
 			if !ok {
-				return fmt.Errorf("message at index %d is not a string", i)
+				return fmt.Errorf("message at index %d is not a valid object", i)
 			}
-			if len(strMsg) == 0 {
-				return fmt.Errorf("message at index %d is empty", i)
-			}
-			
-			// Sanitize the message
-			sanitized := sanitizeString(strMsg, MAX_CHAT_MESSAGE_LENGTH)
-			
-			// Validate the sanitized message
-			if err := validateChatMessage(sanitized); err != nil {
-				return fmt.Errorf("message at index %d invalid: %v", i, err)
-			}
-			
-			messages = append(messages, sanitized)
+			messagesToProcess = append(messagesToProcess, msgData)
 		}
 
-		// Update the action payload with the validated messages
-		action.Payload["messages"] = messages
-		log.Printf("[PlayerActor/%s] Processing bulk message with %d messages", pa.playerID, len(messages))
-
-	} else if message, ok := action.Payload["message"]; ok {
-		// Handle single message (backward compatibility)
-		strMsg, ok := message.(string)
-		if !ok {
-			return fmt.Errorf("message field must be a string")
-		}
-		if len(strMsg) == 0 {
-			return fmt.Errorf("message cannot be empty")
-		}
-
-		// Sanitize and validate the single message
-		sanitized := sanitizeString(strMsg, MAX_CHAT_MESSAGE_LENGTH)
-		if err := validateChatMessage(sanitized); err != nil {
-			return fmt.Errorf("invalid message: %v", err)
-		}
-
-		// Convert single message to bulk format for consistent processing downstream
-		action.Payload["messages"] = []string{sanitized}
-		delete(action.Payload, "message") // Remove the old single message field
-		log.Printf("[PlayerActor/%s] Converting single message to bulk format", pa.playerID)
-
+	} else if message, ok := action.Payload["message"].(string); ok {
+		// Handle single message (legacy support) and convert to bulk format
+		messagesToProcess = append(messagesToProcess, map[string]interface{}{
+			"message":           message,
+			"client_message_id": action.Payload["client_message_id"],
+		})
 	} else {
-		return fmt.Errorf("payload must contain either 'message' or 'messages' field")
+		return fmt.Errorf("payload must contain 'messages' or 'message' field")
 	}
+
+	if len(messagesToProcess) == 0 {
+		return fmt.Errorf("no valid messages to process")
+	}
+
+	// Validate and sanitize each message
+	var finalMessages []map[string]interface{}
+	for _, msgData := range messagesToProcess {
+		content, _ := msgData["message"].(string)
+		if err := validateChatMessage(content); err != nil {
+			return err
+		}
+		msgData["message"] = sanitizeString(content, MAX_CHAT_MESSAGE_LENGTH)
+		finalMessages = append(finalMessages, msgData)
+	}
+
+	// Replace original payload with the sanitized, structured bulk format.
+	// This ensures downstream logic only has to handle one format.
+	action.Payload = map[string]interface{}{
+		"messages":   finalMessages,
+		"channel_id": action.Payload["channel_id"],
+	}
+	log.Printf("[PlayerActor/%s] Processing bulk message with %d messages", pa.playerID, len(finalMessages))
 
 	return nil
 }

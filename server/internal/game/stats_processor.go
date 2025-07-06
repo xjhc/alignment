@@ -1,3 +1,4 @@
+
 package game
 
 import (
@@ -136,7 +137,7 @@ func (sp *StatsProcessor) generateMVPReason(player *core.Player, score int, fina
 	}
 
 	reasons := []string{}
-	
+
 	// Analyze their contributions
 	tokensMined := sp.countPlayerAction(player.ID, events, core.EventMiningSuccessful)
 	if tokensMined > 0 {
@@ -165,7 +166,7 @@ func (sp *StatsProcessor) identifyKeyMoment(finalState *core.GameState, events [
 	// Look for the most impactful events in reverse chronological order
 	for i := len(events) - 1; i >= 0; i-- {
 		event := events[i]
-		
+
 		switch event.Type {
 		case core.EventAIConversionBlocked:
 			return core.KeyMoment{
@@ -296,6 +297,10 @@ func (sp *StatsProcessor) calculatePlayerStats(finalState *core.GameState, event
 
 // analyzeCommunication examines chat messages and reactions
 func (sp *StatsProcessor) analyzeCommunication(finalState *core.GameState, events []core.Event) core.CommunicationHighlights {
+	if finalState == nil || finalState.ChatMessages == nil {
+		return core.CommunicationHighlights{}
+	}
+
 	messageEvents := []core.Event{}
 	reactionEvents := []core.Event{}
 
@@ -392,7 +397,7 @@ func (sp *StatsProcessor) countAbilityUses(playerID string, events []core.Event)
 		core.EventPerformanceReview, core.EventReallocateBudget, core.EventPivot,
 		core.EventDeployHotfix,
 	}
-	
+
 	for _, event := range events {
 		if event.PlayerID == playerID {
 			for _, abilityEvent := range abilityEvents {
@@ -425,32 +430,32 @@ func (sp *StatsProcessor) countReactionsReceived(playerID string, events []core.
 func (sp *StatsProcessor) findMostReactedMessage(messageEvents, reactionEvents []core.Event, finalState *core.GameState) core.MostReactedMessage {
 	// Find the message with the most reactions
 	reactionCounts := make(map[string]int)
-	
+
 	for _, reaction := range reactionEvents {
 		if messageID, ok := reaction.Payload["message_id"].(string); ok {
 			reactionCounts[messageID]++
 		}
 	}
-	
+
 	// Find the message with highest count
 	maxReactions := 0
 	var mostReactedEvent core.Event
-	
+
 	for _, message := range messageEvents {
 		if count := reactionCounts[message.ID]; count > maxReactions {
 			maxReactions = count
 			mostReactedEvent = message
 		}
 	}
-	
+
 	if mostReactedEvent.ID == "" {
 		// Return empty result if no messages found
 		return core.MostReactedMessage{}
 	}
-	
+
 	player := finalState.Players[mostReactedEvent.PlayerID]
 	message, _ := mostReactedEvent.Payload["message"].(string)
-	
+
 	return core.MostReactedMessage{
 		PlayerID:     mostReactedEvent.PlayerID,
 		PlayerName:   player.Name,
@@ -463,7 +468,7 @@ func (sp *StatsProcessor) findMostReactedMessage(messageEvents, reactionEvents [
 
 func (sp *StatsProcessor) findNotableQuotes(messageEvents []core.Event, finalState *core.GameState) []core.NotableQuote {
 	quotes := []core.NotableQuote{}
-	
+
 	// Look for messages containing AI accusations or key strategic moments
 	for _, event := range messageEvents {
 		if message, ok := event.Payload["message"].(string); ok {
@@ -479,13 +484,13 @@ func (sp *StatsProcessor) findNotableQuotes(messageEvents []core.Event, finalSta
 				}
 			}
 		}
-		
+
 		// Limit to top 3 quotes
 		if len(quotes) >= 3 {
 			break
 		}
 	}
-	
+
 	return quotes
 }
 
@@ -565,7 +570,7 @@ func (sp *StatsProcessor) formatTimestamp(timestamp time.Time) string {
 func (sp *StatsProcessor) isNotableMessage(message string) bool {
 	lowerMsg := strings.ToLower(message)
 	keywords := []string{"ai", "artificial", "suspect", "eliminate", "vote", "guilty", "innocent"}
-	
+
 	for _, keyword := range keywords {
 		if strings.Contains(lowerMsg, keyword) {
 			return true
@@ -577,7 +582,7 @@ func (sp *StatsProcessor) isNotableMessage(message string) bool {
 func (sp *StatsProcessor) containsAccusation(message string) bool {
 	lowerMsg := strings.ToLower(message)
 	accusations := []string{"is the ai", "suspect", "vote", "eliminate", "guilty"}
-	
+
 	for _, accusation := range accusations {
 		if strings.Contains(lowerMsg, accusation) {
 			return true

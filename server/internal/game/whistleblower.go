@@ -1,3 +1,4 @@
+
 package game
 
 import (
@@ -59,7 +60,7 @@ func (wm *WhistleblowerManager) SubmitVote(playerID, crisisType string) (*core.E
 	if !exists {
 		return nil, fmt.Errorf("player not found")
 	}
-	
+
 	if player.IsAlive {
 		return nil, fmt.Errorf("only deactivated players can vote in whistleblower protocol")
 	}

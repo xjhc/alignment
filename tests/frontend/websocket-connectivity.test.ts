@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { WebSocketClient } from '../services/websocket';
+import { WebSocketClient } from '../../client/src/services/websocket';
 
 // Mock WebSocket implementation for testing
 class MockWebSocket {

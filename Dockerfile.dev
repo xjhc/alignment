@@ -1,27 +1,36 @@
-FROM golang:1.22-alpine
-
-RUN apk add --no-cache su-exec curl
+FROM golang:1.21-alpine
 
 WORKDIR /app
 
-# Install air for live reloading
-RUN go install github.com/cosmtrek/air@v1.51.0
+# Set up a non-root user to own the files
+# The entrypoint script will handle creating a user with the host UID/GID
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Install Air for live-reloading as root
+RUN go install github.com/cosmtrek/air@latest
+# Install su-exec for privilege dropping
+RUN apk add --no-cache su-exec
+
+# Copy Go module files and download dependencies
+COPY go.mod go.sum ./
+COPY server/go.mod server/go.sum ./server/
+COPY core/go.mod core/go.sum ./core/
+RUN go mod download
+
+# Copy the entire project structure
+COPY . .
 
 # Copy the entrypoint script and make it executable
-COPY scripts/entrypoint.sh /usr/local/bin/
+COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Copy dependency files and vendor them
-COPY server/go.mod server/go.sum ./server/
-COPY core ./core
-WORKDIR /app/server
-RUN go mod tidy && go mod vendor
-WORKDIR /app
+# Change ownership to our non-root user
+RUN chown -R appuser:appgroup /app
 
-# Copy the rest of the source code
-COPY . .
+# The entrypoint script will handle dropping privileges
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 EXPOSE 8080
 
-ENTRYPOINT ["entrypoint.sh"]
+# The command to run with live-reloading, executed by the entrypoint
 CMD ["air", "-c", "server/.air.toml"]

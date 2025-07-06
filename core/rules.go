@@ -1,3 +1,4 @@
+
 package core
 
 import (
@@ -96,7 +97,7 @@ func canSendInWarRoom(player Player, phase PhaseType) bool {
 // canSendInAlignedChannel implements #aligned channel rules
 func canSendInAlignedChannel(player Player, phase PhaseType) bool {
 	// Only AI faction members can access #aligned channel
-	if player.Alignment != "ALIGNED" {
+	if player.Alignment != "ALIGNED" && player.Alignment != "AI" {
 		return false
 	}
 
@@ -118,7 +119,7 @@ func CanPlayerUseNightAction(player Player, actionType NightActionType, currentT
 	}
 
 	// AI players can attempt conversion
-	if player.Alignment == "ALIGNED" && actionType == ActionConvert {
+	if (player.Alignment == "AI" || player.Alignment == "ALIGNED") && actionType == ActionConvert {
 		return true
 	}
 
@@ -155,6 +156,10 @@ func GetVoteWinner(voteState VoteState, threshold float64) (string, bool) {
 	totalTokens := 0
 	for _, tokens := range voteState.TokenWeights {
 		totalTokens += tokens
+	}
+
+	if totalTokens == 0 {
+		return "", false
 	}
 
 	requiredTokens := int(float64(totalTokens) * threshold)
@@ -263,12 +268,16 @@ func CheckWinCondition(gameState GameState) *WinCondition {
 	for _, player := range gameState.Players {
 		if player.IsAlive {
 			totalAlive++
-			if player.Alignment == "ALIGNED" {
+			if player.Alignment == "ALIGNED" || player.Alignment == "AI" {
 				aliveAI++
 			} else {
 				aliveHumans++
 			}
 		}
+	}
+
+	if totalAlive == 0 {
+		return nil
 	}
 
 	// Check for special Personal KPI win conditions first
@@ -370,18 +379,13 @@ func CheckWinCondition(gameState GameState) *WinCondition {
 
 // IsValidNightActionTarget checks if a target is valid for a night action
 func IsValidNightActionTarget(actor Player, target Player, actionType NightActionType) bool {
-	// Can't target yourself for most actions
-	if actor.ID == target.ID && actionType != ActionMine {
-		return false
-	}
-
 	// Can't target dead players
 	if !target.IsAlive {
 		return false
 	}
 
 	// AI can only convert humans
-	if actionType == ActionConvert && target.Alignment == "ALIGNED" {
+	if actionType == ActionConvert && (target.Alignment == "ALIGNED" || target.Alignment == "AI") {
 		return false
 	}
 

@@ -44,9 +44,17 @@ export function GuardedAppRouter() {
   // manually navigate back to the /login or /lobby-list pages.
   if (sessionState === 'IN_LOBBY' || sessionState === 'IN_GAME') {
     if (location.pathname.startsWith('/login') || location.pathname.startsWith('/lobby-list')) {
-      // The internal state says we're in a game, but the URL is for login/lobbies.
-      // The state wins. Force redirect back to the active game.
-      return <Navigate to="/waiting" replace />;
+      // Only redirect to /waiting if we have valid session data (gameId and playerId)
+      // Otherwise, the session state might be stale and we should go to login
+      if (appState.gameId && appState.playerId) {
+        // The internal state says we're in a game, but the URL is for login/lobbies.
+        // The state wins. Force redirect back to the active game.
+        return <Navigate to="/waiting" replace />;
+      } else {
+        // Session state indicates active session but we don't have valid session data
+        // This suggests stale/invalid state, so redirect to login
+        return <Navigate to="/login" replace />;
+      }
     }
   }
 

@@ -14,13 +14,15 @@ The actions listed below are only those sent over the **WebSocket**.
 
 ## I. Client → Server Actions
 
-These are the commands a client can send to the server. The server will validate each action and, if valid, generate one or more corresponding events.
+These are the commands a client can send to the server via WebSocket. The server will validate each action and, if valid, generate one or more corresponding events.
+
+**Note:** Game creation and lobby joining are handled via REST endpoints:
+- `POST /api/games` - Create a new game lobby
+- `POST /api/games/{id}/join` - Join an existing lobby
 
 | Action Name | Payload | Description |
 | :--- | :--- | :--- |
 | **`RECONNECT`** | `{ "game_id": string, "player_id": string, "session_token": string }` | Sent immediately upon connection to rejoin an active game. The server will respond with a `GAME_STATE_SNAPSHOT` to bring the client up-to-date instantly. |
-| **`CREATE_GAME`** | `{ "player_name": string }` | Asks the server to create a new game lobby and join it as the host. |
-| **`JOIN_GAME`** | `{ "game_id": string, "player_name": string }` | Joins an existing game lobby. |
 | **`START_GAME`** | `{}` | Sent by the lobby host to begin the game, assigning roles and starting Day 1. |
 | **`POST_CHAT_MESSAGE`**| `{ "content": string }` | Sends a single chat message to be broadcast to other players. <br> **Quote Format:** Use BBCode-style `[quote=player_name]original message[/quote]` to reply to specific messages. |
 | **`UPDATE_STATUS`**| `{ "status": string }` | Updates the player's public Player Status message (max 20 chars). |

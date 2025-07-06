@@ -1,5 +1,6 @@
 import { createContext, useContext, ReactNode, KeyboardEvent } from "react";
-import { GameState, Player, ClientAction, PendingMessage } from "../types";
+import { GameState, Player, ClientAction } from "../types";
+import { PendingMessage } from "../hooks/useChatBuffer";
 
 export interface GameContextType {
   // Game State
@@ -63,7 +64,8 @@ export interface GameContextType {
   ) => boolean;
 
   // Chat Buffering State
-  pendingMessages: PendingMessage[];
+  pendingMessages: Record<string, PendingMessage[]>;
+  getPendingMessagesForChannel: (channelId?: string) => PendingMessage[];
   rateLimitError: string | null;
   getBufferStatus: () => {
     bufferLength: number;

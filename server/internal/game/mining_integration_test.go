@@ -149,13 +149,10 @@ func TestMiningManager_SelfMiningPrevention(t *testing.T) {
 
 	mm := NewMiningManager(gameState)
 
-	// Test self-mining validation
+	// Test self-mining validation (now allowed)
 	err := mm.ValidateMiningRequest("player1", "player1")
-	if err == nil {
-		t.Error("Expected error for self-mining request")
-	}
-	if err.Error() != "cannot mine for yourself - mining must be selfless" {
-		t.Errorf("Expected self-mining error, got: %s", err.Error())
+	if err != nil {
+		t.Errorf("Expected self-mining to be allowed, got error: %s", err.Error())
 	}
 
 	// Test valid mining validation

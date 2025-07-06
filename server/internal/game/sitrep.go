@@ -1,3 +1,4 @@
+
 package game
 
 import (
@@ -52,23 +53,23 @@ func (sg *SitrepGenerator) GenerateDailySitrep() DailySitrep {
 
 	// Standard sections in order
 	sitrep.Sections = append(sitrep.Sections, sg.generateExecutiveSummary())
-	
+
 	// Add night activity log for Day 2 and beyond
 	if sg.gameState.DayNumber > 1 {
 		sitrep.Sections = append(sitrep.Sections, sg.generateNightActivityLog())
 	}
-	
+
 	sitrep.Sections = append(sitrep.Sections, sg.generatePersonnelStatus())
 	sitrep.Sections = append(sitrep.Sections, sg.generateOperationalMetrics())
 	sitrep.Sections = append(sitrep.Sections, sg.generateSecurityAlerts())
 	sitrep.Sections = append(sitrep.Sections, sg.generateProjectStatus())
 	sitrep.Sections = append(sitrep.Sections, sg.generateThreatAssessment())
-	
+
 	// Add today's crisis challenge
 	if sg.gameState.CrisisEvent != nil {
 		sitrep.Sections = append(sitrep.Sections, sg.generateCrisisChallenge())
 	}
-	
+
 	sitrep.Sections = append(sitrep.Sections, sg.generateRecommendations())
 
 	// Apply hotfix redaction if active
@@ -690,7 +691,7 @@ func (sg *SitrepGenerator) generateNightActivityLog() SitrepSection {
 
 	// Track role abilities used
 	roleAbilitiesUsed := make([]string, 0)
-	
+
 	// Check for specific role abilities in the previous night
 	for _, player := range sg.gameState.Players {
 		if player.IsAlive && player.HasUsedAbility {
@@ -758,7 +759,7 @@ func (sg *SitrepGenerator) generateAITargetClue() string {
 	// Look for players with high AI equity as indicators of targeting
 	maxEquity := 0
 	var targetedPlayer *core.Player
-	
+
 	for _, player := range sg.gameState.Players {
 		if player.IsAlive && player.AIEquity > maxEquity {
 			maxEquity = player.AIEquity
@@ -767,7 +768,7 @@ func (sg *SitrepGenerator) generateAITargetClue() string {
 	}
 
 	if targetedPlayer != nil && maxEquity > 0 {
-		return fmt.Sprintf("Elevated AI system access detected for %s (Security Level: %d)", 
+		return fmt.Sprintf("Elevated AI system access detected for %s (Security Level: %d)",
 			targetedPlayer.Name, maxEquity)
 	}
 
@@ -789,21 +790,21 @@ func (sg *SitrepGenerator) generateRoleAbilityReport(player *core.Player) string
 
 	switch player.Role.Type {
 	case core.RoleCISO:
-		return fmt.Sprintf("Security audit protocols were activated by the CISO")
+		return "Security audit protocols were activated by the CISO"
 	case core.RoleCTO:
-		return fmt.Sprintf("Server infrastructure was optimized by the CTO")
+		return "Server infrastructure was optimized by the CTO"
 	case core.RoleCOO:
-		return fmt.Sprintf("An agent successfully used the `Isolate Node` (Block) ability")
+		return "An agent successfully used the `Isolate Node` (Block) ability"
 	case core.RoleCEO:
-		return fmt.Sprintf("Executive directive was issued by the CEO")
+		return "Executive directive was issued by the CEO"
 	case core.RoleCFO:
-		return fmt.Sprintf("Budget reallocation was executed by the CFO")
+		return "Budget reallocation was executed by the CFO"
 	case core.RoleEthics:
-		return fmt.Sprintf("Compliance protocols were updated by VP Ethics")
+		return "Compliance protocols were updated by VP Ethics"
 	case core.RolePlatforms:
-		return fmt.Sprintf("Platform configuration was modified by VP Platforms")
+		return "Platform configuration was modified by VP Platforms"
 	default:
-		return fmt.Sprintf("Specialized role ability was activated")
+		return "Specialized role ability was activated"
 	}
 }
 
@@ -812,7 +813,7 @@ func (sg *SitrepGenerator) generateMiningReport() string {
 	// Count mining attempts and successes
 	totalMiners := 0
 	successfulMines := 0
-	
+
 	for _, player := range sg.gameState.Players {
 		if player.IsAlive && player.LastNightAction != nil && player.LastNightAction.Type == core.ActionMine {
 			totalMiners++
@@ -826,16 +827,16 @@ func (sg *SitrepGenerator) generateMiningReport() string {
 	if totalMiners > 0 {
 		return fmt.Sprintf("Resource mining operations: %d attempts, %d successful", totalMiners, successfulMines)
 	}
-	
+
 	return ""
 }
 
-// generateConversionReport generates AI conversion activity summary  
+// generateConversionReport generates AI conversion activity summary
 func (sg *SitrepGenerator) generateConversionReport() string {
 	// Check for new aligned agents or failed conversions
 	newlyAligned := 0
 	failedConversions := 0
-	
+
 	for _, player := range sg.gameState.Players {
 		if player.Alignment == "ALIGNED" {
 			newlyAligned++
@@ -848,39 +849,39 @@ func (sg *SitrepGenerator) generateConversionReport() string {
 	if newlyAligned > 0 {
 		return "The AI successfully **aligned a new agent**"
 	}
-	
+
 	if failedConversions > 0 {
 		return fmt.Sprintf("AI conversion attempt failed - %d personnel experienced system shocks", failedConversions)
 	}
-	
+
 	return ""
 }
 
 // describeCrisisEffects describes the mechanical effects of the current crisis
 func (sg *SitrepGenerator) describeCrisisEffects(crisis *core.CrisisEvent) string {
 	effects := make([]string, 0)
-	
+
 	if supermajority, exists := crisis.Effects["supermajority_required"]; exists && supermajority.(bool) {
 		effects = append(effects, "66% supermajority required for all decisions")
 	}
-	
+
 	if messageLimit, exists := crisis.Effects["message_limit"]; exists {
 		limit := int(messageLimit.(float64))
 		effects = append(effects, fmt.Sprintf("Communication limited to %d messages per person", limit))
 	}
-	
+
 	if doubleElim, exists := crisis.Effects["double_eliminations"]; exists && doubleElim.(bool) {
 		effects = append(effects, "**two deactivation votes** will occur this Day Phase")
 	}
-	
+
 	if reducedMining, exists := crisis.Effects["reduced_mining_pool"]; exists && reducedMining.(bool) {
 		effects = append(effects, "Mining efficiency reduced by 50%")
 	}
-	
+
 	if len(effects) > 0 {
 		return strings.Join(effects, "; ")
 	}
-	
+
 	return ""
 }
 
@@ -915,4 +916,3 @@ func (sg *SitrepGenerator) generatePulseCheckPrompt(crisis *core.CrisisEvent) st
 		return "Given the current crisis, what is your immediate concern for the company?"
 	}
 }
-

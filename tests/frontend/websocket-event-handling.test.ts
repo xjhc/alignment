@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { websocketClient } from '../services/websocket';
-import { gameEngine } from '../services/gameEngine';
-import { ServerEventType } from '../types/generated';
+import { websocketClient } from '../../client/src/services/websocket';
+import { gameEngine } from '../../client/src/services/gameEngine';
+import { ServerEventType } from '../../client/src/types/generated';
 
 // Mock the game engine
 vi.mock('../services/gameEngine', () => ({

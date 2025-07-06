@@ -717,7 +717,7 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 	for playerID, assignment := range personaAssignments {
 		// Get role ability information
 		roleAbility := getRoleAbility(assignment.Persona.Role)
-		
+
 		// Create a ROLE_ASSIGNED event for each player with their new persona
 		roleAssignedEvent := core.Event{
 			ID:        fmt.Sprintf("role_assigned_%s", playerID),
@@ -757,7 +757,7 @@ func (ga *GameActor) generateInitializeGameEvents(action core.Action) ([]core.Ev
 			events = append(events, kpiAssignedEvent)
 			kpiIndex++
 		}
-		
+
 		// If we run out of KPIs, shuffle and restart (to handle games with more than 5 players)
 		if kpiIndex >= len(kpis) {
 			ga.rng.Shuffle(len(kpis), func(i, j int) {
@@ -944,14 +944,67 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 	}
 
 	// Extract messages from payload (PlayerActor already processed and validated this)
-	messages, ok := action.Payload["messages"].([]string)
+	messagesInterface, ok := action.Payload["messages"].([]map[string]interface{})
 	if !ok {
+		// Try legacy format as fallback
+		if legacyMessages, legacyOk := action.Payload["messages"].([]string); legacyOk {
+			return ga.handleLegacyMessageFormat(action, legacyMessages)
+		}
 		return nil, fmt.Errorf("invalid or missing messages array in payload")
 	}
 
+	if len(messagesInterface) == 0 {
+		return nil, fmt.Errorf("messages array cannot be empty")
+	}
+
+	// Process each structured message and collect events
+	var events []core.Event
+	for i, msgData := range messagesInterface {
+		message, ok := msgData["message"].(string)
+		if !ok || message == "" {
+			return nil, fmt.Errorf("message at index %d is missing or empty", i)
+		}
+
+		// Check for /help command
+		if message == "/help" {
+			helpEvents, err := ga.handleHelpCommand(action.PlayerID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to handle help command: %v", err)
+			}
+			events = append(events, helpEvents...)
+			continue
+		}
+
+		// Create a copy of the payload for this specific message
+		messagePayload := make(map[string]interface{})
+		for k, v := range action.Payload {
+			messagePayload[k] = v
+		}
+
+		// Add the specific client_message_id for this message if available
+		if clientMessageId, exists := msgData["client_message_id"].(string); exists && clientMessageId != "" {
+			messagePayload["client_message_id"] = clientMessageId
+		}
+
+		// Create individual event for this message
+		event, err := ga.createChatMessageEvent(action.PlayerID, message, messagePayload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create event for message %d: %v", i, err)
+		}
+		events = append(events, event)
+	}
+
+	return events, nil
+}
+
+// handleLegacyMessageFormat handles the old string array format for backward compatibility
+func (ga *GameActor) handleLegacyMessageFormat(action core.Action, messages []string) ([]core.Event, error) {
 	if len(messages) == 0 {
 		return nil, fmt.Errorf("messages array cannot be empty")
 	}
+
+	// Extract client message IDs (optional)
+	clientMessageIds, _ := action.Payload["client_message_ids"].([]string)
 
 	// Process each message and collect events
 	var events []core.Event
@@ -970,8 +1023,19 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 			continue
 		}
 
+		// Create a copy of the payload for this specific message
+		messagePayload := make(map[string]interface{})
+		for k, v := range action.Payload {
+			messagePayload[k] = v
+		}
+
+		// Add the specific client_message_id for this message if available
+		if i < len(clientMessageIds) && clientMessageIds[i] != "" {
+			messagePayload["client_message_id"] = clientMessageIds[i]
+		}
+
 		// Create individual event for this message
-		event, err := ga.createChatMessageEvent(action.PlayerID, message, action.Payload)
+		event, err := ga.createChatMessageEvent(action.PlayerID, message, messagePayload)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create event for message %d: %v", i, err)
 		}
@@ -1041,6 +1105,11 @@ func (ga *GameActor) createChatMessageEvent(playerID, message string, actionPayl
 		"phase":       string(ga.state.Phase.Type),
 		"day_number":  ga.state.DayNumber,
 		"channel_id":  channelID,
+	}
+
+	// Include client_message_id if provided for confirmation
+	if clientMessageID, ok := actionPayload["client_message_id"].(string); ok && clientMessageID != "" {
+		payload["client_message_id"] = clientMessageID
 	}
 
 	// Handle private message targeting (legacy)
@@ -2288,7 +2357,7 @@ The game has concluded. Review the post-game analysis to see how everyone perfor
 	default:
 		return `**Help**
 
-Use /help during any phase to get specific guidance for that phase. 
+Use /help during any phase to get specific guidance for that phase.
 
 **General Tips:**
 • Check your Personal Terminal (right panel) for your role and KPI

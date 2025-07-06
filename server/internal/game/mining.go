@@ -1,3 +1,4 @@
+
 package game
 
 import (
@@ -81,11 +82,6 @@ func (mm *MiningManager) filterValidRequests(requests []MiningRequest) []MiningR
 	var validRequests []MiningRequest
 
 	for _, req := range requests {
-		// Check selfless mining rule
-		if req.MinerID == req.TargetID {
-			continue // Cannot mine for yourself
-		}
-
 		// Check if both players exist and are alive
 		miner, minerExists := mm.gameState.Players[req.MinerID]
 		target, targetExists := mm.gameState.Players[req.TargetID]
@@ -244,11 +240,6 @@ func (mm *MiningManager) UpdatePlayerTokens(result *MiningResult) []core.Event {
 
 // ValidateMiningRequest checks if a mining request is valid
 func (mm *MiningManager) ValidateMiningRequest(minerID, targetID string) error {
-	// Check selfless mining rule
-	if minerID == targetID {
-		return fmt.Errorf("cannot mine for yourself - mining must be selfless")
-	}
-
 	// Check if miner exists and is alive
 	miner, exists := mm.gameState.Players[minerID]
 	if !exists {
@@ -278,6 +269,12 @@ func (mm *MiningManager) ValidateMiningRequest(minerID, targetID string) error {
 // HandleMineAction processes a single mining action and returns events
 func (mm *MiningManager) HandleMineAction(action core.Action) ([]core.Event, error) {
 	targetID, _ := action.Payload["target_id"].(string)
+	if targetID == "" {
+		if t, ok := action.Payload["target_player_id"].(string); ok {
+			targetID = t
+		}
+	}
+
 
 	// Validate the mining request
 	if err := mm.ValidateMiningRequest(action.PlayerID, targetID); err != nil {

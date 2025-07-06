@@ -1,140 +1,109 @@
+
+.PHONY: help dev build clean test test-ci build-backend build-frontend build-simulator test-backend test-frontend test-simulation generate-types vendor
+
 # ==============================================================================
-# Makefile for the Alignment Project
-# The single source of truth for all development and operational tasks.
+# HELP
 # ==============================================================================
 
-# --- Host Environment ---
-# Get the current user's UID and GID to pass into Docker, solving permission issues.
-# The `export` command makes these variables available to sub-shells, like docker-compose.
-UID := $(shell id -u)
-GID := $(shell id -g)
-export UID GID
+help:
+	@echo "Usage: make <command>"
+	@echo ""
+	@echo "Available commands:"
+	@echo "  dev                 Run development servers for backend and frontend"
+	@echo "  build               Build production binaries and assets"
+	@echo "  clean               Remove build artifacts"
+	@echo "  test                Run all tests (backend and frontend)"
+	@echo "  test-ci             Run all tests in CI mode"
+	@echo "  build-backend       Build the backend server binary"
+	@echo "  build-frontend      Build the frontend production assets"
+	@echo "  build-simulator     Build the game balance simulator"
+	@echo "  test-backend        Run backend tests with race detection and coverage"
+	@echo "  test-frontend       Run frontend tests"
+	@echo "  test-simulation     Run game balance simulation tests"
+	@echo "  generate-types      Generate TypeScript types from Go core package"
+	@echo "  vendor              Vendor Go dependencies for the server"
 
-# Default command: Show help message
-.DEFAULT_GOAL := help
+# ==============================================================================
+# DEVELOPMENT
+# ==============================================================================
 
-# --- Go/Wasm Build Dependency ---
-WASM_FILE := client/public/core.wasm
-
-## --------------------------------------
-## PRIMARY WORKFLOWS
-## --------------------------------------
-
-.PHONY: dev
-dev: ## ✨ INTERACTIVE: Run servers in the foreground with combined, colorized logs.
-	@echo ">>> Starting interactive dev servers... (Press Ctrl+C to stop)"
+dev: generate-types
+	@echo ">>> Starting development servers..."
 	@npm run dev
 
-.PHONY: build
-build: build-backend build-frontend ## 📦 Build all production artifacts (Backend, Wasm, Frontend)
-	@echo "✅ Production build complete."
+# ==============================================================================
+# BUILD
+# ==============================================================================
 
-.PHONY: test
-test: test-backend test-frontend test-simulation ## 🧪 Run all backend and frontend tests
-	@echo "✅ All tests passed!"
+build: build-backend build-frontend build-simulator
+	@echo ">>> All builds complete."
 
-.PHONY: test-ci
-test-ci: test-backend test-frontend ## 🤖 Run tests suitable for CI (excludes simulation)
-	@echo "✅ CI tests passed!"
-
-.PHONY: docs
-docs: ## 📚 Generate OpenAPI documentation from code annotations
-	@echo ">>> Generating OpenAPI documentation..."
-	@cd server && GOWORK=off go run -mod=mod github.com/swaggo/swag/cmd/swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
-	@echo "✅ API documentation generated at server/docs/"
-
-## --------------------------------------
-## BACKGROUND DEVELOPMENT / E2E TESTING
-## --------------------------------------
-
-.PHONY: bg-start
-bg-start: ## 🚀 BACKGROUND: Start all services in the background (detached mode).
-	@echo ">>> Starting detached environment (backend, frontend, redis)..."
-	@docker compose -f docker-compose.dev.yml up -d --build
-
-.PHONY: bg-stop
-bg-stop: ## 🛑 BACKGROUND: Stop and clean up all background services.
-	@echo ">>> Stopping and cleaning up detached environment..."
-	@docker compose -f docker-compose.dev.yml down -v --remove-orphans
-
-.PHONY: bg-logs
-bg-logs: ## 📜 BACKGROUND: View live logs from all background services.
-	@echo ">>> Tailing logs (Ctrl+C to exit)..."
-	@docker compose -f docker-compose.dev.yml logs -f
-
-## --------------------------------------
-## DEPENDENCY MANAGEMENT
-## --------------------------------------
-
-.PHONY: vendor
-vendor: ## 🤝 Synchronize Go backend dependencies into the server/vendor directory.
-	@echo ">>> Tidying and vendoring Go modules for the backend..."
-	@cd server && go mod tidy
-	@echo ">>> Updating workspace vendor directory..."
-	@go work vendor
-
-## --------------------------------------
-## INDIVIDUAL COMPONENTS
-## --------------------------------------
-
-.PHONY: build-backend
 build-backend:
-	@echo ">>> Building Go backend binary..."
+	@echo ">>> Building backend server..."
 	@cd server && go build -o ../alignment-server ./cmd/server/
 
-.PHONY: build-frontend
-build-frontend: $(WASM_FILE)
-	@echo ">>> Building React frontend..."
-	@cd client && npm run build
+build-frontend:
+	@echo ">>> Building frontend assets..."
+	@cd client && npm install && npm run build
 
-$(WASM_FILE): core/*.go client/wasm/main.go
-	@echo ">>> Building Go/Wasm core module..."
-	@cd client/wasm && GOOS=js GOARCH=wasm go build -o ../public/core.wasm .
+build-simulator:
+	@echo ">>> Building game simulator..."
+	@cd simulator && go build -o ../simulator-bin ./cmd/simulator/
 
-.PHONY: test-backend
+# ==============================================================================
+# CLEAN
+# ==============================================================================
+
+clean:
+	@echo ">>> Cleaning build artifacts..."
+	@rm -f alignment-server simulator-bin
+	@rm -rf client/dist
+	@rm -f server/coverage.out client/coverage.json
+	@echo ">>> Clean complete."
+
+# ==============================================================================
+# TESTING
+# ==============================================================================
+
+test: test-backend test-frontend
+	@echo ">>> All tests passed."
+
+test-ci:
+	@echo ">>> Running tests in CI mode..."
+	@make test-backend
+	@make test-frontend
+	@make test-simulation
+	@echo ">>> CI tests complete."
+
 test-backend:
 	@echo ">>> Running backend tests..."
-	@cd server && go test -race -cover ./...
+	@cd server && go test -race -cover -coverprofile=coverage.out ./...
 
-.PHONY: test-frontend
-test-frontend: ## 🧪 Run frontend tests once
+test-frontend:
 	@echo ">>> Running frontend tests..."
-	@cd client && npm test
+	@cd client && npm install && npm test
 
-.PHONY: test-frontend-watch
-test-frontend-watch: ## 👀 Run frontend tests in watch mode for development
-	@echo ">>> Running frontend tests in watch mode... (Press Ctrl+C to stop)"
-	@cd client && npm run test:watch
+test-simulation: build-simulator
+	@echo ">>> Running game balance simulations..."
+	@./simulator-bin -runs=100 -output=simulation-results.json -ci
 
-.PHONY: test-frontend-coverage
-test-frontend-coverage: ## 📊 Run frontend tests with coverage report
-	@echo ">>> Running frontend tests with coverage..."
-	@cd client && npx vitest run --coverage
+# ==============================================================================
+# UTILITIES
+# ==============================================================================
 
-.PHONY: test-contract-e2e
-test-contract-e2e: ## 🔗 Run contract verification against live server (requires running server)
-	@echo ">>> Running contract verification against live server..."
-	@cd client && E2E_SERVER_URL=http://localhost:8080 npm test -- contract-verification
+generate-types:
+	@echo ">>> Generating TypeScript types from Go core..."
+	@cd tools/generate-types && go run main.go
 
-.PHONY: test-simulation
-test-simulation: build-simulator ## 🎯 Run game balance simulation tests
-	@echo ">>> Running balance simulation tests..."
-	@./cmd/simulator/simulator -runs=50 -ci
+vendor:
+	@echo ">>> Vendoring Go dependencies..."
+	@cd server && go mod tidy && go mod vendor
 
-.PHONY: build-simulator
-build-simulator:
-	@echo ">>> Building simulation runner..."
-	@cd cmd/simulator && go build -o simulator .
+# Background services for E2E testing
+bg-start:
+	@echo ">>> Starting background services..."
+	@docker-compose -f docker-compose.dev.yml up -d --build
 
-## --------------------------------------
-## HELP
-## --------------------------------------
-
-.PHONY: help
-help: ## 🙋 Show this help message
-	@echo
-	@echo "Usage: make <target>"
-	@echo
-	@echo "Available targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
-	@echo
+bg-stop:
+	@echo ">>> Stopping background services..."
+	@docker-compose -f docker-compose.dev.yml down

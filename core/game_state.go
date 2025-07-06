@@ -1,3 +1,4 @@
+
 package core
 
 import (
@@ -10,22 +11,22 @@ import (
 
 // GameState represents the complete state of a game
 type GameState struct {
-	Version         int                              `json:"version"`         // For handling state migrations
-	Checksum        string                           `json:"checksum,omitempty"` // For verifying data integrity
-	ID              string                           `json:"id"`
-	Phase           Phase                            `json:"phase"`
-	DayNumber       int                              `json:"day_number"`
-	Players         map[string]*Player               `json:"players"`
-	CreatedAt       time.Time                        `json:"created_at"`
-	UpdatedAt       time.Time                        `json:"updated_at"`
-	Settings        GameSettings                     `json:"settings"`
-	CrisisEvent     *CrisisEvent                     `json:"crisis_event,omitempty"`
-	ChatMessages    []ChatMessage                    `json:"chat_messages"`
-	VoteState           *VoteState           `json:"vote_state,omitempty"`
-	WhistleblowerVoting *WhistleblowerVoting `json:"whistleblower_voting,omitempty"`
-	NominatedPlayer     string               `json:"nominated_player,omitempty"`
-	WinCondition        *WinCondition        `json:"win_condition,omitempty"`
-	NightActions    map[string]*SubmittedNightAction `json:"night_actions,omitempty"`
+	Version             int                              `json:"version"`         // For handling state migrations
+	Checksum            string                           `json:"checksum,omitempty"` // For verifying data integrity
+	ID                  string                           `json:"id"`
+	Phase               Phase                            `json:"phase"`
+	DayNumber           int                              `json:"day_number"`
+	Players             map[string]*Player               `json:"players"`
+	CreatedAt           time.Time                        `json:"created_at"`
+	UpdatedAt           time.Time                        `json:"updated_at"`
+	Settings            GameSettings                     `json:"settings"`
+	CrisisEvent         *CrisisEvent                     `json:"crisis_event,omitempty"`
+	ChatMessages        []ChatMessage                    `json:"chat_messages"`
+	VoteState           *VoteState                       `json:"vote_state,omitempty"`
+	WhistleblowerVoting *WhistleblowerVoting             `json:"whistleblower_voting,omitempty"`
+	NominatedPlayer     string                           `json:"nominated_player,omitempty"`
+	WinCondition        *WinCondition                    `json:"win_condition,omitempty"`
+	NightActions        map[string]*SubmittedNightAction `json:"night_actions,omitempty"`
 
 	// Game-wide modifiers
 	CorporateMandate *CorporateMandate `json:"corporate_mandate,omitempty"`
@@ -54,18 +55,18 @@ func NewGameState(id string, currentTime time.Time) *GameState {
 		ChatMessages: make([]ChatMessage, 0),
 		NightActions: make(map[string]*SubmittedNightAction),
 		Settings: GameSettings{
-			MaxPlayers:         10,
-			MinPlayers:         2,
-			SitrepDuration:     15 * time.Second,
-			PulseCheckDuration: 30 * time.Second,
-			DiscussionDuration: 2 * time.Minute,
-			ExtensionDuration:  15 * time.Second,
-			NominationDuration: 30 * time.Second,
-			TrialDuration:      30 * time.Second,
-			VerdictDuration:    30 * time.Second,
-			NightDuration:      30 * time.Second,
-			StartingTokens:     1,
-			VotingThreshold:    0.5,
+			MaxPlayers:               10,
+			MinPlayers:               2,
+			SitrepDuration:           15 * time.Second,
+			PulseCheckDuration:       30 * time.Second,
+			DiscussionDuration:       2 * time.Minute,
+			ExtensionDuration:        15 * time.Second,
+			NominationDuration:       30 * time.Second,
+			TrialDuration:            30 * time.Second,
+			VerdictDuration:          30 * time.Second,
+			NightDuration:            30 * time.Second,
+			StartingTokens:           1,
+			VotingThreshold:          0.5,
 			InitialAlignedHumanCount: 0,
 		},
 	}
@@ -857,8 +858,6 @@ func (gs *GameState) applyNightActionSubmitted(event Event) {
 }
 
 func (gs *GameState) applyNightActionsResolved(event Event) {
-	// Apply structured night action results
-
 	// Apply player state changes from the structured payload
 	if playerStateChanges, ok := event.Payload["player_state_changes"].(map[string]interface{}); ok {
 		for playerID, changesInterface := range playerStateChanges {
@@ -1655,18 +1654,20 @@ func processVoteAction(gameState GameState, action Action, currentTime time.Time
 	}
 
 	// Extract vote target from payload
-	targetPlayerID, ok := action.Payload["target_player_id"].(string)
+	targetPlayerID, ok := action.Payload["target_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("missing or invalid target_player_id in vote action")
+		return nil, fmt.Errorf("missing or invalid target_id in vote action")
 	}
 
-	// Validate target exists and is alive
-	targetPlayer, exists := gameState.Players[targetPlayerID]
-	if !exists {
-		return nil, fmt.Errorf("vote target %s not found", targetPlayerID)
-	}
-	if !targetPlayer.IsAlive {
-		return nil, fmt.Errorf("cannot vote for eliminated player %s", targetPlayerID)
+	// Validate target exists and is alive (unless it's a verdict vote)
+	if action.Payload["vote_type"] != "VERDICT" {
+		targetPlayer, exists := gameState.Players[targetPlayerID]
+		if !exists {
+			return nil, fmt.Errorf("vote target %s not found", targetPlayerID)
+		}
+		if !targetPlayer.IsAlive {
+			return nil, fmt.Errorf("cannot vote for eliminated player %s", targetPlayerID)
+		}
 	}
 
 	// Generate vote cast event
@@ -1678,9 +1679,9 @@ func processVoteAction(gameState GameState, action Action, currentTime time.Time
 			GameID:    gameState.ID,
 			Timestamp: currentTime,
 			Payload: map[string]interface{}{
-				"target_player_id": targetPlayerID,
-				"vote_type":        gameState.Phase.Type,
-				"token_weight":     player.Tokens + 1, // Base weight of 1 + token bonus
+				"target_id":    targetPlayerID,
+				"vote_type":    action.Payload["vote_type"],
+				"token_weight": player.Tokens,
 			},
 		},
 	}
@@ -1698,14 +1699,9 @@ func processMiningAction(gameState GameState, action Action, currentTime time.Ti
 	}
 
 	// Extract beneficiary from payload
-	beneficiaryID, ok := action.Payload["beneficiary_id"].(string)
+	beneficiaryID, ok := action.Payload["target_player_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("missing or invalid beneficiary_id in mining action")
-	}
-
-	// Enforce selfless mining rule
-	if beneficiaryID == action.PlayerID {
-		return nil, fmt.Errorf("players cannot mine tokens for themselves")
+		return nil, fmt.Errorf("missing or invalid target_player_id in mining action")
 	}
 
 	// Validate beneficiary exists and is alive
@@ -1726,7 +1722,7 @@ func processMiningAction(gameState GameState, action Action, currentTime time.Ti
 			GameID:    gameState.ID,
 			Timestamp: currentTime,
 			Payload: map[string]interface{}{
-				"beneficiary_id": beneficiaryID,
+				"target_player_id": beneficiaryID,
 				"difficulty":     0.2, // Standard mining difficulty
 			},
 		},
@@ -1745,28 +1741,35 @@ func processChatAction(gameState GameState, action Action, currentTime time.Time
 	}
 
 	// Extract message content
-	content, ok := action.Payload["content"].(string)
-	if !ok || content == "" {
-		return nil, fmt.Errorf("missing or empty message content")
+	messages, ok := action.Payload["messages"].([]string)
+	if !ok || len(messages) == 0 {
+		return nil, fmt.Errorf("missing or empty messages content")
 	}
 
-	// Check for message corruption
-	isCorrupted := IsMessageCorrupted(*player, content, currentTime)
+	var events []Event
+	for _, content := range messages {
+		if content == "" {
+			continue // Skip empty messages
+		}
 
-	// Generate chat message event
-	events := []Event{
-		{
+		// Check for message corruption
+		isCorrupted := IsMessageCorrupted(*player, content, currentTime)
+
+		// Generate chat message event
+		events = append(events, Event{
 			ID:        fmt.Sprintf("chat_%s_%d", action.PlayerID, currentTime.UnixNano()),
 			Type:      EventChatMessage,
 			PlayerID:  action.PlayerID,
 			GameID:    gameState.ID,
 			Timestamp: currentTime,
 			Payload: map[string]interface{}{
-				"content":    content,
-				"is_private": false,
-				"corrupted":  isCorrupted,
+				"sender_id":   action.PlayerID,
+				"sender_name": player.Name,
+				"message":     content,
+				"corrupted":   isCorrupted,
+				"channel_id":  action.Payload["channel_id"],
 			},
-		},
+		})
 	}
 
 	return events, nil
