@@ -267,3 +267,11 @@ func (m *MockGameLifecycleManager) Stop() {
 
 	m.StopCalls = append(m.StopCalls, GLMStopCall{})
 }
+
+func (m *MockGameLifecycleManager) ReconnectPlayerToGame(gameID string, playerActor interfaces.PlayerActorInterface) error {
+	m.Lock()
+	defer m.Unlock()
+
+	// Mock implementation - just return nil for successful reconnection
+	return nil
+}

@@ -29,7 +29,12 @@ export class WebSocketClient {
         // Validate required parameters upfront
         if (!gameId || !playerId || !sessionToken || 
             gameId.trim() === '' || playerId.trim() === '' || sessionToken.trim() === '') {
-          reject(new Error('Invalid connection parameters'));
+          console.error('WebSocket connect called with invalid parameters:', {
+            gameId: gameId || 'undefined',
+            playerId: playerId || 'undefined', 
+            sessionToken: sessionToken ? 'present' : 'undefined'
+          });
+          reject(new Error('No credentials available for WebSocket connection'));
           return;
         }
 
@@ -49,13 +54,27 @@ export class WebSocketClient {
 
           wsUrl = `${this.url}?${params.toString()}`;
 
-          // Store credentials for reconnection
-          this.connectionCredentials = {
+          // Store credentials for reconnection (persist to sessionStorage as backup)
+          const credentials = {
             gameId: params.get('gameId')!,
             playerId: params.get('playerId')!,
             sessionToken: params.get('sessionToken')!,
             connectedAt: new Date()
           };
+          
+          this.connectionCredentials = credentials;
+          
+          // Also store in sessionStorage as a backup in case of memory loss
+          try {
+            sessionStorage.setItem('wsConnectionCredentials', JSON.stringify({
+              gameId: credentials.gameId,
+              playerId: credentials.playerId,
+              sessionToken: credentials.sessionToken,
+              connectedAt: credentials.connectedAt.toISOString()
+            }));
+          } catch (e) {
+            console.warn('Failed to persist WebSocket credentials to sessionStorage:', e);
+          }
         }
 
         // Add connection timeout
@@ -99,7 +118,10 @@ export class WebSocketClient {
           });
           this.stopHeartbeat();
 
-          if (event.code !== 1000) {
+          // Only reconnect if it wasn't a normal closure (1000) and we have credentials
+          if (event.code !== 1000 && this.connectionCredentials) {
+            // Reset reconnect attempts on unexpected disconnection
+            this.reconnectAttempts = 0;
             this.scheduleReconnect();
           }
         };
@@ -132,6 +154,15 @@ export class WebSocketClient {
       this.socket = null;
     }
     this.connectionCredentials = null; // Clear stored credentials
+    this.reconnectAttempts = 0; // Reset reconnect attempts
+    
+    // Clear backup credentials from sessionStorage
+    try {
+      sessionStorage.removeItem('wsConnectionCredentials');
+    } catch (e) {
+      console.warn('Failed to clear WebSocket credentials from sessionStorage:', e);
+    }
+    
     this.updateConnectionState({ isConnected: false, isReconnecting: false });
   }
 
@@ -283,6 +314,44 @@ export class WebSocketClient {
         // The game engine doesn't need to process them.
         break;
 
+      case ServerEventType.SessionExpired:
+        // Handle session expiry by clearing credentials and stopping reconnection
+        console.log('Session expired:', event.payload?.message || 'Session has expired');
+        this.connectionCredentials = null;
+        
+        // Clear backup credentials from sessionStorage
+        try {
+          sessionStorage.removeItem('wsConnectionCredentials');
+        } catch (e) {
+          console.warn('Failed to clear WebSocket credentials from sessionStorage:', e);
+        }
+        
+        this.updateConnectionState({
+          isConnected: false,
+          isReconnecting: false,
+          lastError: event.payload?.message || 'Session expired'
+        });
+        break;
+
+      case ServerEventType.ForceLogout:
+        // Handle server-forced logout due to unrecoverable state
+        console.log('Server forced logout:', event.payload?.message || 'Forced logout by server');
+        this.connectionCredentials = null;
+        
+        // Clear backup credentials from sessionStorage
+        try {
+          sessionStorage.removeItem('wsConnectionCredentials');
+        } catch (e) {
+          console.warn('Failed to clear WebSocket credentials from sessionStorage:', e);
+        }
+        
+        this.updateConnectionState({
+          isConnected: false,
+          isReconnecting: false,
+          lastError: event.payload?.message || 'Forced logout by server'
+        });
+        break;
+
       default:
         // Unknown event types - just log and pass to subscribers
         console.log(`Unknown event type: ${event.type}, passing to subscribers only`);
@@ -317,40 +386,91 @@ export class WebSocketClient {
     });
   }
 
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 10;
+
   private scheduleReconnect(): void {
     if (this.reconnectInterval) {
       return;
     }
 
-    // Don't reconnect if we don't have credentials
+    // Try to restore credentials from sessionStorage if not in memory
+    if (!this.connectionCredentials) {
+      try {
+        const storedCredentials = sessionStorage.getItem('wsConnectionCredentials');
+        if (storedCredentials) {
+          const parsed = JSON.parse(storedCredentials);
+          this.connectionCredentials = {
+            gameId: parsed.gameId,
+            playerId: parsed.playerId,
+            sessionToken: parsed.sessionToken,
+            connectedAt: new Date(parsed.connectedAt)
+          };
+          console.log('Restored WebSocket credentials from sessionStorage');
+        }
+      } catch (e) {
+        console.warn('Failed to restore WebSocket credentials from sessionStorage:', e);
+      }
+    }
+
+    // Don't reconnect if we still don't have credentials
     if (!this.connectionCredentials) {
       console.log('No credentials available for reconnection');
       return;
     }
 
+    // Check if we've exceeded max reconnect attempts
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('Maximum reconnection attempts reached, stopping reconnection');
+      this.updateConnectionState({
+        isConnected: false,
+        isReconnecting: false,
+        lastError: 'Maximum reconnection attempts reached'
+      });
+      return;
+    }
+
     this.updateConnectionState({ isReconnecting: true });
+    
+    // Calculate exponential backoff with jitter
+    const baseDelay = 1000;
+    const maxDelay = 30000;
+    const jitter = Math.random() * 1000;
+    const delay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts), maxDelay) + jitter;
+    
+    console.log(`Attempting to reconnect in ${Math.round(delay / 1000)} seconds... (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+    
     this.reconnectInterval = window.setTimeout(() => {
       this.reconnectInterval = null;
+      this.reconnectAttempts++;
       console.log('Attempting to reconnect...');
       const creds = this.connectionCredentials!;
       this.connect(creds.gameId, creds.playerId, creds.sessionToken)
+        .then(() => {
+          // Reset reconnect attempts on successful connection
+          this.reconnectAttempts = 0;
+          console.log('Successfully reconnected!');
+        })
         .catch(error => {
           console.error('Reconnection failed:', error);
           // If token is invalid, clear credentials and stop reconnecting
-          if (error.message?.includes('Invalid session') || error.message?.includes('Unauthorized')) {
-            console.log('Session expired, clearing credentials');
+          if (error.message?.includes('Invalid session') || 
+              error.message?.includes('Unauthorized') ||
+              error.message?.includes('Session expired')) {
+            console.log('Session expired or invalid, clearing credentials');
             this.connectionCredentials = null;
+            this.reconnectAttempts = 0;
             this.updateConnectionState({
               isConnected: false,
               isReconnecting: false,
               lastError: 'Session expired'
             });
           } else {
-            // Retry for other errors
-            setTimeout(() => this.scheduleReconnect(), 5000);
+            // Schedule next reconnection attempt
+            this.scheduleReconnect();
           }
         });
-    }, 2000);
+    }, delay);
   }
 
   private startHeartbeat(): void {

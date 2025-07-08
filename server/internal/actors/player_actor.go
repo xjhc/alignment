@@ -34,6 +34,7 @@ const (
 	MAX_PLAYER_NAME_LENGTH = 50
 	MAX_CHAT_MESSAGE_LENGTH = 280
 	MAX_STATUS_MESSAGE_LENGTH = 100
+	BATCH_ID_CACHE_TTL        = 30 * time.Second
 )
 
 // Regular expressions for input validation
@@ -64,6 +65,9 @@ type PlayerActor struct {
 	serverMailbox chan interface{} // From server components
 	shutdown      chan struct{}
 	stopOnce      sync.Once // <-- ADD THIS
+
+	// Deduplication cache
+	recentBatchIDs map[string]time.Time
 
 	// Context for graceful shutdown
 	ctx    context.Context
@@ -111,6 +115,7 @@ func NewPlayerActor(ctx context.Context, playerID, playerName, playerAvatar, ses
 		mailbox:       make(chan interface{}, 100),
 		serverMailbox: make(chan interface{}, 100),
 		shutdown:       make(chan struct{}),
+		recentBatchIDs: make(map[string]time.Time),
 		ctx:            actorCtx,
 		cancel:         cancel,
 		chatLimiter:    chatLimiter,
@@ -385,6 +390,9 @@ func (pa *PlayerActor) writePump() {
 
 // processLoop is the main message processing loop
 func (pa *PlayerActor) processLoop() {
+	cleanupTicker := time.NewTicker(30 * time.Second)
+	defer cleanupTicker.Stop()
+
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[PlayerActor/%s] Panic recovered: %v", pa.playerID, r)
@@ -394,18 +402,20 @@ func (pa *PlayerActor) processLoop() {
 
 	for {
 		select {
-		case <-pa.ctx.Done():
-			return
-		case <-pa.shutdown:
-			return
-		case msg := <-pa.mailbox:
-			// Handle client actions
-			if action, ok := msg.(core.Action); ok {
-				pa.handleClientAction(action)
-			}
-		case msg := <-pa.serverMailbox:
-			// Handle server messages
-			pa.handleServerMessage(msg)
+			case <-pa.ctx.Done():
+				return
+			case <-pa.shutdown:
+				return
+			case msg := <-pa.mailbox:
+				// Handle client actions
+				if action, ok := msg.(core.Action); ok {
+					pa.handleClientAction(action)
+				}
+			case msg := <-pa.serverMailbox:
+				// Handle server messages
+				pa.handleServerMessage(msg)
+			case <-cleanupTicker.C:
+				pa.cleanupRecentBatchIDs()
 		}
 	}
 }
@@ -651,6 +661,17 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 
 	// Apply rate limiting for chat messages (now applies to batches)
 	if actionType == core.ActionSendMessage {
+		if batchID, ok := action.Payload["batch_id"].(string); ok && batchID != "" {
+			pa.stateMutex.Lock() // Use the actor's mutex to protect the cache
+			if _, exists := pa.recentBatchIDs[batchID]; exists {
+				pa.stateMutex.Unlock()
+				log.Printf("[PlayerActor/%s] Duplicate message batch dropped: %s", pa.playerID, batchID)
+				return // Drop the duplicate action
+			}
+			// Cache the new batch ID
+			pa.recentBatchIDs[batchID] = time.Now()
+			pa.stateMutex.Unlock()
+		}
 		if !pa.chatLimiter.Allow() {
 			// The player is sending message batches too fast.
 			// Send a private error message back to only this player.
@@ -670,6 +691,7 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 		core.ActionSendMessage:         true,
 		core.ActionReactToMessage:      true,
 		core.ActionSubmitVote:          true,
+		core.ActionSubmitSkipVote:      true, // Allow skip vote actions
 		core.ActionSubmitNightAction:   true,
 		core.ActionMineTokens:          true,
 		core.ActionSubmitPulseCheck:    true,
@@ -811,6 +833,19 @@ func (pa *PlayerActor) sendLobbyStateUpdate(update lobby.LobbyStateUpdate) {
 	}
 
 	pa.sendEvent(event)
+}
+
+func (pa *PlayerActor) cleanupRecentBatchIDs() {
+	pa.stateMutex.Lock()
+	defer pa.stateMutex.Unlock()
+
+	cutoff := time.Now().Add(-BATCH_ID_CACHE_TTL)
+	for id, timestamp := range pa.recentBatchIDs {
+		if timestamp.Before(cutoff) {
+			delete(pa.recentBatchIDs, id)
+		}
+	}
+	log.Printf("[PlayerActor/%s] Cleaned up old batch IDs. Cache size: %d", pa.playerID, len(pa.recentBatchIDs))
 }
 
 // sendGameStateSnapshot sends game state to client
@@ -1116,14 +1151,14 @@ func sanitizeString(input string, maxLength int) string {
 		}
 		return r
 	}, input)
-	
+
 	// Trim whitespace
 	sanitized = strings.TrimSpace(sanitized)
-	
+
 	// Limit length
 	if len(sanitized) > maxLength {
 		sanitized = sanitized[:maxLength]
 	}
-	
+
 	return sanitized
 }

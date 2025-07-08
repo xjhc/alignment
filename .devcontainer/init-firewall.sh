@@ -47,7 +47,7 @@ while read -r cidr; do
         exit 1
     fi
     echo "Adding GitHub range $cidr"
-    ipset add allowed-domains "$cidr"
+    ipset add allowed-domains "$cidr" -exist
 done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
 
 # Resolve and add other allowed domains
@@ -60,9 +60,11 @@ for domain in \
     "proxy.golang.org" \
     "sum.golang.org" \
     "golang.org" \
+    "go.dev" \
+    "dl.google.com" \
     "storage.googleapis.com"; do
     echo "Resolving $domain..."
-    ips=$(dig +short A "$domain")
+    ips=$(dig +short +timeout=10 A "$domain")
     if [ -z "$ips" ]; then
         echo "ERROR: Failed to resolve $domain"
         exit 1
@@ -74,7 +76,7 @@ for domain in \
             exit 1
         fi
         echo "Adding $ip for $domain"
-        ipset add allowed-domains "$ip"
+        ipset add allowed-domains "$ip" -exist
     done < <(echo "$ips")
 done
 
@@ -87,6 +89,28 @@ fi
 
 HOST_NETWORK=$(echo "$HOST_IP" | sed "s/\.[0-9]*$/.0\/24/")
 echo "Host network detected as: $HOST_NETWORK"
+
+# Add broad Google/Google Cloud IP ranges for Go proxy
+echo "Adding Google Cloud IP ranges..."
+for range in \
+    "8.8.0.0/16" \
+    "74.125.0.0/16" \
+    "64.233.0.0/16" \
+    "66.102.0.0/16" \
+    "66.249.0.0/16" \
+    "72.14.0.0/16" \
+    "108.177.0.0/16" \
+    "142.250.0.0/15" \
+    "142.251.0.0/16" \
+    "172.217.0.0/16" \
+    "172.253.0.0/16" \
+    "173.194.0.0/16" \
+    "209.85.128.0/17" \
+    "216.58.192.0/19" \
+    "216.239.32.0/19"; do
+    echo "Adding Google range $range"
+    ipset add allowed-domains "$range" -exist
+done
 
 # Set up remaining iptables rules
 iptables -A INPUT -s "$HOST_NETWORK" -j ACCEPT

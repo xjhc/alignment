@@ -4,6 +4,7 @@ import { FriendsPanel } from './FriendsPanel';
 import { PartyPanel } from './PartyPanel';
 import { getUserIdForApi } from '../services/guestIdentity';
 import { websocketClient } from '../services/websocket';
+import { ClientActionType } from '../types/generated';
 
 interface LobbyInfo {
   id: string;
@@ -34,18 +35,82 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
   const [pollingInterval, setPollingInterval] = useState(10000); // Start with 10 seconds instead of 5
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showSessionConflict, setShowSessionConflict] = useState(false);
+  const [joinCooldowns, setJoinCooldowns] = useState<Record<string, number>>({});
 
   // Clear any existing WebSocket session to reset backend state
   const clearSession = async () => {
     try {
       console.log('Clearing existing session...');
+      
+      // First, try to send ABANDON_GAME action to the server if we have session data
+      const savedSession = sessionStorage.getItem('alignmentGameSession');
+      if (savedSession) {
+        try {
+          const sessionData = JSON.parse(savedSession);
+          if (sessionData.gameId && sessionData.playerId) {
+            console.log('Preparing to send leave/abandon action to server');
+            
+            // Send appropriate action based on session state
+            if (websocketClient.isValidConnection()) {
+              // Use ABANDON_GAME for active games, LEAVE_GAME for lobbies
+              const actionType = sessionData.sessionState === 'IN_GAME' 
+                ? ClientActionType.AbandonGame 
+                : ClientActionType.LeaveGame;
+              
+              console.log(`Sending ${actionType} action to server`);
+              websocketClient.sendAction({
+                type: actionType,
+                payload: {
+                  game_id: sessionData.gameId,
+                  player_id: sessionData.playerId
+                }
+              });
+              
+              // Give the action a moment to be sent before disconnecting
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
+        } catch (parseError) {
+          console.warn('Failed to parse session data for abandonment:', parseError);
+        }
+      }
+      
+      // Disconnect WebSocket connection
       websocketClient.disconnect();
+      
+      // Clear session storage
+      sessionStorage.removeItem('alignmentGameSession');
+      
       setShowSessionConflict(false);
       setError(null);
+      
       // Refresh lobbies after clearing session
       await fetchLobbies();
     } catch (error) {
       console.error('Error clearing session:', error);
+    }
+  };
+
+  // Rejoin the existing game session
+  const rejoinSession = () => {
+    try {
+      const savedSession = sessionStorage.getItem('alignmentGameSession');
+      if (savedSession) {
+        const sessionData = JSON.parse(savedSession);
+        if (sessionData.gameId && sessionData.playerId && sessionData.sessionToken) {
+          console.log('Rejoining existing session:', sessionData);
+          onJoinLobby(sessionData.gameId, sessionData.playerId, sessionData.sessionToken);
+          setShowSessionConflict(false);
+          return;
+        }
+      }
+      console.error('No valid session data found for rejoin');
+      setError('Unable to rejoin: No valid session data found');
+      setShowSessionConflict(false);
+    } catch (error) {
+      console.error('Error rejoining session:', error);
+      setError('Failed to rejoin session');
+      setShowSessionConflict(false);
     }
   };
 
@@ -106,16 +171,69 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
     fetchLobbies();
     restartPolling();
     
+    // Subscribe to WebSocket events that should trigger lobby list refreshes
+    const handleLobbyChange = () => {
+      fetchLobbies(); // Refresh lobby list immediately
+    };
+    
+    // Listen for events that indicate lobby state changes
+    websocketClient.on('GAME_CREATED', handleLobbyChange);
+    websocketClient.on('PLAYER_JOINED', handleLobbyChange);
+    websocketClient.on('PLAYER_LEFT', handleLobbyChange);
+    websocketClient.on('GAME_STARTED', handleLobbyChange);
+    websocketClient.on('GAME_ENDED', handleLobbyChange);
+    websocketClient.on('HOST_TRANSFERRED', handleLobbyChange);
+    
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      
+      // Clean up WebSocket event listeners
+      websocketClient.off('GAME_CREATED', handleLobbyChange);
+      websocketClient.off('PLAYER_JOINED', handleLobbyChange);
+      websocketClient.off('PLAYER_LEFT', handleLobbyChange);
+      websocketClient.off('GAME_STARTED', handleLobbyChange);
+      websocketClient.off('GAME_ENDED', handleLobbyChange);
+      websocketClient.off('HOST_TRANSFERRED', handleLobbyChange);
     };
   }, []); // Only run once on mount
+
+  // Clean up expired cooldowns and trigger re-renders for countdown updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setJoinCooldowns(prev => {
+        const updated = { ...prev };
+        let hasChanges = false;
+        
+        for (const [gameId, cooldownEnd] of Object.entries(updated)) {
+          if (now >= cooldownEnd) {
+            delete updated[gameId];
+            hasChanges = true;
+          }
+        }
+        
+        return hasChanges ? updated : prev;
+      });
+    }, 1000); // Update every second for countdown
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleJoinLobby = async (gameId: string) => {
     try {
       setError(null);
+      
+      // Check if we're in a cooldown period for this specific lobby
+      const now = Date.now();
+      const cooldownEnd = joinCooldowns[gameId];
+      if (cooldownEnd && now < cooldownEnd) {
+        const remainingSeconds = Math.ceil((cooldownEnd - now) / 1000);
+        setError(`Please wait ${remainingSeconds} seconds before trying to join this lobby again.`);
+        return;
+      }
+
       const userId = getUserIdForApi();
       const response = await fetch(`/api/games/${gameId}/join`, {
         method: 'POST',
@@ -133,9 +251,24 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
         const errorText = await response.text();
         if (response.status === 409 && errorText.includes('already in an active game session')) {
           setShowSessionConflict(true);
+        } else if (response.status === 429) {
+          // Rate limited - set a cooldown for this specific lobby
+          setJoinCooldowns(prev => ({
+            ...prev,
+            [gameId]: now + 5000 // 5 second cooldown
+          }));
+          setError('Too many join attempts. Please wait a moment before trying again.');
+          return;
         }
         throw new Error(errorText || 'Failed to join lobby');
       }
+
+      // Clear any existing cooldown for this lobby on successful join
+      setJoinCooldowns(prev => {
+        const updated = { ...prev };
+        delete updated[gameId];
+        return updated;
+      });
 
       const data = await response.json();
       // NEW: We now get playerId and sessionToken from the API
@@ -201,6 +334,30 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
         LOEBIAN INC. // <span className="inline-block animate-pulse">EMERGENCY BRIDGE</span>
       </h1>
       
+      {/* User Profile Header */}
+      <div className="flex items-center gap-4 px-6 py-4 bg-background-secondary rounded-lg border border-border">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-background-primary text-lg font-semibold">
+            {playerAvatar || playerName.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex flex-col">
+            <span className="font-medium text-text-primary">{playerName}</span>
+            <span className="text-sm text-text-secondary">Emergency Response Agent</span>
+          </div>
+        </div>
+        <div className="flex-1" />
+        <div className="flex items-center gap-4 text-sm text-text-secondary">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-human"></div>
+            <span>Human Status: Verified</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-success"></div>
+            <span>Network: Connected</span>
+          </div>
+        </div>
+      </div>
+      
       <div className="flex flex-col gap-6 max-w-2xl mx-auto">
         <div className="flex justify-between items-center pb-4 border-b border-border">
           <h2>Game Lobbies</h2>
@@ -239,9 +396,17 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
           <div className="bg-danger/10 border border-danger/20 rounded-lg p-4 my-4">
             <h3 className="text-danger font-semibold mb-2">🚨 Active Session Detected</h3>
             <p className="text-text-secondary text-sm mb-4">
-              You're already in an active game session. To join a new game, you need to leave your current session first.
+              You're already in an active game session. You can rejoin your current session or clear it to start a new game.
             </p>
             <div className="flex gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={rejoinSession}
+                className="text-sm font-medium"
+              >
+                Rejoin Game
+              </Button>
               <Button
                 variant="danger"
                 size="sm"
@@ -300,15 +465,25 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
                   </span>
                 </div>
                 <div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleJoinLobby(lobby.id)}
-                    disabled={!lobby.can_join}
-                    className="text-sm font-medium"
-                  >
-                    Join
-                  </Button>
+                  {(() => {
+                    const now = Date.now();
+                    const cooldownEnd = joinCooldowns[lobby.id];
+                    const inCooldown = cooldownEnd && now < cooldownEnd;
+                    const remainingSeconds = inCooldown ? Math.ceil((cooldownEnd - now) / 1000) : 0;
+                    
+                    return (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleJoinLobby(lobby.id)}
+                        disabled={!lobby.can_join || inCooldown}
+                        className="text-sm font-medium"
+                        title={inCooldown ? `Please wait ${remainingSeconds} seconds` : undefined}
+                      >
+                        {inCooldown ? `Wait ${remainingSeconds}s` : 'Join'}
+                      </Button>
+                    );
+                  })()}
                 </div>
               </div>
             ))

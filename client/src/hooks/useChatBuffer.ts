@@ -8,6 +8,7 @@ export interface PendingMessage {
   message: string;
   timestamp: number;
   status: "pending" | "sent" | "failed";
+  batchId?: string; // Add batchId for tracking
   channelId: string;
 }
 
@@ -16,9 +17,14 @@ export function useChatBuffer(
   gameId: string | undefined,
   sendAction: (action: ClientAction) => void
 ) {
-  const [messageBuffer, setMessageBuffer] = useState<{ message: string; clientMessageId: string; channelId: string }[]>([]);
-  const [pendingMessages, setPendingMessages] = useState<Record<string, PendingMessage[]>>({});
+  const [messageBuffer, setMessageBuffer] = useState<
+    { message: string; clientMessageId: string; channelId: string }[]
+  >([]);
+  const [pendingMessages, setPendingMessages] = useState<
+    Record<string, PendingMessage[]>
+  >({});
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
+  const isFlushing = useRef(false); // Add a lock to prevent re-entrant calls
   const bufferTimer = useRef<NodeJS.Timeout | null>(null);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -48,65 +54,85 @@ export function useChatBuffer(
       message?: string;
     }) => {
       const { localPlayer } = latestProps.current;
-      if (!localPlayer || (payload.sender_id && payload.sender_id !== localPlayer.id)) {
+      if (
+        !localPlayer ||
+        (payload.sender_id && payload.sender_id !== localPlayer.id)
+      ) {
         return;
       }
-      
+
       const channelId = payload.channel_id || "#war-room";
       const clientMessageId = payload.client_message_id;
 
       setPendingMessages((prev) => {
         const channelPending = prev[channelId] || [];
         const updatedPending = clientMessageId
-          ? channelPending.filter((msg) => msg.clientMessageId !== clientMessageId)
+          ? channelPending.filter(
+              (msg) => msg.clientMessageId !== clientMessageId
+            )
           : channelPending.filter((msg) => msg.message !== payload.message); // Fallback
-          
+
         return { ...prev, [channelId]: updatedPending };
       });
     }
   );
 
   const sendBufferedMessages = useCallback(() => {
+    // Prevent re-entrant calls which can happen with React StrictMode
+    if (isFlushing.current) {
+      return;
+    }
+    const batchId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    isFlushing.current = true;
     if (bufferTimer.current) {
       clearTimeout(bufferTimer.current);
       bufferTimer.current = null;
     }
 
-    setMessageBuffer(currentBuffer => {
+    setMessageBuffer((currentBuffer) => {
       if (currentBuffer.length === 0) {
+        isFlushing.current = false;
         return currentBuffer;
       }
 
       const { localPlayer, gameId, sendAction } = latestProps.current;
       if (!localPlayer || !gameId) {
-        console.warn("Cannot flush chat buffer: missing player or gameId. Re-queuing messages.");
+        console.warn(
+          "Cannot flush chat buffer: missing player or gameId. Re-queuing messages."
+        );
         return currentBuffer;
       }
 
-      const messagesByChannel = currentBuffer.reduce((acc, msg) => {
-        if (!acc[msg.channelId]) {
-          acc[msg.channelId] = [];
+      const messagesByChannel = currentBuffer.reduce(
+        (acc, msg) => {
+          if (!acc[msg.channelId]) {
+            acc[msg.channelId] = [];
+          }
+          acc[msg.channelId].push({
+            message: msg.message,
+            client_message_id: msg.clientMessageId,
+          });
+          return acc;
+        },
+        {} as Record<string, { message: string; client_message_id: string }[]>
+      );
+
+      Object.entries(messagesByChannel).forEach(
+        ([channelId, channelMessages]) => {
+          sendAction({
+            type: ClientActionType.SendMessage,
+            payload: {
+              game_id: gameId,
+              player_id: localPlayer.id,
+              messages: channelMessages,
+              player_name: localPlayer.name,
+              channel_id: channelId,
+              batch_id: batchId,
+            },
+          });
         }
-        acc[msg.channelId].push({
-          message: msg.message,
-          client_message_id: msg.clientMessageId,
-        });
-        return acc;
-      }, {} as Record<string, { message: string; client_message_id: string }[]>);
-
-      Object.entries(messagesByChannel).forEach(([channelId, channelMessages]) => {
-        sendAction({
-          type: ClientActionType.SendMessage,
-          payload: {
-            game_id: gameId,
-            player_id: localPlayer.id,
-            messages: channelMessages,
-            player_name: localPlayer.name,
-            channel_id: channelId,
-          },
-        });
-      });
-
+      );
+      isFlushing.current = false;
       return [];
     });
   }, []);
@@ -167,14 +193,21 @@ export function useChatBuffer(
     }
   }, []);
 
-  const getBufferStatus = useCallback(() => ({
+  const getBufferStatus = useCallback(
+    () => ({
       bufferLength: messageBuffer.length,
-      hasPendingMessages: Object.values(pendingMessages).some(p => p.length > 0),
-      nextFlushETA: messageBuffer.length > 0 ? Math.ceil(FLUSH_INTERVAL / 1000) : 0,
-  }), [messageBuffer.length, pendingMessages]);
+      hasPendingMessages: Object.values(pendingMessages).some(
+        (p) => p.length > 0
+      ),
+      nextFlushETA:
+        messageBuffer.length > 0 ? Math.ceil(FLUSH_INTERVAL / 1000) : 0,
+    }),
+    [messageBuffer.length, pendingMessages]
+  );
 
   const getPendingMessagesForChannel = useCallback(
-    (channelId: string = "#war-room"): PendingMessage[] => pendingMessages[channelId] || [],
+    (channelId: string = "#war-room"): PendingMessage[] =>
+      pendingMessages[channelId] || [],
     [pendingMessages]
   );
 

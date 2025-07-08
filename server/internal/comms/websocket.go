@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/sync/semaphore"
@@ -76,25 +77,28 @@ func (wsm *WebSocketManager) SetActionSemaphore(sem *semaphore.Weighted) {
 	wsm.actionSemaphore = sem
 }
 
-// startPresenceEventListeners sets up event listeners for presence tracking
+// startPresenceEventListeners sets up event listeners for presence tracking and player management
 func (wsm *WebSocketManager) startPresenceEventListeners() {
 	// Create channels for different event types
 	playerJoinedCh := make(chan events.Event, 10)
 	playerLeftCh := make(chan events.Event, 10)
 	gameStartedCh := make(chan events.Event, 10)
 	playerDisconnectedCh := make(chan events.Event, 10)
+	forceLogoutCh := make(chan events.Event, 10)
 	
 	// Subscribe to events
 	wsm.eventBus.Subscribe("player_joined_lobby", playerJoinedCh)
 	wsm.eventBus.Subscribe("player_left_lobby", playerLeftCh)
 	wsm.eventBus.Subscribe("game_started", gameStartedCh)
 	wsm.eventBus.Subscribe("player_disconnected", playerDisconnectedCh)
+	wsm.eventBus.Subscribe("force_logout", forceLogoutCh)
 	
 	// Start goroutines to handle events
 	go wsm.listenForPlayerJoinedEvents(playerJoinedCh)
 	go wsm.listenForPlayerLeftEvents(playerLeftCh)
 	go wsm.listenForGameStartedEvents(gameStartedCh)
 	go wsm.listenForPlayerDisconnectedEvents(playerDisconnectedCh)
+	go wsm.listenForForceLogoutEvents(forceLogoutCh)
 }
 
 // updatePlayerPresence updates a player's presence status in the database
@@ -188,6 +192,15 @@ func (wsm *WebSocketManager) listenForPlayerDisconnectedEvents(ch chan events.Ev
 	}
 }
 
+func (wsm *WebSocketManager) listenForForceLogoutEvents(ch chan events.Event) {
+	for event := range ch {
+		if e, ok := event.(events.ForceLogoutEvent); ok {
+			log.Printf("WebSocketManager: Processing force logout event for player %s: %s", e.PlayerID, e.Reason)
+			wsm.ForceLogoutPlayer(e.PlayerID, e.Reason)
+		}
+	}
+}
+
 // Start is now a no-op since PlayerActors manage themselves
 func (wsm *WebSocketManager) Start() {
 	log.Println("WebSocketManager: Ready to handle connections")
@@ -254,6 +267,29 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	err = wsm.joinLobbyAutomatically(gameID, playerActor)
 	if err != nil {
 		log.Printf("WebSocketManager: Failed to auto-join lobby %s for player %s: %v", gameID, playerID, err)
+		
+		// Check if this is a "lobby not found" error vs other errors
+		if err.Error() == "lobby not found: "+gameID {
+			// Send a SESSION_EXPIRED event to the client before closing
+			sessionExpiredEvent := core.Event{
+				ID:        "session_expired_" + playerID,
+				Type:      "SESSION_EXPIRED",
+				GameID:    gameID,
+				PlayerID:  playerID,
+				Timestamp: time.Now(),
+				Payload: map[string]interface{}{
+					"reason": "lobby_not_found",
+					"message": "The lobby you were trying to join no longer exists. Please join a new game.",
+				},
+			}
+			
+			// Send the event before closing
+			playerActor.SendServerMessage(sessionExpiredEvent)
+			
+			// Give the message time to be sent
+			time.Sleep(100 * time.Millisecond)
+		}
+		
 		playerActor.Stop()
 		wsm.actorsMutex.Lock()
 		delete(wsm.playerActors, playerID)
@@ -266,19 +302,64 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 }
 
 // joinLobbyAutomatically handles the automatic lobby joining in REST-then-WebSocket flow
-func (wsm *WebSocketManager) joinLobbyAutomatically(lobbyID string, playerActor *actors.PlayerActor) error {
+func (wsm *WebSocketManager) joinLobbyAutomatically(gameIDOrLobbyID string, playerActor *actors.PlayerActor) error {
 	if wsm.lifecycleManager == nil {
 		return fmt.Errorf("lifecycle manager not initialized")
 	}
 
-	// Let the GameLifecycleManager handle all the logic for joining
-	// This includes checking if the player is the host, lobby status, etc.
-	err := wsm.lifecycleManager.JoinLobbyWithActor(lobbyID, playerActor)
-	if err != nil {
-		return fmt.Errorf("failed to auto-join lobby %s: %w", lobbyID, err)
+	// First, check if this is an active game (for reconnection)
+	gameActor, gameExists := wsm.lifecycleManager.GetGameActor(gameIDOrLobbyID)
+	if gameExists {
+		// This is a reconnection to an active game
+		log.Printf("WebSocketManager: Player %s reconnecting to active game %s", playerActor.GetPlayerID(), gameIDOrLobbyID)
+		
+		// Transition the player actor to the game
+		err := playerActor.TransitionToGame(gameIDOrLobbyID)
+		if err != nil {
+			return fmt.Errorf("failed to transition player to game %s: %w", gameIDOrLobbyID, err)
+		}
+		
+		// Re-add the player to the game session to fix state corruption
+		err = wsm.lifecycleManager.ReconnectPlayerToGame(gameIDOrLobbyID, playerActor)
+		if err != nil {
+			log.Printf("WebSocketManager: Warning - failed to reconnect player to game session: %v", err)
+			// Don't fail the reconnection if session tracking fails, but log it
+		}
+		
+		// Send a PLAYER_RECONNECTED event to notify other players
+		reconnectedEvent := core.Event{
+			ID:        "reconnect_" + playerActor.GetPlayerID() + "_" + fmt.Sprintf("%d", time.Now().UnixNano()),
+			Type:      core.EventPlayerReconnected,
+			GameID:    gameIDOrLobbyID,
+			PlayerID:  "", // Public event for all players
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"player_id":   playerActor.GetPlayerID(),
+				"player_name": playerActor.GetPlayerName(),
+			},
+		}
+		
+		// Broadcast to all players in the game
+		err = wsm.BroadcastToGame(gameIDOrLobbyID, reconnectedEvent)
+		if err != nil {
+			log.Printf("WebSocketManager: Warning - failed to broadcast reconnection event: %v", err)
+		}
+		
+		// Send a game state snapshot to the reconnecting player
+		snapshotEvent := gameActor.CreatePlayerStateUpdateEvent(playerActor.GetPlayerID())
+		playerActor.SendServerMessage(snapshotEvent)
+		
+		log.Printf("WebSocketManager: Player %s successfully reconnected to game %s", playerActor.GetPlayerID(), gameIDOrLobbyID)
+		return nil
 	}
 
-	log.Printf("WebSocketManager: Player %s automatically joined lobby %s", playerActor.GetPlayerID(), lobbyID)
+	// If not a game, try to join as a lobby
+	err := wsm.lifecycleManager.JoinLobbyWithActor(gameIDOrLobbyID, playerActor)
+	if err != nil {
+		return fmt.Errorf("lobby not found: %s", gameIDOrLobbyID)
+	}
+
+	log.Printf("WebSocketManager: Player %s automatically joined lobby %s", playerActor.GetPlayerID(), gameIDOrLobbyID)
 	return nil
 }
 
@@ -371,6 +452,38 @@ func (wsm *WebSocketManager) GetStats() map[string]interface{} {
 	stats["player_states"] = stateCounts
 
 	return stats
+}
+
+// ForceLogoutPlayer sends a FORCE_LOGOUT event to a specific player and disconnects them
+func (wsm *WebSocketManager) ForceLogoutPlayer(playerID string, reason string) {
+	wsm.actorsMutex.RLock()
+	actor, exists := wsm.playerActors[playerID]
+	wsm.actorsMutex.RUnlock()
+
+	if exists {
+		// Send FORCE_LOGOUT event before disconnecting
+		forceLogoutEvent := core.Event{
+			ID:        "force_logout_" + playerID + "_" + fmt.Sprintf("%d", time.Now().UnixNano()),
+			Type:      core.EventForceLogout,
+			GameID:    "",
+			PlayerID:  playerID,
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"reason":  reason,
+				"message": "Server has detected an unrecoverable state and is forcing logout: " + reason,
+			},
+		}
+
+		actor.SendServerMessage(forceLogoutEvent)
+
+		// Give the message time to be sent
+		time.Sleep(100 * time.Millisecond)
+
+		log.Printf("WebSocketManager: Forced logout for player %s: %s", playerID, reason)
+	}
+
+	// Remove the player actor
+	wsm.RemovePlayerActor(playerID)
 }
 
 // Custom errors

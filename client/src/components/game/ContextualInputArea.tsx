@@ -1,10 +1,11 @@
-import React, { KeyboardEvent } from "react";
+import React, { KeyboardEvent, useState, useRef, useEffect } from "react";
 import { useGameContext } from "../../contexts/GameContext";
 import { VoteUI } from "./VoteUI";
 import { NightActionSelection } from "./NightActionSelection";
 import { PulseCheckInput } from "./PulseCheckInput";
 import { Button } from "../ui/Button";
 import { CrisisEvent } from "../../types";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 const generateCrisisQuestion = (crisis?: CrisisEvent): string => {
   if (!crisis) return "What is your immediate response to the current crisis?";
@@ -55,6 +56,64 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
     handleSendMessage,
     handlePulseCheck,
   } = useGameContext();
+
+  // Enhanced input features state
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showMarkdownPreview, setShowMarkdownPreview] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Quick emoji options for insertion
+  const quickEmojis = ['😀', '😔', '🤔', '👍', '👎', '❤️', '🔥', '💯', '🎯', '⚠️', '🤖', '👤'];
+
+  // Markdown formatting helpers
+  const insertMarkdown = (prefix: string, suffix: string = '') => {
+    if (!inputRef.current) return;
+    
+    const input = inputRef.current;
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const selectedText = chatInput.substring(start, end);
+    const newText = chatInput.substring(0, start) + prefix + selectedText + suffix + chatInput.substring(end);
+    
+    setChatInput(newText);
+    
+    // Restore cursor position
+    setTimeout(() => {
+      const newCursorPos = start + prefix.length + selectedText.length + suffix.length;
+      input.setSelectionRange(newCursorPos, newCursorPos);
+      input.focus();
+    }, 0);
+  };
+
+  const insertEmoji = (emoji: string) => {
+    if (!inputRef.current) return;
+    
+    const input = inputRef.current;
+    const start = input.selectionStart || 0;
+    const newText = chatInput.substring(0, start) + emoji + chatInput.substring(start);
+    
+    setChatInput(newText);
+    setShowEmojiPicker(false);
+    
+    // Restore cursor position
+    setTimeout(() => {
+      const newCursorPos = start + emoji.length;
+      input.setSelectionRange(newCursorPos, newCursorPos);
+      input.focus();
+    }, 0);
+  };
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showEmojiPicker && inputRef.current && !inputRef.current.closest('.relative')?.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEmojiPicker]);
 
   if (!localPlayer) return null;
 
@@ -134,23 +193,20 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
       return (
         <div className="border-t border-border bg-background-primary p-3">
           {replyingTo && (
-            <div className="flex items-center justify-between bg-background-secondary border border-border rounded-md px-3 py-2 mb-3 text-sm">
-              <div className="flex items-center gap-2 text-text-secondary">
-                <span className="text-text-muted">↩️ Replying to</span>
-                <span className="font-semibold text-text-primary">
-                  {replyingTo.playerName}
-                </span>
-                <span className="text-text-muted truncate max-w-xs">
-                  "{replyingTo.message}"
-                </span>
+            <div className="bg-background-secondary border border-border rounded-md px-3 py-2 mb-3 text-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-text-muted">↩️ Replying to <span className="font-semibold text-text-primary">{replyingTo.playerName}</span></span>
+                <button
+                  onClick={cancelReply}
+                  className="text-text-muted hover:text-text-primary transition-colors"
+                  title="Cancel reply"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                onClick={cancelReply}
-                className="text-text-muted hover:text-text-primary transition-colors"
-                title="Cancel reply"
-              >
-                ✕
-              </button>
+              <div className="bg-background-tertiary border-l-2 border-primary rounded px-2 py-1 text-text-secondary text-xs">
+                <MarkdownRenderer content={replyingTo.message} />
+              </div>
             </div>
           )}
 
@@ -164,17 +220,111 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
           )}
 
           <div className="space-y-2">
+            {/* Markdown Toolbar */}
+            {isChatEnabled() && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-background-secondary border border-border rounded-md">
+                {/* Markdown formatting buttons */}
+                <button
+                  onClick={() => insertMarkdown('**', '**')}
+                  className="px-2 py-1 text-xs font-bold rounded hover:bg-background-tertiary transition-colors"
+                  title="Bold (**text**)"
+                >
+                  B
+                </button>
+                <button
+                  onClick={() => insertMarkdown('*', '*')}
+                  className="px-2 py-1 text-xs italic rounded hover:bg-background-tertiary transition-colors"
+                  title="Italic (*text*)"
+                >
+                  I
+                </button>
+                <button
+                  onClick={() => insertMarkdown('~', '~')}
+                  className="px-2 py-1 text-xs line-through rounded hover:bg-background-tertiary transition-colors"
+                  title="Strikethrough (~text~)"
+                >
+                  S
+                </button>
+                <button
+                  onClick={() => insertMarkdown('`', '`')}
+                  className="px-2 py-1 text-xs font-mono rounded hover:bg-background-tertiary transition-colors"
+                  title="Code (`text`)"
+                >
+                  {'</>'}
+                </button>
+                
+                <div className="w-px h-4 bg-border mx-1" />
+                
+                {/* Emoji picker button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="px-2 py-1 text-xs rounded hover:bg-background-tertiary transition-colors"
+                    title="Add emoji"
+                  >
+                    😀
+                  </button>
+                  
+                  {/* Emoji picker dropdown */}
+                  {showEmojiPicker && (
+                    <div className="absolute bottom-full left-0 mb-2 bg-background-primary border border-border rounded-lg p-2 shadow-lg z-50">
+                      <div className="grid grid-cols-6 gap-1">
+                        {quickEmojis.map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => insertEmoji(emoji)}
+                            className="w-8 h-8 text-sm hover:bg-background-secondary rounded transition-colors"
+                            title={`Insert ${emoji}`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="w-px h-4 bg-border mx-1" />
+                
+                {/* Preview toggle */}
+                <button
+                  onClick={() => setShowMarkdownPreview(!showMarkdownPreview)}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    showMarkdownPreview ? 'bg-primary text-white' : 'hover:bg-background-tertiary'
+                  }`}
+                  title="Toggle preview"
+                >
+                  👁️
+                </button>
+              </div>
+            )}
+            
+            {/* Input area */}
             <div className="flex items-center gap-2">
-              <input
-                className="flex-1 bg-background-secondary border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-                type="text"
-                placeholder={getPlaceholder()}
-                value={chatInput}
-                maxLength={280}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => handleKeyDown(e as any)} // Cast event type for compatibility
-                disabled={!isChatEnabled()}
-              />
+              <div className="flex-1">
+                <input
+                  ref={inputRef}
+                  className="w-full bg-background-secondary border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
+                  type="text"
+                  placeholder={getPlaceholder()}
+                  value={chatInput}
+                  maxLength={280}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e as any)}
+                  disabled={!isChatEnabled()}
+                />
+                
+                {/* Character counter */}
+                <div className="flex justify-between items-center mt-1 px-1">
+                  <div className="text-xs text-text-muted">
+                    Markdown: **bold** *italic* ~strike~ `code`
+                  </div>
+                  <div className={`text-xs ${chatInput.length > 260 ? 'text-warning' : chatInput.length > 280 ? 'text-danger' : 'text-text-muted'}`}>
+                    {chatInput.length}/280
+                  </div>
+                </div>
+              </div>
+              
               <Button
                 variant="primary"
                 size="sm"
@@ -204,13 +354,16 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
                 Send
               </Button>
             </div>
-            {isChatEnabled() && (
-              <div className="flex justify-end">
-                <span
-                  className={`text-xs ${chatInput.length > 280 ? "text-red-500" : "text-text-muted"}`}
-                >
-                  {chatInput.length}/280
-                </span>
+            
+            {/* Markdown Preview */}
+            {showMarkdownPreview && chatInput.trim() && (
+              <div className="bg-background-secondary border border-border rounded-md p-3">
+                <div className="text-xs text-text-muted mb-2 flex items-center gap-2">
+                  <span>👁️ Preview:</span>
+                </div>
+                <div className="text-sm">
+                  <MarkdownRenderer content={chatInput} />
+                </div>
               </div>
             )}
           </div>

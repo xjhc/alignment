@@ -117,6 +117,8 @@ func (glm *GameLifecycleManager) handleEvent(event events.Event) {
 	switch e := event.(type) {
 	case events.PlayerDisconnectedEvent:
 		glm.handlePlayerDisconnected(e)
+	case events.PlayerAbandonedGameEvent:
+		glm.handlePlayerAbandoned(e)
 	case events.GameEndedEvent:
 		glm.handleGameEnded(e)
 	default:
@@ -261,6 +263,54 @@ func (glm *GameLifecycleManager) handlePlayerDisconnected(event events.PlayerDis
 			}
 		}
 	}
+}
+
+// handlePlayerAbandoned removes abandoned players from game sessions (similar to disconnect but for active abandonment)
+func (glm *GameLifecycleManager) handlePlayerAbandoned(event events.PlayerAbandonedGameEvent) {
+	log.Printf("GameLifecycleManager: Handling player abandonment: %s from game %s", event.PlayerID, event.GameID)
+
+	// Remove from active user tracker
+	if glm.activeUserTracker != nil {
+		glm.activeUserTracker.RemoveUserSessionByGameAndPlayer(event.GameID, event.PlayerID)
+	}
+
+	// Remove from game session tracking
+	glm.mutex.Lock()
+	if session, exists := glm.gameSessions[event.GameID]; exists {
+		delete(session, event.PlayerID)
+		log.Printf("GameLifecycleManager: Removed abandoned player %s from game session %s", event.PlayerID, event.GameID)
+
+		// Check if game session is now empty
+		if len(session) == 0 {
+			log.Printf("GameLifecycleManager: Game session %s is now empty after abandonment, cleaning up", event.GameID)
+			delete(glm.gameSessions, event.GameID)
+			
+			// Publish game ended event if no players remain
+			if glm.eventBus != nil {
+				glm.eventBus.Publish(events.GameEndedEvent{
+					GameID: event.GameID,
+					Reason: "all_players_abandoned",
+				})
+			}
+		}
+	}
+	glm.mutex.Unlock()
+
+	log.Printf("GameLifecycleManager: Successfully handled abandonment for player %s", event.PlayerID)
+}
+
+// ForceLogoutPlayer publishes a force logout event for a player due to unrecoverable state
+func (glm *GameLifecycleManager) ForceLogoutPlayer(playerID string, reason string) {
+	if glm.eventBus == nil {
+		log.Printf("GameLifecycleManager: Warning - EventBus not available, cannot force logout for player %s", playerID)
+		return
+	}
+	
+	log.Printf("GameLifecycleManager: Publishing force logout event for player %s: %s", playerID, reason)
+	glm.eventBus.Publish(events.ForceLogoutEvent{
+		PlayerID: playerID,
+		Reason:   reason,
+	})
 }
 
 // handleGameEnded cleans up finished games
@@ -708,26 +758,44 @@ func (glm *GameLifecycleManager) finalizeGameStart(lobbyID string) {
 func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActors map[string]interfaces.PlayerActorInterface) error {
 	log.Printf("GameLifecycleManager: Creating game from lobby %s with %d players", lobbyID, len(playerActors))
 
+	// Create temporary game state to get default starting tokens
+	tempGameState := core.NewGameState(lobbyID, time.Now())
+	startingTokens := tempGameState.Settings.StartingTokens
+	
 	// Convert PlayerActors to core.Players map
 	players := make(map[string]*core.Player)
+	currentTime := time.Now()
+	
 	for playerID, actor := range playerActors {
 		players[playerID] = &core.Player{
-			ID:          playerID,
-			Name:        actor.GetPlayerName(),
-			ControlType: "HUMAN",
-			IsAlive:     true,
+			ID:                playerID,
+			Name:              actor.GetPlayerName(),
+			JobTitle:          "", // Will be set during role assignment
+			ControlType:       "HUMAN",
+			Status:            core.PlayerStatusAlive,
+			IsAlive:           true,
+			Tokens:            startingTokens, // Use game settings for starting tokens
+			ProjectMilestones: 0,
+			StatusMessage:     "",
+			JoinedAt:          currentTime,
+			Alignment:         "HUMAN", // Default alignment before role assignment
 		}
 	}
 
 	// Add the AI player
 	aiPlayerID := "ai-nexus-" + uuid.New().String()[:8]
 	players[aiPlayerID] = &core.Player{
-		ID:          aiPlayerID,
-		Name:        "NEXUS",
-		JobTitle:    "AI Assistant",
-		ControlType: "AI",
-		IsAlive:     true,
-		Alignment:   "AI", // Start with AI alignment
+		ID:                aiPlayerID,
+		Name:              "NEXUS",
+		JobTitle:          "AI Assistant",
+		ControlType:       "AI",
+		Status:            core.PlayerStatusAlive,
+		IsAlive:           true,
+		Tokens:            startingTokens, // AI also uses game settings for starting tokens
+		ProjectMilestones: 0,
+		StatusMessage:     "",
+		JoinedAt:          currentTime,
+		Alignment:         "AI", // Start with AI alignment
 	}
 
 	gameID := lobbyID // The lobby ID becomes the game ID
@@ -968,10 +1036,18 @@ func (glm *GameLifecycleManager) ValidateSession(gameID, playerID, sessionToken 
 		return false
 	}
 
-	// Check if token matches player and is not expired
+	// Check if token is expired - if so, trigger force logout for cleanup
+	if !time.Now().Before(token.ExpiresAt) {
+		// Schedule force logout outside of the read lock
+		go func() {
+			glm.ForceLogoutPlayer(playerID, "session_expired")
+		}()
+		return false
+	}
+
+	// Check if token matches player and game
 	return token.PlayerID == playerID &&
-		   (token.LobbyID == gameID || gameID == "") && // Allow empty gameID for lobby connections
-		   time.Now().Before(token.ExpiresAt)
+		   (token.LobbyID == gameID || gameID == "") // Allow empty gameID for lobby connections
 }
 
 // GetPlayerInfo implements the TokenValidator interface
@@ -1014,6 +1090,26 @@ func (glm *GameLifecycleManager) GetLobbyList() []interface{} {
 // GetGameActor returns the game actor for a given game ID
 func (glm *GameLifecycleManager) GetGameActor(gameID string) (interfaces.GameActorInterface, bool) {
 	return glm.supervisor.GetActor(gameID)
+}
+
+// ReconnectPlayerToGame re-adds a reconnecting player to an active game session
+func (glm *GameLifecycleManager) ReconnectPlayerToGame(gameID string, playerActor interfaces.PlayerActorInterface) error {
+	glm.mutex.Lock()
+	defer glm.mutex.Unlock()
+	
+	// Check if the game session exists
+	session, exists := glm.gameSessions[gameID]
+	if !exists {
+		return fmt.Errorf("game session not found: %s", gameID)
+	}
+	
+	playerID := playerActor.GetPlayerID()
+	
+	// Add the player back to the game session
+	session[playerID] = playerActor
+	
+	log.Printf("GameLifecycleManager: Player %s reconnected to game session %s", playerID, gameID)
+	return nil
 }
 
 // checkForBlockedPlayers checks if the joining player or existing players have blocked each other

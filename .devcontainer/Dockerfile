@@ -24,11 +24,11 @@ RUN apt update && apt install -y less \
   wget \
   build-essential
 
-# Install Go 1.22
-RUN wget https://go.dev/dl/go1.22.0.linux-amd64.tar.gz && \
+# Install Go 1.23.10
+RUN wget https://go.dev/dl/go1.23.10.linux-amd64.tar.gz && \
   rm -rf /usr/local/go && \
-  tar -C /usr/local -xzf go1.22.0.linux-amd64.tar.gz && \
-  rm go1.22.0.linux-amd64.tar.gz
+  tar -C /usr/local -xzf go1.23.10.linux-amd64.tar.gz && \
+  rm go1.23.10.linux-amd64.tar.gz
 
 # Add Go to PATH
 ENV PATH="/usr/local/go/bin:$PATH"

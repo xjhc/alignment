@@ -10,6 +10,7 @@ import (
 
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/ai"
+	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/game"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/store"
@@ -75,8 +76,9 @@ type GameActor struct {
 	postgresStore      *store.PostgresStore
 	achievementChecker *game.AchievementChecker
 
-	// Callback for event notifications (especially for timer-generated events)
-	eventCallback EventCallback
+	// Event publishing
+	eventBus      *events.EventBus
+	eventCallback EventCallback // Callback for game event notifications (especially for timer-generated events)
 }
 
 // NewGameActor creates a new game actor with empty state - call Initialize() after creation
@@ -179,6 +181,11 @@ func (ga *GameActor) Stop() {
 // SetEventCallback sets the callback function for event notifications
 func (ga *GameActor) SetEventCallback(callback EventCallback) {
 	ga.eventCallback = callback
+}
+
+// SetEventBus sets the event bus for publishing system events
+func (ga *GameActor) SetEventBus(eventBus *events.EventBus) {
+	ga.eventBus = eventBus
 }
 
 // GetGameID returns the game's ID
@@ -926,6 +933,17 @@ func (ga *GameActor) validateAndGenerateAbandonGame(action core.Action) ([]core.
 			"is_system":   true,
 			"channel_id":  "#war-room",
 		},
+	}
+
+	// Publish system event for session cleanup
+	if ga.eventBus != nil {
+		ga.eventBus.Publish(events.PlayerAbandonedGameEvent{
+			PlayerID: action.PlayerID,
+			GameID:   ga.gameID,
+		})
+		log.Printf("GameActor: Published PlayerAbandonedGameEvent for player %s in game %s", action.PlayerID, ga.gameID)
+	} else {
+		log.Printf("GameActor: Warning - EventBus not available, cannot publish PlayerAbandonedGameEvent for player %s", action.PlayerID)
 	}
 
 	return []core.Event{event, chatEvent}, nil

@@ -379,17 +379,30 @@ export function useSessionManager() {
       state.appState.playerId &&
       state.appState.sessionToken
     ) {
+      console.log("[SessionManager] Initiating WebSocket connection with credentials:", {
+        gameId: state.appState.gameId,
+        playerId: state.appState.playerId,
+        sessionToken: state.appState.sessionToken ? "***" : "missing"
+      });
+      
       connect(
         state.appState.gameId,
         state.appState.playerId,
         state.appState.sessionToken
-      ).catch((error) =>
+      ).catch((error) => {
+        console.error("[SessionManager] WebSocket connection failed:", error);
         dispatch({
           type: "SET_CONNECTION_ERROR",
           payload: { message: error.message || "Failed to connect to lobby." },
-        })
-      );
+        });
+      });
       return () => disconnect();
+    } else if (state.isInGameSession) {
+      console.warn("[SessionManager] In game session but missing required credentials:", {
+        gameId: state.appState.gameId || "missing",
+        playerId: state.appState.playerId || "missing", 
+        sessionToken: state.appState.sessionToken ? "present" : "missing"
+      });
     }
   }, [
     state.isInGameSession,
@@ -474,6 +487,41 @@ export function useSessionManager() {
 
   const handleViewAnalysis = () => navigateToAnalysis();
   const handleBackToResults = () => navigateToGameOver();
+
+  // Session expiry handling
+  useEffect(() => {
+    if (!isConnected) return;
+    const unsubscribe = subscribe("SESSION_EXPIRED", (event: any) => {
+      console.log("Session expired, clearing session and returning to lobby list");
+      // Clear session storage
+      sessionStorage.removeItem("alignmentGameSession");
+      // Clear the current session state
+      dispatch({ type: "LEAVE_LOBBY" });
+      // Disconnect WebSocket
+      disconnect();
+      // Navigate to lobby list
+      navigateToLobbyList();
+    });
+    return unsubscribe;
+  }, [isConnected, subscribe, disconnect, navigateToLobbyList]);
+
+  // Server-forced logout handling
+  useEffect(() => {
+    if (!isConnected) return;
+    const unsubscribe = subscribe("FORCE_LOGOUT", (event: any) => {
+      console.log("Server forced logout, clearing all session data and returning to login");
+      // Clear all session data
+      sessionStorage.removeItem("alignmentGameSession");
+      sessionStorage.removeItem("wsConnectionCredentials");
+      // Clear the current session state completely
+      dispatch({ type: "BACK_TO_LOGIN" });
+      // Disconnect WebSocket
+      disconnect();
+      // Navigate to login screen
+      navigateToLogin();
+    });
+    return unsubscribe;
+  }, [isConnected, subscribe, disconnect, navigateToLogin]);
 
   return {
     state,

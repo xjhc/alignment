@@ -23,7 +23,7 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ typingUsers })
   };
 
   return (
-    <div className={`px-4 py-2 text-xs text-text-muted flex items-center gap-2 ${FADE_IN}`}>
+    <div className="px-4 py-2 text-xs text-text-muted flex items-center gap-2">
       <div className="flex gap-1">
         <div className={`w-1 h-1 bg-text-muted rounded-full ${PULSE}`} style={{ animationDelay: '0ms' }} />
         <div className={`w-1 h-1 bg-text-muted rounded-full ${PULSE}`} style={{ animationDelay: '150ms' }} />

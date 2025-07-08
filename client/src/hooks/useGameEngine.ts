@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { gameEngine } from '../services/gameEngine';
-import { GeneratedEvent, GeneratedAction, GameState } from '../types';
+import { useState, useEffect, useCallback } from "react";
+import { gameEngine } from "../services/gameEngine";
+import { GeneratedEvent, GeneratedAction, GameState } from "../types";
 
 export interface GameEngineState {
   isLoaded: boolean;
@@ -22,29 +22,38 @@ export function useGameEngine() {
     let mounted = true;
 
     const initializeEngine = async () => {
-      if (state.isLoading || state.isLoaded) {
+      if (gameEngine.isReady()) {
+        setState((prev) => ({
+          ...prev,
+          isLoaded: true,
+          isLoading: false,
+          gameState: gameEngine.getCurrentState(),
+        }));
         return;
       }
 
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
       try {
         await gameEngine.initialize();
-        
+
         if (mounted) {
-          setState(prev => ({ 
-            ...prev, 
-            isLoaded: true, 
+          setState((prev) => ({
+            ...prev,
+            isLoaded: true,
             isLoading: false,
-            gameState: gameEngine.getCurrentState()
+            gameState: gameEngine.getCurrentState(),
           }));
         }
       } catch (error) {
         if (mounted) {
-          setState(prev => ({ 
-            ...prev, 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Failed to initialize game engine'
+          setState((prev) => ({
+            ...prev,
+            isLoading: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to initialize game engine",
           }));
         }
       }
@@ -64,95 +73,125 @@ export function useGameEngine() {
     }
 
     const unsubscribe = gameEngine.onStateChange((newState) => {
-      setState(prev => ({ ...prev, gameState: newState }));
+      setState((prev) => ({ ...prev, gameState: newState }));
     });
 
     return unsubscribe;
   }, [state.isLoaded]);
 
   // Game engine methods
-  const createGame = useCallback(async (gameId: string) => {
-    if (!state.isLoaded) {
-      throw new Error('Game engine not loaded');
-    }
+  const createGame = useCallback(
+    async (gameId: string) => {
+      if (!state.isLoaded) {
+        throw new Error("Game engine not loaded");
+      }
 
-    try {
-      await gameEngine.createGame(gameId);
-      setState(prev => ({ ...prev, gameState: gameEngine.getCurrentState() }));
-    } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : 'Failed to create game'
-      }));
-      throw error;
-    }
-  }, [state.isLoaded]);
+      try {
+        await gameEngine.createGame(gameId);
+        setState((prev) => ({
+          ...prev,
+          gameState: gameEngine.getCurrentState(),
+        }));
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          error:
+            error instanceof Error ? error.message : "Failed to create game",
+        }));
+        throw error;
+      }
+    },
+    [state.isLoaded]
+  );
 
-  const applyEvent = useCallback(async (event: GeneratedEvent) => {
-    if (!state.isLoaded) {
-      throw new Error('Game engine not loaded');
-    }
+  const applyEvent = useCallback(
+    async (event: GeneratedEvent) => {
+      if (!state.isLoaded) {
+        throw new Error("Game engine not loaded");
+      }
 
-    try {
-      await gameEngine.applyEvent(event);
-      // State will be updated automatically via the state change listener
-    } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : 'Failed to apply event'
-      }));
-      throw error;
-    }
-  }, [state.isLoaded]);
+      try {
+        await gameEngine.applyEvent(event);
+        // State will be updated automatically via the state change listener
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          error:
+            error instanceof Error ? error.message : "Failed to apply event",
+        }));
+        throw error;
+      }
+    },
+    [state.isLoaded]
+  );
 
-  const submitAction = useCallback(async (action: GeneratedAction) => {
-    if (!state.isLoaded) {
-      throw new Error('Game engine not loaded');
-    }
+  const submitAction = useCallback(
+    async (action: GeneratedAction) => {
+      if (!state.isLoaded) {
+        throw new Error("Game engine not loaded");
+      }
 
-    try {
-      const events = await gameEngine.submitPlayerAction(action);
-      return events;
-    } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : 'Failed to submit action'
-      }));
-      throw error;
-    }
-  }, [state.isLoaded]);
+      try {
+        const events = await gameEngine.submitPlayerAction(action);
+        return events;
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          error:
+            error instanceof Error ? error.message : "Failed to submit action",
+        }));
+        throw error;
+      }
+    },
+    [state.isLoaded]
+  );
 
-  const loadGameState = useCallback(async (gameState: GameState) => {
-    if (!state.isLoaded) {
-      throw new Error('Game engine not loaded');
-    }
+  const loadGameState = useCallback(
+    async (gameState: GameState) => {
+      if (!state.isLoaded) {
+        throw new Error("Game engine not loaded");
+      }
 
-    try {
-      await gameEngine.loadState(gameState);
-      setState(prev => ({ ...prev, gameState: gameEngine.getCurrentState() }));
-    } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : 'Failed to load game state'
-      }));
-      throw error;
-    }
-  }, [state.isLoaded]);
+      try {
+        await gameEngine.loadState(gameState);
+        setState((prev) => ({
+          ...prev,
+          gameState: gameEngine.getCurrentState(),
+        }));
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to load game state",
+        }));
+        throw error;
+      }
+    },
+    [state.isLoaded]
+  );
 
   // Game rule methods
-  const canPlayerVote = useCallback((playerId: string, phaseType: string): boolean => {
-    if (!state.isLoaded) {
-      return false;
-    }
-    return gameEngine.canPlayerVote(playerId, phaseType);
-  }, [state.isLoaded]);
+  const canPlayerVote = useCallback(
+    (playerId: string, phaseType: string): boolean => {
+      if (!state.isLoaded) {
+        return false;
+      }
+      return gameEngine.canPlayerVote(playerId, phaseType);
+    },
+    [state.isLoaded]
+  );
 
-  const canPlayerAffordAbility = useCallback((playerId: string): boolean => {
-    if (!state.isLoaded) {
-      return false;
-    }
-    return gameEngine.canPlayerAffordAbility(playerId);
-  }, [state.isLoaded]);
+  const canPlayerAffordAbility = useCallback(
+    (playerId: string): boolean => {
+      if (!state.isLoaded) {
+        return false;
+      }
+      return gameEngine.canPlayerAffordAbility(playerId);
+    },
+    [state.isLoaded]
+  );
 
   const checkWinCondition = useCallback(() => {
     if (!state.isLoaded) {
@@ -161,26 +200,35 @@ export function useGameEngine() {
     return gameEngine.checkWinCondition();
   }, [state.isLoaded]);
 
-  const calculateMiningSuccess = useCallback((playerId: string, difficulty?: number): boolean => {
-    if (!state.isLoaded) {
-      return false;
-    }
-    return gameEngine.calculateMiningSuccess(playerId, difficulty);
-  }, [state.isLoaded]);
+  const calculateMiningSuccess = useCallback(
+    (playerId: string, difficulty?: number): boolean => {
+      if (!state.isLoaded) {
+        return false;
+      }
+      return gameEngine.calculateMiningSuccess(playerId, difficulty);
+    },
+    [state.isLoaded]
+  );
 
-  const isValidNightActionTarget = useCallback((actorId: string, targetId: string, actionType: string): boolean => {
-    if (!state.isLoaded) {
-      return false;
-    }
-    return gameEngine.isValidNightActionTarget(actorId, targetId, actionType);
-  }, [state.isLoaded]);
+  const isValidNightActionTarget = useCallback(
+    (actorId: string, targetId: string, actionType: string): boolean => {
+      if (!state.isLoaded) {
+        return false;
+      }
+      return gameEngine.isValidNightActionTarget(actorId, targetId, actionType);
+    },
+    [state.isLoaded]
+  );
 
-  const getVoteWinner = useCallback((threshold?: number) => {
-    if (!state.isLoaded) {
-      return { winner: '', hasWinner: false };
-    }
-    return gameEngine.getVoteWinner(threshold);
-  }, [state.isLoaded]);
+  const getVoteWinner = useCallback(
+    (threshold?: number) => {
+      if (!state.isLoaded) {
+        return { winner: "", hasWinner: false };
+      }
+      return gameEngine.getVoteWinner(threshold);
+    },
+    [state.isLoaded]
+  );
 
   const isGamePhaseOver = useCallback((): boolean => {
     if (!state.isLoaded) {
@@ -190,7 +238,7 @@ export function useGameEngine() {
   }, [state.isLoaded]);
 
   const clearError = useCallback(() => {
-    setState(prev => ({ ...prev, error: null }));
+    setState((prev) => ({ ...prev, error: null }));
   }, []);
 
   return {

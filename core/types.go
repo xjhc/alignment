@@ -118,6 +118,8 @@ const (
 	EventPlayerDisconnected  EventType = "PLAYER_DISCONNECTED"
 	EventSyncComplete        EventType = "SYNC_COMPLETE"
 	EventRateLimitExceeded   EventType = "RATE_LIMIT_EXCEEDED"
+	EventSessionExpired      EventType = "SESSION_EXPIRED"
+	EventForceLogout         EventType = "FORCE_LOGOUT"
 
 	// Phase skipping events
 	EventSkipVoteUpdated EventType = "SKIP_VOTE_UPDATED"

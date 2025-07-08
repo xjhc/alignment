@@ -62,3 +62,23 @@ type PlayerLeftLobbyEvent struct {
 func (e PlayerLeftLobbyEvent) EventType() string {
 	return "player_left_lobby"
 }
+
+// PlayerAbandonedGameEvent is published when a player abandons an active game
+type PlayerAbandonedGameEvent struct {
+	PlayerID string
+	GameID   string
+}
+
+func (e PlayerAbandonedGameEvent) EventType() string {
+	return "player_abandoned_game"
+}
+
+// ForceLogoutEvent is published when a player needs to be forcibly logged out due to unrecoverable state
+type ForceLogoutEvent struct {
+	PlayerID string
+	Reason   string
+}
+
+func (e ForceLogoutEvent) EventType() string {
+	return "force_logout"
+}

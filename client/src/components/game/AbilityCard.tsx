@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Player } from '../../types';
+import { useGameContext } from '../../contexts/GameContext';
 
 interface AbilityCardProps {
   localPlayer: Player;
@@ -8,6 +9,7 @@ interface AbilityCardProps {
 }
 
 export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer, isViewingSelf }) => {
+  const { canPlayerAffordAbility } = useGameContext();
   const ability = localPlayer.role?.ability;
   
   // Only show ability details when viewing self
@@ -39,14 +41,43 @@ export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer, isViewing
         </div>
         <div className="bg-background-tertiary border border-border rounded-lg p-3 opacity-70">
           <div className="font-bold text-sm mb-1.5">No Active Ability</div>
-          <div className="text-text-secondary text-[11px] leading-snug mb-1.5">This role has no special abilities.</div>
+          <div className="text-text-secondary text-[11px] leading-snug mb-1.5">
+            {localPlayer.role?.name ? 
+              `The ${localPlayer.role.name} role has no special abilities. Focus on collaboration and discussion.` :
+              'This role has no special abilities. Your contribution comes through strategic thinking and teamwork.'
+            }
+          </div>
+          <div className="text-[10px] text-text-muted italic">Some roles gain power through other means - tokens, milestones, or voting influence.</div>
         </div>
       </div>
     );
   }
 
-  const isReady = ability.isReady && !localPlayer.hasUsedAbility;
-  const status = isReady ? 'READY' : 'LOCKED';
+  // Comprehensive ability state calculation
+  const canAfford = canPlayerAffordAbility(localPlayer.id);
+  const hasNotUsedAbility = !localPlayer.hasUsedAbility;
+  const isAbilityUnlocked = ability.isReady;
+  
+  const isReady = isAbilityUnlocked && hasNotUsedAbility && canAfford;
+  
+  // Determine status and reason for locked state
+  let status: string;
+  let lockedReason: string = '';
+  
+  if (isReady) {
+    status = 'READY';
+  } else {
+    status = 'LOCKED';
+    if (!isAbilityUnlocked) {
+      lockedReason = 'System access required. Complete more objectives to unlock.';
+    } else if (localPlayer.hasUsedAbility) {
+      lockedReason = 'Already used this phase. Abilities refresh each day.';
+    } else if (!canAfford) {
+      lockedReason = 'Insufficient tokens. Abilities require token payment.';
+    } else {
+      lockedReason = 'Ability currently unavailable.';
+    }
+  }
 
   return (
     <div className="animation-fade-in">
@@ -72,7 +103,17 @@ export const AbilityCard: React.FC<AbilityCardProps> = ({ localPlayer, isViewing
       >
         <div className="font-bold text-sm mb-1.5">{ability.name}</div>
         <div className="text-text-secondary text-[11px] leading-snug mb-1.5">{ability.description}</div>
-        <div className="text-[10px] text-text-muted italic">Used during Night Phase (30s window)</div>
+        
+        {/* Show locked reason or ready state */}
+        {isReady ? (
+          <div className="text-[10px] text-success font-medium">
+            ✓ Ready to use during Night Phase (30s window)
+          </div>
+        ) : (
+          <div className="text-[10px] text-danger font-medium">
+            🔒 {lockedReason}
+          </div>
+        )}
       </motion.div>
     </div>
   );

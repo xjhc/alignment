@@ -26,6 +26,13 @@ export const PulseCheckInput: React.FC<PulseCheckInputProps> = ({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
   return (
     <div className="p-4 bg-blue-900/20 border-t border-blue-500/30 animate-[fadeIn_0.3s_ease]">
       <div className="text-blue-400 font-mono font-bold text-sm mb-2">💭 PULSE CHECK</div>
@@ -37,9 +44,10 @@ export const PulseCheckInput: React.FC<PulseCheckInputProps> = ({
         <textarea
           value={response}
           onChange={(e) => setResponse(e.target.value)}
+          onKeyDown={handleKeyDown}
           disabled={isSubmitting}
           maxLength={280}
-          placeholder="Share your thoughts, feelings, and strategy..."
+          placeholder="Share your thoughts, feelings, and strategy... (Enter to submit, Shift+Enter for new line)"
           className="w-full px-3 py-2 text-sm bg-gray-800 border border-gray-600 rounded-md text-gray-100 placeholder-gray-400 resize-none focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           rows={4}
         />

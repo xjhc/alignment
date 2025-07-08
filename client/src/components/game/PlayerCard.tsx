@@ -10,9 +10,10 @@ interface PlayerCardProps {
   isSelf: boolean;
   isSelected: boolean;
   onSelect: (playerId: string) => void;
+  isOnTrial?: boolean;
 }
 
-export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelected, onSelect }) => {
+export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelected, onSelect, isOnTrial = false }) => {
   const [wasAlive, setWasAlive] = useState(player.isAlive);
   const [isPlayingEliminationAnimation, setIsPlayingEliminationAnimation] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -81,6 +82,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
       classes.push('bg-aligned/5 border-l-2 border-aligned');
       // Add glitch animation to AI-aligned players
       classes.push(GLITCH);
+    }
+    
+    // Trial highlighting - takes priority over other styling
+    if (isOnTrial && player.isAlive) {
+      classes.push('bg-yellow-500/10 border-l-4 border-yellow-500 ring-2 ring-yellow-500/20');
     }
     
     return classes.join(' ');
@@ -181,6 +187,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
           <span className={`font-semibold flex-shrink-0 min-w-10 ${isSelf ? 'text-human' : 'text-text-primary'}`}>
             {displayName}
           </span>
+          {isOnTrial && (
+            <span className="text-yellow-500 text-xs" title="On trial for deactivation">
+              ⚖️
+            </span>
+          )}
           <span className={`font-medium uppercase tracking-wide flex-shrink-0 text-[10px] min-w-7.5 ${
             (player.isRolePubliclyRevealed && !isSelf) ? 'text-yellow-500 font-semibold' : 'text-text-secondary'
           }`}>

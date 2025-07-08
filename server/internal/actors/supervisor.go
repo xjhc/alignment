@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xjhc/alignment/core"
+	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/store"
 )
@@ -23,10 +24,11 @@ type Supervisor struct {
 	datastore     interfaces.DataStore
 	postgresStore *store.PostgresStore
 	broadcaster   interfaces.Broadcaster
+	eventBus      *events.EventBus
 }
 
 // NewSupervisor creates a new supervisor
-func NewSupervisor(ctx context.Context, datastore interfaces.DataStore, postgresStore *store.PostgresStore, broadcaster interfaces.Broadcaster) *Supervisor {
+func NewSupervisor(ctx context.Context, datastore interfaces.DataStore, postgresStore *store.PostgresStore, broadcaster interfaces.Broadcaster, eventBus *events.EventBus) *Supervisor {
 	supervisorCtx, cancel := context.WithCancel(ctx)
 	return &Supervisor{
 		actors:        make(map[string]*GameActor),
@@ -35,6 +37,7 @@ func NewSupervisor(ctx context.Context, datastore interfaces.DataStore, postgres
 		datastore:     datastore,
 		postgresStore: postgresStore,
 		broadcaster:   broadcaster,
+		eventBus:      eventBus,
 	}
 }
 
@@ -80,6 +83,11 @@ func (s *Supervisor) CreateGameWithPlayers(gameID string, players map[string]*co
 
 	actorCtx, actorCancel := context.WithCancel(s.ctx)
 	actor := NewGameActor(actorCtx, actorCancel, gameID, players, s.postgresStore)
+	
+	// Inject EventBus dependency for system event publishing
+	if s.eventBus != nil {
+		actor.SetEventBus(s.eventBus)
+	}
 	
 	// Set up event callback for timer-generated events
 	actor.SetEventCallback(func(gameID string, events []core.Event) {

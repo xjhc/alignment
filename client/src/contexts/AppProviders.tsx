@@ -1,24 +1,10 @@
 import { BrowserRouter } from "react-router-dom";
-import { ErrorBoundary } from "react-error-boundary";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import {
   ThemeProvider,
   GameEngineProvider,
   WebSocketProvider,
 } from ".";
-
-function ErrorFallback({ error, resetErrorBoundary }: any) {
-  return (
-    <div role="alert" className="launch-screen">
-      <div className="launch-form">
-        <h2>Something went wrong:</h2>
-        <pre style={{ color: "red" }}>{error.message}</pre>
-        <button className="btn-primary" onClick={resetErrorBoundary}>
-          Try again
-        </button>
-      </div>
-    </div>
-  );
-}
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -26,10 +12,7 @@ interface AppProvidersProps {
 
 export function AppProviders({ children }: AppProvidersProps) {
   return (
-    <ErrorBoundary
-      FallbackComponent={ErrorFallback}
-      onReset={() => window.location.reload()}
-    >
+    <ErrorBoundary>
       <BrowserRouter>
         <ThemeProvider>
           <GameEngineProvider>

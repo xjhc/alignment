@@ -97,7 +97,13 @@ generate-types:
 
 vendor:
 	@echo ">>> Vendoring Go dependencies..."
-	@cd server && go mod tidy && go mod vendor
+	@if [ -f go.work ]; then \
+		echo "Detected Go workspace, using 'go work vendor'"; \
+		go work vendor; \
+	else \
+		echo "Using standard go mod vendor"; \
+		cd server && go mod tidy && go mod vendor; \
+	fi
 
 # Background services for E2E testing
 bg-start:

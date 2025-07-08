@@ -73,7 +73,9 @@ export const CommsPanel: React.FC = () => {
   const livingPlayers = Array.isArray(gameState.players)
     ? gameState.players.filter((p) => p.isAlive)
     : [];
-  const requiredVotes = Math.ceil(livingPlayers.length * (2 / 3));
+  // Skip phase requires unanimous consent from all living human players
+  const livingHumans = livingPlayers.filter((p) => p.controlType === "HUMAN");
+  const requiredVotes = livingHumans.length;
   const hasLocalPlayerVoted = skipVotes[localPlayer.id] || false;
 
   const canShowSkipButton =
@@ -138,7 +140,7 @@ export const CommsPanel: React.FC = () => {
   }, [filteredMessages, currentChannelPendingMessages]);
 
   const parseMessageContent = (message: string) => {
-    const quoteRegex = /\[quote=([^\]]+)\]([^[]*)\[\/quote\]\n?(.*)/s;
+    const quoteRegex = /\[quote=([^\]]+)\](.*?)\[\/quote\]\n?(.*)/s;
     const match = message.match(quoteRegex);
 
     if (match) {
@@ -241,6 +243,36 @@ export const CommsPanel: React.FC = () => {
         </div>
       </header>
 
+      {/* Trial Phase Banner */}
+      {gameState.phase.type === "TRIAL" && gameState.nominatedPlayer && (
+        <div className="bg-yellow-500/10 border-l-4 border-yellow-500 px-4 py-3 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-yellow-500 text-xl">⚖️</div>
+              <div>
+                <div className="font-bold text-yellow-600 dark:text-yellow-400 text-sm">
+                  ON TRIAL FOR DEACTIVATION
+                </div>
+                <div className="text-text-primary font-medium">
+                  {(() => {
+                    const nominee = Array.isArray(gameState.players)
+                      ? gameState.players.find(p => p.id === gameState.nominatedPlayer)
+                      : Object.values(gameState.players || {}).find((p: any) => p.id === gameState.nominatedPlayer);
+                    return nominee ? nominee.name : 'Unknown Player';
+                  })()}
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-text-muted uppercase">Present Defense</div>
+              <div className="font-mono font-bold text-yellow-600 dark:text-yellow-400 text-sm">
+                {timeRemaining}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div
         className="flex-1 p-4 overflow-y-auto flex flex-col gap-2 min-h-0"
         ref={chatLogRef}
@@ -334,8 +366,7 @@ export const CommsPanel: React.FC = () => {
           return (
             <div
               key={msg.id || index}
-              className={`group flex items-start gap-2.5 px-2 py-1.5 rounded-md transition-all duration-150 mb-0.5 hover:bg-background-secondary hover:translate-x-0.5 ${msg.isSystem ? "border-l-2 border-blue-500 bg-blue-500/5 pl-3" : ""} ${isNominatedPlayerMessage ? "border-l-2 border-yellow-500 bg-yellow-500/10 pl-3 ring-1 ring-yellow-500/20" : ""} animation-slide-in-left`}
-              style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
+              className={`group flex items-start gap-2.5 px-2 py-1.5 rounded-md transition-all duration-150 mb-0.5 hover:bg-background-secondary hover:translate-x-0.5 ${msg.isSystem ? "border-l-2 border-blue-500 bg-blue-500/5 pl-3" : ""} ${isNominatedPlayerMessage ? "border-l-2 border-yellow-500 bg-yellow-500/10 pl-3 ring-1 ring-yellow-500/20" : ""}`}
             >
               <div
                 className={`w-6 h-6 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border shadow-sm ${msg.isSystem ? "bg-blue-500 text-white border-blue-500 shadow-blue-500/30" : ""} ${isNominatedPlayerMessage ? "bg-yellow-500 text-black border-yellow-500 shadow-yellow-500/30 ring-2 ring-yellow-500/50" : ""}`}
@@ -356,7 +387,7 @@ export const CommsPanel: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  {!msg.isSystem && gameState.phase.type === "DISCUSSION" && (
+                  {!msg.isSystem && (gameState.phase.type === "DISCUSSION" || gameState.phase.type === "TRIAL" || gameState.phase.type === "SITREP") && (
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                       <button
                         onClick={() =>

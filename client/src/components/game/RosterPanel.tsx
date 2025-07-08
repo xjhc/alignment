@@ -202,6 +202,7 @@ export const RosterPanel: React.FC = () => {
                 isSelf={player.id === localPlayerId}
                 isSelected={player.id === viewedPlayerId}
                 onSelect={setViewedPlayer}
+                isOnTrial={gameState.phase.type === 'TRIAL' && gameState.nominatedPlayer === player.id}
               />
             ))}
           </AnimatePresence>

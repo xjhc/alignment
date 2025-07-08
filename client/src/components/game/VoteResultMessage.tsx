@@ -61,7 +61,7 @@ export const VoteResultMessage: React.FC<VoteResultMessageProps> = ({ message, g
         return (
           <div
             key={playerId}
-            className={`vote-block ${isMyVote ? 'my-vote' : ''} animation-fade-in`}
+            className={`vote-block ${isMyVote ? 'my-vote' : ''}`}
           >
             <div className="block-header">
               <span className="block-icon">{getPlayerAvatar(playerId)}</span>

@@ -90,6 +90,7 @@ type GameLifecycleManagerInterface interface {
 	// Game session management
 	SendActionToGame(gameID string, action core.Action) error
 	GetGameActor(gameID string) (GameActorInterface, bool)
+	ReconnectPlayerToGame(gameID string, playerActor PlayerActorInterface) error
 	
 	// Utility
 	Stop()
@@ -148,4 +149,9 @@ type PartyManagerInterface interface {
 	LeaveParty(playerID string) error
 	GetPendingInvites(playerID string) []*PartyInvite
 	IsInParty(playerID string) bool
+}
+
+// ForceLogoutInterface defines the interface for forcing player logout
+type ForceLogoutInterface interface {
+	ForceLogoutPlayer(playerID string, reason string)
 }
