@@ -7,10 +7,12 @@ This file tracks the current state of development, including tasks to be complet
 - when "project milestone" is selected, it should show.
 - playercard should have abbreviated role names like CEO instead of Chief Executive Officer.
 - voting doesn't seem to work? vote should tally up by num tokens.
+- skip should update with 0/n, 1/n, etc. as people press skip.
+
+- reconnecting doesn't work.
 
 - reactions don't show up on the msg.
 - verdict phase should still let people talk
-- skip should update with 0/n, 1/n, etc. as people press skip.
 - vote should update with the "blockchain ui" in the storybook.
 - mine for player night action should show self as target
 - there should be Loebmate messages for announcements, crisis events, etc as well as the initial event. see docs.

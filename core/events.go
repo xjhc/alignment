@@ -44,6 +44,7 @@ var EventTypeValues = []EventType{
 
 	// Communication events
 	EventChatMessage,
+	EventMessageReaction,
 	EventSystemMessage, // DEPRECATED: Use specific semantic events
 	EventPrivateNotification,
 	EventIncitingIncident,

@@ -233,7 +233,7 @@ export class GameEngine {
 
   private actionToEvents(action: GeneratedAction): GeneratedEvent[] {
     const baseEvent: Partial<GeneratedEvent> = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       gameId: action.gameId,
       playerId: action.playerId,
       timestamp: new Date().toISOString(),

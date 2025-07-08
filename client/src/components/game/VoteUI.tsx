@@ -101,10 +101,53 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
     const yesVotes = gameState.voteState?.results?.["GUILTY"] || 0;
     const noVotes = gameState.voteState?.results?.["INNOCENT"] || 0;
     const getPlayerAvatar = (jobTitle: string) => {
-      /*...*/ return "👤";
+      switch (jobTitle) {
+        case 'CEO': return '👑';
+        case 'CTO': return '💻';
+        case 'CFO': return '💰';
+        case 'COO': return '⚙️';
+        case 'CISO': return '🔒';
+        case 'Ethics Officer': return '⚖️';
+        case 'Platform Lead': return '🏗️';
+        case 'Intern': return '🎓';
+        default: return '👤';
+      }
     };
     const renderVoteBlocks = (voteOption: string) => {
-      /*...*/
+      if (!gameState.voteState?.votes || !gameState.voteState?.tokenWeights) return null;
+      
+      const votes = gameState.voteState.votes;
+      const tokenWeights = gameState.voteState.tokenWeights;
+      
+      return Object.entries(votes)
+        .filter(([, vote]) => vote === voteOption)
+        .map(([playerId]) => {
+          const tokenWeight = tokenWeights[playerId] || 0;
+          const isMyVote = playerId === localPlayer.id;
+          const player = gameState.players.find(p => p.id === playerId);
+          
+          return (
+            <div
+              key={playerId}
+              className={`vote-block ${isMyVote ? 'my-vote' : ''}`}
+            >
+              <div className="block-header">
+                <span className="block-icon">{getPlayerAvatar(player?.jobTitle || '')}</span>
+                <span className="block-amount">{tokenWeight}</span>
+              </div>
+              <div className="block-hash">
+                {isMyVote ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-yellow-500">⭐</span>
+                    <span className="font-semibold">YOU</span>
+                  </div>
+                ) : (
+                  <span className="text-text-muted text-xs">{player?.name || 'Unknown'}</span>
+                )}
+              </div>
+            </div>
+          );
+        });
     };
     const hasVoted =
       gameState.voteState?.votes && localPlayer.id in gameState.voteState.votes;

@@ -5,6 +5,7 @@ import { PartyPanel } from './PartyPanel';
 import { getUserIdForApi } from '../services/guestIdentity';
 import { websocketClient } from '../services/websocket';
 import { ClientActionType } from '../types/generated';
+import { STAGGER_CHILD, applyStaggeredAnimation, SLIDE_IN_UP, FADE_IN } from '../utils/animations';
 
 interface LobbyInfo {
   id: string;
@@ -36,6 +37,7 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showSessionConflict, setShowSessionConflict] = useState(false);
   const [joinCooldowns, setJoinCooldowns] = useState<Record<string, number>>({});
+  const lobbyListRef = useRef<HTMLDivElement>(null);
 
   // Clear any existing WebSocket session to reset backend state
   const clearSession = async () => {
@@ -151,7 +153,20 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
       }
       
       const data = await response.json();
-      setLobbies(data.lobbies || []);
+      const newLobbies = data.lobbies || [];
+      
+      // Apply staggered animation when lobbies are updated
+      setLobbies(newLobbies);
+      
+      // Apply animations to lobby items after they're rendered
+      setTimeout(() => {
+        if (lobbyListRef.current) {
+          const lobbyItems = lobbyListRef.current.querySelectorAll('.lobby-item');
+          if (lobbyItems.length > 0) {
+            applyStaggeredAnimation(lobbyItems, 100, FADE_IN);
+          }
+        }
+      }, 50);
       
       // Reset retry count and polling interval on success
       if (retryCount > 0) {
@@ -435,59 +450,65 @@ export function LobbyListScreen({ playerName, playerAvatar, onJoinLobby, onCreat
             <div>Action</div>
           </div>
           
-          {lobbies.length === 0 ? (
-            <div className="col-span-4 flex flex-col items-center justify-center py-12 px-6 bg-background-primary rounded-md border-2 border-dashed border-border animation-fade-in">
-              <div className="text-4xl mb-4">🎮</div>
-              <h3 className="text-lg font-medium text-text-primary mb-2">No active lobbies found</h3>
-              <p className="text-text-secondary text-sm text-center mb-6 max-w-md">
-                Looks like you're the first to arrive! Be the pioneer and start a new emergency response session.
-              </p>
-              <Button
-                variant="primary"
-                onClick={handleCreateGame}
-                className="font-medium text-sm px-6 py-2 animation-scale-in-feedback"
-              >
-                🚀 Create New Game
-              </Button>
-            </div>
-          ) : (
-            lobbies.map((lobby) => (
-              <div key={lobby.id} className="grid grid-cols-4 items-center gap-4 px-4 py-3 bg-background-primary rounded-md transition-all duration-200 hover:bg-background-hover">
-                <div className="font-mono text-primary font-semibold">#{lobby.name}</div>
-                <div>{lobby.player_count} / {lobby.max_players}</div>
-                <div>
-                  <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${
-                    lobby.status === 'waiting' ? 'bg-human text-background-primary' :
-                    lobby.status === 'in_progress' ? 'bg-danger text-background-primary' :
-                    'bg-text-muted text-background-primary'
-                  }`}>
-                    {lobby.status || 'Unknown'}
-                  </span>
-                </div>
-                <div>
-                  {(() => {
-                    const now = Date.now();
-                    const cooldownEnd = joinCooldowns[lobby.id];
-                    const inCooldown = cooldownEnd && now < cooldownEnd;
-                    const remainingSeconds = inCooldown ? Math.ceil((cooldownEnd - now) / 1000) : 0;
-                    
-                    return (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleJoinLobby(lobby.id)}
-                        disabled={!lobby.can_join || inCooldown}
-                        className="text-sm font-medium"
-                        title={inCooldown ? `Please wait ${remainingSeconds} seconds` : undefined}
-                      >
-                        {inCooldown ? `Wait ${remainingSeconds}s` : 'Join'}
-                      </Button>
-                    );
-                  })()}
-                </div>
+          <div ref={lobbyListRef}>
+            {lobbies.length === 0 ? (
+              <div className="col-span-4 flex flex-col items-center justify-center py-12 px-6 bg-background-primary rounded-md border-2 border-dashed border-border animation-fade-in">
+                <div className="text-4xl mb-4">🎮</div>
+                <h3 className="text-lg font-medium text-text-primary mb-2">No active lobbies found</h3>
+                <p className="text-text-secondary text-sm text-center mb-6 max-w-md">
+                  Looks like you're the first to arrive! Be the pioneer and start a new emergency response session.
+                </p>
+                <Button
+                  variant="primary"
+                  onClick={handleCreateGame}
+                  className="font-medium text-sm px-6 py-2 animation-scale-in-feedback"
+                >
+                  🚀 Create New Game
+                </Button>
               </div>
-            ))
-          )}
+            ) : (
+              lobbies.map((lobby, index) => (
+                <div 
+                  key={lobby.id} 
+                  className={`lobby-item grid grid-cols-4 items-center gap-4 px-4 py-3 bg-background-primary rounded-md transition-all duration-200 hover:bg-background-hover ${STAGGER_CHILD}`}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className="font-mono text-primary font-semibold">#{lobby.name}</div>
+                  <div>{lobby.player_count} / {lobby.max_players}</div>
+                  <div>
+                    <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${
+                      lobby.status === 'waiting' ? 'bg-human text-background-primary' :
+                      lobby.status === 'in_progress' ? 'bg-danger text-background-primary' :
+                      'bg-text-muted text-background-primary'
+                    }`}>
+                      {lobby.status || 'Unknown'}
+                    </span>
+                  </div>
+                  <div>
+                    {(() => {
+                      const now = Date.now();
+                      const cooldownEnd = joinCooldowns[lobby.id];
+                      const inCooldown = cooldownEnd && now < cooldownEnd;
+                      const remainingSeconds = inCooldown ? Math.ceil((cooldownEnd - now) / 1000) : 0;
+                      
+                      return (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleJoinLobby(lobby.id)}
+                          disabled={!lobby.can_join || inCooldown}
+                          className="text-sm font-medium transition-all duration-200 hover:enabled:animation-scale-in-feedback"
+                          title={inCooldown ? `Please wait ${remainingSeconds} seconds` : undefined}
+                        >
+                          {inCooldown ? `Wait ${remainingSeconds}s` : 'Join'}
+                        </Button>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
         
         <Button

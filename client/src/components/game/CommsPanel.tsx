@@ -387,7 +387,7 @@ export const CommsPanel: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  {!msg.isSystem && (gameState.phase.type === "DISCUSSION" || gameState.phase.type === "TRIAL" || gameState.phase.type === "SITREP") && (
+                  {!msg.isSystem && (gameState.phase.type === "DISCUSSION" || gameState.phase.type === "TRIAL" || gameState.phase.type === "SITREP" || gameState.phase.type === "VERDICT") && (
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                       <button
                         onClick={() =>

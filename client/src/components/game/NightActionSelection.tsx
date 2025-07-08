@@ -31,7 +31,7 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
 
   const players = gameState?.players || [];
   const alivePlayers = Array.isArray(players)
-    ? players.filter((p) => p.isAlive && p.id !== localPlayer.id)
+    ? players.filter((p) => p.isAlive)
     : [];
   const hasUnlockedAbility =
     localPlayer.role?.type && localPlayer.projectMilestones >= 3;
@@ -224,9 +224,9 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
               </span>
             </div>
             <div className="text-xs text-gray-400 leading-snug mb-1.5">
-              Generate 1 Token for another player. Success depends on liquidity
+              Generate 1 Token for any player. Success depends on liquidity
               pool (currently 3 slots for {alivePlayers.length} players
-              attempting). Cannot mine for yourself.
+              attempting).
             </div>
             <div className="text-xs text-gray-500">
               <strong className="text-gray-100 font-semibold">Command:</strong>{" "}

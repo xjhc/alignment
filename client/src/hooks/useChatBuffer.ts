@@ -82,7 +82,7 @@ export function useChatBuffer(
     if (isFlushing.current) {
       return;
     }
-    const batchId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const batchId = `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     isFlushing.current = true;
     if (bufferTimer.current) {
       clearTimeout(bufferTimer.current);
@@ -154,7 +154,7 @@ export function useChatBuffer(
 
   const addMessageToBuffer = useCallback(
     (message: string, channelId: string = "#war-room"): string => {
-      const clientMessageId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const clientMessageId = `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
       const newPendingMessage: PendingMessage = {
         id: `pending_${clientMessageId}`,
         clientMessageId,

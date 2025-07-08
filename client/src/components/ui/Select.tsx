@@ -40,7 +40,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(({
   const selectRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   
-  const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
+  const selectId = id || `select-${Math.random().toString(36).substring(2, 11)}`;
   const hasError = Boolean(error);
   
   const selectedOption = options.find(option => option.value === value);

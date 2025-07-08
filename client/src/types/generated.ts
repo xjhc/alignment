@@ -187,26 +187,32 @@ export enum VoteType {
 }
 
 // Generated interfaces from Go structs
-export interface GeneratedRole {
+export interface GeneratedCrisisEventOption {
   type: string;
-  name: string;
+  title: string;
   description: string;
-  isUnlocked: boolean;
-  ability?: GeneratedAbility;
 }
 
-export interface GeneratedAbility {
-  name: string;
+export interface GeneratedPersonalKPI {
+  type: string;
   description: string;
-  isReady: boolean;
+  progress: number;
+  target: number;
+  isCompleted: boolean;
+  reward: string;
 }
 
-export interface GeneratedSubmittedNightAction {
-  playerID: string;
+export interface GeneratedSystemShock {
   type: string;
-  targetID: string;
-  payload?: Record<string, any>;
-  timestamp: string;
+  description: string;
+  expiresAt: string;
+  isActive: boolean;
+}
+
+export interface GeneratedNightAction {
+  type: string;
+  targetId?: string;
+  shadowTargetId?: string;
 }
 
 export interface GeneratedChatMessage {
@@ -231,36 +237,13 @@ export interface GeneratedEmojiReaction {
   timestamp: string;
 }
 
-export interface GeneratedGameSettings {
-  maxPlayers: number;
-  minPlayers: number;
-  sitrepDuration: number;
-  pulseCheckDuration: number;
-  discussionDuration: number;
-  extensionDuration: number;
-  nominationDuration: number;
-  trialDuration: number;
-  verdictDuration: number;
-  nightDuration: number;
-  startingTokens: number;
-  votingThreshold: number;
-  initialAlignedHumanCount: number;
-  customSettings?: Record<string, any>;
-}
-
-export interface GeneratedCrisisEventOption {
-  type: string;
-  title: string;
-  description: string;
-}
-
-export interface GeneratedEvent {
-  id: string;
-  type: string;
-  gameId: string;
-  playerId?: string;
-  timestamp: string;
-  payload: Record<string, any>;
+export interface GeneratedWhistleblowerVoting {
+  isActive: boolean;
+  crisisOptions: GeneratedCrisisEventOption[];
+  votes: Record<string, string>;
+  voteResults: Record<string, number>;
+  selectedCrisis: string;
+  isComplete: boolean;
 }
 
 export interface GeneratedAction {
@@ -269,58 +252,6 @@ export interface GeneratedAction {
   gameId: string;
   timestamp: string;
   payload: Record<string, any>;
-}
-
-export interface GeneratedPhase {
-  type: string;
-  startTime: string;
-  duration: number;
-}
-
-export interface GeneratedSystemShock {
-  type: string;
-  description: string;
-  expiresAt: string;
-  isActive: boolean;
-}
-
-export interface GeneratedCorporateMandate {
-  type: string;
-  name: string;
-  description: string;
-  effects: Record<string, any>;
-  isActive: boolean;
-}
-
-export interface GeneratedVoteState {
-  type: string;
-  votes: Record<string, string>;
-  tokenWeights: Record<string, number>;
-  results: Record<string, number>;
-  isComplete: boolean;
-}
-
-export interface GeneratedWinCondition {
-  winner: string;
-  condition: string;
-  description: string;
-}
-
-export interface GeneratedWhistleblowerVote {
-  playerID: string;
-  playerName: string;
-  crisisChoice: string;
-  timestamp: string;
-}
-
-export interface GeneratedCrisisEvent {
-  type: string;
-  title: string;
-  description: string;
-  pulseCheckPrompt?: string;
-  effects: Record<string, any>;
-  duration?: number;
-  triggeredAt?: string;
 }
 
 export interface GeneratedPlayer {
@@ -351,28 +282,97 @@ export interface GeneratedPlayer {
   isRolePubliclyRevealed: boolean;
 }
 
-export interface GeneratedPersonalKPI {
-  type: string;
+export interface GeneratedAbility {
+  name: string;
   description: string;
-  progress: number;
-  target: number;
-  isCompleted: boolean;
-  reward: string;
+  isReady: boolean;
 }
 
-export interface GeneratedNightAction {
+export interface GeneratedWinCondition {
+  winner: string;
+  condition: string;
+  description: string;
+}
+
+export interface GeneratedGameSettings {
+  maxPlayers: number;
+  minPlayers: number;
+  sitrepDuration: number;
+  pulseCheckDuration: number;
+  discussionDuration: number;
+  extensionDuration: number;
+  nominationDuration: number;
+  trialDuration: number;
+  verdictDuration: number;
+  nightDuration: number;
+  startingTokens: number;
+  votingThreshold: number;
+  initialAlignedHumanCount: number;
+  customSettings?: Record<string, any>;
+}
+
+export interface GeneratedRole {
   type: string;
-  targetId?: string;
-  shadowTargetId?: string;
+  name: string;
+  description: string;
+  isUnlocked: boolean;
+  ability?: GeneratedAbility;
 }
 
-export interface GeneratedWhistleblowerVoting {
+export interface GeneratedCorporateMandate {
+  type: string;
+  name: string;
+  description: string;
+  effects: Record<string, any>;
   isActive: boolean;
-  crisisOptions: GeneratedCrisisEventOption[];
+}
+
+export interface GeneratedVoteState {
+  type: string;
   votes: Record<string, string>;
-  voteResults: Record<string, number>;
-  selectedCrisis: string;
+  tokenWeights: Record<string, number>;
+  results: Record<string, number>;
   isComplete: boolean;
+}
+
+export interface GeneratedSubmittedNightAction {
+  playerID: string;
+  type: string;
+  targetID: string;
+  payload?: Record<string, any>;
+  timestamp: string;
+}
+
+export interface GeneratedWhistleblowerVote {
+  playerID: string;
+  playerName: string;
+  crisisChoice: string;
+  timestamp: string;
+}
+
+export interface GeneratedEvent {
+  id: string;
+  type: string;
+  gameId: string;
+  playerId?: string;
+  timestamp: string;
+  payload: Record<string, any>;
+}
+
+export interface GeneratedPhase {
+  type: string;
+  startTime: string;
+  duration: number;
+}
+
+export interface GeneratedCrisisEvent {
+  type: string;
+  title: string;
+  description: string;
+  pulseCheckPrompt?: string;
+  effects: Record<string, any>;
+  duration?: number;
+  triggeredAt?: string;
 }
 
 

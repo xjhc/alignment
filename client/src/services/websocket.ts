@@ -215,6 +215,48 @@ export class WebSocketClient {
     return { ...this.connectionState };
   }
 
+  // Add manual reconnection method
+  forceReconnect(): void {
+    if (this.connectionCredentials) {
+      console.log('Forcing manual reconnection...');
+      this.reconnectAttempts = 0; // Reset attempts for manual reconnection
+      this.scheduleReconnect();
+    } else {
+      console.warn('Cannot force reconnect: No credentials available');
+    }
+  }
+  
+  // Add reconnection listener management
+  onReconnect(listener: (isReconnecting: boolean, attempts: number) => void): void {
+    this.reconnectListeners.push(listener);
+  }
+  
+  offReconnect(listener: (isReconnecting: boolean, attempts: number) => void): void {
+    const index = this.reconnectListeners.indexOf(listener);
+    if (index > -1) {
+      this.reconnectListeners.splice(index, 1);
+    }
+  }
+  
+  private notifyReconnectListeners(isReconnecting: boolean, attempts: number): void {
+    this.reconnectListeners.forEach(listener => {
+      try {
+        listener(isReconnecting, attempts);
+      } catch (error) {
+        console.error('Error in reconnection listener:', error);
+      }
+    });
+  }
+  
+  // Get reconnection status
+  getReconnectionStatus(): { isReconnecting: boolean; attempts: number; maxAttempts: number } {
+    return {
+      isReconnecting: this.connectionState.isReconnecting,
+      attempts: this.reconnectAttempts,
+      maxAttempts: this.maxReconnectAttempts
+    };
+  }
+
   isValidConnection(): boolean {
     return this.connectionState.isConnected &&
       !this.connectionState.isReconnecting &&
@@ -256,6 +298,7 @@ export class WebSocketClient {
       case ServerEventType.RoleAssigned:
       case ServerEventType.PhaseChanged:
       case ServerEventType.ChatMessage:
+      case ServerEventType.MessageReaction:
       case ServerEventType.IncitingIncident:
       case ServerEventType.LoebmateMessage:
       case ServerEventType.VoteCast:
@@ -388,6 +431,7 @@ export class WebSocketClient {
 
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
+  private reconnectListeners: ((isReconnecting: boolean, attempts: number) => void)[] = [];
 
   private scheduleReconnect(): void {
     if (this.reconnectInterval) {
@@ -432,6 +476,9 @@ export class WebSocketClient {
 
     this.updateConnectionState({ isReconnecting: true });
     
+    // Notify reconnection listeners
+    this.notifyReconnectListeners(true, this.reconnectAttempts);
+    
     // Calculate exponential backoff with jitter
     const baseDelay = 1000;
     const maxDelay = 30000;
@@ -450,6 +497,9 @@ export class WebSocketClient {
           // Reset reconnect attempts on successful connection
           this.reconnectAttempts = 0;
           console.log('Successfully reconnected!');
+          
+          // Notify reconnection listeners
+          this.notifyReconnectListeners(false, 0);
         })
         .catch(error => {
           console.error('Reconnection failed:', error);
@@ -465,11 +515,17 @@ export class WebSocketClient {
               isReconnecting: false,
               lastError: 'Session expired'
             });
+            
+            // Notify reconnection listeners
+            this.notifyReconnectListeners(false, this.reconnectAttempts);
           } else {
             // Schedule next reconnection attempt
             this.scheduleReconnect();
           }
         });
+        
+        // Notify reconnection listeners about failure
+        this.notifyReconnectListeners(false, this.reconnectAttempts);
     }, delay);
   }
 

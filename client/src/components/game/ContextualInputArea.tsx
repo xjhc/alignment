@@ -152,6 +152,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
           case "SITREP":
           case "DISCUSSION":
           case "TRIAL":
+          case "VERDICT":
             return true;
           case "PULSE_CHECK":
             return localPlayer?.hasSubmittedPulseCheck === true;
@@ -177,6 +178,8 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
             return localPlayer?.id === gameState.nominatedPlayer
               ? "Present your defense..."
               : "Question the nominated player...";
+          case "VERDICT":
+            return "Discuss the verdict...";
           case "NIGHT":
             return "Channel locked during Night Phase";
           default:

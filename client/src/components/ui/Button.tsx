@@ -4,7 +4,7 @@ import { useHapticFeedback } from '../../hooks/useHaptics';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline' | 'success';
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
   isLoading?: boolean;
@@ -57,6 +57,7 @@ export const Button: React.FC<ButtonProps> = ({
     danger: 'bg-danger text-white hover:enabled:-translate-y-px hover:enabled:shadow-md active:enabled:translate-y-0 active:enabled:shadow-sm',
     ghost: 'bg-transparent text-text-primary hover:enabled:bg-background-secondary active:enabled:bg-background-tertiary',
     outline: 'bg-transparent border-primary text-primary hover:enabled:bg-primary hover:enabled:text-background-primary hover:enabled:-translate-y-px active:enabled:translate-y-0',
+    success: 'bg-success text-white hover:enabled:-translate-y-px hover:enabled:shadow-md active:enabled:translate-y-0 active:enabled:shadow-sm',
   };
 
   const widthClass = fullWidth ? 'w-full' : '';

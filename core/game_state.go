@@ -171,6 +171,8 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 	// Communication events
 	case EventChatMessage:
 		newState.applyChatMessage(event)
+	case EventMessageReaction:
+		newState.applyMessageReaction(event)
 	case EventSystemMessage:
 		newState.applySystemMessage(event) // DEPRECATED: Use specific semantic events
 	case EventPrivateNotification:
@@ -548,6 +550,58 @@ func (gs *GameState) applyChatMessage(event Event) {
 	}
 
 	gs.ChatMessages = append(gs.ChatMessages, message)
+}
+
+func (gs *GameState) applyMessageReaction(event Event) {
+	messageID, ok := event.Payload["message_id"].(string)
+	if !ok {
+		return // Invalid payload
+	}
+	
+	emoji, ok := event.Payload["emoji"].(string)
+	if !ok {
+		return // Invalid payload
+	}
+	
+	playerID := event.PlayerID
+	playerName := ""
+	
+	if name, ok := event.Payload["player_name"].(string); ok {
+		playerName = name
+	}
+	
+	// Find the chat message to add the reaction to
+	for i := range gs.ChatMessages {
+		if gs.ChatMessages[i].ID == messageID {
+			// Initialize reactions if nil
+			if gs.ChatMessages[i].Reactions == nil {
+				gs.ChatMessages[i].Reactions = []EmojiReaction{}
+			}
+			
+			// Check if this player already reacted with this emoji
+			found := false
+			for j := range gs.ChatMessages[i].Reactions {
+				if gs.ChatMessages[i].Reactions[j].PlayerID == playerID && gs.ChatMessages[i].Reactions[j].Emoji == emoji {
+					// Remove the reaction (toggle off)
+					gs.ChatMessages[i].Reactions = append(gs.ChatMessages[i].Reactions[:j], gs.ChatMessages[i].Reactions[j+1:]...)
+					found = true
+					break
+				}
+			}
+			
+			// If not found, add the reaction
+			if !found {
+				reaction := EmojiReaction{
+					Emoji:      emoji,
+					PlayerID:   playerID,
+					PlayerName: playerName,
+					Timestamp:  event.Timestamp,
+				}
+				gs.ChatMessages[i].Reactions = append(gs.ChatMessages[i].Reactions, reaction)
+			}
+			break
+		}
+	}
 }
 
 func (gs *GameState) applyPlayerAligned(event Event) {

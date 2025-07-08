@@ -26,7 +26,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   id,
   ...props
 }, ref) => {
-  const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+  const inputId = id || `input-${Math.random().toString(36).substring(2, 11)}`;
   
   // hasError prop takes precedence, but fallback to error prop for backward compatibility
   const showError = hasError || Boolean(error);
