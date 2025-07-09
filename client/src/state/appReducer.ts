@@ -23,6 +23,7 @@ export interface PlayerLobbyInfo {
   name: string;
   avatar: string;
   joinedAt: string;
+  connectionStatus: string; // "CONNECTED" | "DISCONNECTED"
 }
 
 export interface LobbyState {
@@ -64,11 +65,11 @@ export type AppAction =
   | { type: "LOGIN"; payload: { playerName: string; playerAvatar: string } }
   | {
       type: "JOIN_LOBBY";
-      payload: { gameId: string; playerId: string; sessionToken: string };
+      payload: { gameId: string; playerId: string; sessionToken: string; lobbyName?: string };
     }
   | {
       type: "CREATE_GAME";
-      payload: { gameId: string; playerId: string; sessionToken: string };
+      payload: { gameId: string; playerId: string; sessionToken: string; lobbyName?: string };
     }
   | { type: "LEAVE_LOBBY" }
   | { type: "BACK_TO_LOGIN" }
@@ -81,6 +82,7 @@ export type AppAction =
         playerId: string;
         sessionToken: string;
         sessionState: SessionState;
+        lobbyName?: string;
       };
     }
   | {
@@ -116,7 +118,8 @@ export type AppAction =
     }
   | { type: "LOAD_CHAT_HISTORY"; payload: { chatMessages: any[] } }
   | { type: "VOTE_TALLY_UPDATED"; payload: { voteState: VoteState } }
-  | { type: "PULSE_CHECK_UPDATED"; payload: { player_id: string } };
+  | { type: "PULSE_CHECK_UPDATED"; payload: { player_id: string } }
+  | { type: "LOBBY_LOADING_TIMEOUT" };
 
 // Helper function to create initial app state with guest identity
 function createInitialAppState(): ConsolidatedAppState {
@@ -194,14 +197,15 @@ export function appReducer(
       };
 
     case "JOIN_LOBBY":
-      // Persist session data to sessionStorage
-      sessionStorage.setItem(
+      // Persist session data to localStorage
+      localStorage.setItem(
         "alignmentGameSession",
         JSON.stringify({
           gameId: action.payload.gameId,
           playerId: action.payload.playerId,
           sessionToken: action.payload.sessionToken,
           sessionState: "IN_LOBBY",
+          lobbyName: action.payload.lobbyName || "",
         })
       );
 
@@ -216,6 +220,7 @@ export function appReducer(
         lobbyState: {
           ...state.lobbyState,
           playerId: action.payload.playerId,
+          lobbyName: action.payload.lobbyName || state.lobbyState.lobbyName,
           countdown: null,
         },
         sessionState: "IN_LOBBY",
@@ -223,14 +228,15 @@ export function appReducer(
       };
 
     case "CREATE_GAME":
-      // Persist session data to sessionStorage
-      sessionStorage.setItem(
+      // Persist session data to localStorage
+      localStorage.setItem(
         "alignmentGameSession",
         JSON.stringify({
           gameId: action.payload.gameId,
           playerId: action.payload.playerId,
           sessionToken: action.payload.sessionToken,
           sessionState: "IN_LOBBY",
+          lobbyName: action.payload.lobbyName || "",
         })
       );
 
@@ -245,6 +251,7 @@ export function appReducer(
         lobbyState: {
           ...state.lobbyState,
           playerId: action.payload.playerId,
+          lobbyName: action.payload.lobbyName || state.lobbyState.lobbyName,
           countdown: null,
         },
         sessionState: "IN_LOBBY",
@@ -252,8 +259,8 @@ export function appReducer(
       };
 
     case "LEAVE_LOBBY":
-      // Clear session data from sessionStorage
-      sessionStorage.removeItem("alignmentGameSession");
+      // Clear session data from localStorage
+      localStorage.removeItem("alignmentGameSession");
 
       return {
         ...state,
@@ -280,8 +287,8 @@ export function appReducer(
       };
 
     case "BACK_TO_LOGIN":
-      // Clear session data from sessionStorage
-      sessionStorage.removeItem("alignmentGameSession");
+      // Clear session data from localStorage
+      localStorage.removeItem("alignmentGameSession");
 
       return {
         ...state,
@@ -294,11 +301,11 @@ export function appReducer(
       };
 
     case "ENTER_GAME":
-      // Update session state in sessionStorage
-      const currentSession = sessionStorage.getItem("alignmentGameSession");
+      // Update session state in localStorage
+      const currentSession = localStorage.getItem("alignmentGameSession");
       if (currentSession) {
         const sessionData = JSON.parse(currentSession);
-        sessionStorage.setItem(
+        localStorage.setItem(
           "alignmentGameSession",
           JSON.stringify({
             ...sessionData,
@@ -313,8 +320,8 @@ export function appReducer(
       };
 
     case "PLAY_AGAIN":
-      // Clear session data from sessionStorage
-      sessionStorage.removeItem("alignmentGameSession");
+      // Clear session data from localStorage
+      localStorage.removeItem("alignmentGameSession");
 
       return {
         ...state,
@@ -402,7 +409,8 @@ export function appReducer(
           isHost: false,
           canStart: false,
           hostId: "",
-          lobbyName: "",
+          // Preserve lobby name if we have session data (for reconnects)
+          lobbyName: state.appState.gameId ? state.lobbyState.lobbyName : "",
           connectionError: null,
           gameSettings: {},
           countdown: null,
@@ -498,10 +506,20 @@ export function appReducer(
         lobbyState: {
           ...state.lobbyState,
           playerId: action.payload.playerId,
+          lobbyName: action.payload.lobbyName || state.lobbyState.lobbyName,
           countdown: null,
         },
         sessionState: action.payload.sessionState,
         isInGameSession: true,
+      };
+
+    case "LOBBY_LOADING_TIMEOUT":
+      return {
+        ...state,
+        lobbyState: {
+          ...state.lobbyState,
+          connectionError: "Unable to load lobby information. The lobby may no longer exist or there may be a connection issue.",
+        },
       };
 
     default:

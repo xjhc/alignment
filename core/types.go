@@ -114,8 +114,9 @@ const (
 	EventLobbyStateUpdate    EventType = "LOBBY_STATE_UPDATE"
 	EventClientIdentified    EventType = "CLIENT_IDENTIFIED"
 	EventChatHistorySnapshot EventType = "CHAT_HISTORY_SNAPSHOT"
-	EventPlayerReconnected   EventType = "PLAYER_RECONNECTED"
-	EventPlayerDisconnected  EventType = "PLAYER_DISCONNECTED"
+	EventPlayerReconnected         EventType = "PLAYER_RECONNECTED"
+	EventPlayerDisconnected        EventType = "PLAYER_DISCONNECTED"
+	EventPlayerConnectionStatusChanged EventType = "PLAYER_CONNECTION_STATUS_CHANGED"
 	EventSyncComplete        EventType = "SYNC_COMPLETE"
 	EventRateLimitExceeded   EventType = "RATE_LIMIT_EXCEEDED"
 	EventSessionExpired      EventType = "SESSION_EXPIRED"
@@ -220,8 +221,13 @@ const (
 	ActionSubmitExitInterview ActionType = "SUBMIT_EXIT_INTERVIEW"
 
 	// Meta actions
-	ActionReconnect   ActionType = "RECONNECT"
-	ActionAbandonGame ActionType = "ABANDON_GAME"
+	ActionReconnect      ActionType = "RECONNECT"
+	ActionAbandonGame    ActionType = "ABANDON_GAME"
+	ActionSyncLobbyState ActionType = "SYNC_LOBBY_STATE"
+	
+	// Internal server actions (for GameLifecycleManager -> GameActor communication)
+	ActionSetPlayerConnectionStatus ActionType = "SET_PLAYER_CONNECTION_STATUS"
+	ActionAbandonPlayer            ActionType = "ABANDON_PLAYER"
 
 	// Whistleblower Protocol actions
 	ActionSubmitWhistleblowerVote ActionType = "SUBMIT_WHISTLEBLOWER_VOTE"
@@ -258,6 +264,7 @@ type Player struct {
 	ControlType       string       `json:"controlType"` // "HUMAN" or "AI"
 	Status            PlayerStatus `json:"status"`
 	IsAlive           bool         `json:"isAlive"`
+	ConnectionStatus  string       `json:"connectionStatus"` // "CONNECTED", "DISCONNECTED"
 	Tokens            int          `json:"tokens"`
 	ProjectMilestones int          `json:"projectMilestones"`
 	StatusMessage     string       `json:"statusMessage"`
@@ -289,9 +296,10 @@ type Player struct {
 type PlayerStatus string
 
 const (
-	PlayerStatusAlive      PlayerStatus = "ALIVE"
-	PlayerStatusEliminated PlayerStatus = "ELIMINATED"
-	PlayerStatusAbandoned  PlayerStatus = "ABANDONED"
+	PlayerStatusAlive        PlayerStatus = "ALIVE"
+	PlayerStatusEliminated   PlayerStatus = "ELIMINATED"
+	PlayerStatusAbandoned    PlayerStatus = "ABANDONED"
+	PlayerStatusDisconnected PlayerStatus = "DISCONNECTED"
 )
 
 // Role represents a player's role and abilities

@@ -22,6 +22,9 @@ const (
 	waitingForHostTimeout = 30 * time.Minute // Time to wait for host to connect
 	emptyLobbyTimeout     = 10 * time.Minute // Time to wait before cleaning up empty lobbies
 	staleLobbyTimeout     = 60 * time.Minute // Time since last activity before cleanup
+	
+	// Grace period for player reconnection
+	playerReconnectionGracePeriod = 2 * time.Minute // Time to wait before abandoning disconnected players
 )
 
 // ActiveUserTrackerInterface defines the interface for tracking active users
@@ -43,6 +46,10 @@ type GameLifecycleManager struct {
 	// Countdown management
 	countdownTimers map[string]*time.Timer
 	countdownCancel map[string]context.CancelFunc
+	
+	// Disconnected player tracking for grace period
+	disconnectedPlayers map[string]*time.Timer // gameID:playerID -> grace period timer
+	disconnectedCancel  map[string]context.CancelFunc // gameID:playerID -> cancel function
 
 	// Synchronization
 	mutex sync.RWMutex
@@ -72,21 +79,23 @@ func NewGameLifecycleManager(
 	activeUserTracker ActiveUserTrackerInterface,
 ) *GameLifecycleManager {
 	glm := &GameLifecycleManager{
-		lobbies:           make(map[string]*lobby.Lobby),
-		tokens:            make(map[string]*lobby.JoinToken),
-		gameSessions:      make(map[string]map[string]interfaces.PlayerActorInterface),
-		gameActors:        make(map[string]interfaces.GameActorInterface),
-		countdownTimers:   make(map[string]*time.Timer),
-		countdownCancel:   make(map[string]context.CancelFunc),
-		ctx:               ctx,
-		datastore:         datastore,
-		broadcaster:       broadcaster,
-		supervisor:        supervisor,
-		eventBus:          eventBus,
-		postgresStore:     postgresStore,
-		activeUserTracker: activeUserTracker,
-		eventChannel:      make(chan events.Event, 100), // Buffered to prevent blocking
-		stopChannel:       make(chan struct{}),
+		lobbies:             make(map[string]*lobby.Lobby),
+		tokens:              make(map[string]*lobby.JoinToken),
+		gameSessions:        make(map[string]map[string]interfaces.PlayerActorInterface),
+		gameActors:          make(map[string]interfaces.GameActorInterface),
+		countdownTimers:     make(map[string]*time.Timer),
+		countdownCancel:     make(map[string]context.CancelFunc),
+		disconnectedPlayers: make(map[string]*time.Timer),
+		disconnectedCancel:  make(map[string]context.CancelFunc),
+		ctx:                 ctx,
+		datastore:           datastore,
+		broadcaster:         broadcaster,
+		supervisor:          supervisor,
+		eventBus:            eventBus,
+		postgresStore:       postgresStore,
+		activeUserTracker:   activeUserTracker,
+		eventChannel:        make(chan events.Event, 100), // Buffered to prevent blocking
+		stopChannel:         make(chan struct{}),
 	}
 
 	// Subscribe to relevant events
@@ -133,7 +142,7 @@ func (glm *GameLifecycleManager) handleEvent(event events.Event) {
 	}
 }
 
-// handlePlayerDisconnected removes disconnected players from lobbies/games
+// handlePlayerDisconnected handles player disconnection with grace period for games
 func (glm *GameLifecycleManager) handlePlayerDisconnected(event events.PlayerDisconnectedEvent) {
 	log.Printf("GameLifecycleManager: Handling player disconnection: %s", event.PlayerID)
 
@@ -147,129 +156,336 @@ func (glm *GameLifecycleManager) handlePlayerDisconnected(event events.PlayerDis
 		}
 	}
 
-	// Handle lobby disconnection
+	// Handle lobby disconnection (immediate cleanup - no grace period for lobbies)
 	if event.LobbyID != "" {
-		glm.mutex.RLock()
-		lobby, exists := glm.lobbies[event.LobbyID]
-		glm.mutex.RUnlock()
-
-		if exists {
-			// Check if the disconnecting player was the host
-			wasHost := lobby.HostPlayerID == event.PlayerID
-
-			lobby.RemovePlayer(event.PlayerID)
-
-			// Publish player left event
-			glm.eventBus.Publish(events.PlayerLeftLobbyEvent{
-				PlayerID: event.PlayerID,
-				LobbyID:  event.LobbyID,
-			})
-
-			// Handle host transfer if needed
-			if wasHost && len(lobby.GetPlayerActors()) > 0 {
-				lobby.Lock()
-				newHostID := lobby.TransferHostToNextPlayer()
-				lobby.Unlock()
-
-				if newHostID != "" {
-					log.Printf("GameLifecycleManager: Transferred host from %s to %s in lobby %s", event.PlayerID, newHostID, event.LobbyID)
-
-					// Broadcast host transfer event to all players in lobby
-					hostTransferEvent := core.Event{
-						ID:        uuid.New().String(),
-						Type:      core.EventHostTransferred,
-						GameID:    event.LobbyID,
-						Timestamp: time.Now(),
-						Payload: map[string]interface{}{
-							"previous_host_id": event.PlayerID,
-							"new_host_id":      newHostID,
-						},
-					}
-
-					playerActors := lobby.GetPlayerActors()
-					for _, actor := range playerActors {
-						actor.SendServerMessage(hostTransferEvent)
-					}
-				}
-			}
-
-			// If countdown is running and lobby can no longer start, cancel countdown
-			glm.mutex.RLock()
-			cancelFunc, countdownRunning := glm.countdownCancel[event.LobbyID]
-			glm.mutex.RUnlock()
-
-			if countdownRunning && !lobby.CanStart() {
-				log.Printf("GameLifecycleManager: Cancelling countdown for lobby %s due to insufficient players", event.LobbyID)
-				cancelFunc()
-			}
-
-			// Check if lobby is now empty and should be cleaned up
-			glm.mutex.Lock()
-			if len(lobby.GetPlayerActors()) == 0 {
-				// Cancel any running countdown for empty lobby
-				if cancelFunc, exists := glm.countdownCancel[event.LobbyID]; exists {
-					cancelFunc()
-					delete(glm.countdownCancel, event.LobbyID)
-					delete(glm.countdownTimers, event.LobbyID)
-				}
-				delete(glm.lobbies, event.LobbyID)
-				log.Printf("GameLifecycleManager: Cleaned up empty lobby %s", event.LobbyID)
-			}
-			glm.mutex.Unlock()
-		}
+		glm.handleLobbyDisconnection(event)
 	}
 
-	// Handle game disconnection
+	// Handle game disconnection (with grace period)
 	if event.GameID != "" {
-		glm.mutex.Lock()
-		if session, exists := glm.gameSessions[event.GameID]; exists {
-			delete(session, event.PlayerID)
-			log.Printf("GameLifecycleManager: Removed player %s from game session %s", event.PlayerID, event.GameID)
-		}
+		glm.handleGameDisconnection(event)
+	}
+}
+
+// handleLobbyDisconnection handles disconnection from lobbies (with grace period)
+func (glm *GameLifecycleManager) handleLobbyDisconnection(event events.PlayerDisconnectedEvent) {
+	glm.mutex.RLock()
+	lobby, exists := glm.lobbies[event.LobbyID]
+	glm.mutex.RUnlock()
+
+	if exists {
+		// Mark player as disconnected but keep their slot
+		lobby.DisconnectPlayer(event.PlayerID)
+
+		// Publish player disconnected event (not left)
+		glm.eventBus.Publish(events.PlayerDisconnectedFromLobbyEvent{
+			PlayerID: event.PlayerID,
+			LobbyID:  event.LobbyID,
+		})
+
+		// Start grace period timer
+		glm.startLobbyDisconnectionGracePeriod(event.LobbyID, event.PlayerID)
+
+		log.Printf("GameLifecycleManager: Player %s disconnected from lobby %s, starting grace period", event.PlayerID, event.LobbyID)
+	}
+}
+
+// startLobbyDisconnectionGracePeriod starts a grace period timer for a disconnected lobby player
+func (glm *GameLifecycleManager) startLobbyDisconnectionGracePeriod(lobbyID, playerID string) {
+	gracePeriodKey := fmt.Sprintf("lobby:%s:%s", lobbyID, playerID)
+	
+	// Check if this player already has a grace period running
+	glm.mutex.Lock()
+	if _, exists := glm.disconnectedPlayers[gracePeriodKey]; exists {
+		log.Printf("GameLifecycleManager: Grace period already running for player %s in lobby %s", playerID, lobbyID)
 		glm.mutex.Unlock()
+		return
+	}
+	glm.mutex.Unlock()
 
-		// Notify the GameActor about the disconnection
-		glm.mutex.RLock()
-		gameActor, exists := glm.gameActors[event.GameID]
-		session := glm.gameSessions[event.GameID]
-		glm.mutex.RUnlock()
+	// Create a cancellable context for this grace period
+	ctx, cancel := context.WithCancel(glm.ctx)
+	
+	glm.mutex.Lock()
+	glm.disconnectedCancel[gracePeriodKey] = cancel
+	glm.mutex.Unlock()
 
-		if exists {
-			// Send player disconnection to GameActor
-			disconnectAction := core.Action{
-				Type:     "PLAYER_DISCONNECTED",
-				PlayerID: event.PlayerID,
+	// Start the grace period timer in a goroutine
+	go glm.runLobbyGracePeriodTimer(ctx, lobbyID, playerID)
+}
+
+// runLobbyGracePeriodTimer runs the lobby grace period timer and handles expiration
+func (glm *GameLifecycleManager) runLobbyGracePeriodTimer(ctx context.Context, lobbyID, playerID string) {
+	gracePeriodKey := fmt.Sprintf("lobby:%s:%s", lobbyID, playerID)
+	
+	defer func() {
+		glm.mutex.Lock()
+		delete(glm.disconnectedPlayers, gracePeriodKey)
+		delete(glm.disconnectedCancel, gracePeriodKey)
+		glm.mutex.Unlock()
+	}()
+
+	timer := time.NewTimer(playerReconnectionGracePeriod)
+	defer timer.Stop()
+
+	glm.mutex.Lock()
+	glm.disconnectedPlayers[gracePeriodKey] = timer
+	glm.mutex.Unlock()
+
+	select {
+	case <-ctx.Done():
+		// Grace period was cancelled (player reconnected)
+		log.Printf("GameLifecycleManager: Lobby grace period cancelled for player %s in lobby %s (reconnected)", playerID, lobbyID)
+		return
+	case <-timer.C:
+		// Grace period expired - permanently remove the player
+		log.Printf("GameLifecycleManager: Lobby grace period expired for player %s in lobby %s, removing permanently", playerID, lobbyID)
+		glm.removePermanentlyFromLobby(lobbyID, playerID)
+	}
+}
+
+// removePermanentlyFromLobby permanently removes a player from a lobby after grace period expires
+func (glm *GameLifecycleManager) removePermanentlyFromLobby(lobbyID, playerID string) {
+	glm.mutex.RLock()
+	lobby, exists := glm.lobbies[lobbyID]
+	glm.mutex.RUnlock()
+
+	if !exists {
+		return
+	}
+
+	// Check if the disconnecting player was the host
+	wasHost := lobby.HostPlayerID == playerID
+
+	// Permanently remove the player
+	lobby.RemovePlayer(playerID)
+
+	// Publish player left event
+	glm.eventBus.Publish(events.PlayerLeftLobbyEvent{
+		PlayerID: playerID,
+		LobbyID:  lobbyID,
+	})
+
+	// Handle host transfer if needed
+	if wasHost && len(lobby.GetPlayerActors()) > 0 {
+		lobby.Lock()
+		newHostID := lobby.TransferHostToNextPlayer()
+		lobby.Unlock()
+
+		if newHostID != "" {
+			log.Printf("GameLifecycleManager: Transferred host from %s to %s in lobby %s after grace period", playerID, newHostID, lobbyID)
+			
+			// Broadcast host transfer event to all players in lobby
+			hostTransferEvent := core.Event{
+				ID:        uuid.New().String(),
+				Type:      core.EventHostTransferred,
+				GameID:    lobbyID,
+				Timestamp: time.Now(),
+				Payload: map[string]interface{}{
+					"previous_host_id": playerID,
+					"new_host_id":      newHostID,
+				},
 			}
-			// Post action asynchronously
-			go func() {
-				resultChan := gameActor.PostAction(disconnectAction)
-				result := <-resultChan
-				if result.Error != nil {
-					log.Printf("GameLifecycleManager: Error handling player disconnection: %v", result.Error)
-				}
-			}()
 
-			// Check if this was the last player out and trigger garbage collection
-			if session != nil && len(session) == 0 {
-				log.Printf("GameLifecycleManager: Last player left game %s, triggering garbage collection", event.GameID)
-				glm.mutex.Lock()
-				delete(glm.gameSessions, event.GameID)
-				delete(glm.gameActors, event.GameID)
-				glm.mutex.Unlock()
-
-				// Stop the GameActor via supervisor (safer than calling Stop directly)
-				if glm.supervisor != nil {
-					glm.supervisor.RemoveGame(event.GameID)
-				}
-
-				// Publish game ended event for any other cleanup
-				glm.eventBus.Publish(events.GameEndedEvent{
-					GameID: event.GameID,
-					Reason: "abandoned", // All players left
-				})
+			playerActors := lobby.GetPlayerActors()
+			for _, actor := range playerActors {
+				actor.SendServerMessage(hostTransferEvent)
 			}
 		}
 	}
+
+	// Check if lobby should be cleaned up
+	glm.checkLobbyCleanup(lobbyID, lobby)
+}
+
+// checkLobbyCleanup checks if a lobby needs to be cleaned up and does so if necessary
+func (glm *GameLifecycleManager) checkLobbyCleanup(lobbyID string, lobby *lobby.Lobby) {
+	// If countdown is running and lobby can no longer start, cancel countdown
+	glm.mutex.RLock()
+	cancelFunc, countdownRunning := glm.countdownCancel[lobbyID]
+	glm.mutex.RUnlock()
+
+	if countdownRunning && !lobby.CanStart() {
+		log.Printf("GameLifecycleManager: Cancelling countdown for lobby %s due to insufficient players", lobbyID)
+		cancelFunc()
+	}
+
+	// Check if lobby is now empty and should be cleaned up
+	glm.mutex.Lock()
+	if len(lobby.GetPlayerActors()) == 0 {
+		// Cancel any running countdown for empty lobby
+		if cancelFunc, exists := glm.countdownCancel[lobbyID]; exists {
+			cancelFunc()
+			delete(glm.countdownCancel, lobbyID)
+			delete(glm.countdownTimers, lobbyID)
+		}
+		delete(glm.lobbies, lobbyID)
+		log.Printf("GameLifecycleManager: Cleaned up empty lobby %s", lobbyID)
+	}
+	glm.mutex.Unlock()
+}
+
+// handleGameDisconnection handles disconnection from games (with grace period)
+func (glm *GameLifecycleManager) handleGameDisconnection(event events.PlayerDisconnectedEvent) {
+	gracePeriodKey := fmt.Sprintf("%s:%s", event.GameID, event.PlayerID)
+	
+	// Check if this player is already in a grace period (duplicate disconnect event)
+	glm.mutex.RLock()
+	if _, exists := glm.disconnectedPlayers[gracePeriodKey]; exists {
+		glm.mutex.RUnlock()
+		log.Printf("GameLifecycleManager: Player %s already in grace period for game %s", event.PlayerID, event.GameID)
+		return
+	}
+	glm.mutex.RUnlock()
+
+	// Remove the player from the active game session (but keep them in the game state)
+	glm.mutex.Lock()
+	if session, exists := glm.gameSessions[event.GameID]; exists {
+		delete(session, event.PlayerID)
+		log.Printf("GameLifecycleManager: Removed player %s from game session %s (grace period started)", event.PlayerID, event.GameID)
+	}
+	glm.mutex.Unlock()
+
+	// Notify the GameActor about the disconnection (set connection status to DISCONNECTED)
+	glm.mutex.RLock()
+	gameActor, exists := glm.gameActors[event.GameID]
+	glm.mutex.RUnlock()
+
+	if exists {
+		// Send SET_PLAYER_CONNECTION_STATUS action to GameActor
+		disconnectAction := core.Action{
+			Type:     core.ActionSetPlayerConnectionStatus,
+			PlayerID: event.PlayerID,
+			GameID:   event.GameID,
+			Payload: map[string]interface{}{
+				"connection_status": "DISCONNECTED",
+			},
+		}
+		
+		// Post action asynchronously
+		go func() {
+			resultChan := gameActor.PostAction(disconnectAction)
+			result := <-resultChan
+			if result.Error != nil {
+				log.Printf("GameLifecycleManager: Error setting player connection status: %v", result.Error)
+			}
+		}()
+
+		// Start grace period timer
+		glm.startGracePeriodTimer(event.GameID, event.PlayerID)
+	}
+}
+
+// startGracePeriodTimer starts a grace period timer for a disconnected player
+func (glm *GameLifecycleManager) startGracePeriodTimer(gameID, playerID string) {
+	gracePeriodKey := fmt.Sprintf("%s:%s", gameID, playerID)
+	
+	// Create grace period context
+	gracePeriodCtx, cancel := context.WithCancel(glm.ctx)
+	
+	glm.mutex.Lock()
+	glm.disconnectedCancel[gracePeriodKey] = cancel
+	glm.mutex.Unlock()
+
+	log.Printf("GameLifecycleManager: Starting %v grace period for player %s in game %s", 
+		playerReconnectionGracePeriod, playerID, gameID)
+
+	// Start grace period timer in a goroutine
+	go glm.runGracePeriodTimer(gracePeriodCtx, gameID, playerID)
+}
+
+// runGracePeriodTimer runs the grace period timer and handles expiration
+func (glm *GameLifecycleManager) runGracePeriodTimer(ctx context.Context, gameID, playerID string) {
+	gracePeriodKey := fmt.Sprintf("%s:%s", gameID, playerID)
+	
+	defer func() {
+		glm.mutex.Lock()
+		delete(glm.disconnectedPlayers, gracePeriodKey)
+		delete(glm.disconnectedCancel, gracePeriodKey)
+		glm.mutex.Unlock()
+	}()
+
+	timer := time.NewTimer(playerReconnectionGracePeriod)
+	defer timer.Stop()
+
+	glm.mutex.Lock()
+	glm.disconnectedPlayers[gracePeriodKey] = timer
+	glm.mutex.Unlock()
+
+	select {
+	case <-ctx.Done():
+		// Grace period was cancelled (player reconnected)
+		log.Printf("GameLifecycleManager: Grace period cancelled for player %s in game %s (reconnected)", playerID, gameID)
+		return
+	case <-timer.C:
+		// Grace period expired - abandon the player
+		log.Printf("GameLifecycleManager: Grace period expired for player %s in game %s, abandoning", playerID, gameID)
+		glm.abandonDisconnectedPlayer(gameID, playerID)
+	}
+}
+
+// abandonDisconnectedPlayer abandons a player whose grace period has expired
+func (glm *GameLifecycleManager) abandonDisconnectedPlayer(gameID, playerID string) {
+	// Notify the GameActor to abandon the player
+	glm.mutex.RLock()
+	gameActor, exists := glm.gameActors[gameID]
+	session := glm.gameSessions[gameID]
+	glm.mutex.RUnlock()
+
+	if exists {
+		// Send ABANDON_PLAYER action to GameActor
+		abandonAction := core.Action{
+			Type:     core.ActionAbandonPlayer,
+			PlayerID: playerID,
+			GameID:   gameID,
+			Payload: map[string]interface{}{
+				"reason": "grace_period_expired",
+			},
+		}
+		
+		// Post action asynchronously
+		go func() {
+			resultChan := gameActor.PostAction(abandonAction)
+			result := <-resultChan
+			if result.Error != nil {
+				log.Printf("GameLifecycleManager: Error abandoning player: %v", result.Error)
+			}
+		}()
+
+		// Check if this was the last player out and trigger garbage collection
+		if session != nil && len(session) == 0 {
+			log.Printf("GameLifecycleManager: Last player left game %s, triggering garbage collection", gameID)
+			glm.mutex.Lock()
+			delete(glm.gameSessions, gameID)
+			delete(glm.gameActors, gameID)
+			glm.mutex.Unlock()
+
+			// Stop the GameActor via supervisor (safer than calling Stop directly)
+			if glm.supervisor != nil {
+				glm.supervisor.RemoveGame(gameID)
+			}
+
+			// Publish game ended event for any other cleanup
+			glm.eventBus.Publish(events.GameEndedEvent{
+				GameID: gameID,
+				Reason: "abandoned", // All players left
+			})
+		}
+	}
+}
+
+// cancelGracePeriod cancels the grace period timer for a reconnecting player
+func (glm *GameLifecycleManager) cancelGracePeriod(gameID, playerID string) {
+	gracePeriodKey := fmt.Sprintf("%s:%s", gameID, playerID)
+	
+	glm.mutex.Lock()
+	if cancelFunc, exists := glm.disconnectedCancel[gracePeriodKey]; exists {
+		cancelFunc()
+		delete(glm.disconnectedCancel, gracePeriodKey)
+		delete(glm.disconnectedPlayers, gracePeriodKey)
+		log.Printf("GameLifecycleManager: Cancelled grace period for player %s in game %s", playerID, gameID)
+	}
+	glm.mutex.Unlock()
 }
 
 // handlePlayerAbandoned removes abandoned players from game sessions (similar to disconnect but for active abandonment)
@@ -492,8 +708,8 @@ func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobb
 		ID:           lobbyID,
 		Name:         lobbyName,
 		HostPlayerID: hostPlayerID,
-		Players:      make(map[string]interfaces.PlayerActorInterface),
-		PlayerJoinTimes: make(map[string]time.Time),
+		Players:      make(map[string]*lobby.PlayerInfo),
+		PlayerActors: make(map[string]interfaces.PlayerActorInterface),
 		MaxPlayers:   8,
 		MinPlayers:   2,
 		CreatedAt:    time.Now(),
@@ -550,6 +766,28 @@ func (glm *GameLifecycleManager) JoinLobbyWithActor(lobbyID string, playerActor 
 	err := glm.checkForBlockedPlayers(playerActor.GetPlayerID(), targetLobby)
 	if err != nil {
 		return err
+	}
+
+	// Check if this is a reconnection (player exists but is disconnected)
+	if targetLobby.IsPlayerDisconnected(playerID) {
+		log.Printf("GameLifecycleManager: Player %s is reconnecting to lobby %s", playerID, lobbyID)
+		
+		// Cancel the grace period timer
+		gracePeriodKey := fmt.Sprintf("lobby:%s:%s", lobbyID, playerID)
+		glm.mutex.Lock()
+		if cancelFunc, exists := glm.disconnectedCancel[gracePeriodKey]; exists {
+			cancelFunc()
+			delete(glm.disconnectedCancel, gracePeriodKey)
+			delete(glm.disconnectedPlayers, gracePeriodKey)
+			log.Printf("GameLifecycleManager: Cancelled grace period for reconnecting player %s in lobby %s", playerID, lobbyID)
+		}
+		glm.mutex.Unlock()
+
+		// Reconnect the player
+		targetLobby.ReconnectPlayer(playerID, playerActor)
+		
+		// Transition player actor to lobby state
+		return playerActor.TransitionToLobby(lobbyID)
 	}
 
 	// Add player to lobby (this will handle its own locking and broadcasting)
@@ -794,6 +1032,7 @@ func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActor
 			ControlType:       "HUMAN",
 			Status:            core.PlayerStatusAlive,
 			IsAlive:           true,
+			ConnectionStatus:  "CONNECTED", // Initial connection status
 			Tokens:            startingTokens, // Use game settings for starting tokens
 			ProjectMilestones: 0,
 			StatusMessage:     "",
@@ -811,6 +1050,7 @@ func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActor
 		ControlType:       "AI",
 		Status:            core.PlayerStatusAlive,
 		IsAlive:           true,
+		ConnectionStatus:  "CONNECTED", // AI is always connected
 		Tokens:            startingTokens, // AI also uses game settings for starting tokens
 		ProjectMilestones: 0,
 		StatusMessage:     "",
@@ -1132,8 +1372,37 @@ func (glm *GameLifecycleManager) ReconnectPlayerToGame(gameID string, playerActo
 
 	playerID := playerActor.GetPlayerID()
 
+	// Cancel the grace period timer if it exists
+	glm.cancelGracePeriod(gameID, playerID)
+
 	// Add the player back to the game session
 	session[playerID] = playerActor
+
+	// Notify the GameActor about the reconnection (set connection status to CONNECTED)
+	glm.mutex.RLock()
+	gameActor, exists := glm.gameActors[gameID]
+	glm.mutex.RUnlock()
+
+	if exists {
+		// Send SET_PLAYER_CONNECTION_STATUS action to GameActor
+		reconnectAction := core.Action{
+			Type:     core.ActionSetPlayerConnectionStatus,
+			PlayerID: playerID,
+			GameID:   gameID,
+			Payload: map[string]interface{}{
+				"connection_status": "CONNECTED",
+			},
+		}
+		
+		// Post action asynchronously
+		go func() {
+			resultChan := gameActor.PostAction(reconnectAction)
+			result := <-resultChan
+			if result.Error != nil {
+				log.Printf("GameLifecycleManager: Error setting player connection status: %v", result.Error)
+			}
+		}()
+	}
 
 	log.Printf("GameLifecycleManager: Player %s reconnected to game session %s", playerID, gameID)
 	return nil

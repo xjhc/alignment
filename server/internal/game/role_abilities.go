@@ -378,6 +378,13 @@ func (ram *RoleAbilityManager) usePivot(action RoleAbilityAction) (*RoleAbilityR
 		"Emergency Board Meeting",
 		"Tainted Training Data",
 		"Press Leak",
+		"Anomalous API Call",
+		"Legal Hold",
+		"Log Forgery Detected",
+		"UPS Failure",
+		"Mandatory 'Wellness' Check-In",
+		"Legacy Code Dependency",
+		"Red Team Simulation",
 	}
 
 	chosenCrisis, _ := action.Parameters["chosen_crisis"].(string)

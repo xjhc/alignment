@@ -31,6 +31,7 @@ export function useSessionManager() {
     gameState: coreGameState,
     isLoading: gameEngineLoading,
     error: gameEngineError,
+    loadGameState,
   } = useGameEngineContext();
 
   // Authentication and session restoration
@@ -61,7 +62,7 @@ export function useSessionManager() {
               return;
             }
             // Check for existing session before navigating to lobby list
-            const savedSession = sessionStorage.getItem("alignmentGameSession");
+            const savedSession = localStorage.getItem("alignmentGameSession");
             if (savedSession) {
               try {
                 const sessionData = JSON.parse(savedSession);
@@ -82,13 +83,14 @@ export function useSessionManager() {
                       playerId: sessionData.playerId,
                       sessionToken: sessionData.sessionToken,
                       sessionState: sessionData.sessionState,
+                      lobbyName: sessionData.lobbyName,
                     },
                   });
                   return;
                 }
               } catch (error) {
                 console.error("[App] Failed to parse authenticated user's session data:", error);
-                sessionStorage.removeItem("alignmentGameSession");
+                localStorage.removeItem("alignmentGameSession");
               }
             }
             navigateToLobbyList();
@@ -99,7 +101,7 @@ export function useSessionManager() {
         console.log("[App] No authenticated user:", error);
       }
 
-      const savedSession = sessionStorage.getItem("alignmentGameSession");
+      const savedSession = localStorage.getItem("alignmentGameSession");
       if (savedSession) {
         try {
           const sessionData = JSON.parse(savedSession);
@@ -110,7 +112,7 @@ export function useSessionManager() {
             sessionData.sessionState
           ) {
             console.log(
-              "[App] Restoring session from sessionStorage:",
+              "[App] Restoring session from localStorage:",
               sessionData
             );
             dispatch({
@@ -120,12 +122,13 @@ export function useSessionManager() {
                 playerId: sessionData.playerId,
                 sessionToken: sessionData.sessionToken,
                 sessionState: sessionData.sessionState,
+                lobbyName: sessionData.lobbyName,
               },
             });
           }
         } catch (error) {
           console.error("[App] Failed to parse saved session data:", error);
-          sessionStorage.removeItem("alignmentGameSession");
+          localStorage.removeItem("alignmentGameSession");
         }
       }
     };
@@ -195,14 +198,41 @@ export function useSessionManager() {
   // Game phase navigation
   useEffect(() => {
     if (!coreGameState) return;
-    if (
-      coreGameState.phase &&
-      coreGameState.phase.type !== "LOBBY" &&
-      location.pathname === "/waiting"
-    ) {
-      navigateToRoleReveal();
+    if (coreGameState.phase && location.pathname === "/waiting") {
+      const phaseType = coreGameState.phase.type;
+      
+      console.log(`[SessionManager] Game phase navigation: phase=${phaseType}, location=${location.pathname}`);
+      
+      // Navigate to appropriate screen based on game phase
+      if (phaseType === "LOBBY") {
+        // Stay on waiting screen - this is correct
+        return;
+      } else if (phaseType === "SITREP" || phaseType === "PULSE_CHECK") {
+        // These are the initial game phases - go to role reveal first
+        console.log("[SessionManager] Navigating to role reveal for phase:", phaseType);
+        navigateToRoleReveal();
+      } else if (
+        phaseType === "DISCUSSION" ||
+        phaseType === "EXTENSION" ||
+        phaseType === "NOMINATION" ||
+        phaseType === "TRIAL" ||
+        phaseType === "VERDICT" ||
+        phaseType === "NIGHT"
+      ) {
+        // These are active game phases - go directly to game screen
+        console.log("[SessionManager] Navigating to game screen for phase:", phaseType);
+        navigateToGame();
+      } else if (phaseType === "GAME_OVER") {
+        // Game is over
+        console.log("[SessionManager] Navigating to game over for phase:", phaseType);
+        navigateToGameOver();
+      } else {
+        // Unknown phase - default to role reveal
+        console.log("[SessionManager] Unknown phase, defaulting to role reveal:", phaseType);
+        navigateToRoleReveal();
+      }
     }
-  }, [coreGameState, location.pathname, navigateToRoleReveal]);
+  }, [coreGameState, location.pathname, navigateToRoleReveal, navigateToGame, navigateToGameOver]);
 
   // Theme setup
   useEffect(() => {
@@ -274,8 +304,24 @@ export function useSessionManager() {
 
   // Event handler creators
   const handleLobbyStateUpdate = useCallback(
-    (event: any) =>
-      dispatch({ type: "UPDATE_LOBBY_STATE", payload: event.payload }),
+    (event: any) => {
+      console.log("[SessionManager] LOBBY_STATE_UPDATE received:", event.payload);
+      console.log("[SessionManager] Player data in payload:", event.payload.players || event.payload.connected_players || event.payload.player_infos || "NOT FOUND");
+      dispatch({ type: "UPDATE_LOBBY_STATE", payload: event.payload });
+    },
+    []
+  );
+  const handleClientError = useCallback(
+    (event: any) => {
+      console.warn("[SessionManager] Client error received:", event.payload);
+      // Don't show generic client errors as connection errors unless they're severe
+      if (event.payload?.error_code === 'CONNECTION_ERROR') {
+        dispatch({ 
+          type: "SET_CONNECTION_ERROR", 
+          payload: { message: event.payload.message || "A connection error occurred." }
+        });
+      }
+    },
     []
   );
   const handleClientIdentified = useCallback(
@@ -325,6 +371,21 @@ export function useSessionManager() {
       }),
     []
   );
+  const handleGameStateUpdate = useCallback(
+    async (event: any) => {
+      console.log("[SessionManager] GAME_STATE_UPDATE received:", event.payload);
+      if (event.payload?.game_state) {
+        try {
+          // Use loadGameState (which calls resetAndLoadState) to update the core with the reconnection snapshot
+          await loadGameState(event.payload.game_state);
+          console.log("[SessionManager] Successfully loaded game state from reconnection snapshot");
+        } catch (error) {
+          console.error("[SessionManager] Failed to load game state from reconnection snapshot:", error);
+        }
+      }
+    },
+    [loadGameState]
+  );
   const handlePulseCheckUpdated = useCallback(
     (event: any) =>
       dispatch({
@@ -340,7 +401,9 @@ export function useSessionManager() {
       const unsubscribers = [
         subscribe("CLIENT_IDENTIFIED", handleClientIdentified),
         subscribe("CHAT_HISTORY_SNAPSHOT", handleChatHistorySnapshot),
+        subscribe("GAME_STATE_UPDATE", handleGameStateUpdate),
         subscribe("LOBBY_STATE_UPDATE", handleLobbyStateUpdate),
+        subscribe("CLIENT_ERROR", handleClientError),
         subscribe("GAME_START_COUNTDOWN_INITIATED", handleCountdownStart),
         subscribe("GAME_START_COUNTDOWN_UPDATE", handleCountdownUpdate),
         subscribe("GAME_START_COUNTDOWN_CANCELLED", handleCountdownCancel),
@@ -355,21 +418,77 @@ export function useSessionManager() {
     subscribe,
     handleClientIdentified,
     handleChatHistorySnapshot,
+    handleGameStateUpdate,
     handleLobbyStateUpdate,
+    handleClientError,
     handleCountdownStart,
     handleCountdownUpdate,
     handleCountdownCancel,
     handleHostTransferred,
   ]);
 
+  // Lobby loading timeout - trigger error if connected but no lobby info after 10 seconds
+  useEffect(() => {
+    if (location.pathname === "/waiting" && isConnected && !state.lobbyState.connectionError) {
+      // Case 1: No lobby name at all
+      if (!state.lobbyState.lobbyName) {
+        const timeoutId = setTimeout(() => {
+          console.warn("[SessionManager] Lobby loading timeout - connected but no lobby name received");
+          dispatch({ type: "LOBBY_LOADING_TIMEOUT" });
+        }, 10000); // 10 second timeout
+
+        return () => clearTimeout(timeoutId);
+      }
+      
+      // Case 2: Have lobby name but no players (likely reconnection issue)
+      // Only trigger sync if we're actually in lobby phase, not during an active game
+      if (state.lobbyState.lobbyName && 
+          state.lobbyState.playerInfos.length === 0 &&
+          (!coreGameState || !coreGameState.phase || coreGameState.phase.type === "LOBBY")) {
+        // Try to trigger a lobby state update by sending a SyncLobbyState action
+        // This action is specifically designed for this purpose and only works in lobby phase
+        const triggerStateSync = setTimeout(() => {
+          console.log("[SessionManager] Attempting to trigger lobby state sync with SyncLobbyState action...");
+          if (state.appState.gameId && state.appState.playerId) {
+            try {
+              sendAction({
+                type: ClientActionType.SyncLobbyState,
+                payload: { 
+                  game_id: state.appState.gameId,
+                  player_id: state.appState.playerId
+                },
+              });
+            } catch (error) {
+              console.warn("[SessionManager] Failed to send SyncLobbyState action:", error);
+            }
+          }
+        }, 3000); // Try this after 3 seconds
+        
+        const timeoutId = setTimeout(() => {
+          console.warn("[SessionManager] Player list sync timeout - connected to lobby but no players received");
+          dispatch({ 
+            type: "SET_CONNECTION_ERROR", 
+            payload: { message: "Unable to sync player list. This may be a reconnection issue. Try refreshing the page or leaving and rejoining the lobby." }
+          });
+        }, 15000); // 15 second timeout for this case
+
+        return () => {
+          clearTimeout(triggerStateSync);
+          clearTimeout(timeoutId);
+        };
+      }
+    }
+  }, [location.pathname, isConnected, state.lobbyState.lobbyName, state.lobbyState.playerInfos.length, state.lobbyState.connectionError, state.appState.gameId, sendAction]);
+
   // Game event subscriptions
   useEffect(() => {
     if (!isConnected || location.pathname === "/waiting") return;
     const unsubscribers = [
       subscribe("PULSE_CHECK_UPDATED", handlePulseCheckUpdated),
+      subscribe("GAME_STATE_UPDATE", handleGameStateUpdate),
     ];
     return () => unsubscribers.forEach((unsub) => unsub());
-  }, [isConnected, location.pathname, subscribe, handlePulseCheckUpdated]);
+  }, [isConnected, location.pathname, subscribe, handlePulseCheckUpdated, handleGameStateUpdate]);
 
   // WebSocket connection
   useEffect(() => {
@@ -422,11 +541,12 @@ export function useSessionManager() {
   const handleJoinLobby = (
     gameId: string,
     playerId: string,
-    sessionToken: string
+    sessionToken: string,
+    lobbyName?: string
   ) => {
     dispatch({
       type: "JOIN_LOBBY",
-      payload: { gameId, playerId, sessionToken },
+      payload: { gameId, playerId, sessionToken, lobbyName },
     });
     navigateToWaiting();
   };
@@ -434,11 +554,12 @@ export function useSessionManager() {
   const handleCreateGame = (
     gameId: string,
     playerId: string,
-    sessionToken: string
+    sessionToken: string,
+    lobbyName?: string
   ) => {
     dispatch({
       type: "CREATE_GAME",
-      payload: { gameId, playerId, sessionToken },
+      payload: { gameId, playerId, sessionToken, lobbyName },
     });
     navigateToWaiting();
   };
@@ -493,8 +614,8 @@ export function useSessionManager() {
     if (!isConnected) return;
     const unsubscribe = subscribe("SESSION_EXPIRED", (event: any) => {
       console.log("Session expired, clearing session and returning to lobby list");
-      // Clear session storage
-      sessionStorage.removeItem("alignmentGameSession");
+      // Clear local storage
+      localStorage.removeItem("alignmentGameSession");
       // Clear the current session state
       dispatch({ type: "LEAVE_LOBBY" });
       // Disconnect WebSocket
@@ -511,8 +632,8 @@ export function useSessionManager() {
     const unsubscribe = subscribe("FORCE_LOGOUT", (event: any) => {
       console.log("Server forced logout, clearing all session data and returning to login");
       // Clear all session data
-      sessionStorage.removeItem("alignmentGameSession");
-      sessionStorage.removeItem("wsConnectionCredentials");
+      localStorage.removeItem("alignmentGameSession");
+      localStorage.removeItem("wsConnectionCredentials");
       // Clear the current session state completely
       dispatch({ type: "BACK_TO_LOGIN" });
       // Disconnect WebSocket
@@ -522,6 +643,26 @@ export function useSessionManager() {
     });
     return unsubscribe;
   }, [isConnected, subscribe, disconnect, navigateToLogin]);
+
+  // Player abandoned event handling (when local player abandons)
+  useEffect(() => {
+    if (!isConnected) return;
+    const unsubscribe = subscribe("PLAYER_ABANDONED", (event: any) => {
+      // Check if the abandoned player is the local player
+      if (event.playerId === state.appState.playerId) {
+        console.log("Player abandoned game, clearing session and returning to lobby list");
+        // Clear session data
+        localStorage.removeItem("alignmentGameSession");
+        // Clear the current session state
+        dispatch({ type: "LEAVE_LOBBY" });
+        // Disconnect WebSocket
+        disconnect();
+        // Navigate to lobby list
+        navigateToLobbyList();
+      }
+    });
+    return unsubscribe;
+  }, [isConnected, subscribe, disconnect, navigateToLobbyList, state.appState.playerId]);
 
   return {
     state,

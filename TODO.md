@@ -4,12 +4,19 @@ This file tracks the current state of development, including tasks to be complet
 
 ## 🔴 Critical Bugs
 
+- when player is in the game and refreshes the page (or disconnect and reconnect) they should join the game immediately (not role reveal etc). currently seems like trying to go to lobby and do lobby_sync which fails.
+- abandon game still doesn't work
+- sometimes user is in a bad state or backend in bad state and they cant even make a game [BACKEND] {"time":"2025-07-09T18:28:14.10577537-07:00","level":"INFO","msg":"Creating lobby","service":"alignment-server","endpoint":"createLobby","user_id":"guest:ee336c9d-d21b-4109-95c5-92c55261be15","player_name":"1","lobby_name":"1 Game","is_private":false} but no game
+
 - when "project milestone" is selected, it should show.
 - playercard should have abbreviated role names like CEO instead of Chief Executive Officer.
 - voting doesn't seem to work? vote should tally up by num tokens.
 - skip should update with 0/n, 1/n, etc. as people press skip.
 
 - reconnecting doesn't work.
+- in lobby: host can run game in "Play as AI" mode where a random player will be assigned the AI player.
+- in lobby: host can run game with "Custom Game" mode where they can change the number of Aligned players at start (0 by default)
+- in lobby: there shouldn't be "Ready" button. everyone is ready by default.
 
 - reactions don't show up on the msg.
 - verdict phase should still let people talk

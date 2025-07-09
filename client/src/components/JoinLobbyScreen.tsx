@@ -36,6 +36,20 @@ export function JoinLobbyScreen({}: JoinLobbyScreenProps) {
   const attemptJoinLobby = async (targetLobbyId: string) => {
     try {
       const userId = getUserIdForApi();
+      
+      // First, try to get lobby info to get the lobby name
+      let lobbyName = "";
+      try {
+        const lobbyListResponse = await fetch("/api/games");
+        if (lobbyListResponse.ok) {
+          const lobbyListData = await lobbyListResponse.json();
+          const lobby = lobbyListData.lobbies?.find((l: any) => l.id === targetLobbyId);
+          lobbyName = lobby?.name || "";
+        }
+      } catch (lobbyInfoErr) {
+        console.warn("Could not fetch lobby info for invite link join:", lobbyInfoErr);
+      }
+      
       const response = await fetch(`/api/games/${targetLobbyId}/join`, {
         method: 'POST',
         headers: {
@@ -54,8 +68,8 @@ export function JoinLobbyScreen({}: JoinLobbyScreenProps) {
       }
 
       const data = await response.json();
-      // Call the session context with the proper parameters
-      onJoinLobby(data.game_id, data.player_id, data.session_token);
+      // Call the session context with the proper parameters, including lobby name if available
+      onJoinLobby(data.game_id, data.player_id, data.session_token, lobbyName);
     } catch (err) {
       console.error('Failed to join lobby via invite link:', err);
       setError(err instanceof Error ? err.message : 'Failed to join lobby');

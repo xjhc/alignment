@@ -99,6 +99,8 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 		newState.applyPlayerEliminated(event)
 	case EventPlayerAbandoned:
 		newState.applyPlayerAbandoned(event)
+	case EventPlayerConnectionStatusChanged:
+		newState.applyPlayerConnectionStatusChanged(event)
 	case EventPlayerRoleRevealed:
 		newState.applyPlayerRoleRevealed(event)
 	case EventPlayerAligned:
@@ -298,6 +300,7 @@ func (gs *GameState) applyPlayerJoined(event Event) {
 		ControlType:       "HUMAN", // Default control type
 		Status:            PlayerStatusAlive,
 		IsAlive:           true,
+		ConnectionStatus:  "CONNECTED", // Default connection status
 		Tokens:            gs.Settings.StartingTokens,
 		ProjectMilestones: 0,
 		StatusMessage:     "",
@@ -496,6 +499,22 @@ func (gs *GameState) applyPlayerAbandoned(event Event) {
 
 		// Clear tokens as they are forfeited
 		player.Tokens = 0
+	}
+}
+
+func (gs *GameState) applyPlayerConnectionStatusChanged(event Event) {
+	playerID, _ := event.Payload["player_id"].(string)
+	connectionStatus, _ := event.Payload["connection_status"].(string)
+	
+	if player, exists := gs.Players[playerID]; exists {
+		player.ConnectionStatus = connectionStatus
+		
+		// Update status message to reflect connection state
+		if connectionStatus == "DISCONNECTED" {
+			player.StatusMessage = "DISCONNECTED"
+		} else if connectionStatus == "CONNECTED" {
+			player.StatusMessage = "" // Clear disconnected status
+		}
 	}
 }
 

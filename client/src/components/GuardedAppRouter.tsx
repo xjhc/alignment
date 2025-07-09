@@ -77,6 +77,7 @@ export function GuardedAppRouter() {
           
           // If we have game state and it's not in LOBBY phase, go to the appropriate screen
           if (gameState && gameState.phase) {
+            console.log(`[GuardedAppRouter] Navigating based on game phase: ${gameState.phase.type}`);
             switch (gameState.phase.type) {
               case 'LOBBY':
                 return <Navigate to="/waiting" replace />;
@@ -96,6 +97,7 @@ export function GuardedAppRouter() {
             }
           } else {
             // No game state yet, default to waiting
+            console.log(`[GuardedAppRouter] No game state available, defaulting to waiting. sessionState: ${sessionState}`);
             return <Navigate to="/waiting" replace />;
           }
         }

@@ -262,43 +262,90 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	// Start the PlayerActor
 	playerActor.Start()
 
-	// In the REST-then-WebSocket flow, automatically join the lobby associated with the token
-	// This removes the need for the client to send a separate JOIN_GAME action
-	err = wsm.joinLobbyAutomatically(gameID, playerActor)
-	if err != nil {
-		log.Printf("WebSocketManager: Failed to auto-join lobby %s for player %s: %v", gameID, playerID, err)
-		
-		// Check if this is a "lobby not found" error vs other errors
-		if err.Error() == "lobby not found: "+gameID {
-			// Send a SESSION_EXPIRED event to the client before closing
-			sessionExpiredEvent := core.Event{
-				ID:        "session_expired_" + playerID,
-				Type:      "SESSION_EXPIRED",
-				GameID:    gameID,
-				PlayerID:  playerID,
-				Timestamp: time.Now(),
-				Payload: map[string]interface{}{
-					"reason": "lobby_not_found",
-					"message": "The lobby you were trying to join no longer exists. Please join a new game.",
-				},
-			}
-			
-			// Send the event before closing
-			playerActor.SendServerMessage(sessionExpiredEvent)
-			
-			// Give the message time to be sent
-			time.Sleep(100 * time.Millisecond)
-		}
-		
-		playerActor.Stop()
-		wsm.actorsMutex.Lock()
-		delete(wsm.playerActors, playerID)
-		wsm.actorsMutex.Unlock()
-		conn.Close()
+	// Determine if this is a reconnection to an active game or joining a lobby
+	wsm.handleConnectionRoutingLogic(gameID, playerActor)
+
+	log.Printf("WebSocketManager: Created PlayerActor for %s (%s) and joined lobby %s", playerID, playerName, gameID)
+}
+
+// handleConnectionRoutingLogic determines if this is a reconnection to a game or joining a lobby
+func (wsm *WebSocketManager) handleConnectionRoutingLogic(gameID string, playerActor *actors.PlayerActor) {
+	if wsm.lifecycleManager == nil {
+		log.Printf("WebSocketManager: Lifecycle manager not initialized")
+		wsm.sendSessionExpiredAndClose(playerActor, gameID, "server_error", "Server configuration error")
 		return
 	}
 
-	log.Printf("WebSocketManager: Created PlayerActor for %s (%s) and joined lobby %s", playerID, playerName, gameID)
+	// First, check if this is an active game (for reconnection)
+	_, gameExists := wsm.lifecycleManager.GetGameActor(gameID)
+	if gameExists {
+		// This is a reconnection to an active game
+		log.Printf("WebSocketManager: Player %s reconnecting to active game %s", playerActor.GetPlayerID(), gameID)
+		
+		err := wsm.lifecycleManager.ReconnectPlayerToGame(gameID, playerActor)
+		if err != nil {
+			log.Printf("WebSocketManager: Failed to reconnect player %s to game %s: %v", playerActor.GetPlayerID(), gameID, err)
+			wsm.sendSessionExpiredAndClose(playerActor, gameID, "reconnection_failed", "Failed to reconnect to game")
+			return
+		}
+		
+		// Transition the player actor to the game state
+		err = playerActor.TransitionToGame(gameID)
+		if err != nil {
+			log.Printf("WebSocketManager: Failed to transition player %s to game state: %v", playerActor.GetPlayerID(), err)
+			wsm.sendSessionExpiredAndClose(playerActor, gameID, "transition_failed", "Failed to transition to game")
+			return
+		}
+		
+		// Send the current game state to the reconnecting player
+		gameActor, _ := wsm.lifecycleManager.GetGameActor(gameID)
+		gameStateEvent := gameActor.CreatePlayerStateUpdateEvent(playerActor.GetPlayerID())
+		playerActor.SendServerMessage(gameStateEvent)
+		
+		log.Printf("WebSocketManager: Successfully reconnected player %s to game %s", playerActor.GetPlayerID(), gameID)
+		return
+	}
+
+	// Not an active game, try to join as a lobby
+	err := wsm.joinLobbyAutomatically(gameID, playerActor)
+	if err != nil {
+		log.Printf("WebSocketManager: Failed to auto-join lobby %s for player %s: %v", gameID, playerActor.GetPlayerID(), err)
+		
+		// Check if this is a "lobby not found" error vs other errors
+		if err.Error() == "lobby not found: "+gameID {
+			wsm.sendSessionExpiredAndClose(playerActor, gameID, "lobby_not_found", "The lobby you were trying to join no longer exists. Please join a new game.")
+		} else {
+			wsm.sendSessionExpiredAndClose(playerActor, gameID, "join_failed", "Failed to join lobby")
+		}
+		return
+	}
+}
+
+// sendSessionExpiredAndClose sends a session expired event and closes the connection
+func (wsm *WebSocketManager) sendSessionExpiredAndClose(playerActor *actors.PlayerActor, gameID, reason, message string) {
+	sessionExpiredEvent := core.Event{
+		ID:        "session_expired_" + playerActor.GetPlayerID(),
+		Type:      "SESSION_EXPIRED",
+		GameID:    gameID,
+		PlayerID:  playerActor.GetPlayerID(),
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"reason":  reason,
+			"message": message,
+		},
+	}
+	
+	// Send the event before closing
+	playerActor.SendServerMessage(sessionExpiredEvent)
+	
+	// Give the message time to be sent
+	time.Sleep(100 * time.Millisecond)
+	
+	// Stop the player actor and clean up
+	playerActor.Stop()
+	wsm.actorsMutex.Lock()
+	delete(wsm.playerActors, playerActor.GetPlayerID())
+	wsm.actorsMutex.Unlock()
 }
 
 // joinLobbyAutomatically handles the automatic lobby joining in REST-then-WebSocket flow
@@ -360,6 +407,11 @@ func (wsm *WebSocketManager) joinLobbyAutomatically(gameIDOrLobbyID string, play
 	}
 
 	log.Printf("WebSocketManager: Player %s automatically joined lobby %s", playerActor.GetPlayerID(), gameIDOrLobbyID)
+	
+	// For lobby joins, the AddPlayer function in the lobby will automatically send
+	// a LOBBY_STATE_UPDATE event to all players in the lobby, including the newly joined player.
+	// This ensures that the reconnecting player receives the complete current lobby state.
+	
 	return nil
 }
 

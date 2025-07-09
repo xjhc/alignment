@@ -63,6 +63,16 @@ func (e PlayerLeftLobbyEvent) EventType() string {
 	return "player_left_lobby"
 }
 
+// PlayerDisconnectedFromLobbyEvent is published when a player disconnects from a lobby (but keeps their slot)
+type PlayerDisconnectedFromLobbyEvent struct {
+	PlayerID string
+	LobbyID  string
+}
+
+func (e PlayerDisconnectedFromLobbyEvent) EventType() string {
+	return "player_disconnected_from_lobby"
+}
+
 // PlayerAbandonedGameEvent is published when a player abandons an active game
 type PlayerAbandonedGameEvent struct {
 	PlayerID string

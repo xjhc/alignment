@@ -117,8 +117,8 @@ export function GameScreen() {
         />
       )}
 
-      {/* Private Notifications Overlay */}
-      {gameState.privateNotifications && (
+      {/* Private Notifications Overlay - Disabled in favor of unified NotificationManager */}
+      {/* {gameState.privateNotifications && (
         <PrivateNotifications
           notifications={gameState.privateNotifications}
           onMarkAsRead={(notificationId) => {
@@ -126,7 +126,7 @@ export function GameScreen() {
             console.log('Mark notification as read:', notificationId);
           }}
         />
-      )}
+      )} */}
 
       {/* Alignment Conversion System Takeover Overlay */}
       <AlignmentConversionOverlay

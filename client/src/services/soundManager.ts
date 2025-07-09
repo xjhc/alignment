@@ -104,7 +104,12 @@ class SoundManager {
         loop: config.loop,
         preload: config.preload,
         onloaderror: (id, error) => {
-          console.debug(`Failed to load music track ${track}:`, error);
+          // Silently handle missing audio files in development
+          if (process.env.NODE_ENV === 'development') {
+            console.debug(`Failed to load music track ${track} (audio files not available in development)`);
+          } else {
+            console.warn(`Failed to load music track ${track}:`, error);
+          }
         },
       });
       this.musicTracks.set(track as MusicTrack, howl);
@@ -119,7 +124,12 @@ class SoundManager {
         loop: config.loop,
         preload: config.preload,
         onloaderror: (id, error) => {
-          console.debug(`Failed to load sound effect ${effect}:`, error);
+          // Silently handle missing audio files in development
+          if (process.env.NODE_ENV === 'development') {
+            console.debug(`Failed to load sound effect ${effect} (audio files not available in development)`);
+          } else {
+            console.warn(`Failed to load sound effect ${effect}:`, error);
+          }
         },
       });
       this.soundEffects.set(effect as SoundEffect, howl);

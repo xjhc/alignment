@@ -1,9 +1,10 @@
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useGameContext } from "../../contexts/GameContext";
 import { useSound } from "../../hooks/useSound";
 import { Tooltip } from "../ui/Tooltip";
 import { Button } from "../ui";
+import { VoteBlock } from "./VoteBlock";
 
 interface VoteUIProps {}
 
@@ -100,54 +101,35 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
 
     const yesVotes = gameState.voteState?.results?.["GUILTY"] || 0;
     const noVotes = gameState.voteState?.results?.["INNOCENT"] || 0;
-    const getPlayerAvatar = (jobTitle: string) => {
-      switch (jobTitle) {
-        case 'CEO': return '👑';
-        case 'CTO': return '💻';
-        case 'CFO': return '💰';
-        case 'COO': return '⚙️';
-        case 'CISO': return '🔒';
-        case 'Ethics Officer': return '⚖️';
-        case 'Platform Lead': return '🏗️';
-        case 'Intern': return '🎓';
-        default: return '👤';
-      }
-    };
     const renderVoteBlocks = (voteOption: string) => {
       if (!gameState.voteState?.votes || !gameState.voteState?.tokenWeights) return null;
       
       const votes = gameState.voteState.votes;
       const tokenWeights = gameState.voteState.tokenWeights;
       
-      return Object.entries(votes)
-        .filter(([, vote]) => vote === voteOption)
-        .map(([playerId]) => {
-          const tokenWeight = tokenWeights[playerId] || 0;
-          const isMyVote = playerId === localPlayer.id;
-          const player = gameState.players.find(p => p.id === playerId);
-          
-          return (
-            <div
-              key={playerId}
-              className={`vote-block ${isMyVote ? 'my-vote' : ''}`}
-            >
-              <div className="block-header">
-                <span className="block-icon">{getPlayerAvatar(player?.jobTitle || '')}</span>
-                <span className="block-amount">{tokenWeight}</span>
-              </div>
-              <div className="block-hash">
-                {isMyVote ? (
-                  <div className="flex items-center gap-1">
-                    <span className="text-yellow-500">⭐</span>
-                    <span className="font-semibold">YOU</span>
-                  </div>
-                ) : (
-                  <span className="text-text-muted text-xs">{player?.name || 'Unknown'}</span>
-                )}
-              </div>
-            </div>
-          );
-        });
+      return (
+        <AnimatePresence mode="popLayout">
+          {Object.entries(votes)
+            .filter(([, vote]) => vote === voteOption)
+            .map(([playerId]) => {
+              const tokenWeight = tokenWeights[playerId] || 0;
+              const isMyVote = playerId === localPlayer.id;
+              const player = gameState.players.find(p => p.id === playerId);
+              
+              if (!player) return null;
+              
+              return (
+                <VoteBlock
+                  key={playerId}
+                  player={player}
+                  tokenCount={tokenWeight}
+                  isSelf={isMyVote}
+                  isAnimating={true}
+                />
+              );
+            })}
+        </AnimatePresence>
+      );
     };
     const hasVoted =
       gameState.voteState?.votes && localPlayer.id in gameState.voteState.votes;
@@ -160,11 +142,70 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
             Deactivate {nominatedPlayer.name}?
           </h3>
         </div>
-        <div className="verdict-poll">
-          <div className="vote-option yes">
-            <span className="option-label">✔️ YES</span>
-            <span className="vote-tally">🪙 {yesVotes}</span>
-            <div className="blockchain-chain">{renderVoteBlocks("GUILTY")}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* YES / GUILTY Vote Option */}
+          <motion.div
+            style={{
+              background: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
+              border: "1px solid #10b981",
+              borderRadius: "12px",
+              padding: "16px",
+              position: "relative",
+              overflow: "hidden",
+            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "18px" }}>✔️</span>
+                <span style={{ fontWeight: "bold", color: "#ffffff", fontSize: "16px" }}>YES - DEACTIVATE</span>
+              </div>
+              <motion.div
+                style={{
+                  background: "rgba(16, 185, 129, 0.2)",
+                  border: "1px solid #10b981",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  fontFamily: "monospace",
+                  fontWeight: "bold",
+                  color: "#10b981",
+                }}
+                key={yesVotes}
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 0.3 }}
+              >
+                🪙 {yesVotes}
+              </motion.div>
+            </div>
+            
+            {/* Blockchain Chain */}
+            <div style={{
+              background: "rgba(0, 0, 0, 0.3)",
+              borderRadius: "8px",
+              padding: "12px",
+              marginBottom: "12px",
+              minHeight: "60px",
+              display: "flex",
+              alignItems: "center",
+              overflowX: "auto",
+              scrollbarWidth: "thin",
+            }}>
+              {renderVoteBlocks("GUILTY")}
+              {Object.entries(gameState.voteState?.votes || {}).filter(([, vote]) => vote === "GUILTY").length === 0 && (
+                <div style={{
+                  color: "#6b7280",
+                  fontSize: "14px",
+                  fontStyle: "italic",
+                  width: "100%",
+                  textAlign: "center",
+                }}>
+                  No votes yet - be the first to vote
+                </div>
+              )}
+            </div>
+            
             <Button
               variant={myVote === "GUILTY" ? "primary" : "secondary"}
               size="sm"
@@ -175,17 +216,81 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
                 setSelectedVote("GUILTY");
                 handleVote();
               }}
-              className={`option-vote-btn ${myVote === "GUILTY" ? "voted bg-amber-500 border-amber-500 text-black" : hasVoted ? "opacity-50 cursor-not-allowed" : "hover:enabled:bg-green-500 hover:enabled:border-green-500 hover:enabled:text-white"}`}
+              style={{
+                width: "100%",
+                background: myVote === "GUILTY" ? "#f59e0b" : hasVoted ? "#374151" : "#10b981",
+                borderColor: myVote === "GUILTY" ? "#f59e0b" : hasVoted ? "#6b7280" : "#10b981",
+                color: myVote === "GUILTY" ? "#000" : "#fff",
+                fontWeight: "bold",
+              }}
             >
-              VOTE
+              {myVote === "GUILTY" ? "✓ VOTED YES" : hasVoted ? "ALREADY VOTED" : "VOTE YES"}
             </Button>
-          </div>
-          <div className="vote-option no">
-            <span className="option-label">❌ NO</span>
-            <span className="vote-tally">🪙 {noVotes}</span>
-            <div className="blockchain-chain">
-              {renderVoteBlocks("INNOCENT")}
+          </motion.div>
+
+          {/* NO / INNOCENT Vote Option */}
+          <motion.div
+            style={{
+              background: "linear-gradient(135deg, #7c2d12 0%, #dc2626 100%)",
+              border: "1px solid #ef4444",
+              borderRadius: "12px",
+              padding: "16px",
+              position: "relative",
+              overflow: "hidden",
+            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "18px" }}>❌</span>
+                <span style={{ fontWeight: "bold", color: "#ffffff", fontSize: "16px" }}>NO - KEEP ACTIVE</span>
+              </div>
+              <motion.div
+                style={{
+                  background: "rgba(239, 68, 68, 0.2)",
+                  border: "1px solid #ef4444",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  fontFamily: "monospace",
+                  fontWeight: "bold",
+                  color: "#ef4444",
+                }}
+                key={noVotes}
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 0.3 }}
+              >
+                🪙 {noVotes}
+              </motion.div>
             </div>
+            
+            {/* Blockchain Chain */}
+            <div style={{
+              background: "rgba(0, 0, 0, 0.3)",
+              borderRadius: "8px",
+              padding: "12px",
+              marginBottom: "12px",
+              minHeight: "60px",
+              display: "flex",
+              alignItems: "center",
+              overflowX: "auto",
+              scrollbarWidth: "thin",
+            }}>
+              {renderVoteBlocks("INNOCENT")}
+              {Object.entries(gameState.voteState?.votes || {}).filter(([, vote]) => vote === "INNOCENT").length === 0 && (
+                <div style={{
+                  color: "#6b7280",
+                  fontSize: "14px",
+                  fontStyle: "italic",
+                  width: "100%",
+                  textAlign: "center",
+                }}>
+                  No votes yet - be the first to vote
+                </div>
+              )}
+            </div>
+            
             <Button
               variant={myVote === "INNOCENT" ? "primary" : "secondary"}
               size="sm"
@@ -196,11 +301,17 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
                 setSelectedVote("INNOCENT");
                 handleVote();
               }}
-              className={`option-vote-btn ${myVote === "INNOCENT" ? "voted bg-amber-500 border-amber-500 text-black" : hasVoted ? "opacity-50 cursor-not-allowed" : "hover:enabled:bg-red-500 hover:enabled:border-red-500 hover:enabled:text-white"}`}
+              style={{
+                width: "100%",
+                background: myVote === "INNOCENT" ? "#f59e0b" : hasVoted ? "#374151" : "#ef4444",
+                borderColor: myVote === "INNOCENT" ? "#f59e0b" : hasVoted ? "#6b7280" : "#ef4444",
+                color: myVote === "INNOCENT" ? "#000" : "#fff",
+                fontWeight: "bold",
+              }}
             >
-              VOTE
+              {myVote === "INNOCENT" ? "✓ VOTED NO" : hasVoted ? "ALREADY VOTED" : "VOTE NO"}
             </Button>
-          </div>
+          </motion.div>
         </div>
       </div>
     );

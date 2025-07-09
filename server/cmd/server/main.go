@@ -257,9 +257,9 @@ func NewServer() (*Server, error) {
 		activeUserTracker:   activeUserTracker,
 		authService:         authService,
 		authHandlers:        authHandlers,
-		rateLimiter:         rate.NewLimiter(rate.Every(2*time.Second), 5), // Allow 1 request every 2s, burst of 5
-		lobbyListRateLimiter: rate.NewLimiter(rate.Every(5*time.Second), 10), // More generous: 1 request every 5s, burst of 10
-		joinLobbyRateLimiter: NewIPRateLimiter(rate.Every(3*time.Second), 3), // Per-IP: 1 join every 3s, burst of 3
+		rateLimiter:         rate.NewLimiter(rate.Every(500*time.Millisecond), 20), // Allow 2 requests per second, burst of 20
+		lobbyListRateLimiter: rate.NewLimiter(rate.Every(1*time.Second), 30), // More generous: 1 request per second, burst of 30
+		joinLobbyRateLimiter: NewIPRateLimiter(rate.Every(1*time.Second), 10), // Per-IP: 1 join per second, burst of 10
 	}
 
 	return server, nil

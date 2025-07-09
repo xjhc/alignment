@@ -147,7 +147,7 @@ export function LobbyListScreen({
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [showPartyPanel, setShowPartyPanel] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [pollingInterval, setPollingInterval] = useState(5000);
+  const [pollingInterval, setPollingInterval] = useState(10000); // Increased to 10 seconds to reduce server load
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showSessionConflict, setShowSessionConflict] = useState(false);
   const [joinCooldowns, setJoinCooldowns] = useState<Record<string, number>>(
@@ -158,7 +158,7 @@ export function LobbyListScreen({
   const clearSession = async () => {
     try {
       console.log("Clearing existing session...");
-      sessionStorage.removeItem("alignmentGameSession");
+      localStorage.removeItem("alignmentGameSession");
       websocketClient.disconnect();
       setShowSessionConflict(false);
       setError(null);
@@ -170,7 +170,7 @@ export function LobbyListScreen({
 
   const rejoinSession = () => {
     try {
-      const savedSession = sessionStorage.getItem("alignmentGameSession");
+      const savedSession = localStorage.getItem("alignmentGameSession");
       if (savedSession) {
         const sessionData = JSON.parse(savedSession);
         if (
@@ -250,6 +250,26 @@ export function LobbyListScreen({
   };
 
   useEffect(() => {
+    // Check for existing active session on component mount
+    const savedSession = localStorage.getItem("alignmentGameSession");
+    if (savedSession) {
+      try {
+        const sessionData = JSON.parse(savedSession);
+        if (
+          sessionData.gameId &&
+          sessionData.playerId &&
+          sessionData.sessionToken &&
+          sessionData.sessionState
+        ) {
+          console.log("Found existing session, showing conflict modal:", sessionData);
+          setShowSessionConflict(true);
+        }
+      } catch (error) {
+        console.error("Error parsing saved session data:", error);
+        localStorage.removeItem("alignmentGameSession");
+      }
+    }
+    
     fetchLobbies();
     restartPolling();
     return () => {
@@ -305,7 +325,12 @@ export function LobbyListScreen({
       });
 
       const data = await response.json();
-      onJoinLobby(data.game_id, data.player_id, data.session_token);
+      
+      // Find the lobby name from the current lobby list
+      const lobby = lobbies.find(l => l.id === gameId);
+      const lobbyName = lobby?.name || "";
+      
+      onJoinLobby(data.game_id, data.player_id, data.session_token, lobbyName);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to join lobby");
     }
@@ -338,11 +363,20 @@ export function LobbyListScreen({
         ) {
           setShowSessionConflict(true);
         }
+        
+        // Provide user-friendly error messages for common validation issues
+        if (errorText.includes("lobby_name contains invalid characters")) {
+          throw new Error("Lobby name contains invalid characters. Please avoid using < > ' \" & symbols.");
+        }
+        if (errorText.includes("lobby_name too long")) {
+          throw new Error("Lobby name is too long. Please keep it under 100 characters.");
+        }
+        
         throw new Error(errorText || "Failed to create game");
       }
 
       const data = await response.json();
-      onCreateGame(data.game_id, data.player_id, data.session_token);
+      onCreateGame(data.game_id, data.player_id, data.session_token, settings.lobbyName);
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Failed to create game"
@@ -401,15 +435,6 @@ export function LobbyListScreen({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={() => fetchLobbies()}
-                disabled={isLoading}
-                className="text-sm"
-              >
-                {isLoading ? '⏳' : '🔄'} Refresh
-              </Button>
               <Button
                 variant="primary"
                 onClick={() => setShowCreateModal(true)}

@@ -501,6 +501,8 @@ func (pa *PlayerActor) handleLobbyAction(action core.Action) {
 		pa.handleStartGame(action)
 	case core.ActionSendMessage:
 		pa.handleLobbyChat(action)
+	case core.ActionSyncLobbyState:
+		pa.handleSyncLobbyState(action)
 	default:
 		pa.sendError(fmt.Sprintf("Action %s not allowed in InLobby state", action.Type))
 	}
@@ -623,6 +625,25 @@ func (pa *PlayerActor) handleLobbyChat(action core.Action) {
 	log.Printf("[PlayerActor/%s] Lobby chat batch with %d messages: %v", pa.playerID, len(messages), messages)
 }
 
+// handleSyncLobbyState forwards sync lobby state requests to the game
+func (pa *PlayerActor) handleSyncLobbyState(action core.Action) {
+	// Forward the sync action to the lifecycle manager to handle via the game actor
+	if pa.lifecycleManager == nil {
+		pa.sendError("Lifecycle manager not available")
+		return
+	}
+
+	// Set the proper game ID for the action
+	action.GameID = pa.lobbyID // Use lobbyID as gameID for lobby actions
+	action.PlayerID = pa.playerID
+
+	err := pa.lifecycleManager.SendActionToGame(pa.lobbyID, action)
+	if err != nil {
+		log.Printf("[PlayerActor/%s] Failed to send sync lobby state action: %v", pa.playerID, err)
+		pa.sendError(fmt.Sprintf("Failed to sync lobby state: %v", err))
+	}
+}
+
 // handleGameAction forwards actions to the game
 func (pa *PlayerActor) handleGameAction(action core.Action) {
 	// Handle special non-game actions first
@@ -696,6 +717,7 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 		core.ActionMineTokens:          true,
 		core.ActionSubmitPulseCheck:    true,
 		core.ActionUseAbility:          true,
+		core.ActionAbandonGame:         true,
 		core.ActionAttemptConversion:   true,
 		core.ActionExtendDiscussion:    true,
 		core.ActionRunAudit:            true,

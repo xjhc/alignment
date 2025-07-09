@@ -372,6 +372,10 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 		return ga.validateAndGenerateLeaveGame(action)
 	case core.ActionAbandonGame:
 		return ga.validateAndGenerateAbandonGame(action)
+	case core.ActionSetPlayerConnectionStatus:
+		return ga.handleSetPlayerConnectionStatus(action)
+	case core.ActionAbandonPlayer:
+		return ga.handleAbandonPlayer(action)
 	case core.ActionSubmitVote:
 		return ga.handleVoteAction(action)
 	case core.ActionSubmitSkipVote:
@@ -394,6 +398,8 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 		return ga.handleWhistleblowerVote(action)
 	case core.ActionTriggerExtensionVoting:
 		return ga.handleExtensionVotingTrigger(action)
+	case core.ActionSyncLobbyState:
+		return ga.handleSyncLobbyState(action)
 	case core.ActionType("PHASE_TRANSITION"):
 		return ga.handlePhaseTransition(action)
 	default:
@@ -479,6 +485,31 @@ func (ga *GameActor) handleStatusUpdate(action core.Action) ([]core.Event, error
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
 			"status": statusMessage,
+		},
+	}
+
+	return []core.Event{event}, nil
+}
+
+// handleSyncLobbyState processes lobby state sync requests
+func (ga *GameActor) handleSyncLobbyState(action core.Action) ([]core.Event, error) {
+	// Validate player exists
+	player := ga.state.Players[action.PlayerID]
+	if player == nil {
+		return nil, fmt.Errorf("invalid player requesting lobby sync")
+	}
+
+	// Generate a lobby state update event to trigger client refresh
+	// This works in any phase since lobby state includes player list and basic game info
+	event := core.Event{
+		ID:        fmt.Sprintf("lobby_sync_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventLobbyStateUpdate,
+		GameID:    ga.gameID,
+		PlayerID:  "", // Empty means broadcast to all players
+		Timestamp: time.Now(),
+		Payload:   map[string]interface{}{
+			"trigger": "manual_sync",
+			"requested_by": action.PlayerID,
 		},
 	}
 
@@ -942,6 +973,109 @@ func (ga *GameActor) validateAndGenerateAbandonGame(action core.Action) ([]core.
 			GameID:   ga.gameID,
 		})
 		log.Printf("GameActor: Published PlayerAbandonedGameEvent for player %s in game %s", action.PlayerID, ga.gameID)
+	} else {
+		log.Printf("GameActor: Warning - EventBus not available, cannot publish PlayerAbandonedGameEvent for player %s", action.PlayerID)
+	}
+
+	return []core.Event{event, chatEvent}, nil
+}
+
+// handleSetPlayerConnectionStatus handles internal server action to update player connection status
+func (ga *GameActor) handleSetPlayerConnectionStatus(action core.Action) ([]core.Event, error) {
+	// Validate player exists
+	player, exists := ga.state.Players[action.PlayerID]
+	if !exists {
+		return nil, fmt.Errorf("player %s not in game", action.PlayerID)
+	}
+
+	// Extract connection status from payload
+	connectionStatus, ok := action.Payload["connection_status"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid connection_status in payload")
+	}
+
+	// Only update if the status actually changed
+	if player.ConnectionStatus == connectionStatus {
+		return []core.Event{}, nil
+	}
+
+	// Create the event
+	event := core.Event{
+		ID:        fmt.Sprintf("conn_status_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventPlayerConnectionStatusChanged,
+		GameID:    ga.gameID,
+		PlayerID:  action.PlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"player_id":         action.PlayerID,
+			"connection_status": connectionStatus,
+		},
+	}
+
+	return []core.Event{event}, nil
+}
+
+// handleAbandonPlayer handles internal server action to abandon a player (due to grace period expiry)
+func (ga *GameActor) handleAbandonPlayer(action core.Action) ([]core.Event, error) {
+	player, exists := ga.state.Players[action.PlayerID]
+	if !exists {
+		return nil, fmt.Errorf("player %s not in game", action.PlayerID)
+	}
+
+	// Check if game is in progress (can't abandon from lobby or when game is over)
+	if ga.state.Phase.Type == core.PhaseLobby || ga.state.Phase.Type == core.PhaseGameOver {
+		return nil, fmt.Errorf("cannot abandon player in phase %s", ga.state.Phase.Type)
+	}
+
+	// Extract the player's role for revelation
+	var revealedRole string
+	if player.Role != nil {
+		revealedRole = string(player.Role.Type)
+	} else {
+		revealedRole = "UNKNOWN"
+	}
+
+	// Get the reason from payload
+	reason, ok := action.Payload["reason"].(string)
+	if !ok {
+		reason = "unknown"
+	}
+
+	// Create abandonment event
+	event := core.Event{
+		ID:        fmt.Sprintf("abandon_timeout_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventPlayerAbandoned,
+		GameID:    ga.gameID,
+		PlayerID:  action.PlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"revealed_role": revealedRole,
+			"player_name":   player.Name,
+			"reason":        reason,
+		},
+	}
+
+	// Create a system message to announce the abandonment
+	chatEvent := core.Event{
+		ID:        fmt.Sprintf("chat_abandon_timeout_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventChatMessage,
+		GameID:    ga.gameID,
+		PlayerID:  "",
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"sender_name": "NEXUS",
+			"message":     fmt.Sprintf("%s has been disconnected too long and has been removed from the game. Their role was %s.", player.Name, revealedRole),
+			"is_system":   true,
+			"channel_id":  "#war-room",
+		},
+	}
+
+	// Publish system event for session cleanup
+	if ga.eventBus != nil {
+		ga.eventBus.Publish(events.PlayerAbandonedGameEvent{
+			GameID:   ga.gameID,
+			PlayerID: action.PlayerID,
+		})
 	} else {
 		log.Printf("GameActor: Warning - EventBus not available, cannot publish PlayerAbandonedGameEvent for player %s", action.PlayerID)
 	}

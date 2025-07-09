@@ -15,7 +15,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
   onCreate,
   playerName,
 }) => {
-  const [lobbyName, setLobbyName] = useState(`${playerName}'s Game`);
+  const [lobbyName, setLobbyName] = useState(`${playerName} Game`);
   const [playAsAI, setPlayAsAI] = useState(false);
   const [initialAlignedCount, setInitialAlignedCount] = useState(0);
 
@@ -46,8 +46,9 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
                 label="Lobby Name"
                 value={lobbyName}
                 onChange={(e) => setLobbyName(e.target.value)}
-                maxLength={50}
+                maxLength={100}
                 required
+                placeholder="Enter a lobby name (avoid special characters like quotes and brackets)"
               />
             </div>
 

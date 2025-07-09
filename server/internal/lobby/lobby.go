@@ -24,8 +24,8 @@ type Lobby struct {
 	ID              string
 	Name            string
 	HostPlayerID    string
-	Players         map[string]interfaces.PlayerActorInterface // Map of playerID -> PlayerActor
-	PlayerJoinTimes map[string]time.Time                   // Map of playerID -> join timestamp
+	Players         map[string]*PlayerInfo                     // Map of playerID -> PlayerInfo (persistent)
+	PlayerActors    map[string]interfaces.PlayerActorInterface // Map of playerID -> PlayerActor (live connections)
 	MaxPlayers      int
 	MinPlayers      int
 	CreatedAt       time.Time
@@ -38,44 +38,44 @@ type Lobby struct {
 
 // NewLobby creates a new lobby with the host player
 func NewLobby(id, name, hostPlayerID string, hostActor interfaces.PlayerActorInterface, isPrivate bool, settings core.GameSettings) *Lobby {
-	players := make(map[string]interfaces.PlayerActorInterface)
-	players[hostPlayerID] = hostActor
-
-	playerJoinTimes := make(map[string]time.Time)
+	players := make(map[string]*PlayerInfo)
+	playerActors := make(map[string]interfaces.PlayerActorInterface)
+	
 	now := time.Now()
-	playerJoinTimes[hostPlayerID] = now
+	
+	// Create persistent player info for host
+	players[hostPlayerID] = &PlayerInfo{
+		ID:               hostPlayerID,
+		Name:             hostActor.GetPlayerName(),
+		Avatar:           hostActor.GetPlayerAvatar(),
+		JoinedAt:         now,
+		ConnectionStatus: "CONNECTED",
+	}
+	
+	// Store live connection for host
+	playerActors[hostPlayerID] = hostActor
 
 	return &Lobby{
-		ID:              id,
-		Name:            name,
-		HostPlayerID:    hostPlayerID,
-		Players:         players,
-		PlayerJoinTimes: playerJoinTimes,
-		MaxPlayers:      8,
-		MinPlayers:      2,
-		CreatedAt:       now,
-		LastActivity:    now,
-		Status:          "WAITING",
-		IsPrivate:       isPrivate,
-		GameSettings:    settings,
+		ID:           id,
+		Name:         name,
+		HostPlayerID: hostPlayerID,
+		Players:      players,
+		PlayerActors: playerActors,
+		MaxPlayers:   8,
+		MinPlayers:   2,
+		CreatedAt:    now,
+		LastActivity: now,
+		Status:       "WAITING",
+		IsPrivate:    isPrivate,
+		GameSettings: settings,
 	}
 }
 
 // createStateUpdate_unsafe creates a state update under lock
 func (l *Lobby) createStateUpdate_unsafe() LobbyStateUpdate {
 	var infos []PlayerInfo
-	for _, actor := range l.Players {
-		playerID := actor.GetPlayerID()
-		joinTime, exists := l.PlayerJoinTimes[playerID]
-		if !exists {
-			joinTime = time.Now() // Fallback to current time if not tracked
-		}
-		infos = append(infos, PlayerInfo{
-			ID:       playerID,
-			Name:     actor.GetPlayerName(),
-			Avatar:   actor.GetPlayerAvatar(),
-			JoinedAt: joinTime,
-		})
+	for _, playerInfo := range l.Players {
+		infos = append(infos, *playerInfo)
 	}
 
 	return LobbyStateUpdate{
@@ -90,8 +90,8 @@ func (l *Lobby) createStateUpdate_unsafe() LobbyStateUpdate {
 
 // copyPlayers_unsafe copies players map under lock
 func (l *Lobby) copyPlayers_unsafe() map[string]interfaces.PlayerActorInterface {
-	players := make(map[string]interfaces.PlayerActorInterface, len(l.Players))
-	for id, actor := range l.Players {
+	players := make(map[string]interfaces.PlayerActorInterface, len(l.PlayerActors))
+	for id, actor := range l.PlayerActors {
 		players[id] = actor
 	}
 	return players
@@ -118,8 +118,26 @@ func (l *Lobby) AddPlayer(playerActor interfaces.PlayerActorInterface) error {
 
 	playerID := playerActor.GetPlayerID()
 	now := time.Now()
-	l.Players[playerID] = playerActor
-	l.PlayerJoinTimes[playerID] = now
+	
+	// Check if player already exists (rejoining)
+	if existingInfo, exists := l.Players[playerID]; exists {
+		// Update existing player info and mark as connected
+		existingInfo.ConnectionStatus = "CONNECTED"
+		existingInfo.Name = playerActor.GetPlayerName() // Update in case name changed
+		existingInfo.Avatar = playerActor.GetPlayerAvatar() // Update in case avatar changed
+	} else {
+		// Create new persistent player info
+		l.Players[playerID] = &PlayerInfo{
+			ID:               playerID,
+			Name:             playerActor.GetPlayerName(),
+			Avatar:           playerActor.GetPlayerAvatar(),
+			JoinedAt:         now,
+			ConnectionStatus: "CONNECTED",
+		}
+	}
+	
+	// Store live connection
+	l.PlayerActors[playerID] = playerActor
 	l.LastActivity = now // Update last activity when player joins
 
 	// Create the update and broadcast it to all players in the lobby
@@ -128,7 +146,33 @@ func (l *Lobby) AddPlayer(playerActor interfaces.PlayerActorInterface) error {
 	return nil
 }
 
-// RemovePlayer removes a player from the lobby
+// DisconnectPlayer marks a player as disconnected but keeps their slot
+func (l *Lobby) DisconnectPlayer(playerID string) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	if playerInfo, exists := l.Players[playerID]; exists {
+		playerInfo.ConnectionStatus = "DISCONNECTED"
+		delete(l.PlayerActors, playerID) // Remove live connection
+		l.LastActivity = time.Now()
+		l.broadcastStateUpdate()
+	}
+}
+
+// ReconnectPlayer marks a player as reconnected and restores their connection
+func (l *Lobby) ReconnectPlayer(playerID string, playerActor interfaces.PlayerActorInterface) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	if playerInfo, exists := l.Players[playerID]; exists {
+		playerInfo.ConnectionStatus = "CONNECTED"
+		l.PlayerActors[playerID] = playerActor // Restore live connection
+		l.LastActivity = time.Now()
+		l.broadcastStateUpdate()
+	}
+}
+
+// RemovePlayer permanently removes a player from the lobby
 func (l *Lobby) RemovePlayer(playerID string) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
@@ -138,7 +182,7 @@ func (l *Lobby) RemovePlayer(playerID string) {
 	}
 
 	delete(l.Players, playerID)
-	delete(l.PlayerJoinTimes, playerID)
+	delete(l.PlayerActors, playerID)
 	l.LastActivity = time.Now() // Update last activity when player leaves
 
 	// Create the update and broadcast it to all players in the lobby
@@ -158,7 +202,7 @@ func (l *Lobby) GetPlayerActors() map[string]interfaces.PlayerActorInterface {
 	defer l.mutex.RUnlock()
 
 	players := make(map[string]interfaces.PlayerActorInterface)
-	for id, actor := range l.Players {
+	for id, actor := range l.PlayerActors {
 		players[id] = actor
 	}
 	return players
@@ -170,18 +214,8 @@ func (l *Lobby) GetPlayerInfos() []PlayerInfo {
 	defer l.mutex.RUnlock()
 
 	var infos []PlayerInfo
-	for _, actor := range l.Players {
-		playerID := actor.GetPlayerID()
-		joinTime, exists := l.PlayerJoinTimes[playerID]
-		if !exists {
-			joinTime = time.Now() // Fallback to current time if not tracked
-		}
-		infos = append(infos, PlayerInfo{
-			ID:       playerID,
-			Name:     actor.GetPlayerName(),
-			Avatar:   actor.GetPlayerAvatar(),
-			JoinedAt: joinTime,
-		})
+	for _, playerInfo := range l.Players {
+		infos = append(infos, *playerInfo)
 	}
 	return infos
 }
@@ -190,18 +224,8 @@ func (l *Lobby) GetPlayerInfos() []PlayerInfo {
 // NOTE: This method assumes the caller already holds the lobby lock
 func (l *Lobby) broadcastStateUpdate() {
 	var playerInfos []PlayerInfo
-	for _, actor := range l.Players {
-		playerID := actor.GetPlayerID()
-		joinTime, exists := l.PlayerJoinTimes[playerID]
-		if !exists {
-			joinTime = time.Now() // Fallback to current time if not tracked
-		}
-		playerInfos = append(playerInfos, PlayerInfo{
-			ID:       playerID,
-			Name:     actor.GetPlayerName(),
-			Avatar:   actor.GetPlayerAvatar(),
-			JoinedAt: joinTime,
-		})
+	for _, playerInfo := range l.Players {
+		playerInfos = append(playerInfos, *playerInfo)
 	}
 
 	update := LobbyStateUpdate{
@@ -229,7 +253,8 @@ func (l *Lobby) broadcastStateUpdate() {
 		},
 	}
 
-	for _, actor := range l.Players {
+	// Send to all connected players only
+	for _, actor := range l.PlayerActors {
 		// The PlayerActor will handle marshaling this event to JSON
 		actor.SendServerMessage(event)
 	}
@@ -284,15 +309,12 @@ func (l *Lobby) TransferHostToNextPlayer() string {
 	var newHostID string
 
 	// Find the player (excluding current host) who joined earliest
-	for playerID, joinTime := range l.PlayerJoinTimes {
+	for playerID, playerInfo := range l.Players {
 		if playerID == l.HostPlayerID {
 			continue // Skip current host
 		}
-		if _, exists := l.Players[playerID]; !exists {
-			continue // Skip if player no longer in lobby
-		}
-		if newHostID == "" || joinTime.Before(earliestJoinTime) {
-			earliestJoinTime = joinTime
+		if newHostID == "" || playerInfo.JoinedAt.Before(earliestJoinTime) {
+			earliestJoinTime = playerInfo.JoinedAt
 			newHostID = playerID
 		}
 	}
@@ -304,12 +326,24 @@ func (l *Lobby) TransferHostToNextPlayer() string {
 	return newHostID
 }
 
+// IsPlayerDisconnected checks if a player exists but is disconnected
+func (l *Lobby) IsPlayerDisconnected(playerID string) bool {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+	
+	if playerInfo, exists := l.Players[playerID]; exists {
+		return playerInfo.ConnectionStatus == "DISCONNECTED"
+	}
+	return false
+}
+
 // PlayerInfo holds basic info for a player in the lobby
 type PlayerInfo struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	Avatar   string    `json:"avatar"`
-	JoinedAt time.Time `json:"joinedAt"`
+	ID               string    `json:"id"`
+	Name             string    `json:"name"`
+	Avatar           string    `json:"avatar"`
+	JoinedAt         time.Time `json:"joinedAt"`
+	ConnectionStatus string    `json:"connectionStatus"` // "CONNECTED", "DISCONNECTED"
 }
 
 // Custom errors

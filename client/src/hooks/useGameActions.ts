@@ -308,6 +308,17 @@ export function useGameActions({
     [isConnected, gameId, localPlayer?.id, sendAction]
   );
 
+  const handleAbandonGame = useCallback(async () => {
+    if (!localPlayer || !isConnected || !gameId) return;
+    sendAction({
+      type: ClientActionType.AbandonGame,
+      payload: {
+        game_id: gameId,
+        player_id: localPlayer.id,
+      },
+    });
+  }, [localPlayer, isConnected, gameId, sendAction]);
+
   const getPhaseDisplayName = useCallback((phaseType: string) => {
     const PHASE_DISPLAY_NAMES: Record<string, string> = {
       SITREP: "SITREP",
@@ -339,6 +350,7 @@ export function useGameActions({
     handleEmojiReaction,
     handleSubmitPartingShot,
     submitWhistleblowerVote,
+    handleAbandonGame,
     getPhaseDisplayName,
   };
 }

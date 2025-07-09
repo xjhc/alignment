@@ -53,6 +53,9 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
     // If the player is not alive (eliminated), show the ghost
     if (!p.isAlive) return '👻';
 
+    // Check if player is disconnected (but still alive)
+    if (p.connectionStatus === 'DISCONNECTED') return '🔌';
+
     // Use the avatar from player object if available, otherwise fall back to generic icon
     return p.avatar || '👤';
   };
@@ -76,6 +79,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
       } else {
         classes.push('opacity-60 grayscale-[60%]');
       }
+    }
+    
+    // Add styling for disconnected players (who are still alive)
+    if (player.isAlive && player.connectionStatus === 'DISCONNECTED') {
+      classes.push('opacity-60 bg-gray-500/5 border-l-2 border-gray-500');
     }
     
     if (player.alignment === 'AI' || player.alignment === 'ALIGNED') {
@@ -131,6 +139,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
       `${player.tokens} tokens`,
       `${player.projectMilestones} of 3 project milestones completed`
     ];
+    
+    // Add connection status for accessibility
+    if (player.connectionStatus === 'DISCONNECTED') {
+      parts.push('disconnected');
+    }
     
     if (player.isRolePubliclyRevealed && !isSelf) {
       parts.push('role publicly revealed');
@@ -221,12 +234,15 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
             </div>
           </div>
         </div>
-        {player.statusMessage && (
+        {(player.statusMessage || player.connectionStatus === 'DISCONNECTED') && (
           <div className={`text-[11px] italic mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap leading-tight ${
             player.statusMessage === 'ABANDONED' ? 'text-red-500 font-semibold' :
+            player.connectionStatus === 'DISCONNECTED' ? 'text-gray-500 font-semibold' :
             player.systemShocks?.some(shock => shock.isActive) ? 'text-pink-500' : 'text-text-muted'
           } ${!player.isAlive ? 'opacity-80' : ''}`}>
-            {player.statusMessage === 'ABANDONED' ? '🚪 ABANDONED' : `"${player.statusMessage}"`}
+            {player.statusMessage === 'ABANDONED' ? '🚪 ABANDONED' : 
+             player.connectionStatus === 'DISCONNECTED' ? '🔌 DISCONNECTED' : 
+             `"${player.statusMessage}"`}
           </div>
         )}
       </div>

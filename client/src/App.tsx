@@ -4,6 +4,8 @@ import { GuardedAppRouter } from "./components/GuardedAppRouter";
 import { AchievementNotificationManager } from "./components/AchievementNotification";
 import { CommandPalette } from "./components/game/CommandPalette";
 import { SettingsModal } from "./components/game/SettingsModal";
+import { NotificationManager } from "./components/NotificationManager";
+import { NotificationBridge } from "./components/NotificationBridge";
 import { AppProviders } from "./contexts/AppProviders";
 import {
   SessionProvider,
@@ -162,9 +164,11 @@ function AppContent() {
   return (
     <SessionProvider value={sessionContextValue}>
       <GameProvider value={gameContextValue}>
+        <NotificationBridge />
         <AnimatePresence mode="wait">
           <GuardedAppRouter />
         </AnimatePresence>
+        <NotificationManager />
         <AchievementNotificationManager />
         <CommandPalette
           isOpen={commandPaletteOpen}

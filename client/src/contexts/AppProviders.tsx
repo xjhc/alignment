@@ -5,6 +5,7 @@ import {
   GameEngineProvider,
   WebSocketProvider,
 } from ".";
+import { NotificationProvider } from "./NotificationContext";
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -17,7 +18,9 @@ export function AppProviders({ children }: AppProvidersProps) {
         <ThemeProvider>
           <GameEngineProvider>
             <WebSocketProvider>
-              {children}
+              <NotificationProvider>
+                {children}
+              </NotificationProvider>
             </WebSocketProvider>
           </GameEngineProvider>
         </ThemeProvider>

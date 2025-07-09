@@ -134,7 +134,7 @@ func (lm *LobbyManager) cleanupStaleLobbies() {
 		// Stop all associated player actors if any linger (defensive cleanup)
 		if lobby != nil {
 			lobby.mutex.RLock()
-			for _, actor := range lobby.Players {
+			for _, actor := range lobby.PlayerActors {
 				if actor != nil {
 					actor.Stop()
 				}
@@ -388,7 +388,7 @@ func (lm *LobbyManager) StartGame(lobbyID string, hostPlayerID string) error {
 
 	// Copy the players out so we can release the lobby lock
 	playerActors := make(map[string]interfaces.PlayerActorInterface)
-	for id, actor := range lobby.Players {
+	for id, actor := range lobby.PlayerActors {
 		playerActors[id] = actor
 	}
 
