@@ -1,8 +1,21 @@
-import { AppState, GameState, Role, PersonalKPI, VoteState, PhaseType, UserIdentity } from '../types';
-import { getOrCreateGuestId, updateGuestProfile, getCurrentUserIdentity } from '../services/guestIdentity';
+import {
+  AppState,
+  GameState,
+  Role,
+  PersonalKPI,
+  VoteState,
+  PhaseType,
+  UserIdentity,
+  GameSettings,
+} from "../types";
+import {
+  getOrCreateGuestId,
+  updateGuestProfile,
+  getCurrentUserIdentity,
+} from "../services/guestIdentity";
 
 // Define the possible states of the user's session
-export type SessionState = 'IDLE' | 'IN_LOBBY' | 'IN_GAME' | 'POST_GAME';
+export type SessionState = "IDLE" | "IN_LOBBY" | "IN_GAME" | "POST_GAME";
 
 // Centralized lobby state interface
 export interface PlayerLobbyInfo {
@@ -20,6 +33,7 @@ export interface LobbyState {
   hostId: string;
   lobbyName: string;
   maxPlayers: number;
+  gameSettings?: Partial<GameSettings>;
   connectionError: string | null;
   countdown: {
     isActive: boolean;
@@ -46,63 +60,95 @@ export interface ConsolidatedAppState {
 }
 
 // Action types
-export type AppAction = 
-  | { type: 'LOGIN'; payload: { playerName: string; playerAvatar: string } }
-  | { type: 'JOIN_LOBBY'; payload: { gameId: string; playerId: string; sessionToken: string } }
-  | { type: 'CREATE_GAME'; payload: { gameId: string; playerId: string; sessionToken: string } }
-  | { type: 'LEAVE_LOBBY' }
-  | { type: 'BACK_TO_LOGIN' }
-  | { type: 'ENTER_GAME' }
-  | { type: 'PLAY_AGAIN' }
-  | { type: 'RESTORE_SESSION'; payload: { gameId: string; playerId: string; sessionToken: string; sessionState: SessionState } }
-  | { type: 'UPDATE_LOBBY_STATE'; payload: { 
-      players: PlayerLobbyInfo[];
-      host_id: string;
-      can_start: boolean;
-      lobby_id: string;
-      name: string;
-      max_players: number;
-    }}
-  | { type: 'SET_CONNECTION_ERROR'; payload: { message: string } }
-  | { type: 'CLEAR_CONNECTION_ERROR' }
-  | { type: 'CLIENT_IDENTIFIED'; payload: { playerId: string } }
-  | { type: 'UPDATE_GAME_STATE'; payload: { gameState: GameState; roleAssignment?: RoleAssignment } }
-  | { type: 'GAME_OVER'; payload: { sessionState: SessionState; gameAnalysis?: any } }
-  | { type: 'RESET_LOBBY_STATE' }
-  | { type: 'COUNTDOWN_START'; payload: { duration: number } }
-  | { type: 'COUNTDOWN_UPDATE'; payload: { remaining: number } }
-  | { type: 'COUNTDOWN_CANCEL' }
-  | { type: 'HOST_TRANSFERRED'; payload: { newHostId: string; previousHostId: string } }
-  | { type: 'LOAD_CHAT_HISTORY'; payload: { chatMessages: any[] } }
-  | { type: 'VOTE_TALLY_UPDATED'; payload: { voteState: VoteState } }
-  | { type: 'PULSE_CHECK_UPDATED'; payload: { player_id: string } };
+export type AppAction =
+  | { type: "LOGIN"; payload: { playerName: string; playerAvatar: string } }
+  | {
+      type: "JOIN_LOBBY";
+      payload: { gameId: string; playerId: string; sessionToken: string };
+    }
+  | {
+      type: "CREATE_GAME";
+      payload: { gameId: string; playerId: string; sessionToken: string };
+    }
+  | { type: "LEAVE_LOBBY" }
+  | { type: "BACK_TO_LOGIN" }
+  | { type: "ENTER_GAME" }
+  | { type: "PLAY_AGAIN" }
+  | {
+      type: "RESTORE_SESSION";
+      payload: {
+        gameId: string;
+        playerId: string;
+        sessionToken: string;
+        sessionState: SessionState;
+      };
+    }
+  | {
+      type: "UPDATE_LOBBY_STATE";
+      payload: {
+        players: PlayerLobbyInfo[];
+        host_id: string;
+        can_start: boolean;
+        lobby_id: string;
+        name: string;
+        max_players: number;
+        game_settings?: Partial<GameSettings>;
+      };
+    }
+  | { type: "SET_CONNECTION_ERROR"; payload: { message: string } }
+  | { type: "CLEAR_CONNECTION_ERROR" }
+  | { type: "CLIENT_IDENTIFIED"; payload: { playerId: string } }
+  | {
+      type: "UPDATE_GAME_STATE";
+      payload: { gameState: GameState; roleAssignment?: RoleAssignment };
+    }
+  | {
+      type: "GAME_OVER";
+      payload: { sessionState: SessionState; gameAnalysis?: any };
+    }
+  | { type: "RESET_LOBBY_STATE" }
+  | { type: "COUNTDOWN_START"; payload: { duration: number } }
+  | { type: "COUNTDOWN_UPDATE"; payload: { remaining: number } }
+  | { type: "COUNTDOWN_CANCEL" }
+  | {
+      type: "HOST_TRANSFERRED";
+      payload: { newHostId: string; previousHostId: string };
+    }
+  | { type: "LOAD_CHAT_HISTORY"; payload: { chatMessages: any[] } }
+  | { type: "VOTE_TALLY_UPDATED"; payload: { voteState: VoteState } }
+  | { type: "PULSE_CHECK_UPDATED"; payload: { player_id: string } };
 
 // Helper function to create initial app state with guest identity
 function createInitialAppState(): ConsolidatedAppState {
   const existingIdentity = getCurrentUserIdentity();
-  
+
   return {
     appState: {
-      playerName: existingIdentity?.name || '',
+      playerName: existingIdentity?.name || "",
       playerAvatar: existingIdentity?.avatar,
       userIdentity: existingIdentity || undefined,
     },
-    sessionState: 'IDLE',
+    sessionState: "IDLE",
     lobbyState: {
       playerId: undefined,
       playerInfos: [],
       isHost: false,
       canStart: false,
-      hostId: '',
-      lobbyName: '',
+      hostId: "",
+      lobbyName: "",
       maxPlayers: 8,
+      gameSettings: {},
       connectionError: null,
       countdown: null,
     },
     gameState: {
-      id: '',
+      id: "",
       players: [],
-      phase: { type: PhaseType.Lobby, startTime: new Date().toISOString(), duration: 0 },
+      phase: {
+        type: PhaseType.Lobby,
+        startTime: new Date().toISOString(),
+        duration: 0,
+      },
       dayNumber: 1,
       chatMessages: [],
     },
@@ -116,22 +162,25 @@ function createInitialAppState(): ConsolidatedAppState {
 export const initialAppState: ConsolidatedAppState = createInitialAppState();
 
 // Reducer function
-export function appReducer(state: ConsolidatedAppState, action: AppAction): ConsolidatedAppState {
+export function appReducer(
+  state: ConsolidatedAppState,
+  action: AppAction
+): ConsolidatedAppState {
   switch (action.type) {
-    case 'LOGIN':
+    case "LOGIN":
       // Update guest profile with the new name and avatar
       const guestProfile = updateGuestProfile({
         name: action.payload.playerName,
         avatar: action.payload.playerAvatar,
       });
-      
+
       const userIdentity: UserIdentity = {
         id: guestProfile.id,
         name: guestProfile.name,
         avatar: guestProfile.avatar,
         isAuthenticated: false,
       };
-      
+
       return {
         ...state,
         appState: {
@@ -140,19 +189,22 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
           playerAvatar: action.payload.playerAvatar,
           userIdentity,
         },
-        sessionState: 'IDLE',
+        sessionState: "IDLE",
         isInGameSession: false,
       };
 
-    case 'JOIN_LOBBY':
+    case "JOIN_LOBBY":
       // Persist session data to sessionStorage
-      sessionStorage.setItem('alignmentGameSession', JSON.stringify({
-        gameId: action.payload.gameId,
-        playerId: action.payload.playerId,
-        sessionToken: action.payload.sessionToken,
-        sessionState: 'IN_LOBBY'
-      }));
-      
+      sessionStorage.setItem(
+        "alignmentGameSession",
+        JSON.stringify({
+          gameId: action.payload.gameId,
+          playerId: action.payload.playerId,
+          sessionToken: action.payload.sessionToken,
+          sessionState: "IN_LOBBY",
+        })
+      );
+
       return {
         ...state,
         appState: {
@@ -166,19 +218,22 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
           playerId: action.payload.playerId,
           countdown: null,
         },
-        sessionState: 'IN_LOBBY',
+        sessionState: "IN_LOBBY",
         isInGameSession: true,
       };
 
-    case 'CREATE_GAME':
+    case "CREATE_GAME":
       // Persist session data to sessionStorage
-      sessionStorage.setItem('alignmentGameSession', JSON.stringify({
-        gameId: action.payload.gameId,
-        playerId: action.payload.playerId,
-        sessionToken: action.payload.sessionToken,
-        sessionState: 'IN_LOBBY'
-      }));
-      
+      sessionStorage.setItem(
+        "alignmentGameSession",
+        JSON.stringify({
+          gameId: action.payload.gameId,
+          playerId: action.payload.playerId,
+          sessionToken: action.payload.sessionToken,
+          sessionState: "IN_LOBBY",
+        })
+      );
+
       return {
         ...state,
         appState: {
@@ -192,14 +247,14 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
           playerId: action.payload.playerId,
           countdown: null,
         },
-        sessionState: 'IN_LOBBY',
+        sessionState: "IN_LOBBY",
         isInGameSession: true,
       };
 
-    case 'LEAVE_LOBBY':
+    case "LEAVE_LOBBY":
       // Clear session data from sessionStorage
-      sessionStorage.removeItem('alignmentGameSession');
-      
+      sessionStorage.removeItem("alignmentGameSession");
+
       return {
         ...state,
         appState: {
@@ -214,50 +269,53 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
           playerInfos: [],
           isHost: false,
           canStart: false,
-          hostId: '',
-          lobbyName: '',
+          hostId: "",
+          lobbyName: "",
           maxPlayers: 8,
           connectionError: null,
           countdown: null,
         },
-        sessionState: 'IDLE',
+        sessionState: "IDLE",
         isInGameSession: false,
       };
 
-    case 'BACK_TO_LOGIN':
+    case "BACK_TO_LOGIN":
       // Clear session data from sessionStorage
-      sessionStorage.removeItem('alignmentGameSession');
-      
+      sessionStorage.removeItem("alignmentGameSession");
+
       return {
         ...state,
         appState: {
-          playerName: '',
+          playerName: "",
           userIdentity: undefined,
         },
-        sessionState: 'IDLE',
+        sessionState: "IDLE",
         isInGameSession: false,
       };
 
-    case 'ENTER_GAME':
+    case "ENTER_GAME":
       // Update session state in sessionStorage
-      const currentSession = sessionStorage.getItem('alignmentGameSession');
+      const currentSession = sessionStorage.getItem("alignmentGameSession");
       if (currentSession) {
         const sessionData = JSON.parse(currentSession);
-        sessionStorage.setItem('alignmentGameSession', JSON.stringify({
-          ...sessionData,
-          sessionState: 'IN_GAME'
-        }));
+        sessionStorage.setItem(
+          "alignmentGameSession",
+          JSON.stringify({
+            ...sessionData,
+            sessionState: "IN_GAME",
+          })
+        );
       }
-      
+
       return {
         ...state,
-        sessionState: 'IN_GAME',
+        sessionState: "IN_GAME",
       };
 
-    case 'PLAY_AGAIN':
+    case "PLAY_AGAIN":
       // Clear session data from sessionStorage
-      sessionStorage.removeItem('alignmentGameSession');
-      
+      sessionStorage.removeItem("alignmentGameSession");
+
       return {
         ...state,
         appState: {
@@ -265,12 +323,12 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
           gameId: undefined,
           sessionToken: undefined,
         },
-        sessionState: 'IDLE',
+        sessionState: "IDLE",
         roleAssignment: null,
         isInGameSession: false,
       };
 
-    case 'UPDATE_LOBBY_STATE':
+    case "UPDATE_LOBBY_STATE":
       return {
         ...state,
         lobbyState: {
@@ -280,12 +338,14 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
           canStart: action.payload.can_start,
           lobbyName: action.payload.name,
           maxPlayers: action.payload.max_players,
+          gameSettings:
+            action.payload.game_settings || state.lobbyState.gameSettings,
           isHost: state.lobbyState.playerId === action.payload.host_id,
           connectionError: null,
         },
       };
 
-    case 'SET_CONNECTION_ERROR':
+    case "SET_CONNECTION_ERROR":
       return {
         ...state,
         lobbyState: {
@@ -294,7 +354,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         },
       };
 
-    case 'CLEAR_CONNECTION_ERROR':
+    case "CLEAR_CONNECTION_ERROR":
       return {
         ...state,
         lobbyState: {
@@ -303,7 +363,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         },
       };
 
-    case 'CLIENT_IDENTIFIED':
+    case "CLIENT_IDENTIFIED":
       return {
         ...state,
         appState: {
@@ -317,7 +377,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         },
       };
 
-    case 'UPDATE_GAME_STATE':
+    case "UPDATE_GAME_STATE":
       return {
         ...state,
         gameState: action.payload.gameState,
@@ -326,14 +386,14 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         }),
       };
 
-    case 'GAME_OVER':
+    case "GAME_OVER":
       return {
         ...state,
         sessionState: action.payload.sessionState,
         gameAnalysis: action.payload.gameAnalysis || null,
       };
 
-    case 'RESET_LOBBY_STATE':
+    case "RESET_LOBBY_STATE":
       return {
         ...state,
         lobbyState: {
@@ -341,14 +401,15 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
           playerInfos: [],
           isHost: false,
           canStart: false,
-          hostId: '',
-          lobbyName: '',
+          hostId: "",
+          lobbyName: "",
           connectionError: null,
+          gameSettings: {},
           countdown: null,
         },
       };
 
-    case 'COUNTDOWN_START':
+    case "COUNTDOWN_START":
       return {
         ...state,
         lobbyState: {
@@ -361,19 +422,21 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         },
       };
 
-    case 'COUNTDOWN_UPDATE':
+    case "COUNTDOWN_UPDATE":
       return {
         ...state,
         lobbyState: {
           ...state.lobbyState,
-          countdown: state.lobbyState.countdown ? {
-            ...state.lobbyState.countdown,
-            remaining: action.payload.remaining,
-          } : null,
+          countdown: state.lobbyState.countdown
+            ? {
+                ...state.lobbyState.countdown,
+                remaining: action.payload.remaining,
+              }
+            : null,
         },
       };
 
-    case 'COUNTDOWN_CANCEL':
+    case "COUNTDOWN_CANCEL":
       return {
         ...state,
         lobbyState: {
@@ -382,7 +445,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         },
       };
 
-    case 'HOST_TRANSFERRED':
+    case "HOST_TRANSFERRED":
       return {
         ...state,
         lobbyState: {
@@ -392,7 +455,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         },
       };
 
-    case 'LOAD_CHAT_HISTORY':
+    case "LOAD_CHAT_HISTORY":
       return {
         ...state,
         gameState: {
@@ -401,7 +464,7 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         },
       };
 
-    case 'VOTE_TALLY_UPDATED':
+    case "VOTE_TALLY_UPDATED":
       return {
         ...state,
         gameState: {
@@ -410,20 +473,20 @@ export function appReducer(state: ConsolidatedAppState, action: AppAction): Cons
         },
       };
 
-    case 'PULSE_CHECK_UPDATED':
+    case "PULSE_CHECK_UPDATED":
       return {
         ...state,
         gameState: {
           ...state.gameState,
-          players: state.gameState.players.map(player => 
-            player.id === action.payload.player_id 
+          players: state.gameState.players.map((player) =>
+            player.id === action.payload.player_id
               ? { ...player, hasSubmittedPulseCheck: true }
               : player
           ),
         },
       };
 
-    case 'RESTORE_SESSION':
+    case "RESTORE_SESSION":
       return {
         ...state,
         appState: {

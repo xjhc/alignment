@@ -67,7 +67,7 @@ func AssignPersonas(players map[string]*core.Player, settings core.GameSettings,
 	}
 
 	assignments := make(map[string]PersonaAssignment)
-	
+
 	// Get and shuffle name pool independently
 	names := GetNamePool()
 	rng.Shuffle(len(names), func(i, j int) {
@@ -97,26 +97,46 @@ func AssignPersonas(players map[string]*core.Player, settings core.GameSettings,
 	for playerID := range players {
 		participantIDs = append(participantIDs, playerID)
 	}
-	
+
 	rng.Shuffle(len(participantIDs), func(i, j int) {
 		participantIDs[i], participantIDs[j] = participantIDs[j], participantIDs[i]
 	})
 
-	// Assign exactly one Original AI (first in shuffled list)
-	originalAIPlayerID := participantIDs[0]
-	
+	// Assign roles based on game settings
+	var originalAIPlayerID string
+	if settings.PlayAsAI {
+		// In "Play as AI" mode, a random human player becomes the AI
+		originalAIPlayerID = participantIDs[0]
+	} else {
+		// In normal mode, a separate AI entity is implied or would be added
+		// For simulation, we'll assign the first player as AI if not in PlayAsAI mode
+		// In a real game, this might be a dedicated AI bot
+		originalAIPlayerID = participantIDs[0]
+	}
+
 	// Determine how many additional players should be Aligned humans
 	alignedHumanCount := settings.InitialAlignedHumanCount
 	// Ensure we don't exceed available players (minus the one Original AI)
 	if alignedHumanCount > len(participantIDs)-1 {
 		alignedHumanCount = len(participantIDs) - 1
 	}
-	
+
 	// Assign aligned humans (next N players in shuffled list after the Original AI)
 	alignedHumanIDs := make(map[string]bool)
-	for i := 1; i <= alignedHumanCount; i++ {
-		alignedHumanIDs[participantIDs[i]] = true
+	aiPlayerIndex := -1
+	for i, id := range participantIDs {
+		if id == originalAIPlayerID {
+			aiPlayerIndex = i
+			break
+		}
 	}
+
+	for i := 1; i <= alignedHumanCount; i++ {
+		// Wrap around the list to select players if we reach the end
+		alignedIndex := (aiPlayerIndex + i) % len(participantIDs)
+		alignedHumanIDs[participantIDs[alignedIndex]] = true
+	}
+
 
 	// Assign decoupled personas to all participants
 	for i, participantID := range participantIDs {
@@ -131,12 +151,12 @@ func AssignPersonas(players map[string]*core.Player, settings core.GameSettings,
 
 		// Get original lobby handle from player data
 		lobbyHandle := players[participantID].Name
-		
+
 		// Create persona with decoupled name and role
 		assignedRole := roles[i]
 		assignedName := names[i]
 		assignedJobTitle := rolePool[assignedRole]
-		
+
 		assignments[participantID] = PersonaAssignment{
 			Persona: Persona{
 				Name:     assignedName,

@@ -1,30 +1,3 @@
-// Package main provides the Alignment game server API
-//
-// This is the main HTTP and WebSocket server for the Alignment corporate social deduction game.
-// The server provides REST API endpoints for lobby management and WebSocket connections for real-time gameplay.
-//
-// @title Alignment Game Server API
-// @version 1.0
-// @description Corporate-themed social deduction game where humans identify a rogue AI among them before it converts staff and seizes company control.
-// @termsOfService http://swagger.io/terms/
-//
-// @contact.name API Support
-// @contact.url http://www.swagger.io/support
-// @contact.email support@swagger.io
-//
-// @license.name MIT
-// @license.url https://opensource.org/licenses/MIT
-//
-// @host localhost:8080
-// @BasePath /
-// @schemes http https
-//
-// @tag.name lobbies
-// @tag.description Lobby management operations
-// @tag.name health
-// @tag.description Server health and monitoring
-// @tag.name debug
-// @tag.description Debug and development endpoints
 package main
 
 import (
@@ -197,10 +170,10 @@ func NewServer() (*Server, error) {
 
 	// Create supervisor with application context
 	ctx := context.Background()
-	
+
 	// Create event bus first
 	eventBus := events.NewEventBus()
-	
+
 	// Create supervisor with event bus
 	supervisor := actors.NewSupervisor(ctx, datastore, postgresStore, nil, eventBus) // Will set broadcaster later
 
@@ -362,18 +335,18 @@ func (s *Server) Stop() {
 // HTTP handlers
 func (s *Server) setupRoutes() {
 	mux := http.NewServeMux()
-	
+
 	// Basic endpoints
 	mux.HandleFunc("/health", s.healthHandler)
 	mux.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
 	mux.HandleFunc("/ws", s.wsManager.HandleWebSocket)
 	mux.HandleFunc("/api/stats", s.statsHandler)
 	mux.HandleFunc("/api/debug/event-types", s.debugEventTypesHandler)
-	
+
 	// Game endpoints with proper routing
 	mux.HandleFunc("/api/games", s.gamesHandlerWithDifferentiatedRateLimit)
 	mux.HandleFunc("POST /api/games/{gameId}/join", s.joinLobbyRateLimitMiddleware(s.joinLobbyHandler))
-	
+
 	// Admin endpoints
 	s.adminHandlers.SetupRoutes()
 
@@ -413,7 +386,7 @@ func (s *Server) setupRoutes() {
 	})
 	// Swagger documentation endpoint
 	mux.HandleFunc("/swagger/", httpSwagger.WrapHandler)
-	
+
 	// Set the mux as the default handler
 	http.Handle("/", mux)
 }
@@ -447,7 +420,7 @@ func (s *Server) joinLobbyRateLimitMiddleware(next http.HandlerFunc) http.Handle
 	return func(w http.ResponseWriter, r *http.Request) {
 		clientIP := getClientIP(r)
 		limiter := s.joinLobbyRateLimiter.GetLimiter(clientIP)
-		
+
 		if !limiter.Allow() {
 			logger.GetLogger().Warn("Join lobby rate limit exceeded", "ip", clientIP, "endpoint", r.URL.Path)
 			http.Error(w, "Too many join requests. Please wait before trying again.", http.StatusTooManyRequests)
@@ -637,11 +610,13 @@ func (s *Server) listLobbies(w http.ResponseWriter, r *http.Request) {
 
 // CreateLobbyRequest represents the request to create a new lobby
 type CreateLobbyRequest struct {
-	UserID       string `json:"user_id" example:"guest:abc123" binding:"required"`
-	LobbyName    string `json:"lobby_name" example:"My Game Lobby"`
-	PlayerName   string `json:"player_name" example:"John Doe" binding:"required"`
-	PlayerAvatar string `json:"player_avatar" example:"avatar1"`
-	IsPrivate    bool   `json:"is_private" example:"false"`
+	UserID                   string `json:"user_id" example:"guest:abc123" binding:"required"`
+	LobbyName                string `json:"lobby_name" example:"My Game Lobby"`
+	PlayerName               string `json:"player_name" example:"John Doe" binding:"required"`
+	PlayerAvatar             string `json:"player_avatar" example:"avatar1"`
+	IsPrivate                bool   `json:"is_private" example:"false"`
+	PlayAsAI                 bool   `json:"play_as_ai,omitempty"`
+	InitialAlignedHumanCount int    `json:"initial_aligned_human_count,omitempty"`
 }
 
 // CreateLobbyResponse represents the response after creating a lobby
@@ -1009,4 +984,3 @@ func main() {
 		log.Fatal("Server failed to start:", err)
 	}
 }
-

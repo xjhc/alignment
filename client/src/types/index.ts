@@ -1,8 +1,8 @@
+import { GeneratedGameSettings } from "./generated";
+
 // Re-export generated types from the core package
-export * from './generated';
-import { 
-  ServerEventType, 
-  ClientActionType, 
+export * from "./generated";
+import {
   GeneratedPlayer,
   GeneratedRole,
   GeneratedAbility,
@@ -14,8 +14,8 @@ import {
   GeneratedVoteState,
   GeneratedCrisisEvent,
   GeneratedWinCondition,
-  GeneratedWhistleblowerVoting
-} from './generated';
+  GeneratedWhistleblowerVoting,
+} from "./generated";
 
 // WebSocket message types
 export interface WebSocketMessage {
@@ -25,23 +25,22 @@ export interface WebSocketMessage {
 
 // Client-to-server actions using generated enum
 export interface ClientAction extends WebSocketMessage {
-  type: ClientActionType;
+  type: string; // Using string for flexibility
 }
 
 // Server-to-client events using generated enum
 export interface ServerEvent extends WebSocketMessage {
-  type: ServerEventType;
-  id?: string;        // Event ID for tracking
-  game_id?: string;   // Game ID for storage
-  gameId?: string;    // Alternative naming for compatibility
+  type: string; // Using string for flexibility
+  id?: string; // Event ID for tracking
+  game_id?: string; // Game ID for storage
+  gameId?: string; // Alternative naming for compatibility
   timestamp?: string; // Timestamp for events
-  playerId?: string;  // Player ID for events
+  playerId?: string; // Player ID for events
 }
 
 // Type aliases for compatibility with existing code using generated types
 export interface Player extends GeneratedPlayer {
   avatar?: string;
-  isRolePubliclyRevealed?: boolean;
 }
 export type Role = GeneratedRole;
 export type Ability = GeneratedAbility;
@@ -59,7 +58,14 @@ export interface EmojiReaction {
 
 // Enhanced ChatMessage with specialized message types
 export interface ChatMessage extends GeneratedChatMessage {
-  type?: 'SITREP' | 'VOTE_RESULT' | 'PULSE_CHECK' | 'PULSE_CHECK_SUBMISSION' | 'INCITING_INCIDENT' | 'LOEBMATE_MESSAGE' | 'REGULAR';
+  type?:
+    | "SITREP"
+    | "VOTE_RESULT"
+    | "PULSE_CHECK"
+    | "PULSE_CHECK_SUBMISSION"
+    | "INCITING_INCIDENT"
+    | "LOEBMATE_MESSAGE"
+    | "REGULAR";
   reactions?: EmojiReaction[];
   metadata?: {
     nightActions?: any[];
@@ -99,6 +105,7 @@ export type Phase = GeneratedPhase;
 export type VoteState = GeneratedVoteState;
 export type CrisisEvent = GeneratedCrisisEvent;
 export type WinCondition = GeneratedWinCondition;
+export type GameSettings = GeneratedGameSettings;
 
 // GameState with client-friendly structure (array instead of map for players)
 export interface GameState {
@@ -117,6 +124,7 @@ export interface GameState {
   skipVotes?: Record<string, boolean>;
   pulseCheckResponses?: Record<string, string>;
   whistleblowerVoting?: GeneratedWhistleblowerVoting;
+  gameSettings?: Partial<GameSettings>;
 }
 
 // Corporate Mandate information
@@ -134,7 +142,7 @@ export interface NightActionResult {
   type: string;
   playerName: string;
   targetName?: string;
-  result: 'success' | 'failed' | 'blocked';
+  result: "success" | "failed" | "blocked";
   description: string;
   isPublic: boolean;
 }
@@ -142,12 +150,19 @@ export interface NightActionResult {
 // Private notifications for individual players
 export interface PrivateNotification {
   id: string;
-  type: 'system_shock' | 'kpi_progress' | 'role_ability' | 'conversion' | 'investigation' | 'loebmate_hint' | 'help_response';
+  type:
+    | "system_shock"
+    | "kpi_progress"
+    | "role_ability"
+    | "conversion"
+    | "investigation"
+    | "loebmate_hint"
+    | "help_response";
   title: string;
   message: string;
   timestamp: string;
   isRead: boolean;
-  priority: 'low' | 'medium' | 'high';
+  priority: "low" | "medium" | "high";
 }
 
 // Connection state
@@ -167,6 +182,7 @@ export interface LobbyInfo {
   status: string;
   can_join: boolean;
   created_at: string;
+  game_settings: Partial<GameSettings>;
 }
 
 // User identity types for authentication system
@@ -174,7 +190,7 @@ export interface AuthenticatedUser {
   id: string;
   name: string;
   avatar: string;
-  provider: 'discord';
+  provider: "discord";
   isAuthenticated: true;
 }
 

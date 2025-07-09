@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/store"
 )
@@ -203,7 +204,23 @@ func (lm *LobbyManager) CreateLobby(hostActor interfaces.PlayerActorInterface, l
 	lobbyID := uuid.New().String()
 	hostPlayerID := hostActor.GetPlayerID()
 
-	lobby := NewLobby(lobbyID, lobbyName, hostPlayerID, hostActor, isPrivate)
+	defaultSettings := core.GameSettings{
+		MaxPlayers:               8,
+		MinPlayers:               4,
+		SitrepDuration:           time.Minute * 2,
+		PulseCheckDuration:       time.Minute * 1,
+		DiscussionDuration:       time.Minute * 5,
+		ExtensionDuration:        time.Minute * 2,
+		NominationDuration:       time.Minute * 2,
+		TrialDuration:            time.Minute * 3,
+		VerdictDuration:          time.Minute * 2,
+		NightDuration:            time.Minute * 2,
+		StartingTokens:           10,
+		VotingThreshold:          0.5,
+		InitialAlignedHumanCount: 0,
+		PlayAsAI:                 false,
+	}
+	lobby := NewLobby(lobbyID, lobbyName, hostPlayerID, hostActor, isPrivate, defaultSettings)
 	lm.lobbies[lobbyID] = lobby
 
 	// Transition the host actor to lobby state
@@ -285,7 +302,23 @@ func (lm *LobbyManager) JoinLobbyWithActor(lobbyID string, playerActor interface
 		if lobbyName == "" {
 			lobbyName = hostToken.PlayerName + "'s Game"
 		}
-		lobby = NewLobby(lobbyID, lobbyName, hostToken.PlayerID, playerActor, hostToken.IsPrivate)
+		defaultSettings := core.GameSettings{
+			MaxPlayers:               8,
+			MinPlayers:               4,
+			SitrepDuration:           time.Minute * 2,
+			PulseCheckDuration:       time.Minute * 1,
+			DiscussionDuration:       time.Minute * 5,
+			ExtensionDuration:        time.Minute * 2,
+			NominationDuration:       time.Minute * 2,
+			TrialDuration:            time.Minute * 3,
+			VerdictDuration:          time.Minute * 2,
+			NightDuration:            time.Minute * 2,
+			StartingTokens:           10,
+			VotingThreshold:          0.5,
+			InitialAlignedHumanCount: 0,
+			PlayAsAI:                 false,
+		}
+		lobby = NewLobby(lobbyID, lobbyName, hostToken.PlayerID, playerActor, hostToken.IsPrivate, defaultSettings)
 		lobby.Status = "WAITING" // Host is connected, so it's waiting for players
 		lm.lobbies[lobbyID] = lobby
 		log.Printf("[LobbyManager] Created lobby %s for player %s", lobbyID, playerID)

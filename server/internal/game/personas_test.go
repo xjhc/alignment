@@ -274,7 +274,7 @@ func TestAssignPersonas_DecoupledNamesAndRoles(t *testing.T) {
 		InitialAlignedHumanCount: 2,
 	}
 
-	// Run assignment multiple times with different seeds to verify randomization
+	// Run multiple assignments to show randomization
 	var allAssignments []map[string]PersonaAssignment
 	for seed := int64(1); seed <= 5; seed++ {
 		rng := rand.New(rand.NewSource(seed))
@@ -319,7 +319,7 @@ func TestAssignPersonas_DecoupledNamesAndRoles(t *testing.T) {
 			rolePool := GetRolePool()
 			expectedJobTitle := rolePool[assignment.Persona.Role]
 			if assignment.Persona.JobTitle != expectedJobTitle {
-				t.Errorf("Run %d: Job title mismatch for role %s. Expected: %s, Got: %s", 
+				t.Errorf("Run %d: Job title mismatch for role %s. Expected: %s, Got: %s",
 					runIndex+1, assignment.Persona.Role, expectedJobTitle, assignment.Persona.JobTitle)
 			}
 

@@ -1,8 +1,8 @@
-import { v4 as uuidv4 } from 'uuid';
-import type { UserIdentity } from '../types';
+import { v4 as uuidv4 } from "uuid";
+import type { UserIdentity } from "../types";
 
-const GUEST_ID_KEY = 'alignment_guest_id';
-const GUEST_PROFILE_KEY = 'alignment_guest_profile';
+const GUEST_ID_KEY = "alignment_guest_id";
+const GUEST_PROFILE_KEY = "alignment_guest_profile";
 
 export interface GuestProfile {
   id: string;
@@ -17,12 +17,12 @@ export interface GuestProfile {
  */
 export function getOrCreateGuestId(): string {
   let guestId = localStorage.getItem(GUEST_ID_KEY);
-  
+
   if (!guestId) {
     guestId = `guest:${uuidv4()}`;
     localStorage.setItem(GUEST_ID_KEY, guestId);
   }
-  
+
   return guestId;
 }
 
@@ -34,7 +34,7 @@ export function getGuestProfile(): GuestProfile | null {
   if (!profileData) {
     return null;
   }
-  
+
   try {
     return JSON.parse(profileData);
   } catch {
@@ -47,18 +47,22 @@ export function getGuestProfile(): GuestProfile | null {
 /**
  * Updates the guest profile with new information
  */
-export function updateGuestProfile(profile: Partial<Omit<GuestProfile, 'id'>>): GuestProfile {
+export function updateGuestProfile(
+  profile: Partial<Omit<GuestProfile, "id">>
+): GuestProfile {
   const guestId = getOrCreateGuestId();
   const existingProfile = getGuestProfile();
-  
+
   const updatedProfile: GuestProfile = {
     id: guestId,
-    name: profile.name || existingProfile?.name || '',
-    avatar: profile.avatar || existingProfile?.avatar || '👤',
+    // If a name is provided, use it. Otherwise, generate a guest name.
+    // This enforces that guest logins (which won't provide a name) get a generated name.
+    name: profile.name || `Guest#${guestId.substring(6, 10)}`,
+    avatar: profile.avatar || existingProfile?.avatar || "👤",
     createdAt: existingProfile?.createdAt || new Date().toISOString(),
     gamesPlayed: profile.gamesPlayed ?? existingProfile?.gamesPlayed ?? 0,
   };
-  
+
   localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(updatedProfile));
   return updatedProfile;
 }
@@ -77,7 +81,7 @@ export function clearGuestIdentity(): void {
 export function getCurrentUserIdentity(): UserIdentity | null {
   // TODO: Check for authenticated user first when auth is implemented
   const guestProfile = getGuestProfile();
-  
+
   if (guestProfile && guestProfile.name) {
     return {
       id: guestProfile.id,
@@ -86,7 +90,7 @@ export function getCurrentUserIdentity(): UserIdentity | null {
       isAuthenticated: false,
     };
   }
-  
+
   return null;
 }
 
@@ -98,7 +102,7 @@ export function getUserIdForApi(): string {
   if (userIdentity) {
     return userIdentity.id;
   }
-  
+
   // Fallback to just the guest ID if no profile exists yet
   return getOrCreateGuestId();
 }

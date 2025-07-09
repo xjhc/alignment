@@ -464,6 +464,7 @@ type GameSettings struct {
 	StartingTokens           int                    `json:"startingTokens"`
 	VotingThreshold          float64                `json:"votingThreshold"`
 	InitialAlignedHumanCount int                    `json:"initialAlignedHumanCount"`
+	PlayAsAI                 bool                   `json:"playAsAI"`
 	CustomSettings           map[string]interface{} `json:"customSettings,omitempty"`
 }
 

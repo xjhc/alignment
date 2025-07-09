@@ -48,7 +48,7 @@ build-frontend:
 
 build-simulator:
 	@echo ">>> Building game simulator..."
-	@cd simulator && go build -o ../simulator-bin ./cmd/simulator/
+	@cd cmd/simulator && go build -o ../../simulator-bin .
 
 # ==============================================================================
 # CLEAN

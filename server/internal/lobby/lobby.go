@@ -11,50 +11,53 @@ import (
 
 // LobbyStateUpdate represents lobby state changes
 type LobbyStateUpdate struct {
-	LobbyID   string
-	Players   []PlayerInfo
-	HostID    string
-	CanStart  bool
-	LobbyName string
+	LobbyID      string
+	Players      []PlayerInfo
+	HostID       string
+	CanStart     bool
+	LobbyName    string
+	GameSettings core.GameSettings
 }
 
 // Lobby represents a pre-game waiting room as a simple data structure
 type Lobby struct {
-	ID           string
-	Name         string
-	HostPlayerID string
-	Players      map[string]interfaces.PlayerActorInterface // Map of playerID -> PlayerActor
-	PlayerJoinTimes map[string]time.Time // Map of playerID -> join timestamp
-	MaxPlayers   int
-	MinPlayers   int
-	CreatedAt    time.Time
-	LastActivity time.Time // Tracks when any player last joined or left
-	Status       string
-	IsPrivate    bool // If true, lobby won't appear in public listings
-	mutex        sync.RWMutex
+	ID              string
+	Name            string
+	HostPlayerID    string
+	Players         map[string]interfaces.PlayerActorInterface // Map of playerID -> PlayerActor
+	PlayerJoinTimes map[string]time.Time                   // Map of playerID -> join timestamp
+	MaxPlayers      int
+	MinPlayers      int
+	CreatedAt       time.Time
+	LastActivity    time.Time // Tracks when any player last joined or left
+	Status          string
+	IsPrivate       bool // If true, lobby won't appear in public listings
+	GameSettings    core.GameSettings
+	mutex           sync.RWMutex
 }
 
 // NewLobby creates a new lobby with the host player
-func NewLobby(id, name, hostPlayerID string, hostActor interfaces.PlayerActorInterface, isPrivate bool) *Lobby {
+func NewLobby(id, name, hostPlayerID string, hostActor interfaces.PlayerActorInterface, isPrivate bool, settings core.GameSettings) *Lobby {
 	players := make(map[string]interfaces.PlayerActorInterface)
 	players[hostPlayerID] = hostActor
-	
+
 	playerJoinTimes := make(map[string]time.Time)
 	now := time.Now()
 	playerJoinTimes[hostPlayerID] = now
 
 	return &Lobby{
-		ID:           id,
-		Name:         name,
-		HostPlayerID: hostPlayerID,
-		Players:      players,
+		ID:              id,
+		Name:            name,
+		HostPlayerID:    hostPlayerID,
+		Players:         players,
 		PlayerJoinTimes: playerJoinTimes,
-		MaxPlayers:   8,
-		MinPlayers:   2,
-		CreatedAt:    now,
-		LastActivity: now,
-		Status:       "WAITING",
-		IsPrivate:    isPrivate,
+		MaxPlayers:      8,
+		MinPlayers:      2,
+		CreatedAt:       now,
+		LastActivity:    now,
+		Status:          "WAITING",
+		IsPrivate:       isPrivate,
+		GameSettings:    settings,
 	}
 }
 
@@ -76,11 +79,12 @@ func (l *Lobby) createStateUpdate_unsafe() LobbyStateUpdate {
 	}
 
 	return LobbyStateUpdate{
-		LobbyID:   l.ID,
-		Players:   infos,
-		HostID:    l.HostPlayerID,
-		CanStart:  len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN"),
-		LobbyName: l.Name,
+		LobbyID:      l.ID,
+		Players:      infos,
+		HostID:       l.HostPlayerID,
+		CanStart:     len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN"),
+		LobbyName:    l.Name,
+		GameSettings: l.GameSettings,
 	}
 }
 
@@ -201,25 +205,27 @@ func (l *Lobby) broadcastStateUpdate() {
 	}
 
 	update := LobbyStateUpdate{
-		LobbyID:   l.ID,
-		Players:   playerInfos,
-		HostID:    l.HostPlayerID,
-		CanStart:  len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN"),
-		LobbyName: l.Name,
+		LobbyID:      l.ID,
+		Players:      playerInfos,
+		HostID:       l.HostPlayerID,
+		CanStart:     len(l.Players) >= l.MinPlayers && (l.Status == "WAITING" || l.Status == "COUNTDOWN"),
+		LobbyName:    l.Name,
+		GameSettings: l.GameSettings,
 	}
 
 	// This event is now a struct, not a core.Event
 	// We'll wrap it in a core.Event for consistency
 	event := core.Event{
-		Type: "LOBBY_STATE_UPDATE",
-		GameID: l.ID,
+		Type:      "LOBBY_STATE_UPDATE",
+		GameID:    l.ID,
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"lobby_id": update.LobbyID,
-			"players": update.Players,
-			"host_id": update.HostID,
-			"can_start": update.CanStart,
-			"name": update.LobbyName,
+			"lobby_id":       update.LobbyID,
+			"players":        update.Players,
+			"host_id":        update.HostID,
+			"can_start":      update.CanStart,
+			"name":           update.LobbyName,
+			"game_settings":  update.GameSettings,
 		},
 	}
 
@@ -258,6 +264,14 @@ func (l *Lobby) Unlock() {
 	 l.mutex.Unlock()
 }
 
+func (l *Lobby) RLock() {
+	 l.mutex.RLock()
+}
+
+func (l *Lobby) RUnlock() {
+	 l.mutex.RUnlock()
+}
+
 // TransferHostToNextPlayer transfers host to the player who joined earliest (excluding current host)
 // Returns the new host player ID, or empty string if no other players exist
 // NOTE: This method assumes the caller already holds the lobby lock
@@ -268,7 +282,7 @@ func (l *Lobby) TransferHostToNextPlayer() string {
 
 	var earliestJoinTime time.Time
 	var newHostID string
-	
+
 	// Find the player (excluding current host) who joined earliest
 	for playerID, joinTime := range l.PlayerJoinTimes {
 		if playerID == l.HostPlayerID {
@@ -282,11 +296,11 @@ func (l *Lobby) TransferHostToNextPlayer() string {
 			newHostID = playerID
 		}
 	}
-	
+
 	if newHostID != "" {
 		l.HostPlayerID = newHostID
 	}
-	
+
 	return newHostID
 }
 
