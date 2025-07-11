@@ -34,6 +34,7 @@ Time is critical. Trust no one. The AI walks among us.
 ### **2. Game Overview**
 
 *   **Players:** 8-10
+*   **Spectators:** 1-10 (Optional)
 *   **Factions & Victory:**
     *   **[Human Faction](./glossary.md#human-faction):** Includes all Humans.
         *   **Victory Condition:** Identify and vote to deactivate the **[Original AI](./glossary.md#original-ai)** (achieving **Containment**).
@@ -43,6 +44,23 @@ Time is critical. Trust no one. The AI walks among us.
     *   `#war-room`: Main channel for all game discussion.
     *   `#aligned`: Secret channel for the AI and Aligned players. Invisible to Humans.
     *   `#off-boarding`: A spectator channel for deactivated players. Can view `#war-room`, but cannot participate.
+    *   **`#spectators` (New):** A public channel for spectators to chat amongst themselves without disturbing the players. Invisible to active players.
+
+---
+
+### **2.2 Spectator Mode**
+
+Players may join a game that is already in progress as a **Spectator**. Spectators are passive observers and are not part of the game itself.
+
+*   **Joining:** Users can join a running game from the main lobby list by clicking a "Spectate" button.
+*   **Visibility:**
+    *   Spectators can see all public information: the `#war-room` chat, player token counts, phase changes, and final deactivation reveals.
+    *   Spectators **cannot** see any private or factional information, including player roles, alignments, KPIs, or the contents of the `#aligned` channel.
+    *   The list of spectators is visible to other spectators, but **not** to active players.
+*   **Interaction:**
+    *   Spectators have their own dedicated chat channel: `#spectators`.
+    *   Spectators **cannot** chat in the `#war-room`, vote, or perform any game actions.
+*   **Leaving:** A spectator can leave the game at any time to return to the lobby list.
 
 ---
 

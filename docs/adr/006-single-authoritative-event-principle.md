@@ -1,7 +1,6 @@
 # ADR-006: Enforce "Single Authoritative Event" Pattern Across All Game Actions
 
-*   **Status:** Accepted
-*   **Supersedes:** Dual-event emission pattern with granular and aggregate events
+- **Supersedes:** Dual-event emission pattern with granular and aggregate events
 
 ## Context
 
@@ -27,6 +26,7 @@ We will formally adopt and enforce the **"Single, Authoritative Event"** princip
 ### Specific Implementation:
 
 #### 1. Voting System Refactoring
+
 - **Deprecated:** `VOTE_CAST` event for individual votes
 - **Enhanced:** `VOTE_TALLY_UPDATED` event with comprehensive payload including:
   - Complete vote tallies and token weights
@@ -35,6 +35,7 @@ We will formally adopt and enforce the **"Single, Authoritative Event"** princip
   - The specific voter and target that triggered the update
 
 #### 2. Night Action Resolution Refactoring
+
 - **Eliminated:** Granular events (`EventPlayerBlocked`, `EventMiningSuccessful`, etc.)
 - **Enhanced:** `EventNightActionsResolved` with structured payload containing:
   - Categorized results (blocked players, mining results, conversions, etc.)
@@ -43,7 +44,8 @@ We will formally adopt and enforce the **"Single, Authoritative Event"** princip
   - Complete outcome information for deterministic client rendering
 
 #### 3. System Message Replacement
-- **Deprecated:** Generic `EventSystemMessage` 
+
+- **Deprecated:** Generic `EventSystemMessage`
 - **Implemented:** Specific semantic events:
   - `EventClientError` - Client-side error notifications
   - `EventLiaisonProtocolActivated` - LIAISON protocol activation
@@ -53,6 +55,7 @@ We will formally adopt and enforce the **"Single, Authoritative Event"** princip
   - `EventGameRuleModified` - Dynamic rule changes
 
 #### 4. Shared Contract Updates
+
 - All new event types added to `core/events.go` for contract validation
 - Updated `EventTypeValues` array for automated tooling
 - Maintained backward compatibility during transition
@@ -60,6 +63,7 @@ We will formally adopt and enforce the **"Single, Authoritative Event"** princip
 ## Consequences
 
 ### Pros:
+
 - **Eliminates Race Conditions:** Single events prevent timing issues between multiple event emissions
 - **Improved Debugging:** Clear cause-and-effect relationship between actions and state changes
 - **Reduced Client Complexity:** Clients only need to handle one authoritative event per action
@@ -68,6 +72,7 @@ We will formally adopt and enforce the **"Single, Authoritative Event"** princip
 - **Easier Testing:** Mock single events instead of coordinating multiple event sequences
 
 ### Cons:
+
 - **Migration Effort:** Required refactoring existing dual-event patterns
 - **Larger Event Payloads:** Single events may contain more data than granular events
 - **Learning Curve:** Developers must understand the single-event constraint
@@ -75,7 +80,7 @@ We will formally adopt and enforce the **"Single, Authoritative Event"** princip
 ### Implementation Benefits Achieved:
 
 1. **Voting System:** Client state is now updated atomically with complete vote information
-2. **Night Resolution:** Deterministic rendering of night outcomes without coordination issues  
+2. **Night Resolution:** Deterministic rendering of night outcomes without coordination issues
 3. **Error Handling:** Type-safe error events with structured error codes and retry logic
 4. **Protocol Events:** Semantic events for liaison protocol with proper state tracking
 

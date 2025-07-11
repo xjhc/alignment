@@ -1,11 +1,10 @@
 import { useSessionContext } from "../contexts/SessionContext";
 import { Button } from "./ui";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { InviteFriendsModal } from "./InviteFriendsModal";
 import { PlayerProfile } from "./PlayerProfile";
 import { GameRulesSummary } from "./GameRulesSummary";
 import { RoleAssignmentPreview } from "./RoleAssignmentPreview";
-import { ReconnectionOverlay } from "./ReconnectionOverlay";
 import { ConnectionQualityIndicator } from "./ConnectionQualityIndicator";
 
 export function WaitingScreen() {
@@ -36,7 +35,6 @@ export function WaitingScreen() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [showGameRules, setShowGameRules] = useState(false);
   const [showRolePreview, setShowRolePreview] = useState(false);
-  const [showReconnectionOverlay, setShowReconnectionOverlay] = useState(true);
   const [lobbySettings, setLobbySettings] = useState(() => ({
     name: lobbyName,
     maxPlayers: maxPlayers,
@@ -46,7 +44,7 @@ export function WaitingScreen() {
   }));
 
   const formatGameId = (id: string) => {
-    return id.substring(0, 6);
+    return id ? id.substring(0, 6) : "unknown";
   };
 
   const copyInviteLink = async () => {
@@ -100,7 +98,10 @@ export function WaitingScreen() {
     if (gameSettings?.playAsAI) {
       settings.push({ icon: "🤖", label: "Play as AI", color: "ai" });
     }
-    if (gameSettings?.initialAlignedHumanCount > 0) {
+    if (
+      gameSettings?.initialAlignedHumanCount &&
+      gameSettings.initialAlignedHumanCount > 0
+    ) {
       settings.push({
         icon: "🕵️",
         label: `+${gameSettings.initialAlignedHumanCount} Aligned`,
@@ -148,7 +149,8 @@ export function WaitingScreen() {
               </Button>
             </div>
             <p className="text-xs text-text-muted mt-4 text-center">
-              If the lobby has ended or expired, try logging out and starting fresh
+              If the lobby has ended or expired, try logging out and starting
+              fresh
             </p>
           </div>
         </div>
@@ -195,6 +197,8 @@ export function WaitingScreen() {
     );
   }
 
+  // Render the lobby UI directly. The player list will be populated reactively.
+  // The ReconnectionOverlay will handle the "syncing" state for session restores.
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-background-primary to-background-secondary">
@@ -255,56 +259,29 @@ export function WaitingScreen() {
                   </span>
                   <span className="flex items-center gap-1">
                     <span className="text-base">👥</span>
-                    {playerInfos.length} / {maxPlayers} Personnel
+                    {playerInfos?.length || 0} / {maxPlayers} Personnel
                   </span>
                 </div>
-                {(!lobbyName || (lobbyName && isConnected && playerInfos.length === 0)) && (
+                {(!lobbyName ||
+                  (lobbyName &&
+                    isConnected &&
+                    (playerInfos?.length || 0) === 0)) && (
                   <div className="mt-3 p-3 bg-amber/10 border border-amber/30 rounded-lg">
                     <div className="text-xs text-amber space-y-2">
                       <div className="flex items-center gap-2">
                         <div className="animate-spin rounded-full h-3 w-3 border border-amber border-t-transparent"></div>
                         <span>
-                          {!lobbyName 
-                            ? "Connecting to lobby..." 
-                            : "Synchronizing player list..."
-                          }
+                          {!lobbyName
+                            ? "Connecting to lobby..."
+                            : "Synchronizing player list..."}
                         </span>
                       </div>
                       <div className="text-amber/80">
-                        {!isConnected 
+                        {!isConnected
                           ? "⏳ Establishing connection to server..."
-                          : !lobbyName 
-                          ? "✓ Connected to server, waiting for lobby information..."
-                          : "✓ Connected to lobby, waiting for player information..."
-                        }
-                      </div>
-                      <div className="text-amber/70">
-                        {lobbyName && playerInfos.length === 0 
-                          ? (
-                            <div className="space-y-2">
-                              <div>If you just reconnected, the player list may take a moment to sync.</div>
-                              <div className="flex gap-2">
-                                <Button
-                                  onClick={() => window.location.reload()}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-xs text-amber hover:bg-amber/10 border border-amber/30"
-                                >
-                                  🔄 Refresh Page
-                                </Button>
-                                <Button
-                                  onClick={onLeaveLobby}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-xs text-danger hover:bg-danger/10 border border-danger/30"
-                                >
-                                  Leave Lobby
-                                </Button>
-                              </div>
-                            </div>
-                          )
-                          : "If this takes more than 10 seconds, the lobby may no longer exist. Use the \"Leave Lobby\" button above to return to the lobby list."
-                        }
+                          : !lobbyName
+                            ? "✓ Connected to server, waiting for lobby information..."
+                            : "✓ Connected to lobby, waiting for player information..."}
                       </div>
                     </div>
                   </div>
@@ -383,7 +360,7 @@ export function WaitingScreen() {
                   Personnel Connected
                 </h3>
                 <div className="space-y-3">
-                  {[...playerInfos]
+                  {[...(playerInfos || [])]
                     .sort(
                       (a, b) =>
                         new Date(a.joinedAt).getTime() -
@@ -397,11 +374,15 @@ export function WaitingScreen() {
                       >
                         <div
                           className={`w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-lg border border-primary/30 cursor-pointer hover:border-primary transition-colors relative ${
-                            playerInfo.connectionStatus === 'DISCONNECTED' ? 'opacity-50 grayscale' : ''
+                            playerInfo.connectionStatus === "DISCONNECTED"
+                              ? "opacity-50 grayscale"
+                              : ""
                           }`}
                           onClick={() => setSelectedPlayerId(playerInfo.id)}
                         >
-                          {playerInfo.connectionStatus === 'DISCONNECTED' ? '🔌' : (playerInfo.avatar || "👤")}
+                          {playerInfo.connectionStatus === "DISCONNECTED"
+                            ? "🔌"
+                            : playerInfo.avatar || "👤"}
                           {playerInfo.id === hostId && (
                             <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber rounded-full flex items-center justify-center border-2 border-background-primary">
                               <span className="text-xs">👑</span>
@@ -412,7 +393,9 @@ export function WaitingScreen() {
                           <div className="flex items-center gap-2">
                             <span
                               className={`font-semibold cursor-pointer hover:text-primary transition-colors ${
-                                playerInfo.connectionStatus === 'DISCONNECTED' ? 'text-text-muted' : 'text-text-primary'
+                                playerInfo.connectionStatus === "DISCONNECTED"
+                                  ? "text-text-muted"
+                                  : "text-text-primary"
                               }`}
                               onClick={() => setSelectedPlayerId(playerInfo.id)}
                             >
@@ -428,19 +411,22 @@ export function WaitingScreen() {
                                 You
                               </span>
                             )}
-                            {playerInfo.connectionStatus === 'DISCONNECTED' && (
+                            {playerInfo.connectionStatus === "DISCONNECTED" && (
                               <span className="text-xs px-2 py-0.5 bg-gray-500/20 text-gray-500 rounded-full">
                                 🔌 Disconnected
                               </span>
                             )}
                           </div>
-                          <div className={`text-xs ${
-                            playerInfo.connectionStatus === 'DISCONNECTED' ? 'text-gray-500' : 'text-text-muted'
-                          }`}>
-                            {playerInfo.connectionStatus === 'DISCONNECTED' 
-                              ? '🔌 DISCONNECTED' 
-                              : 'Emergency Response Agent'
-                            }
+                          <div
+                            className={`text-xs ${
+                              playerInfo.connectionStatus === "DISCONNECTED"
+                                ? "text-gray-500"
+                                : "text-text-muted"
+                            }`}
+                          >
+                            {playerInfo.connectionStatus === "DISCONNECTED"
+                              ? "🔌 DISCONNECTED"
+                              : "Emergency Response Agent"}
                           </div>
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -573,7 +559,10 @@ export function WaitingScreen() {
                     ))}
                   {/* Empty Slots */}
                   {Array.from({
-                    length: Math.max(0, maxPlayers - playerInfos.length),
+                    length: Math.max(
+                      0,
+                      maxPlayers - (playerInfos?.length || 0)
+                    ),
                   }).map((_, index) => (
                     <div
                       key={`empty-${index}`}
@@ -603,7 +592,7 @@ export function WaitingScreen() {
                 <h3 className="text-lg font-bold text-text-primary mb-4">
                   {isHost ? "Host Control" : "Game Status"}
                 </h3>
-                
+
                 {isHost ? (
                   <div className="space-y-4">
                     <div className="p-4 bg-amber/10 border border-amber/30 rounded-xl">
@@ -617,21 +606,23 @@ export function WaitingScreen() {
                         You control when the game starts and can manage players
                       </p>
                     </div>
-                    
+
                     <Button
                       variant="primary"
                       size="lg"
                       onClick={onStartGame}
-                      disabled={!canStart || !isConnected || countdown?.isActive}
+                      disabled={
+                        !canStart || !isConnected || countdown?.isActive
+                      }
                       className="w-full text-sm font-semibold bg-amber hover:enabled:bg-amber-light text-black"
                     >
                       {countdown?.isActive
                         ? "INITIATING PROTOCOL..."
                         : canStart
-                        ? "🚀 INITIATE CONTAINMENT PROTOCOL"
-                        : `NEED ${Math.max(0, 4 - playerInfos.length)} MORE PLAYERS`}
+                          ? "🚀 INITIATE CONTAINMENT PROTOCOL"
+                          : `NEED ${Math.max(0, 4 - (playerInfos?.length || 0))} MORE PLAYERS`}
                     </Button>
-                    
+
                     {!canStart && (
                       <div className="text-xs text-text-muted text-center">
                         Minimum 4 players required to start
@@ -670,7 +661,7 @@ export function WaitingScreen() {
                       </label>
                       <input
                         type="text"
-                        value={lobbySettings.name}
+                        value={lobbySettings.name || ""}
                         onChange={(e) =>
                           setLobbySettings((prev) => ({
                             ...prev,
@@ -681,13 +672,13 @@ export function WaitingScreen() {
                         placeholder="Enter lobby name..."
                       />
                     </div>
-                    
+
                     <div>
                       <label className="block text-xs text-text-muted uppercase font-medium mb-2">
                         Max Players
                       </label>
                       <select
-                        value={lobbySettings.maxPlayers}
+                        value={lobbySettings.maxPlayers || 8}
                         onChange={(e) =>
                           setLobbySettings((prev) => ({
                             ...prev,
@@ -705,7 +696,7 @@ export function WaitingScreen() {
                         <option value={10}>10 Players</option>
                       </select>
                     </div>
-                    
+
                     <div className="pt-2 border-t border-border">
                       <div className="flex gap-2">
                         <Button
@@ -808,11 +799,7 @@ export function WaitingScreen() {
       <RoleAssignmentPreview
         isVisible={showRolePreview}
         onClose={() => setShowRolePreview(false)}
-        playerCount={playerInfos.length}
-      />
-      <ReconnectionOverlay
-        show={showReconnectionOverlay}
-        onDismiss={() => setShowReconnectionOverlay(false)}
+        playerCount={playerInfos?.length || 0}
       />
     </>
   );

@@ -27,7 +27,7 @@ export const PlayerHUD: React.FC = () => {
   const isViewingSelf = viewedPlayer?.id === localPlayer?.id;
   const canAbandonGame = gameState.phase?.type !== 'LOBBY' && gameState.phase?.type !== 'GAME_OVER' && localPlayer?.isAlive && isViewingSelf;
 
-  const headerTitle = isViewingSelf ? 'My Terminal' : `${viewedPlayer.name}'s Dossier`;
+  const headerTitle = isViewingSelf ? 'My Terminal' : `${viewedPlayer?.name || 'Unknown'}'s Dossier`;
 
   return (
     <aside className="flex flex-col bg-background-secondary overflow-hidden">

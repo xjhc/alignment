@@ -11,22 +11,25 @@ import { CreateGameModal } from "./CreateGameModal";
 interface LobbyListScreenProps {
   playerName: string;
   playerAvatar?: string;
-  onJoinLobby: (gameId: string, playerId: string, sessionToken: string) => void;
+  onJoinLobby: (gameId: string, playerId: string, sessionToken: string, lobbyName?: string) => void;
   onCreateGame: (
     gameId: string,
     playerId: string,
     sessionToken: string
   ) => void;
+  onSpectateGame: (gameId: string, playerId: string, sessionToken: string, lobbyName?: string) => void;
   onBack: () => void;
 }
 
 function LobbyCard({
   lobby,
   onJoin,
+  onSpectate,
   joinCooldowns,
 }: {
   lobby: LobbyInfo;
   onJoin: (id: string) => void;
+  onSpectate: (id: string) => void;
   joinCooldowns: Record<string, number>;
 }) {
   const now = Date.now();
@@ -99,35 +102,65 @@ function LobbyCard({
             )}
           </div>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => onJoin(lobby.id)}
-          disabled={!lobby.can_join || inCooldown}
-          className={`text-sm font-medium transition-all duration-200 ${
-            inCooldown 
-              ? 'cursor-not-allowed opacity-50' 
-              : lobby.can_join 
-                ? 'hover:shadow-md group-hover:bg-primary-dark' 
-                : 'cursor-not-allowed opacity-50'
-          }`}
-          title={
-            inCooldown
-              ? `Please wait ${remainingSeconds}s`
-              : !lobby.can_join
-                ? "Lobby is full or in progress"
-                : `Join ${lobby.name}`
-          }
-        >
-          {inCooldown ? (
-            <span className="flex items-center gap-1">
-              <span className="animate-spin">⏳</span>
-              {remainingSeconds}s
-            </span>
-          ) : (
-            "Join"
-          )}
-        </Button>
+        {lobby.status === "IN_PROGRESS" ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => onSpectate(lobby.id)}
+            disabled={inCooldown}
+            className={`text-sm font-medium transition-all duration-200 ${
+              inCooldown 
+                ? 'cursor-not-allowed opacity-50' 
+                : 'hover:shadow-md group-hover:bg-secondary-dark'
+            }`}
+            title={
+              inCooldown
+                ? `Please wait ${remainingSeconds}s`
+                : `Spectate ${lobby.name}`
+            }
+          >
+            {inCooldown ? (
+              <span className="flex items-center gap-1">
+                <span className="animate-spin">⏳</span>
+                {remainingSeconds}s
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                👁️ Spectate
+              </span>
+            )}
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => onJoin(lobby.id)}
+            disabled={!lobby.can_join || inCooldown}
+            className={`text-sm font-medium transition-all duration-200 ${
+              inCooldown 
+                ? 'cursor-not-allowed opacity-50' 
+                : lobby.can_join 
+                  ? 'hover:shadow-md group-hover:bg-primary-dark' 
+                  : 'cursor-not-allowed opacity-50'
+            }`}
+            title={
+              inCooldown
+                ? `Please wait ${remainingSeconds}s`
+                : !lobby.can_join
+                  ? "Lobby is full or in progress"
+                  : `Join ${lobby.name}`
+            }
+          >
+            {inCooldown ? (
+              <span className="flex items-center gap-1">
+                <span className="animate-spin">⏳</span>
+                {remainingSeconds}s
+              </span>
+            ) : (
+              "Join"
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -138,6 +171,7 @@ export function LobbyListScreen({
   playerAvatar,
   onJoinLobby,
   onCreateGame,
+  onSpectateGame,
   onBack,
 }: LobbyListScreenProps) {
   const [lobbies, setLobbies] = useState<LobbyInfo[]>([]);
@@ -336,6 +370,64 @@ export function LobbyListScreen({
     }
   };
 
+  const handleSpectateGame = async (gameId: string) => {
+    try {
+      setError(null);
+      const now = Date.now();
+      const cooldownEnd = joinCooldowns[gameId];
+      if (cooldownEnd && now < cooldownEnd) {
+        const remainingSeconds = Math.ceil((cooldownEnd - now) / 1000);
+        setError(
+          `Please wait ${remainingSeconds} seconds before trying to spectate this game again.`
+        );
+        return;
+      }
+
+      const userId = getUserIdForApi();
+      const response = await fetch(`/api/games/${gameId}/spectate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          spectator_name: playerName,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (
+          response.status === 409 &&
+          errorText.includes("already in an active game session")
+        ) {
+          setShowSessionConflict(true);
+        } else if (response.status === 429) {
+          setJoinCooldowns((prev) => ({ ...prev, [gameId]: now + 5000 }));
+          setError(
+            "Too many spectate attempts. Please wait a moment before trying again."
+          );
+          return;
+        }
+        throw new Error(errorText || "Failed to join as spectator");
+      }
+
+      setJoinCooldowns((prev) => {
+        const updated = { ...prev };
+        delete updated[gameId];
+        return updated;
+      });
+
+      const data = await response.json();
+      
+      // Find the lobby name from the current lobby list
+      const lobby = lobbies.find(l => l.id === gameId);
+      const lobbyName = lobby?.name || "";
+      
+      onSpectateGame(data.game_id, data.player_id, data.session_token, lobbyName);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to join as spectator");
+    }
+  };
+
   const handleCreateGame = async (
     settings: Partial<GameSettings> & { lobbyName: string }
   ) => {
@@ -513,6 +605,7 @@ export function LobbyListScreen({
                   key={lobby.id}
                   lobby={lobby}
                   onJoin={handleJoinLobby}
+                  onSpectate={handleSpectateGame}
                   joinCooldowns={joinCooldowns}
                 />
               ))}

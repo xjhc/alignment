@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChatMessage, GameState } from '../../types';
+import { ChatMessage, GameState, DailySitrep, SitrepSection } from '../../types';
 
 interface SitrepMessageProps {
   message: ChatMessage;
@@ -9,7 +9,56 @@ interface SitrepMessageProps {
 export const SitrepMessage: React.FC<SitrepMessageProps> = ({ message, gameState }) => {
   const metadata = message.metadata;
   
-  // Use structured night action results from game state, falling back to old metadata approach
+  // Check if this is a new SITREP_PUBLISHED event with structured DailySitrep
+  const dailySitrep = metadata?.daily_sitrep as DailySitrep;
+  
+  if (dailySitrep) {
+    // Render the new structured SITREP
+    return (
+      <div className="flex gap-3 p-3 bg-background-tertiary border border-border/30 rounded-lg mb-2">
+        <div className="w-8 h-8 rounded-full bg-ai text-white flex items-center justify-center text-sm">🤖</div>
+        <div className="flex-1">
+          <span className="text-ai font-mono font-bold text-sm">Loebmate</span>
+          <div className="text-text-primary bg-background-quaternary border border-border/20 rounded-lg p-3 mt-2 font-mono text-sm">
+            <div className="flex items-center justify-between mb-3">
+              <strong>DAILY SITREP - DAY {dailySitrep.day_number}</strong>
+              <span className={`px-2 py-1 text-xs rounded ${
+                dailySitrep.alert_level === 'CRITICAL' ? 'bg-danger text-danger-foreground' :
+                dailySitrep.alert_level === 'HIGH' ? 'bg-warning text-warning-foreground' :
+                dailySitrep.alert_level === 'ELEVATED' ? 'bg-info text-info-foreground' :
+                'bg-success text-success-foreground'
+              }`}>
+                {dailySitrep.alert_level}
+              </span>
+            </div>
+            
+            {dailySitrep.sections.map((section, index) => (
+              <div key={index} className="mb-4">
+                <strong>{section.title}</strong><br/>
+                <div className={`${
+                  section.type === 'classified' ? 'bg-warning/10 border-l-4 border-warning pl-3' :
+                  section.type === 'redacted' ? 'bg-danger/10 border-l-4 border-danger pl-3' :
+                  ''
+                }`}>
+                  {section.content.split('\n').map((line, lineIndex) => (
+                    <span key={lineIndex}>
+                      {line}<br/>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+            
+            <div className="text-xs text-text-secondary mt-4 pt-2 border-t border-border/20">
+              {dailySitrep.footer_note}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Fallback to legacy SITREP format
   const nightActionResults = gameState.nightActionResults || metadata?.nightActions || [];
   
   const players = gameState?.players || [];

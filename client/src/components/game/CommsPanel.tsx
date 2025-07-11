@@ -5,6 +5,7 @@ import { ContextualInputArea } from "./ContextualInputArea";
 import { SitrepMessage } from "./SitrepMessage";
 import { VoteResultMessage } from "./VoteResultMessage";
 import { PulseCheckMessage } from "./PulseCheckMessage";
+import { PulseCheckResults } from "./PulseCheckResults";
 import { IncitingIncidentMessage } from "./IncitingIncidentMessage";
 import { LoebmateMessage } from "./LoebmateMessage";
 import { EmojiPicker } from "./EmojiPicker";
@@ -24,9 +25,10 @@ export const CommsPanel: React.FC = () => {
     handleEmojiReaction,
     pendingMessages,
     getPendingMessagesForChannel,
+    skipVoteState,
   } = useGameContext();
 
-  const timeRemaining = usePhaseTimer(gameState.phase);
+  const timeRemaining = usePhaseTimer(gameState?.phase);
   const { typingUsers } = useTypingIndicator();
 
   const [emojiPickerState, setEmojiPickerState] = useState<{
@@ -66,23 +68,31 @@ export const CommsPanel: React.FC = () => {
     }
   };
 
-  const phaseName = getPhaseDisplayName(gameState.phase.type);
+  const phaseName = getPhaseDisplayName(gameState?.phase?.type || "UNKNOWN");
 
-  const skipVotes = gameState.skipVotes || {};
-  const skipVoteCount = Object.keys(skipVotes).length;
-  const livingPlayers = Array.isArray(gameState.players)
-    ? gameState.players.filter((p) => p.isAlive)
-    : [];
-  // Skip phase requires unanimous consent from all living human players
-  const livingHumans = livingPlayers.filter((p) => p.controlType === "HUMAN");
-  const requiredVotes = livingHumans.length;
-  const hasLocalPlayerVoted = skipVotes[localPlayer.id] || false;
+  // Use real-time skip vote state when available, otherwise fallback to gameState
+  const skipVoteCount =
+    skipVoteState?.currentVotes ??
+    Object.keys(gameState?.skipVotes || {}).length;
+  const requiredVotes =
+    skipVoteState?.requiredVotes ??
+    (() => {
+      const livingPlayers = Array.isArray(gameState?.players)
+        ? gameState.players.filter((p) => p.isAlive)
+        : [];
+      const livingHumans = livingPlayers.filter(
+        (p) => p.controlType === "HUMAN"
+      );
+      return livingHumans.length;
+    })();
+  const hasLocalPlayerVoted =
+    (gameState?.skipVotes || {})[localPlayer.id] || false;
 
   const canShowSkipButton =
-    gameState.phase.type !== "TRIAL" &&
-    gameState.phase.type !== "GAME_OVER" &&
-    gameState.phase.type !== "LOBBY" &&
-    localPlayer.isAlive;
+    gameState?.phase?.type !== "TRIAL" &&
+    gameState?.phase?.type !== "GAME_OVER" &&
+    gameState?.phase?.type !== "LOBBY" &&
+    localPlayer?.isAlive;
 
   const filteredMessages = useMemo(() => {
     const messages =
@@ -106,6 +116,8 @@ export const CommsPanel: React.FC = () => {
         return "Private AI coordination • Encrypted";
       case "#off-boarding":
         return "Spectator discussion • Post-elimination";
+      case "#spectators":
+        return "Spectator discussion • Live viewing";
       default:
         return "Channel communication";
     }
@@ -131,7 +143,9 @@ export const CommsPanel: React.FC = () => {
   };
 
   const chatLogRef = React.useRef<HTMLDivElement>(null);
-  const currentChannelPendingMessages = getPendingMessagesForChannel ? getPendingMessagesForChannel(activeChannel) : [];
+  const currentChannelPendingMessages = getPendingMessagesForChannel
+    ? getPendingMessagesForChannel(activeChannel)
+    : [];
 
   React.useEffect(() => {
     if (chatLogRef.current) {
@@ -192,11 +206,7 @@ export const CommsPanel: React.FC = () => {
   };
 
   return (
-    <section className="bg-background-primary flex flex-col min-h-0 overflow-y-auto">
-      <div aria-live="assertive" aria-atomic="true" className="sr-only">
-        Current phase: {phaseName}
-      </div>
-
+    <section className="bg-background-primary flex flex-col h-full overflow-hidden">
       <header className="px-4 py-3 border-b border-border flex justify-between items-center flex-shrink-0">
         <div className="flex flex-col gap-0.5">
           <span className="font-mono font-bold text-text-primary text-sm">
@@ -208,7 +218,7 @@ export const CommsPanel: React.FC = () => {
         </div>
         <div className="flex flex-col items-end gap-1">
           <div
-            className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${getPhaseClass(gameState.phase.type)}`}
+            className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${getPhaseClass(gameState?.phase?.type || "UNKNOWN")}`}
             aria-label={`Current phase: ${phaseName}`}
           >
             {phaseName}
@@ -244,7 +254,7 @@ export const CommsPanel: React.FC = () => {
       </header>
 
       {/* Trial Phase Banner */}
-      {gameState.phase.type === "TRIAL" && gameState.nominatedPlayer && (
+      {gameState?.phase?.type === "TRIAL" && gameState?.nominatedPlayer && (
         <div className="bg-yellow-500/10 border-l-4 border-yellow-500 px-4 py-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -255,16 +265,22 @@ export const CommsPanel: React.FC = () => {
                 </div>
                 <div className="text-text-primary font-medium">
                   {(() => {
-                    const nominee = Array.isArray(gameState.players)
-                      ? gameState.players.find(p => p.id === gameState.nominatedPlayer)
-                      : Object.values(gameState.players || {}).find((p: any) => p.id === gameState.nominatedPlayer);
-                    return nominee ? nominee.name : 'Unknown Player';
+                    const nominee = Array.isArray(gameState?.players)
+                      ? gameState.players.find(
+                          (p) => p.id === gameState.nominatedPlayer
+                        )
+                      : Object.values(gameState?.players || {}).find(
+                          (p: any) => p.id === gameState?.nominatedPlayer
+                        );
+                    return nominee ? nominee.name : "Unknown Player";
                   })()}
                 </div>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-xs text-text-muted uppercase">Present Defense</div>
+              <div className="text-xs text-text-muted uppercase">
+                Present Defense
+              </div>
               <div className="font-mono font-bold text-yellow-600 dark:text-yellow-400 text-sm">
                 {timeRemaining}
               </div>
@@ -274,7 +290,7 @@ export const CommsPanel: React.FC = () => {
       )}
 
       <div
-        className="flex-1 p-4 overflow-y-auto flex flex-col gap-2 min-h-0"
+        className="flex-1 p-4 overflow-y-auto flex flex-col gap-2"
         ref={chatLogRef}
         role="log"
         aria-live="polite"
@@ -282,14 +298,15 @@ export const CommsPanel: React.FC = () => {
         aria-label={`Chat messages for ${activeChannel}`}
       >
         {activeChannel === "#off-boarding" &&
-          gameState.whistleblowerVoting?.isActive &&
-          !localPlayer.isAlive && (
+          gameState?.whistleblowerVoting?.isActive &&
+          !localPlayer?.isAlive && (
             <WhistleblowerVoting
               whistleblowerVoting={gameState.whistleblowerVoting}
-              localPlayerName={localPlayer.name}
+              localPlayerName={localPlayer?.name || "Unknown"}
               hasVoted={
-                gameState.whistleblowerVoting.votes[localPlayer.id] !==
-                undefined
+                gameState?.whistleblowerVoting?.votes?.[
+                  localPlayer?.id || ""
+                ] !== undefined
               }
             />
           )}
@@ -323,6 +340,12 @@ export const CommsPanel: React.FC = () => {
             return (
               <div key={msg.id || index}>
                 <PulseCheckMessage message={msg} gameState={gameState} />
+              </div>
+            );
+          if (msg.isSystem && msg.type === "PULSE_CHECK_RESULTS")
+            return (
+              <div key={msg.id || index}>
+                <PulseCheckResults message={msg} gameState={gameState} />
               </div>
             );
           if (msg.isSystem && msg.type === "INCITING_INCIDENT")
@@ -387,32 +410,39 @@ export const CommsPanel: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  {!msg.isSystem && (gameState.phase.type === "DISCUSSION" || gameState.phase.type === "TRIAL" || gameState.phase.type === "SITREP" || gameState.phase.type === "VERDICT") && (
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                      <button
-                        onClick={() =>
-                          startReply(
-                            msg.id || `${index}`,
-                            msg.playerName,
-                            msg.message
-                          )
-                        }
-                        className="text-xs text-text-muted hover:text-text-primary px-2 py-1 rounded hover:bg-background-tertiary"
-                        aria-label={`Reply to message from ${msg.playerName}`}
-                      >
-                        ↩️ Reply
-                      </button>
-                      <button
-                        onClick={(e) =>
-                          openEmojiPicker(msg.id || `${index}`, e.currentTarget)
-                        }
-                        className="text-xs text-text-muted hover:text-text-primary px-2 py-1 rounded hover:bg-background-tertiary"
-                        aria-label={`React to message from ${msg.playerName} with emoji`}
-                      >
-                        😊 React
-                      </button>
-                    </div>
-                  )}
+                  {!msg.isSystem &&
+                    (gameState.phase.type === "DISCUSSION" ||
+                      gameState.phase.type === "TRIAL" ||
+                      gameState.phase.type === "SITREP" ||
+                      gameState.phase.type === "VERDICT") && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                        <button
+                          onClick={() =>
+                            startReply(
+                              msg.id || `${index}`,
+                              msg.playerName,
+                              msg.message
+                            )
+                          }
+                          className="text-xs text-text-muted hover:text-text-primary px-2 py-1 rounded hover:bg-background-tertiary"
+                          aria-label={`Reply to message from ${msg.playerName}`}
+                        >
+                          ↩️ Reply
+                        </button>
+                        <button
+                          onClick={(e) =>
+                            openEmojiPicker(
+                              msg.id || `${index}`,
+                              e.currentTarget
+                            )
+                          }
+                          className="text-xs text-text-muted hover:text-text-primary px-2 py-1 rounded hover:bg-background-tertiary"
+                          aria-label={`React to message from ${msg.playerName} with emoji`}
+                        >
+                          😊 React
+                        </button>
+                      </div>
+                    )}
                 </div>
                 <div className="text-text-secondary text-sm leading-relaxed break-words mt-0.5">
                   {(() => {
@@ -503,12 +533,14 @@ export const CommsPanel: React.FC = () => {
         })}
       </div>
 
-      <TypingIndicator typingUsers={typingUsers} />
-      <ContextualInputArea
-        key={
-          localPlayer.hasSubmittedPulseCheck ? "chat-enabled" : "pulse-check"
-        }
-      />
+      <div className="flex-shrink-0">
+        <TypingIndicator typingUsers={typingUsers} />
+        <ContextualInputArea
+          key={
+            localPlayer.hasSubmittedPulseCheck ? "chat-enabled" : "pulse-check"
+          }
+        />
+      </div>
 
       <EmojiPicker
         isOpen={emojiPickerState.isOpen}

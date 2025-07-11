@@ -17,6 +17,7 @@ graph TD
         A -->|Session Token Found| E;
         B["Lobby List Screen"] -->|Clicks 'Create' or 'Join'| C;
         B -->|Clicks 'Logout'| A;
+        B -->|Clicks 'Spectate'| E_Spec["In-Game (Spectator)"];
     end
 
     subgraph "Lobby"
@@ -26,8 +27,13 @@ graph TD
 
     subgraph "Game"
         D["Role Reveal Screen"] -->|Clicks 'Enter War Room'| E;
-        E{In-Game<br>(Multiple Phases)} -->|Game Ends| F;
+        E{In-Game<br>(Player)} -->|Game Ends| F;
         E -->|Abandons Game| B;
+    end
+
+    subgraph "Spectate"
+      E_Spec -->|Clicks 'Leave'| B;
+      E_Spec -->|Game Ends| F;
     end
 
     subgraph "Post-Game"
@@ -42,6 +48,7 @@ graph TD
     style C fill:#f9f,stroke:#333,stroke-width:2px
     style D fill:#f9f,stroke:#333,stroke-width:2px
     style E fill:#ccf,stroke:#333,stroke-width:2px
+    style E_Spec fill:#ffc,stroke:#333,stroke-width:2px
     style F fill:#9f9,stroke:#333,stroke-width:2px
     style G fill:#9f9,stroke:#333,stroke-width:2px
 ```
@@ -80,6 +87,7 @@ graph TD
 | :--- | :--- | :--- | :--- | :--- |
 | **Create New Game** | Clicks "+ Create New Game". | Player has a handle. | Shows a loading state. On success, stores `game_id`, `player_id`, `session_token` and navigates to `/waiting`. | `POST /api/games`. |
 | **Join Existing Lobby**| Clicks "Join" on a lobby. | Lobby not full/in-progress. | Shows loading state. On success, stores credentials and navigates to `/waiting`. | `POST /api/games/{id}/join`. |
+| **Spectate Game**| Clicks "Spectate" on a running game. | Game is `IN_PROGRESS`. | Shows loading state. On success, stores credentials and navigates to `/game` in spectator view. | `POST /api/games/{id}/spectate` |
 | **Logout** | Clicks the "Logout" button. | None. | Clears all session data and navigates to `/login`. | None. |
 
 #### **A.3. Waiting Screen (Lobby) (`/waiting`)**
@@ -127,6 +135,16 @@ graph TD
 | :--- | :--- | :--- | :--- | :--- |
 | **Pre-Submit Action**| Interacts with the Night Action panel *during the Day Phase*. | None. | The UI allows selection and queueing of a night action. The choice is saved locally. | None. |
 | **Confirm Night Action**| Clicks "Lock In Action" button. | Night phase is active. | UI confirms the action is locked in for the night. | `SUBMIT_NIGHT_ACTION` with the chosen action type and target. |
+
+### B.4. Spectator Mode Actions
+
+*   **State Description:** Read-only view of an in-progress game. Spectators cannot affect the game but can observe and chat with other spectators.
+*   **Available Actions:**
+
+| Action | User Trigger | Preconditions | Client Effect | Server Action |
+| :--- | :--- | :--- | :--- | :--- |
+| **Send Spectator Chat**| Types in `#spectators` chat and sends. | Is a spectator. | Optimistically renders message in `#spectators` channel. | `POST_SPECTATOR_MESSAGE` (WebSocket) |
+| **Leave Game**| Clicks "Leave Game". | Is a spectator. | Disconnects WebSocket, clears session, navigates to `/lobby-list`. | Disconnect triggers removal from spectator list. |
 
 ---
 

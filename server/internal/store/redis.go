@@ -48,7 +48,7 @@ func (rds *RedisDataStore) Client() *redis.Client {
 }
 
 // AppendEvent appends an event to the game's Redis Stream (WAL)
-func (rds *RedisDataStore) AppendEvent(gameID string, event core.Event) error {
+func (rds *RedisDataStore) AppendEvent(ctx context.Context, gameID string, event core.Event) error {
 	streamKey := fmt.Sprintf("game:%s:events", gameID)
 
 	// Serialize event payload
@@ -68,7 +68,7 @@ func (rds *RedisDataStore) AppendEvent(gameID string, event core.Event) error {
 	}
 
 	// Add to stream
-	_, err = rds.client.XAdd(rds.ctx, &redis.XAddArgs{
+	_, err = rds.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: streamKey,
 		Values: fields,
 	}).Result()
@@ -78,13 +78,13 @@ func (rds *RedisDataStore) AppendEvent(gameID string, event core.Event) error {
 	}
 
 	// Set TTL on the stream (events expire after 7 days)
-	rds.client.Expire(rds.ctx, streamKey, 7*24*time.Hour)
+	rds.client.Expire(ctx, streamKey, 7*24*time.Hour)
 
 	return nil
 }
 
 // CreateSnapshot saves a complete game state snapshot
-func (rds *RedisDataStore) CreateSnapshot(gameID string, state core.GameState) error {
+func (rds *RedisDataStore) CreateSnapshot(ctx context.Context, gameID string, state core.GameState) error {
 	snapshotKey := fmt.Sprintf("game:%s:snapshot", gameID)
 
 	// Calculate and update checksum before saving
@@ -100,7 +100,7 @@ func (rds *RedisDataStore) CreateSnapshot(gameID string, state core.GameState) e
 	}
 
 	// Save snapshot
-	err = rds.client.Set(rds.ctx, snapshotKey, stateJSON, 7*24*time.Hour).Err()
+	err = rds.client.Set(ctx, snapshotKey, stateJSON, 7*24*time.Hour).Err()
 	if err != nil {
 		return fmt.Errorf("failed to save snapshot: %w", err)
 	}
@@ -116,19 +116,19 @@ func (rds *RedisDataStore) CreateSnapshot(gameID string, state core.GameState) e
 		"updated_at":    state.UpdatedAt.Unix(),
 	}
 
-	err = rds.client.HMSet(rds.ctx, metaKey, metadata).Err()
+	err = rds.client.HMSet(ctx, metaKey, metadata).Err()
 	if err != nil {
 		return fmt.Errorf("failed to save metadata: %w", err)
 	}
 
-	rds.client.Expire(rds.ctx, metaKey, 7*24*time.Hour)
+	rds.client.Expire(ctx, metaKey, 7*24*time.Hour)
 
 	log.Printf("Saved snapshot for game %s", gameID)
 	return nil
 }
 
 // LoadEvents loads events from Redis Stream after a specific sequence
-func (rds *RedisDataStore) LoadEvents(gameID string, afterSequence int) ([]core.Event, error) {
+func (rds *RedisDataStore) LoadEvents(ctx context.Context, gameID string, afterSequence int) ([]core.Event, error) {
 	streamKey := fmt.Sprintf("game:%s:events", gameID)
 
 	// Determine start position
@@ -138,7 +138,7 @@ func (rds *RedisDataStore) LoadEvents(gameID string, afterSequence int) ([]core.
 	}
 
 	// Read from stream
-	streams, err := rds.client.XRead(rds.ctx, &redis.XReadArgs{
+	streams, err := rds.client.XRead(ctx, &redis.XReadArgs{
 		Streams: []string{streamKey, start},
 		Count:   1000, // Max events to read at once
 	}).Result()
@@ -167,15 +167,15 @@ func (rds *RedisDataStore) LoadEvents(gameID string, afterSequence int) ([]core.
 }
 
 // GetEvents loads all events for a game
-func (rds *RedisDataStore) GetEvents(gameID string) ([]core.Event, error) {
-	return rds.LoadEvents(gameID, 0)
+func (rds *RedisDataStore) GetEvents(ctx context.Context, gameID string) ([]core.Event, error) {
+	return rds.LoadEvents(ctx, gameID, 0)
 }
 
 // GetEventsSince loads events since a timestamp
-func (rds *RedisDataStore) GetEventsSince(gameID string, timestamp string) ([]core.Event, error) {
+func (rds *RedisDataStore) GetEventsSince(ctx context.Context, gameID string, timestamp string) ([]core.Event, error) {
 	// For simplicity, just load all events and filter
 	// In a real implementation, you'd optimize this by using Redis stream IDs
-	allEvents, err := rds.GetEvents(gameID)
+	allEvents, err := rds.GetEvents(ctx, gameID)
 	if err != nil {
 		return nil, err
 	}
@@ -191,16 +191,16 @@ func (rds *RedisDataStore) GetEventsSince(gameID string, timestamp string) ([]co
 }
 
 // GetLatestSnapshot loads the latest game state snapshot
-func (rds *RedisDataStore) GetLatestSnapshot(gameID string) (*core.GameState, error) {
-	return rds.LoadSnapshot(gameID)
+func (rds *RedisDataStore) GetLatestSnapshot(ctx context.Context, gameID string) (*core.GameState, error) {
+	return rds.LoadSnapshot(ctx, gameID)
 }
 
 // LoadSnapshot loads the latest game state snapshot (internal method)
-func (rds *RedisDataStore) LoadSnapshot(gameID string) (*core.GameState, error) {
+func (rds *RedisDataStore) LoadSnapshot(ctx context.Context, gameID string) (*core.GameState, error) {
 	snapshotKey := fmt.Sprintf("game:%s:snapshot", gameID)
 
 	// Get snapshot data
-	stateJSON, err := rds.client.Get(rds.ctx, snapshotKey).Result()
+	stateJSON, err := rds.client.Get(ctx, snapshotKey).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, fmt.Errorf("no snapshot found for game %s", gameID)
@@ -222,7 +222,7 @@ func (rds *RedisDataStore) LoadSnapshot(gameID string) (*core.GameState, error) 
 	}
 	if !isValid {
 		log.Printf("Snapshot checksum validation failed for game %s - attempting recovery from event history", gameID)
-		return rds.RecoverFromEventHistory(gameID)
+		return rds.RecoverFromEventHistory(ctx, gameID)
 	}
 
 	log.Printf("Loaded and validated snapshot for game %s", gameID)
@@ -230,11 +230,11 @@ func (rds *RedisDataStore) LoadSnapshot(gameID string) (*core.GameState, error) 
 }
 
 // RecoverFromEventHistory rebuilds the game state by replaying all events from the beginning
-func (rds *RedisDataStore) RecoverFromEventHistory(gameID string) (*core.GameState, error) {
+func (rds *RedisDataStore) RecoverFromEventHistory(ctx context.Context, gameID string) (*core.GameState, error) {
 	log.Printf("Starting full event replay recovery for game %s", gameID)
 	
 	// Load all events from the beginning
-	events, err := rds.GetEvents(gameID)
+	events, err := rds.GetEvents(ctx, gameID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load events for recovery: %w", err)
 	}
@@ -267,10 +267,10 @@ func (rds *RedisDataStore) RecoverFromEventHistory(gameID string) (*core.GameSta
 }
 
 // GetGameMetadata retrieves game metadata
-func (rds *RedisDataStore) GetGameMetadata(gameID string) (map[string]string, error) {
+func (rds *RedisDataStore) GetGameMetadata(ctx context.Context, gameID string) (map[string]string, error) {
 	metaKey := fmt.Sprintf("game:%s:meta", gameID)
 
-	metadata, err := rds.client.HGetAll(rds.ctx, metaKey).Result()
+	metadata, err := rds.client.HGetAll(ctx, metaKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get game metadata: %w", err)
 	}
@@ -279,14 +279,14 @@ func (rds *RedisDataStore) GetGameMetadata(gameID string) (map[string]string, er
 }
 
 // DeleteGame removes all game data from Redis
-func (rds *RedisDataStore) DeleteGame(gameID string) error {
+func (rds *RedisDataStore) DeleteGame(ctx context.Context, gameID string) error {
 	keys := []string{
 		fmt.Sprintf("game:%s:events", gameID),
 		fmt.Sprintf("game:%s:snapshot", gameID),
 		fmt.Sprintf("game:%s:meta", gameID),
 	}
 
-	err := rds.client.Del(rds.ctx, keys...).Err()
+	err := rds.client.Del(ctx, keys...).Err()
 	if err != nil {
 		return fmt.Errorf("failed to delete game data: %w", err)
 	}
@@ -296,10 +296,10 @@ func (rds *RedisDataStore) DeleteGame(gameID string) error {
 }
 
 // ListActiveGames returns IDs of all games with recent activity
-func (rds *RedisDataStore) ListActiveGames() ([]string, error) {
+func (rds *RedisDataStore) ListActiveGames(ctx context.Context) ([]string, error) {
 	pattern := "game:*:meta"
 
-	keys, err := rds.client.Keys(rds.ctx, pattern).Result()
+	keys, err := rds.client.Keys(ctx, pattern).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list games: %w", err)
 	}
@@ -317,10 +317,10 @@ func (rds *RedisDataStore) ListActiveGames() ([]string, error) {
 }
 
 // GetEventCount returns the number of events in a game's stream
-func (rds *RedisDataStore) GetEventCount(gameID string) (int64, error) {
+func (rds *RedisDataStore) GetEventCount(ctx context.Context, gameID string) (int64, error) {
 	streamKey := fmt.Sprintf("game:%s:events", gameID)
 
-	count, err := rds.client.XLen(rds.ctx, streamKey).Result()
+	count, err := rds.client.XLen(ctx, streamKey).Result()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get event count: %w", err)
 	}
@@ -392,13 +392,13 @@ func (rds *RedisDataStore) parseEventFromMessage(message redis.XMessage) (core.E
 }
 
 // GetGameStats returns statistics about the game
-func (rds *RedisDataStore) GetGameStats(gameID string) (map[string]interface{}, error) {
-	metadata, err := rds.GetGameMetadata(gameID)
+func (rds *RedisDataStore) GetGameStats(ctx context.Context, gameID string) (map[string]interface{}, error) {
+	metadata, err := rds.GetGameMetadata(ctx, gameID)
 	if err != nil {
 		return nil, err
 	}
 
-	eventCount, err := rds.GetEventCount(gameID)
+	eventCount, err := rds.GetEventCount(ctx, gameID)
 	if err != nil {
 		return nil, err
 	}

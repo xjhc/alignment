@@ -17,6 +17,7 @@ type GameState struct {
 	Phase               Phase                            `json:"phase"`
 	DayNumber           int                              `json:"day_number"`
 	Players             map[string]*Player               `json:"players"`
+	Spectators          map[string]*Spectator            `json:"spectators,omitempty"`
 	CreatedAt           time.Time                        `json:"created_at"`
 	UpdatedAt           time.Time                        `json:"updated_at"`
 	Settings            GameSettings                     `json:"settings"`
@@ -50,6 +51,7 @@ func NewGameState(id string, currentTime time.Time) *GameState {
 		Phase:        Phase{Type: PhaseLobby, StartTime: currentTime, Duration: 0},
 		DayNumber:    0,
 		Players:      make(map[string]*Player),
+		Spectators:   make(map[string]*Spectator),
 		CreatedAt:    currentTime,
 		UpdatedAt:    currentTime,
 		ChatMessages: make([]ChatMessage, 0),
@@ -229,6 +231,8 @@ func ApplyEvent(currentState GameState, event Event) GameState {
 		newState.applySlackStatusChanged(event)
 	case EventPartingShotSet:
 		newState.applyPartingShotSet(event)
+	case EventWhisperSent:
+		newState.applyWhisperSent(event)
 
 	// KPI events
 	case EventKPIAssigned:
@@ -542,30 +546,62 @@ func (gs *GameState) applyChatMessage(event Event) {
 		IsSystem:   false,
 	}
 
-	// Handle backend payload format: sender_name, sender_id, message
-	if senderName, ok := event.Payload["sender_name"].(string); ok {
+	// Handle both nested and flat payload structures
+	var msgData map[string]interface{}
+	
+	// Check for the new nested structure first
+	if nestedMsg, exists := event.Payload["message"].(map[string]interface{}); exists {
+		msgData = nestedMsg
+	} else {
+		// Fallback to the old flat structure for compatibility
+		msgData = event.Payload
+	}
+
+	// Extract fields from the resolved msgData map
+	if messageText, ok := msgData["message"].(string); ok {
+		message.Message = messageText
+	}
+
+	if playerName, ok := msgData["playerName"].(string); ok {
+		message.PlayerName = playerName
+	} else if senderName, ok := msgData["sender_name"].(string); ok {
 		message.PlayerName = senderName
-	} else if playerName, ok := event.Payload["player_name"].(string); ok {
+	} else if playerName, ok := msgData["player_name"].(string); ok {
 		// Fallback for legacy format
 		message.PlayerName = playerName
 	}
 
-	if senderID, ok := event.Payload["sender_id"].(string); ok && message.PlayerID == "" {
+	if playerID, ok := msgData["playerID"].(string); ok && message.PlayerID == "" {
+		// If event.PlayerID is empty, use playerID from payload
+		message.PlayerID = playerID
+	} else if senderID, ok := msgData["sender_id"].(string); ok && message.PlayerID == "" {
 		// If event.PlayerID is empty, use sender_id from payload
 		message.PlayerID = senderID
 	}
 
-	if messageText, ok := event.Payload["message"].(string); ok {
-		message.Message = messageText
-	}
-
-	if isSystem, ok := event.Payload["is_system"].(bool); ok {
+	if isSystem, ok := msgData["isSystem"].(bool); ok {
+		message.IsSystem = isSystem
+	} else if isSystem, ok := msgData["is_system"].(bool); ok {
 		message.IsSystem = isSystem
 	}
 
 	// Handle channel information
-	if channelID, ok := event.Payload["channel_id"].(string); ok {
+	if channelID, ok := msgData["channelID"].(string); ok {
 		message.ChannelID = channelID
+	} else if channelID, ok := msgData["channel_id"].(string); ok {
+		message.ChannelID = channelID
+	}
+
+	// Handle message ID from nested structure
+	if msgID, ok := msgData["id"].(string); ok {
+		message.ID = msgID
+	}
+
+	// Handle timestamp from nested structure
+	if timestampStr, ok := msgData["timestamp"].(string); ok {
+		if timestamp, err := time.Parse(time.RFC3339, timestampStr); err == nil {
+			message.Timestamp = timestamp
+		}
 	}
 
 	gs.ChatMessages = append(gs.ChatMessages, message)
@@ -1131,9 +1167,25 @@ func (gs *GameState) applyClientError(event Event) {
 }
 
 func (gs *GameState) applySitrepPublished(event Event) {
-	// SITREP events contain crisis and day information but don't modify core game state
-	// The crisis data is already applied via EventCrisisTriggered
-	// This event is primarily for client rendering
+	// Extract the daily sitrep from the event
+	dailySitrep, _ := event.Payload["daily_sitrep"].(map[string]interface{})
+	
+	// Create a system message with the SITREP
+	message := ChatMessage{
+		ID:          event.ID,
+		PlayerID:    "",
+		PlayerName:  "Loebmate",
+		Message:     "Daily SITREP published",
+		Timestamp:   event.Timestamp,
+		IsSystem:    true,
+		Type:        "SITREP",
+		ChannelID:   "#war-room",
+		Metadata: map[string]interface{}{
+			"daily_sitrep": dailySitrep,
+		},
+	}
+	
+	gs.ChatMessages = append(gs.ChatMessages, message)
 }
 
 func (gs *GameState) applyLiaisonProtocolActivated(event Event) {
@@ -1275,8 +1327,37 @@ func (gs *GameState) applyPulseCheckUpdated(event Event) {
 }
 
 func (gs *GameState) applyPulseCheckRevealed(event Event) {
-	// Pulse check revelation triggers transition to discussion phase
-	// The responses are already stored from submissions
+	// Extract pulse check results from the event
+	playerResponses, _ := event.Payload["player_responses"].(map[string]interface{})
+	totalResponses, _ := event.Payload["total_responses"].(float64)
+	summary, _ := event.Payload["summary"].(string)
+	
+	// Convert player responses to map[string]string for consistency
+	formattedResponses := make(map[string]string)
+	for player, response := range playerResponses {
+		if responseStr, ok := response.(string); ok {
+			formattedResponses[player] = responseStr
+		}
+	}
+	
+	// Create a system message with the pulse check results
+	message := ChatMessage{
+		ID:          event.ID,
+		PlayerID:    "",
+		PlayerName:  "System",
+		Message:     summary,
+		Timestamp:   event.Timestamp,
+		IsSystem:    true,
+		Type:        "PULSE_CHECK_RESULTS",
+		ChannelID:   "#war-room",
+		Metadata: map[string]interface{}{
+			"player_responses": formattedResponses,
+			"total_responses":  int(totalResponses),
+			"summary":          summary,
+		},
+	}
+	
+	gs.ChatMessages = append(gs.ChatMessages, message)
 }
 
 // Role ability event handlers
@@ -1436,6 +1517,15 @@ func (gs *GameState) applyPartingShotSet(event Event) {
 	}
 }
 
+func (gs *GameState) applyWhisperSent(event Event) {
+	playerID := event.PlayerID
+	dayNumber, _ := event.Payload["day_number"].(float64)
+
+	if player, exists := gs.Players[playerID]; exists {
+		player.WhisperUsedDay = int(dayNumber)
+	}
+}
+
 // KPI event handlers
 func (gs *GameState) applyKPIAssigned(event Event) {
 	playerID := event.PlayerID
@@ -1587,6 +1677,9 @@ func (gs *GameState) applySkipVoteUpdated(event Event) {
 	} else {
 		delete(gs.SkipVotes, playerID)
 	}
+	
+	// The authoritative skip vote state is contained in the event payload
+	// and will be used by the frontend to update the UI directly
 }
 
 // Whistleblower Protocol event handlers
@@ -1686,6 +1779,12 @@ func ProcessPlayerAction(gameState GameState, action Action, currentTime time.Ti
 		return processAbandonGameAction(gameState, action, currentTime)
 	case ActionUseAbility:
 		return processAbilityAction(gameState, action, currentTime)
+	case ActionSetSlackStatus:
+		return processStatusAction(gameState, action, currentTime)
+	case ActionWhisper:
+		return processWhisperAction(gameState, action, currentTime)
+	case ActionSubmitExitInterview:
+		return processExitInterviewAction(gameState, action, currentTime)
 
 	// Role-specific actions
 	case ActionRunAudit, ActionOverclockServers, ActionIsolateNode, ActionPerformanceReview, ActionReallocateBudget, ActionPivot, ActionDeployHotfix:
@@ -2087,4 +2186,136 @@ func (gs *GameState) ValidateChecksum() (bool, error) {
 	}
 
 	return gs.Checksum == expectedChecksum, nil
+}
+
+// processStatusAction handles /status command for setting slack status
+func processStatusAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+	
+	// Extract status message from payload
+	status, ok := action.Payload["status"].(string)
+	if !ok || status == "" {
+		return nil, fmt.Errorf("missing or empty status message")
+	}
+
+	// Generate status change event
+	event := Event{
+		ID:        fmt.Sprintf("status_%s_%d", action.PlayerID, currentTime.UnixNano()),
+		Type:      EventSlackStatusChanged,
+		PlayerID:  action.PlayerID,
+		GameID:    gameState.ID,
+		Timestamp: currentTime,
+		Payload: map[string]interface{}{
+			"status":      status,
+			"player_name": player.Name,
+		},
+	}
+
+	return []Event{event}, nil
+}
+
+// processWhisperAction handles whisper commands for private messaging
+func processWhisperAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+	
+	// Check if player has already used whisper today
+	if player.WhisperUsedDay == gameState.DayNumber {
+		return nil, fmt.Errorf("whisper already used today")
+	}
+
+	// Extract target and message from payload
+	targetID, ok := action.Payload["target_id"].(string)
+	if !ok || targetID == "" {
+		return nil, fmt.Errorf("missing target for whisper")
+	}
+	
+	message, ok := action.Payload["message"].(string)
+	if !ok || message == "" {
+		return nil, fmt.Errorf("missing message content")
+	}
+
+	// Validate target exists and is alive
+	target := gameState.Players[targetID]
+	if target == nil {
+		return nil, fmt.Errorf("whisper target not found")
+	}
+	if !target.IsAlive {
+		return nil, fmt.Errorf("cannot whisper to eliminated players")
+	}
+
+	// Generate public whisper notification
+	publicEvent := Event{
+		ID:        fmt.Sprintf("whisper_public_%s_%s_%d", action.PlayerID, targetID, currentTime.UnixNano()),
+		Type:      EventChatMessage,
+		PlayerID:  "",
+		GameID:    gameState.ID,
+		Timestamp: currentTime,
+		Payload: map[string]interface{}{
+			"sender_name": "NEXUS",
+			"message":     fmt.Sprintf("%s whispers to %s.", player.Name, target.Name),
+			"is_system":   true,
+			"channel_id":  "#war-room",
+		},
+	}
+
+	// Generate private message for target
+	privateEvent := Event{
+		ID:        fmt.Sprintf("whisper_private_%s_%s_%d", action.PlayerID, targetID, currentTime.UnixNano()),
+		Type:      EventPrivateNotification,
+		PlayerID:  targetID,
+		GameID:    gameState.ID,
+		Timestamp: currentTime,
+		Payload: map[string]interface{}{
+			"sender_id":     action.PlayerID,
+			"sender_name":   player.Name,
+			"message":       message,
+			"whisper_type":  "private_message",
+		},
+	}
+
+	// Track whisper usage
+	usageEvent := Event{
+		ID:        fmt.Sprintf("whisper_used_%s_%d", action.PlayerID, currentTime.UnixNano()),
+		Type:      EventWhisperSent,
+		PlayerID:  action.PlayerID,
+		GameID:    gameState.ID,
+		Timestamp: currentTime,
+		Payload: map[string]interface{}{
+			"target_id":   targetID,
+			"day_number":  gameState.DayNumber,
+		},
+	}
+
+	return []Event{publicEvent, privateEvent, usageEvent}, nil
+}
+
+// processExitInterviewAction handles parting shots from eliminated players
+func processExitInterviewAction(gameState GameState, action Action, currentTime time.Time) ([]Event, error) {
+	player := gameState.Players[action.PlayerID]
+	
+	// Only eliminated players can submit exit interviews
+	if player.IsAlive {
+		return nil, fmt.Errorf("only eliminated players can submit exit interviews")
+	}
+
+	// Extract parting shot from payload
+	partingShot, ok := action.Payload["parting_shot"].(string)
+	if !ok || partingShot == "" {
+		return nil, fmt.Errorf("missing parting shot content")
+	}
+
+	// Generate parting shot event
+	event := Event{
+		ID:        fmt.Sprintf("parting_shot_%s_%d", action.PlayerID, currentTime.UnixNano()),
+		Type:      EventPartingShotSet,
+		PlayerID:  action.PlayerID,
+		GameID:    gameState.ID,
+		Timestamp: currentTime,
+		Payload: map[string]interface{}{
+			"parting_shot": partingShot,
+			"player_name":  player.Name,
+		},
+	}
+
+	return []Event{event}, nil
 }

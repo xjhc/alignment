@@ -1,6 +1,7 @@
 import { createContext, useContext, ReactNode, KeyboardEvent } from "react";
 import { GameState, Player, ClientAction } from "../types";
 import { PendingMessage } from "../hooks/useChatBuffer";
+import { SkipVoteState } from "../state/appReducer";
 
 export interface GameContextType {
   // Game State
@@ -11,6 +12,7 @@ export interface GameContextType {
   viewedPlayer: Player | null;
   isConnected: boolean;
   activeChannel: string;
+  skipVoteState: SkipVoteState | null;
 
   // Action Dispatchers
   sendAction: (action: ClientAction) => void;

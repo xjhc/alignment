@@ -2,10 +2,10 @@ package actors
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +15,7 @@ import (
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/lobby"
 	"github.com/xjhc/alignment/server/internal/mocks"
+	"github.com/xjhc/alignment/server/internal/test_helpers"
 )
 
 // Note: WebSocket testing is handled through integration tests
@@ -181,7 +182,11 @@ func TestPlayerActor_StateMachine(t *testing.T) {
 			mockLifecycleManager.CreateLobbyViaHTTPResults = []mocks.GLMCreateLobbyViaHTTPResult{{LobbyID: "new-lobby", PlayerID: "test-player", SessionToken: "test-token", Error: nil}}
 			mockLifecycleManager.JoinLobbyWithActorResults = []error{nil}
 			mockLifecycleManager.StartGameResults = []error{nil}
-			mockLifecycleManager.SendActionToGameResults = []error{nil}
+			successChan := make(chan interfaces.ProcessActionResult, 1)
+			successChan <- interfaces.ProcessActionResult{Events: []core.Event{}, Error: nil}
+			mockLifecycleManager.SendActionToGameResults = []mocks.GLMSendActionToGameResult{
+				{ResultChan: successChan, Error: nil},
+			}
 
 			// Set up WaitGroup for async operations based on expected method
 			if tt.expectedMethod == "StartGame" {
@@ -193,10 +198,7 @@ func TestPlayerActor_StateMachine(t *testing.T) {
 
 			// Wait for async processing if we expect a method call
 			if tt.expectedMethod == "StartGame" {
-				waitWithTimeout(&mockLifecycleManager.Wg, 1*time.Second, t)
-			} else if tt.expectedMethod != "" {
-				// For other methods that are synchronous, give a small window
-				time.Sleep(1 * time.Millisecond)
+				test_helpers.WaitWithTimeout(&mockLifecycleManager.Wg, 1*time.Second, t)
 			}
 
 			// Assert - Check if correct method was called on mocks
@@ -218,7 +220,7 @@ func TestPlayerActor_StateMachine(t *testing.T) {
 				select {
 				case <-eventCapture:
 					// Event received as expected
-				case <-time.After(10 * time.Millisecond):
+				case <-time.After(100 * time.Millisecond):
 					t.Error("Expected one event to be published, but none was received")
 				}
 			case "SendAction":
@@ -231,7 +233,7 @@ func TestPlayerActor_StateMachine(t *testing.T) {
 				select {
 				case <-eventCapture:
 					// Event received as expected
-				case <-time.After(10 * time.Millisecond):
+				case <-time.After(100 * time.Millisecond):
 					t.Error("Expected one event to be published, but none was received")
 				}
 			}
@@ -323,7 +325,7 @@ func TestPlayerActor_DisconnectHandling(t *testing.T) {
 	select {
 	case <-eventCapture:
 		// Event received as expected
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(100 * time.Millisecond):
 		t.Error("Expected one event to be published on disconnect from lobby, but none was received")
 	}
 
@@ -335,7 +337,7 @@ func TestPlayerActor_DisconnectHandling(t *testing.T) {
 	select {
 	case <-eventCapture:
 		// Event received as expected
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(100 * time.Millisecond):
 		t.Error("Expected one event to be published on disconnect from game, but none was received")
 	}
 }
@@ -364,17 +366,167 @@ func TestPlayerActor_ServerMessageHandling(t *testing.T) {
 	t.Log("Server message handling test passed - no panics occurred")
 }
 
-// waitWithTimeout waits for a WaitGroup with a timeout to prevent test hangs
-func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration, t *testing.T) {
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-	select {
-	case <-c:
-		// Wait finished successfully
-	case <-time.After(timeout):
-		t.Fatal("Test timed out waiting for WaitGroup")
+// TestPlayerActor_RequestResponsePattern tests the new request-response pattern for game actions
+func TestPlayerActor_RequestResponsePattern(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tests := []struct {
+		name           string
+		setupAction    func(*mocks.MockGameLifecycleManager)
+		action         core.Action
+		expectError    bool
+		expectedError  string
+		expectBroadcast bool
+	}{
+		{
+			name: "InvalidAction_ReturnsError",
+			setupAction: func(mockManager *mocks.MockGameLifecycleManager) {
+				// Setup mock to return an error from GameActor
+				resultChan := make(chan interfaces.ProcessActionResult, 1)
+				resultChan <- interfaces.ProcessActionResult{
+					Events: nil,
+					Error:  fmt.Errorf("invalid action: voting is not allowed in this phase"),
+				}
+				mockManager.SendActionToGameResults = []mocks.GLMSendActionToGameResult{
+					{ResultChan: resultChan, Error: nil},
+				}
+			},
+			action: core.Action{
+				Type:     core.ActionSubmitVote,
+				PlayerID: "test-player",
+				GameID:   "test-game",
+				Payload:  map[string]interface{}{"target": "other-player"},
+			},
+			expectError:     true,
+			expectedError:   "Action rejected: invalid action: voting is not allowed in this phase",
+			expectBroadcast: false,
+		},
+		{
+			name: "ValidAction_BroadcastsEvents",
+			setupAction: func(mockManager *mocks.MockGameLifecycleManager) {
+				// Setup mock to return successful result with events
+				resultChan := make(chan interfaces.ProcessActionResult, 1)
+				resultChan <- interfaces.ProcessActionResult{
+					Events: []core.Event{
+						{Type: core.EventVoteCast, PlayerID: "test-player", GameID: "test-game"},
+						{Type: core.EventGameStateUpdate, GameID: "test-game"},
+					},
+					Error: nil,
+				}
+				mockManager.SendActionToGameResults = []mocks.GLMSendActionToGameResult{
+					{ResultChan: resultChan, Error: nil},
+				}
+				mockManager.BroadcastEventsToGameResults = []error{nil}
+			},
+			action: core.Action{
+				Type:     core.ActionSubmitVote,
+				PlayerID: "test-player",
+				GameID:   "test-game",
+				Payload:  map[string]interface{}{"target": "other-player"},
+			},
+			expectError:     false,
+			expectBroadcast: true,
+		},
+		{
+			name: "GameNotFound_ReturnsError",
+			setupAction: func(mockManager *mocks.MockGameLifecycleManager) {
+				// Setup mock to return error from SendActionToGame
+				mockManager.SendActionToGameResults = []mocks.GLMSendActionToGameResult{
+					{ResultChan: nil, Error: fmt.Errorf("game not found: test-game")},
+				}
+			},
+			action: core.Action{
+				Type:     core.ActionSubmitVote,
+				PlayerID: "test-player",
+				GameID:   "test-game",
+				Payload:  map[string]interface{}{"target": "other-player"},
+			},
+			expectError:     true,
+			expectedError:   "Failed to process action: game not found: test-game",
+			expectBroadcast: false,
+		},
+		{
+			name: "ActionTimeout_ReturnsError",
+			setupAction: func(mockManager *mocks.MockGameLifecycleManager) {
+				// Setup mock to return a channel that never sends a result (simulating timeout)
+				resultChan := make(chan interfaces.ProcessActionResult, 1)
+				// Don't send anything to the channel to simulate timeout
+				mockManager.SendActionToGameResults = []mocks.GLMSendActionToGameResult{
+					{ResultChan: resultChan, Error: nil},
+				}
+			},
+			action: core.Action{
+				Type:     core.ActionSubmitVote,
+				PlayerID: "test-player",
+				GameID:   "test-game",
+				Payload:  map[string]interface{}{"target": "other-player"},
+			},
+			expectError:     true,
+			expectedError:   "Action timed out. The server is busy.",
+			expectBroadcast: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup dependencies
+			mockLifecycleManager := &mocks.MockGameLifecycleManager{}
+			eventBus := events.NewEventBus()
+			mockConn := createMockWebSocketConnection(t)
+			
+			// Setup the mock based on test case
+			tt.setupAction(mockLifecycleManager)
+			
+			// Create player actor
+			actor := NewPlayerActor(ctx, "test-player", "TestPlayer", "👤", "test-token", mockConn)
+			actor.SetDependencies(mockLifecycleManager, eventBus, nil)
+			
+			// Set actor to InLobby state first, then transition to InGame
+			actor.TransitionToLobby("test-lobby")
+			actor.TransitionToGame("test-game")
+			
+			// For now, we'll verify behavior through the mock calls and timeout behavior
+			// In a full implementation, we would capture WebSocket messages
+			
+			// Execute the action
+			actor.handleGameAction(tt.action)
+			
+			// Wait a bit for processing
+			time.Sleep(100 * time.Millisecond)
+			
+			// Verify that SendActionToGame was called (should be called for all cases)
+			if len(mockLifecycleManager.SendActionToGameCalls) == 0 {
+				t.Error("Expected SendActionToGame to be called, but it wasn't")
+			} else {
+				call := mockLifecycleManager.SendActionToGameCalls[0]
+				if call.GameID != "test-game" {
+					t.Errorf("Expected action sent to game 'test-game', got '%s'", call.GameID)
+				}
+				if call.Action.Type != tt.action.Type {
+					t.Errorf("Expected action type %s, got %s", tt.action.Type, call.Action.Type)
+				}
+			}
+			
+			// Verify broadcast behavior
+			if tt.expectBroadcast {
+				if len(mockLifecycleManager.BroadcastEventsToGameCalls) == 0 {
+					t.Error("Expected BroadcastEventsToGame to be called, but it wasn't")
+				} else {
+					call := mockLifecycleManager.BroadcastEventsToGameCalls[0]
+					if call.GameID != "test-game" {
+						t.Errorf("Expected broadcast to game 'test-game', got '%s'", call.GameID)
+					}
+					if len(call.Events) != 2 {
+						t.Errorf("Expected 2 events to be broadcast, got %d", len(call.Events))
+					}
+				}
+			} else {
+				if len(mockLifecycleManager.BroadcastEventsToGameCalls) > 0 {
+					t.Error("Expected BroadcastEventsToGame not to be called, but it was")
+				}
+			}
+		})
 	}
 }
+

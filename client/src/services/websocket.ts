@@ -302,6 +302,7 @@ export class WebSocketClient {
       case ServerEventType.IncitingIncident:
       case ServerEventType.LoebmateMessage:
       case ServerEventType.VoteCast:
+      case ServerEventType.ExtensionVotingTriggered:
       case ServerEventType.NightActionSubmitted:
       case ServerEventType.NightActionsResolved:
       case ServerEventType.PlayerLeft:
@@ -353,6 +354,7 @@ export class WebSocketClient {
       case ServerEventType.LobbyStateUpdate:
       case ServerEventType.ClientIdentified:
       case ServerEventType.ChatHistorySnapshot:
+      case ServerEventType.SkipVoteUpdated:
         // These events are handled directly by UI subscribers in App.tsx.
         // The game engine doesn't need to process them.
         break;
@@ -393,6 +395,13 @@ export class WebSocketClient {
           isReconnecting: false,
           lastError: event.payload?.message || 'Forced logout by server'
         });
+        break;
+
+      case ServerEventType.ClientError:
+        // Handle client-side error notifications from server
+        console.warn(`[WebSocketClient] Received client error from server: ${event.payload?.message || 'Unknown error'}`);
+        // Don't apply to game engine - this is a client-side error notification
+        // Will be handled by UI subscribers (e.g., useSessionManager)
         break;
 
       default:

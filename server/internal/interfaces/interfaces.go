@@ -1,6 +1,7 @@
 package interfaces
 
 import (
+	"context"
 	"time"
 	"github.com/xjhc/alignment/core"
 )
@@ -88,7 +89,8 @@ type GameLifecycleManagerInterface interface {
 	GetLobbyList() []interface{}
 	
 	// Game session management
-	SendActionToGame(gameID string, action core.Action) error
+	SendActionToGame(gameID string, action core.Action) (chan ProcessActionResult, error)
+	BroadcastEventsToGame(gameID string, events []core.Event) error
 	GetGameActor(gameID string) (GameActorInterface, bool)
 	ReconnectPlayerToGame(gameID string, playerActor PlayerActorInterface) error
 	
@@ -105,12 +107,13 @@ type SupervisorInterface interface {
 
 // DataStore interface for persistence
 type DataStore interface {
-	AppendEvent(gameID string, event core.Event) error
-	GetEvents(gameID string) ([]core.Event, error)
-	GetEventsSince(gameID string, timestamp string) ([]core.Event, error)
-	LoadEvents(gameID string, afterSequence int) ([]core.Event, error)
-	CreateSnapshot(gameID string, state core.GameState) error
-	GetLatestSnapshot(gameID string) (*core.GameState, error)
+	AppendEvent(ctx context.Context, gameID string, event core.Event) error
+	GetEvents(ctx context.Context, gameID string) ([]core.Event, error)
+	GetEventsSince(ctx context.Context, gameID string, timestamp string) ([]core.Event, error)
+	LoadEvents(ctx context.Context, gameID string, afterSequence int) ([]core.Event, error)
+	CreateSnapshot(ctx context.Context, gameID string, state core.GameState) error
+	GetLatestSnapshot(ctx context.Context, gameID string) (*core.GameState, error)
+	ListActiveGames(ctx context.Context) ([]string, error)
 	Close() error
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/xjhc/alignment/core"
@@ -13,6 +14,7 @@ import (
 	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/game"
 	"github.com/xjhc/alignment/server/internal/interfaces"
+	"github.com/xjhc/alignment/server/internal/metrics"
 	"github.com/xjhc/alignment/server/internal/store"
 )
 
@@ -33,11 +35,6 @@ type RoleAbilityManager interface {
 	HandleNightAction(action core.Action) ([]core.Event, error)
 }
 
-// ProcessActionResult contains the result of processing an action
-type ProcessActionResult struct {
-	Events []core.Event
-	Error  error
-}
 
 // actorRequest bundles an action with its response channel for async processing
 type actorRequest struct {
@@ -45,18 +42,47 @@ type actorRequest struct {
 	responseChan chan interfaces.ProcessActionResult
 }
 
+// gameStateRequest is a special request type for getting game state safely
+type gameStateRequest struct {
+	responseChan chan *core.GameState
+}
+
 // EventCallback is called when events are generated (especially from timers)
 type EventCallback func(gameID string, events []core.Event)
+
+// deepCopyGameState creates a deep copy of a GameState using JSON marshaling/unmarshaling
+func deepCopyGameState(original *core.GameState) *core.GameState {
+	if original == nil {
+		return nil
+	}
+	
+	// Marshal to JSON
+	data, err := json.Marshal(original)
+	if err != nil {
+		log.Printf("Failed to marshal game state for deep copy: %v", err)
+		return nil
+	}
+	
+	// Unmarshal to new instance
+	var copy core.GameState
+	if err := json.Unmarshal(data, &copy); err != nil {
+		log.Printf("Failed to unmarshal game state for deep copy: %v", err)
+		return nil
+	}
+	
+	return &copy
+}
 
 // GameActor represents a pure game simulation engine
 type GameActor struct {
 	gameID  string
 	state   *core.GameState
-	mailbox chan actorRequest
+	mailbox chan interface{} // Changed to interface{} to handle both actorRequest and gameStateRequest
 
 	// Context for graceful shutdown
 	ctx    context.Context
 	cancel context.CancelFunc
+	wg     sync.WaitGroup // Track running goroutines for safe shutdown
 
 	// Game managers (domain experts)
 	votingManager           VotingManager
@@ -71,6 +97,9 @@ type GameActor struct {
 	liaisonProtocolManager  *game.LiaisonProtocolManager
 	hintManager             *game.HintManager
 	rng                     *rand.Rand
+
+	// Action handlers (Strategy Pattern)
+	actionHandlers map[core.ActionType]game.ActionHandler
 
 	// Meta-game systems
 	postgresStore      *store.PostgresStore
@@ -101,7 +130,7 @@ func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string,
 	actor := &GameActor{
 		gameID:  gameID,
 		state:   state,
-		mailbox: make(chan actorRequest, 100), // Buffered channel for async requests
+		mailbox: make(chan interface{}, 100), // Buffered channel for async requests (actorRequest and gameStateRequest)
 		ctx:     ctx,
 		cancel:  cancel,
 		rng:     rng,
@@ -129,6 +158,9 @@ func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string,
 	actor.scheduler = scheduler
 	actor.phaseManager = game.NewPhaseManager(scheduler, gameID, state.Settings)
 
+	// Initialize action handlers
+	actor.initializeActionHandlers()
+
 	return actor
 }
 
@@ -139,7 +171,8 @@ func (ga *GameActor) Start() {
 	// Start the scheduler
 	ga.scheduler.Start()
 
-	// Start the main processing loop in a goroutine
+	// Start the main processing loop in a goroutine with WaitGroup tracking
+	ga.wg.Add(1)
 	go ga.processLoop()
 }
 
@@ -147,35 +180,27 @@ func (ga *GameActor) Start() {
 func (ga *GameActor) Stop() {
 	log.Printf("[GameActor/%s] Stopping", ga.gameID)
 
-	// Stop the scheduler to cancel any pending timers
+	// 1. Stop the scheduler to cancel any pending timers
 	if ga.scheduler != nil {
 		ga.scheduler.Stop()
 	}
 
-	// Cancel the context to signal all goroutines to shutdown
+	// 2. Signal all goroutines to stop via context cancellation
 	ga.cancel()
 
-	// Close the mailbox to prevent new requests and signal processLoop to exit
-	// Do this in a goroutine to avoid blocking if something is trying to send
-	go func() {
-		// Give a brief moment for any in-flight operations to complete
-		time.Sleep(100 * time.Millisecond)
+	// 3. Wait for all goroutines to acknowledge shutdown and exit
+	ga.wg.Wait()
 
-		// Close mailbox to signal shutdown (defensive check for already closed)
-		select {
-		case <-ga.ctx.Done():
-			// Context is done, safe to close
-			defer func() {
-				if r := recover(); r != nil {
-					// Channel might already be closed, that's fine
-				}
-			}()
-			close(ga.mailbox)
-		default:
+	// 4. Now that no goroutines are running, it is safe to close channels
+	defer func() {
+		if r := recover(); r != nil {
+			// Channel might already be closed, that's fine
+			log.Printf("[GameActor/%s] Channel already closed during shutdown", ga.gameID)
 		}
 	}()
+	close(ga.mailbox)
 
-	log.Printf("[GameActor/%s] Stop initiated", ga.gameID)
+	log.Printf("[GameActor/%s] Stopped", ga.gameID)
 }
 
 // SetEventCallback sets the callback function for event notifications
@@ -203,13 +228,16 @@ func (ga *GameActor) PostAction(action core.Action) chan interfaces.ProcessActio
 
 	select {
 	case ga.mailbox <- request:
-	// Successfully sent
+		// Successfully sent request to the actor's mailbox.
 	case <-ga.ctx.Done():
-		// Actor is stopped, send an error back immediately
-		responseChan <- interfaces.ProcessActionResult{Error: fmt.Errorf("GameActor %s: Context canceled", ga.gameID)}
+		// The actor has been stopped.
+		responseChan <- interfaces.ProcessActionResult{Error: fmt.Errorf("actor for game %s is shut down", ga.gameID)}
 	default:
-		// Mailbox full, send an error back immediately
-		responseChan <- interfaces.ProcessActionResult{Error: fmt.Errorf("GameActor %s: Mailbox full", ga.gameID)}
+		// The mailbox is full. This is backpressure.
+		// Immediately respond with an error instead of blocking.
+		responseChan <- interfaces.ProcessActionResult{Error: fmt.Errorf("server is busy, action for game %s was dropped", ga.gameID)}
+		// Optionally, increment a metric for monitoring.
+		metrics.RecordMailboxDropped("game_actor")
 	}
 
 	return responseChan
@@ -217,7 +245,29 @@ func (ga *GameActor) PostAction(action core.Action) chan interfaces.ProcessActio
 
 // GetGameState returns the current game state
 func (ga *GameActor) GetGameState() *core.GameState {
-	return ga.state
+	// Create a request to get the state safely from the actor's goroutine
+	responseChan := make(chan *core.GameState, 1)
+	req := gameStateRequest{responseChan: responseChan}
+
+	// Send the request and wait for the response
+	select {
+	case ga.mailbox <- req:
+		select {
+		case state := <-responseChan:
+			return state // The processLoop will have already made a deep copy
+		case <-time.After(1 * time.Second):
+			// Timeout to prevent hanging
+			log.Printf("[GameActor/%s] Timeout waiting for game state", ga.gameID)
+			return nil
+		}
+	case <-ga.ctx.Done():
+		log.Printf("[GameActor/%s] Context done while getting game state", ga.gameID)
+		return nil
+	default:
+		// Mailbox is full
+		log.Printf("[GameActor/%s] Mailbox full while getting game state", ga.gameID)
+		return nil
+	}
 }
 
 // CreatePlayerStateUpdateEvent creates a player-specific game state update event
@@ -286,6 +336,7 @@ func (ga *GameActor) processLoop() {
 		if r := recover(); r != nil {
 			log.Printf("[GameActor/%s] Panic recovered: %v", ga.gameID, r)
 		}
+		ga.wg.Done() // Signal completion when this goroutine exits
 	}()
 
 	for {
@@ -296,64 +347,120 @@ func (ga *GameActor) processLoop() {
 				return
 			}
 
-			eventsToPersist, err := ga.generateEventsForAction(request.action)
-			if err != nil {
-				request.responseChan <- interfaces.ProcessActionResult{Error: err}
-				continue
-			}
-
-			// Apply events to local state and check for additional events (like win conditions)
-			allEvents := eventsToPersist
-			for _, event := range eventsToPersist {
-				newState := core.ApplyEvent(*ga.state, event)
-				ga.state = &newState
-
-				// Check for win conditions after certain events
-				additionalEvents := ga.handlePostEventProcessing(event)
-				allEvents = append(allEvents, additionalEvents...)
-			}
-
-			// Apply any additional events that were generated
-			for i := len(eventsToPersist); i < len(allEvents); i++ {
-				newState := core.ApplyEvent(*ga.state, allEvents[i])
-				ga.state = &newState
-			}
-			eventsToPersist = allEvents
-
-			// Check for EventGameStarted or EventPhaseChanged and schedule next phase transition
-			for _, event := range eventsToPersist {
-				switch event.Type {
-				case core.EventGameStarted:
-					log.Printf("[GameActor/%s] Game started, scheduling first phase transition", ga.gameID)
-					ga.phaseManager.SchedulePhaseTransition(ga.state.Phase.Type, time.Now())
-				case core.EventPhaseChanged:
-					// Extract next phase from the event payload
-					if nextPhase, ok := event.Payload["phase_type"].(string); ok {
-						log.Printf("[GameActor/%s] Phase changed to %s, scheduling next transition", ga.gameID, nextPhase)
-						ga.phaseManager.SchedulePhaseTransition(core.PhaseType(nextPhase), time.Now())
-
-						// Check for Loebmate hints for the new phase
-						hintEvents := ga.hintManager.CheckForHints(core.PhaseType(nextPhase))
-						if len(hintEvents) > 0 {
-							// Send hint events through the event callback
-							if ga.eventCallback != nil {
-								ga.eventCallback(ga.gameID, hintEvents)
-							}
-						}
-
-						// Process AI actions for the new phase
-						ga.processAIActionsForPhase(core.PhaseType(nextPhase))
-					}
+			// Handle different request types
+			switch req := request.(type) {
+			case actorRequest:
+				// Handle action requests as before
+				eventsToPersist, err := ga.generateEventsForAction(req.action)
+				if err != nil {
+					req.responseChan <- interfaces.ProcessActionResult{Error: err}
+					continue
 				}
+				ga.processActionRequest(req, eventsToPersist)
+				
+			case gameStateRequest:
+				// Handle game state requests with deep copy
+				stateCopy := deepCopyGameState(ga.state)
+				req.responseChan <- stateCopy
+				
+			default:
+				log.Printf("[GameActor/%s] Unknown request type: %T", ga.gameID, request)
 			}
-
-			// Return the granular events instead of state snapshots
-			request.responseChan <- interfaces.ProcessActionResult{Events: eventsToPersist, Error: nil}
 
 		case <-ga.ctx.Done():
 			log.Printf("[GameActor/%s] Context done, shutting down", ga.gameID)
 			return
 		}
+	}
+}
+
+// ActionAcker interface implementation
+func (ga *GameActor) GetPlayer(id string) (*core.Player, bool) {
+	p, ok := ga.state.Players[id]
+	return p, ok
+}
+
+func (ga *GameActor) GetRandom() *rand.Rand {
+	return ga.rng
+}
+
+func (ga *GameActor) ValidateActionPayloadSize(action core.Action) error {
+	return ga.validateActionPayloadSize(action)
+}
+
+func (ga *GameActor) BroadcastToSpectators(events []core.Event) {
+	ga.broadcastToSpectators(events)
+}
+
+// GameLifecycleManager interface implementation
+func (ga *GameActor) HandleInitializeGame(action core.Action) ([]core.Event, error) {
+	return ga.generateInitializeGameEvents(action)
+}
+
+func (ga *GameActor) HandleLeaveGame(action core.Action) ([]core.Event, error) {
+	return ga.validateAndGenerateLeaveGame(action)
+}
+
+func (ga *GameActor) HandleAbandonGame(action core.Action) ([]core.Event, error) {
+	return ga.validateAndGenerateAbandonGame(action)
+}
+
+func (ga *GameActor) HandleSetPlayerConnectionStatus(action core.Action) ([]core.Event, error) {
+	return ga.handleSetPlayerConnectionStatus(action)
+}
+
+func (ga *GameActor) HandleAbandonPlayer(action core.Action) ([]core.Event, error) {
+	return ga.handleAbandonPlayer(action)
+}
+
+func (ga *GameActor) HandlePhaseTransition(action core.Action) ([]core.Event, error) {
+	return ga.handlePhaseTransition(action)
+}
+
+func (ga *GameActor) HandleSyncLobbyState(action core.Action) ([]core.Event, error) {
+	return ga.handleSyncLobbyState(action)
+}
+
+// initializeActionHandlers sets up the action handler registry
+func (ga *GameActor) initializeActionHandlers() {
+	// Create specialized handlers
+	voteHandler := game.NewVoteHandler(ga.votingManager)
+	chatHandler := game.NewChatHandler(ga)
+	nightActionHandler := game.NewNightActionHandler(ga.miningManager, ga.roleAbilityManager)
+	gameManagementHandler := game.NewGameManagementHandler(ga)
+	playerInteractionHandler := game.NewPlayerInteractionHandler()
+
+	// Initialize the action handlers map
+	ga.actionHandlers = map[core.ActionType]game.ActionHandler{
+		// Vote actions
+		core.ActionSubmitVote:     voteHandler,
+		core.ActionSubmitSkipVote: voteHandler,
+		
+		// Chat actions
+		core.ActionSendMessage:         chatHandler,
+		core.ActionPostSpectatorMessage: chatHandler,
+		core.ActionReactToMessage:      chatHandler,
+		
+		// Night actions
+		core.ActionSubmitNightAction: nightActionHandler,
+		core.ActionMineTokens:        nightActionHandler,
+		
+		// Game management actions
+		core.ActionType("INITIALIZE_GAME"):        gameManagementHandler,
+		core.ActionLeaveGame:                      gameManagementHandler,
+		core.ActionAbandonGame:                    gameManagementHandler,
+		core.ActionSetPlayerConnectionStatus:     gameManagementHandler,
+		core.ActionAbandonPlayer:                 gameManagementHandler,
+		core.ActionType("PHASE_TRANSITION"):     gameManagementHandler,
+		core.ActionSyncLobbyState:                gameManagementHandler,
+		core.ActionAssignCorporateMandate:        gameManagementHandler,
+		
+		// Player interaction actions
+		core.ActionSubmitPulseCheck:        playerInteractionHandler,
+		core.ActionSetSlackStatus:          playerInteractionHandler,
+		core.ActionSubmitExitInterview:     playerInteractionHandler,
+		core.ActionSubmitWhistleblowerVote: playerInteractionHandler,
+		core.ActionTriggerExtensionVoting:  playerInteractionHandler,
 	}
 }
 
@@ -365,46 +472,16 @@ func (ga *GameActor) generateEventsForAction(action core.Action) ([]core.Event, 
 	if err := ga.validateActionPayloadSize(action); err != nil {
 		return nil, fmt.Errorf("action validation failed: %v", err)
 	}
-	switch action.Type {
-	case core.ActionType("INITIALIZE_GAME"):
-		return ga.generateInitializeGameEvents(action)
-	case core.ActionLeaveGame:
-		return ga.validateAndGenerateLeaveGame(action)
-	case core.ActionAbandonGame:
-		return ga.validateAndGenerateAbandonGame(action)
-	case core.ActionSetPlayerConnectionStatus:
-		return ga.handleSetPlayerConnectionStatus(action)
-	case core.ActionAbandonPlayer:
-		return ga.handleAbandonPlayer(action)
-	case core.ActionSubmitVote:
-		return ga.handleVoteAction(action)
-	case core.ActionSubmitSkipVote:
-		return ga.handleSkipVoteAction(action)
-	case core.ActionSubmitNightAction:
-		return ga.handleNightAction(action)
-	case core.ActionMineTokens:
-		return ga.miningManager.HandleMineAction(action)
-	case core.ActionSendMessage:
-		return ga.validateAndGenerateChatMessage(action)
-	case core.ActionReactToMessage:
-		return ga.validateAndGenerateReaction(action)
-	case core.ActionSubmitPulseCheck:
-		return ga.handlePulseCheckSubmission(action)
-	case core.ActionSetSlackStatus:
-		return ga.handleStatusUpdate(action)
-	case core.ActionSubmitExitInterview:
-		return ga.handleExitInterview(action)
-	case core.ActionSubmitWhistleblowerVote:
-		return ga.handleWhistleblowerVote(action)
-	case core.ActionTriggerExtensionVoting:
-		return ga.handleExtensionVotingTrigger(action)
-	case core.ActionSyncLobbyState:
-		return ga.handleSyncLobbyState(action)
-	case core.ActionType("PHASE_TRANSITION"):
-		return ga.handlePhaseTransition(action)
-	default:
-		return nil, fmt.Errorf("unknown action type: %s", action.Type)
+
+	// Dispatch to appropriate handler using Strategy Pattern
+	handler, exists := ga.actionHandlers[action.Type]
+	if !exists {
+		return nil, fmt.Errorf("no handler registered for action type: %s", action.Type)
 	}
+
+	// Delegate the logic to the specific handler, passing the GameActor itself
+	// as the ActionAcker to provide access to necessary utilities.
+	return handler.Handle(ga.state, action, ga)
 }
 
 // handlePulseCheckSubmission processes pulse check responses
@@ -1149,6 +1226,57 @@ func (ga *GameActor) validateAndGenerateChatMessage(action core.Action) ([]core.
 	return events, nil
 }
 
+// handleSpectatorMessage handles spectator chat messages
+func (ga *GameActor) handleSpectatorMessage(action core.Action) ([]core.Event, error) {
+	// Validate that the sender is a spectator
+	spectator, exists := ga.state.Spectators[action.PlayerID]
+	if !exists {
+		return nil, fmt.Errorf("spectator %s not found", action.PlayerID)
+	}
+
+	// Extract message content
+	content, ok := action.Payload["content"].(string)
+	if !ok {
+		return nil, fmt.Errorf("content field is required and must be a string")
+	}
+
+	// Validate message length
+	if len(content) == 0 {
+		return nil, fmt.Errorf("message content cannot be empty")
+	}
+	if len(content) > 500 {
+		return nil, fmt.Errorf("message too long: %d characters (max 500)", len(content))
+	}
+
+	// Create chat message
+	chatMessage := core.ChatMessage{
+		ID:         fmt.Sprintf("spectator-msg-%d", time.Now().UnixNano()),
+		PlayerID:   spectator.ID,
+		PlayerName: spectator.Name,
+		Message:    content,
+		Timestamp:  time.Now(),
+		IsSystem:   false,
+		ChannelID:  "#spectators",
+	}
+
+	// Create event
+	event := core.Event{
+		ID:        fmt.Sprintf("spectator-chat-%d", time.Now().UnixNano()),
+		Type:      core.EventSpectatorChatMessage,
+		GameID:    ga.gameID,
+		PlayerID:  "", // Broadcast to spectators only
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"message": chatMessage,
+		},
+	}
+
+	// Broadcast only to spectators
+	ga.broadcastToSpectators([]core.Event{event})
+
+	return []core.Event{event}, nil
+}
+
 // handleLegacyMessageFormat handles the old string array format for backward compatibility
 func (ga *GameActor) handleLegacyMessageFormat(action core.Action, messages []string) ([]core.Event, error) {
 	if len(messages) == 0 {
@@ -1370,38 +1498,67 @@ func (ga *GameActor) handleSkipVoteAction(action core.Action) ([]core.Event, err
 		return nil, fmt.Errorf("dead players cannot vote to skip")
 	}
 
-	// Use core validation to process the skip vote action
-	events, err := core.ProcessPlayerAction(*ga.state, action, time.Now())
-	if err != nil {
-		return nil, err
+	// Check if phase allows skipping
+	if ga.state.Phase.Type == core.PhaseTrial || ga.state.Phase.Type == core.PhaseGameOver || ga.state.Phase.Type == core.PhaseLobby {
+		return nil, fmt.Errorf("cannot skip phase %s", ga.state.Phase.Type)
 	}
 
-	// Apply the skip vote event to calculate the new state
-	newState := *ga.state
-	for _, event := range events {
-		newState = core.ApplyEvent(newState, event)
+	// Check if player already voted to skip
+	if ga.state.SkipVotes != nil && ga.state.SkipVotes[action.PlayerID] {
+		return nil, fmt.Errorf("player %s has already voted to skip", action.PlayerID)
 	}
 
-	// Check if all living human players have voted to skip
-	livingHumans := 0
-	for _, p := range newState.Players {
-		if p.IsAlive && p.ControlType == "HUMAN" {
-			livingHumans++
+	// Initialize skip votes if needed
+	if ga.state.SkipVotes == nil {
+		ga.state.SkipVotes = make(map[string]bool)
+	}
+
+	// Add the player's skip vote to the state
+	ga.state.SkipVotes[action.PlayerID] = true
+
+	// Calculate authoritative skip vote state
+	currentVotes := len(ga.state.SkipVotes)
+	requiredVotes := ga.calculateRequiredSkipVotes()
+	
+	// Get list of voters for transparency
+	voters := make([]string, 0, len(ga.state.SkipVotes))
+	for voterID := range ga.state.SkipVotes {
+		if voterPlayer, exists := ga.state.Players[voterID]; exists {
+			voters = append(voters, voterPlayer.Name)
 		}
 	}
 
-	skipVotes := len(newState.SkipVotes)
-	if skipVotes >= livingHumans && livingHumans > 0 {
+	// Generate the authoritative SKIP_VOTE_UPDATED event
+	now := time.Now()
+	skipVoteEvent := core.Event{
+		ID:        fmt.Sprintf("skip_vote_%s_%d", action.PlayerID, now.UnixNano()),
+		Type:      core.EventSkipVoteUpdated,
+		GameID:    ga.gameID,
+		PlayerID:  action.PlayerID,
+		Timestamp: now,
+		Payload: map[string]interface{}{
+			"current_votes":  currentVotes,
+			"required_votes": requiredVotes,
+			"voters":         voters,
+			"has_voted":      true,
+			"player_name":    player.Name,
+		},
+	}
+
+	events := []core.Event{skipVoteEvent}
+
+	// Check if skip threshold is met
+	if currentVotes >= requiredVotes && requiredVotes > 0 {
 		// All living humans have voted to skip - trigger immediate phase transition
-		nextPhase := game.GetNextPhase(newState.Phase.Type)
+		nextPhase := game.GetNextPhase(ga.state.Phase.Type)
 		if nextPhase != core.PhaseGameOver {
 			phaseDuration := game.GetPhaseDuration(nextPhase, ga.state.Settings)
 			transitionEvent := core.Event{
-				ID:        fmt.Sprintf("phase_transition_%s_%d", action.GameID, time.Now().UnixNano()),
+				ID:        fmt.Sprintf("phase_transition_%s_%d", action.GameID, now.UnixNano()),
 				Type:      core.EventPhaseChanged,
 				GameID:    ga.gameID,
 				PlayerID:  "",
-				Timestamp: time.Now(),
+				Timestamp: now,
 				Payload: map[string]interface{}{
 					"phase_type": string(nextPhase),
 					"duration":   phaseDuration.Seconds(),
@@ -1413,6 +1570,17 @@ func (ga *GameActor) handleSkipVoteAction(action core.Action) ([]core.Event, err
 	}
 
 	return events, nil
+}
+
+// calculateRequiredSkipVotes returns the number of votes needed to skip the current phase
+func (ga *GameActor) calculateRequiredSkipVotes() int {
+	livingHumans := 0
+	for _, p := range ga.state.Players {
+		if p.IsAlive && p.ControlType == "HUMAN" {
+			livingHumans++
+		}
+	}
+	return livingHumans
 }
 
 // Legacy role assignment functions removed - now using persona system
@@ -1720,20 +1888,18 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 			}
 		}
 
-		// Generate SITREP message
+		// Generate SITREP message using the new structured approach
 		sitrepGenerator := game.NewSitrepGenerator(ga.state)
 		sitrep := sitrepGenerator.GenerateDailySitrep()
 
 		sitrepEvent := core.Event{
-			ID:        fmt.Sprintf("sitrep_generated_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
-			Type:      core.EventSystemMessage,
+			ID:        fmt.Sprintf("sitrep_published_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
+			Type:      core.EventSitrepPublished,
 			GameID:    ga.gameID,
 			PlayerID:  "",
 			Timestamp: time.Now(),
 			Payload: map[string]interface{}{
-				"message_type": "SITREP",
-				"sitrep_data":  sitrep,
-				"message":      sitrep.Summary,
+				"daily_sitrep": sitrep,
 			},
 		}
 		events = append(events, sitrepEvent)
@@ -1773,8 +1939,14 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 		events = append(events, initialMessageEvent)
 
 	case core.PhaseDiscussion:
-		// Pulse check results are already visible from individual submissions
-		// No need to reveal them again during phase transition
+		// If transitioning from PULSE_CHECK, generate the pulse check revelation event
+		if ga.state.Phase.Type == core.PhasePulseCheck {
+			pulseCheckRevelationEvent := ga.generatePulseCheckRevelation()
+			// Only add the event if it's not empty (i.e., there are responses to reveal)
+			if pulseCheckRevelationEvent.Type != "" {
+				events = append(events, pulseCheckRevelationEvent)
+			}
+		}
 	}
 
 	// Create the main phase transition event
@@ -2517,4 +2689,185 @@ Use /help during any phase to get specific guidance for that phase.
 • Trust carefully - the AI walks among us
 • Work together to identify and eliminate the threat`
 	}
+}
+
+// AddSpectator adds a spectator to the game
+func (ga *GameActor) AddSpectator(spectatorID, spectatorName string) error {
+	// Create and add the spectator to the game state
+	spectator := &core.Spectator{
+		ID:       spectatorID,
+		Name:     spectatorName,
+		JoinedAt: time.Now(),
+	}
+	
+	ga.state.Spectators[spectatorID] = spectator
+	
+	// Notify other spectators about the new spectator
+	spectatorJoinedEvent := core.Event{
+		ID:        fmt.Sprintf("spectator-joined-%d", time.Now().UnixNano()),
+		Type:      core.EventSpectatorJoined,
+		GameID:    ga.gameID,
+		PlayerID:  "", // Broadcast to spectators only
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"spectator": spectator,
+		},
+	}
+	
+	// Broadcast the event only to spectators
+	ga.broadcastToSpectators([]core.Event{spectatorJoinedEvent})
+	
+	return nil
+}
+
+// RemoveSpectator removes a spectator from the game
+func (ga *GameActor) RemoveSpectator(spectatorID string) error {
+	// Check if spectator exists
+	if _, exists := ga.state.Spectators[spectatorID]; !exists {
+		return fmt.Errorf("spectator %s not found", spectatorID)
+	}
+	
+	// Remove from game state
+	delete(ga.state.Spectators, spectatorID)
+	
+	// Notify other spectators about the spectator leaving
+	spectatorLeftEvent := core.Event{
+		ID:        fmt.Sprintf("spectator-left-%d", time.Now().UnixNano()),
+		Type:      core.EventSpectatorLeft,
+		GameID:    ga.gameID,
+		PlayerID:  "", // Broadcast to spectators only
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"player_id": spectatorID,
+		},
+	}
+	
+	// Broadcast the event only to spectators
+	ga.broadcastToSpectators([]core.Event{spectatorLeftEvent})
+	
+	return nil
+}
+
+// GetSpectatorStateSnapshot creates a filtered state snapshot for spectators
+func (ga *GameActor) GetSpectatorStateSnapshot() (*core.PublicGameState, []core.Spectator) {
+	// Create filtered public game state
+	publicState := ga.filterGameStateForSpectator()
+	
+	// Convert spectators map to slice
+	spectators := make([]core.Spectator, 0, len(ga.state.Spectators))
+	for _, spectator := range ga.state.Spectators {
+		spectators = append(spectators, *spectator)
+	}
+	
+	return publicState, spectators
+}
+
+// filterGameStateForSpectator creates a heavily filtered view of the game state for spectators
+func (ga *GameActor) filterGameStateForSpectator() *core.PublicGameState {
+	// Filter players to only include public information
+	publicPlayers := make([]core.PublicPlayerInfo, 0, len(ga.state.Players))
+	tokenCounts := make(map[string]int)
+	
+	for playerID, player := range ga.state.Players {
+		publicPlayer := core.PublicPlayerInfo{
+			ID:            player.ID,
+			Name:          player.Name,
+			JobTitle:      player.JobTitle,
+			IsActive:      player.IsAlive && player.Status == core.PlayerStatusAlive,
+			StatusMessage: player.StatusMessage,
+			TokenCount:    player.Tokens,
+		}
+		publicPlayers = append(publicPlayers, publicPlayer)
+		tokenCounts[playerID] = player.Tokens
+	}
+	
+	// Filter chat messages to only include public war-room messages
+	publicChatHistory := make([]core.ChatMessage, 0)
+	for _, msg := range ga.state.ChatMessages {
+		// Only include public war-room messages, exclude private/aligned channel messages
+		if msg.ChannelID == "#war-room" && !msg.IsSystem {
+			publicChatHistory = append(publicChatHistory, msg)
+		}
+	}
+	
+	// Calculate phase end time
+	phaseEndTime := ga.state.Phase.StartTime.Add(ga.state.Phase.Duration)
+	
+	return &core.PublicGameState{
+		GameID:       ga.state.ID,
+		Phase:        ga.state.Phase.Type,
+		DayNumber:    ga.state.DayNumber,
+		Players:      publicPlayers,
+		TokenCounts:  tokenCounts,
+		PhaseEndTime: phaseEndTime,
+		CrisisEvent:  ga.state.CrisisEvent, // Crisis events are public information
+		ChatHistory:  publicChatHistory,
+	}
+}
+
+// broadcastToSpectators sends events only to spectators
+func (ga *GameActor) broadcastToSpectators(events []core.Event) {
+	if ga.eventCallback != nil {
+		// Use the existing event callback but mark events as spectator-only
+		// The actual filtering will be done by the WebSocket manager based on connection type
+		for _, event := range events {
+			// Mark events as spectator-only by setting a special marker in the payload
+			if event.Payload == nil {
+				event.Payload = make(map[string]interface{})
+			}
+			event.Payload["spectator_only"] = true
+		}
+		ga.eventCallback(ga.gameID, events)
+	}
+}
+
+// processActionRequest handles action requests in the main processing loop
+func (ga *GameActor) processActionRequest(req actorRequest, eventsToPersist []core.Event) {
+	// Apply events to local state and check for additional events (like win conditions)
+	allEvents := eventsToPersist
+	for _, event := range eventsToPersist {
+		newState := core.ApplyEvent(*ga.state, event)
+		ga.state = &newState
+
+		// Check for win conditions after certain events
+		additionalEvents := ga.handlePostEventProcessing(event)
+		allEvents = append(allEvents, additionalEvents...)
+	}
+
+	// Apply any additional events that were generated
+	for i := len(eventsToPersist); i < len(allEvents); i++ {
+		newState := core.ApplyEvent(*ga.state, allEvents[i])
+		ga.state = &newState
+	}
+	eventsToPersist = allEvents
+
+	// Check for EventGameStarted or EventPhaseChanged and schedule next phase transition
+	for _, event := range eventsToPersist {
+		switch event.Type {
+		case core.EventGameStarted:
+			log.Printf("[GameActor/%s] Game started, scheduling first phase transition", ga.gameID)
+			ga.phaseManager.SchedulePhaseTransition(ga.state.Phase.Type, time.Now())
+		case core.EventPhaseChanged:
+			// Extract next phase from the event payload
+			if nextPhase, ok := event.Payload["phase_type"].(string); ok {
+				log.Printf("[GameActor/%s] Phase changed to %s, scheduling next transition", ga.gameID, nextPhase)
+				ga.phaseManager.SchedulePhaseTransition(core.PhaseType(nextPhase), time.Now())
+
+				// Check for Loebmate hints for the new phase
+				hintEvents := ga.hintManager.CheckForHints(core.PhaseType(nextPhase))
+				if len(hintEvents) > 0 {
+					// Send hint events through the event callback
+					if ga.eventCallback != nil {
+						ga.eventCallback(ga.gameID, hintEvents)
+					}
+				}
+
+				// Process AI actions for the new phase
+				ga.processAIActionsForPhase(core.PhaseType(nextPhase))
+			}
+		}
+	}
+
+	// Return the granular events instead of state snapshots
+	req.responseChan <- interfaces.ProcessActionResult{Events: eventsToPersist, Error: nil}
 }

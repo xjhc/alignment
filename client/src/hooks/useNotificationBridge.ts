@@ -16,9 +16,21 @@ export const useNotificationBridge = () => {
   
   // Handle WebSocket private notifications
   useWebSocketEvent('PRIVATE_NOTIFICATION', useCallback((payload: any) => {
-    switch (payload.type) {
+    switch (payload.type || payload.notification_type) {
       case 'SYSTEM_SHOCK':
         showToast(createToastNotification.conversion(payload.message));
+        break;
+        
+      case 'SYSTEM_SHOCK_AFFLICTED':
+        showToast({
+          type: 'toast',
+          category: 'system_shock',
+          icon: '⚠️',
+          color: 'magenta',
+          title: 'System Shock Detected',
+          message: payload.message,
+          priority: 'high',
+        });
         break;
         
       case 'ACTION_BLOCKED':
@@ -26,7 +38,7 @@ export const useNotificationBridge = () => {
         break;
         
       case 'ROLE_ABILITY_UNLOCKED':
-        showToast(createToastNotification.abilityUnlocked(payload.abilityName || 'Unknown Ability'));
+        showToast(createToastNotification.abilityUnlocked(payload.role_name || 'Unknown Ability'));
         break;
         
       case 'KPI_COMPLETE':

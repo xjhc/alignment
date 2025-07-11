@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/events"
+	"github.com/xjhc/alignment/server/internal/helpers"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/lobby"
 	"github.com/xjhc/alignment/server/internal/store"
@@ -22,7 +23,7 @@ const (
 	waitingForHostTimeout = 30 * time.Minute // Time to wait for host to connect
 	emptyLobbyTimeout     = 10 * time.Minute // Time to wait before cleaning up empty lobbies
 	staleLobbyTimeout     = 60 * time.Minute // Time since last activity before cleanup
-	
+
 	// Grace period for player reconnection
 	playerReconnectionGracePeriod = 2 * time.Minute // Time to wait before abandoning disconnected players
 )
@@ -46,7 +47,7 @@ type GameLifecycleManager struct {
 	// Countdown management
 	countdownTimers map[string]*time.Timer
 	countdownCancel map[string]context.CancelFunc
-	
+
 	// Disconnected player tracking for grace period
 	disconnectedPlayers map[string]*time.Timer // gameID:playerID -> grace period timer
 	disconnectedCancel  map[string]context.CancelFunc // gameID:playerID -> cancel function
@@ -102,11 +103,11 @@ func NewGameLifecycleManager(
 	eventBus.Subscribe("player_disconnected", glm.eventChannel)
 	eventBus.Subscribe("game_ended", glm.eventChannel)
 
-	// Start event processing goroutine
-	go glm.processEvents()
+	// Start event processing goroutine with panic protection
+	helpers.GoSafe(ctx, func(_ context.Context) { glm.processEvents() })
 
-	// Start periodic cleanup goroutine for stale lobbies and games
-	go glm.periodicCleanup()
+	// Start periodic cleanup goroutine for stale lobbies and games with panic protection
+	helpers.GoSafe(ctx, func(_ context.Context) { glm.periodicCleanup() })
 
 	return glm
 }
@@ -144,38 +145,50 @@ func (glm *GameLifecycleManager) handleEvent(event events.Event) {
 
 // handlePlayerDisconnected handles player disconnection with grace period for games
 func (glm *GameLifecycleManager) handlePlayerDisconnected(event events.PlayerDisconnectedEvent) {
-	log.Printf("GameLifecycleManager: Handling player disconnection: %s", event.PlayerID)
+	// Generate correlation ID for tracking this disconnection flow
+	correlationID := uuid.New().String()[:8]
+	log.Printf("[Disconnect-%s] handlePlayerDisconnected: Player %s disconnected from lobby=%s, game=%s", correlationID, event.PlayerID, event.LobbyID, event.GameID)
 
 	// Remove from active user tracker
 	if glm.activeUserTracker != nil {
 		if event.LobbyID != "" {
 			glm.activeUserTracker.RemoveUserSessionByGameAndPlayer(event.LobbyID, event.PlayerID)
+			log.Printf("[Disconnect-%s] handlePlayerDisconnected: Removed player %s from active user tracker for lobby %s", correlationID, event.PlayerID, event.LobbyID)
 		}
 		if event.GameID != "" {
 			glm.activeUserTracker.RemoveUserSessionByGameAndPlayer(event.GameID, event.PlayerID)
+			log.Printf("[Disconnect-%s] handlePlayerDisconnected: Removed player %s from active user tracker for game %s", correlationID, event.PlayerID, event.GameID)
 		}
 	}
 
 	// Handle lobby disconnection (immediate cleanup - no grace period for lobbies)
 	if event.LobbyID != "" {
+		log.Printf("[Disconnect-%s] handlePlayerDisconnected: Handling lobby disconnection", correlationID)
 		glm.handleLobbyDisconnection(event)
 	}
 
 	// Handle game disconnection (with grace period)
 	if event.GameID != "" {
+		log.Printf("[Disconnect-%s] handlePlayerDisconnected: Handling game disconnection", correlationID)
 		glm.handleGameDisconnection(event)
 	}
+	
+	log.Printf("[Disconnect-%s] handlePlayerDisconnected: Completed disconnection handling for player %s", correlationID, event.PlayerID)
 }
 
 // handleLobbyDisconnection handles disconnection from lobbies (with grace period)
 func (glm *GameLifecycleManager) handleLobbyDisconnection(event events.PlayerDisconnectedEvent) {
+	correlationID := uuid.New().String()[:8]
+	log.Printf("[Disconnect-%s] handleLobbyDisconnection: Processing lobby disconnect for player %s in lobby %s", correlationID, event.PlayerID, event.LobbyID)
+
 	glm.mutex.RLock()
 	lobby, exists := glm.lobbies[event.LobbyID]
 	glm.mutex.RUnlock()
 
 	if exists {
-		// Mark player as disconnected but keep their slot
+		// Mark player as disconnected but keep their slot - this will broadcast LOBBY_STATE_UPDATE
 		lobby.DisconnectPlayer(event.PlayerID)
+		log.Printf("[Disconnect-%s] handleLobbyDisconnection: Player %s marked as disconnected in lobby, state broadcasted", correlationID, event.PlayerID)
 
 		// Publish player disconnected event (not left)
 		glm.eventBus.Publish(events.PlayerDisconnectedFromLobbyEvent{
@@ -186,14 +199,16 @@ func (glm *GameLifecycleManager) handleLobbyDisconnection(event events.PlayerDis
 		// Start grace period timer
 		glm.startLobbyDisconnectionGracePeriod(event.LobbyID, event.PlayerID)
 
-		log.Printf("GameLifecycleManager: Player %s disconnected from lobby %s, starting grace period", event.PlayerID, event.LobbyID)
+		log.Printf("[Disconnect-%s] handleLobbyDisconnection: Player %s disconnected from lobby %s, starting grace period", correlationID, event.PlayerID, event.LobbyID)
+	} else {
+		log.Printf("[Disconnect-%s] handleLobbyDisconnection: Lobby %s not found", correlationID, event.LobbyID)
 	}
 }
 
 // startLobbyDisconnectionGracePeriod starts a grace period timer for a disconnected lobby player
 func (glm *GameLifecycleManager) startLobbyDisconnectionGracePeriod(lobbyID, playerID string) {
 	gracePeriodKey := fmt.Sprintf("lobby:%s:%s", lobbyID, playerID)
-	
+
 	// Check if this player already has a grace period running
 	glm.mutex.Lock()
 	if _, exists := glm.disconnectedPlayers[gracePeriodKey]; exists {
@@ -205,19 +220,19 @@ func (glm *GameLifecycleManager) startLobbyDisconnectionGracePeriod(lobbyID, pla
 
 	// Create a cancellable context for this grace period
 	ctx, cancel := context.WithCancel(glm.ctx)
-	
+
 	glm.mutex.Lock()
 	glm.disconnectedCancel[gracePeriodKey] = cancel
 	glm.mutex.Unlock()
 
-	// Start the grace period timer in a goroutine
-	go glm.runLobbyGracePeriodTimer(ctx, lobbyID, playerID)
+	// Start the grace period timer in a goroutine with panic protection
+	helpers.GoSafe(ctx, func(ctx context.Context) { glm.runLobbyGracePeriodTimer(ctx, lobbyID, playerID) })
 }
 
 // runLobbyGracePeriodTimer runs the lobby grace period timer and handles expiration
 func (glm *GameLifecycleManager) runLobbyGracePeriodTimer(ctx context.Context, lobbyID, playerID string) {
 	gracePeriodKey := fmt.Sprintf("lobby:%s:%s", lobbyID, playerID)
-	
+
 	defer func() {
 		glm.mutex.Lock()
 		delete(glm.disconnectedPlayers, gracePeriodKey)
@@ -274,7 +289,7 @@ func (glm *GameLifecycleManager) removePermanentlyFromLobby(lobbyID, playerID st
 
 		if newHostID != "" {
 			log.Printf("GameLifecycleManager: Transferred host from %s to %s in lobby %s after grace period", playerID, newHostID, lobbyID)
-			
+
 			// Broadcast host transfer event to all players in lobby
 			hostTransferEvent := core.Event{
 				ID:        uuid.New().String(),
@@ -327,13 +342,16 @@ func (glm *GameLifecycleManager) checkLobbyCleanup(lobbyID string, lobby *lobby.
 
 // handleGameDisconnection handles disconnection from games (with grace period)
 func (glm *GameLifecycleManager) handleGameDisconnection(event events.PlayerDisconnectedEvent) {
+	correlationID := uuid.New().String()[:8]
 	gracePeriodKey := fmt.Sprintf("%s:%s", event.GameID, event.PlayerID)
-	
+
+	log.Printf("[Disconnect-%s] handleGameDisconnection: Processing game disconnect for player %s in game %s", correlationID, event.PlayerID, event.GameID)
+
 	// Check if this player is already in a grace period (duplicate disconnect event)
 	glm.mutex.RLock()
 	if _, exists := glm.disconnectedPlayers[gracePeriodKey]; exists {
 		glm.mutex.RUnlock()
-		log.Printf("GameLifecycleManager: Player %s already in grace period for game %s", event.PlayerID, event.GameID)
+		log.Printf("[Disconnect-%s] handleGameDisconnection: Player %s already in grace period for game %s", correlationID, event.PlayerID, event.GameID)
 		return
 	}
 	glm.mutex.RUnlock()
@@ -342,7 +360,7 @@ func (glm *GameLifecycleManager) handleGameDisconnection(event events.PlayerDisc
 	glm.mutex.Lock()
 	if session, exists := glm.gameSessions[event.GameID]; exists {
 		delete(session, event.PlayerID)
-		log.Printf("GameLifecycleManager: Removed player %s from game session %s (grace period started)", event.PlayerID, event.GameID)
+		log.Printf("[Disconnect-%s] handleGameDisconnection: Removed player %s from game session %s (grace period started)", correlationID, event.PlayerID, event.GameID)
 	}
 	glm.mutex.Unlock()
 
@@ -352,6 +370,8 @@ func (glm *GameLifecycleManager) handleGameDisconnection(event events.PlayerDisc
 	glm.mutex.RUnlock()
 
 	if exists {
+		log.Printf("[Disconnect-%s] handleGameDisconnection: Found GameActor, dispatching connection status change", correlationID)
+		
 		// Send SET_PLAYER_CONNECTION_STATUS action to GameActor
 		disconnectAction := core.Action{
 			Type:     core.ActionSetPlayerConnectionStatus,
@@ -361,43 +381,46 @@ func (glm *GameLifecycleManager) handleGameDisconnection(event events.PlayerDisc
 				"connection_status": "DISCONNECTED",
 			},
 		}
-		
-		// Post action asynchronously
-		go func() {
-			resultChan := gameActor.PostAction(disconnectAction)
-			result := <-resultChan
-			if result.Error != nil {
-				log.Printf("GameLifecycleManager: Error setting player connection status: %v", result.Error)
-			}
-		}()
+
+		// Post action synchronously to ensure the status is updated and broadcasted
+		log.Printf("[Disconnect-%s] handleGameDisconnection: Posting SET_PLAYER_CONNECTION_STATUS action", correlationID)
+		resultChan := gameActor.PostAction(disconnectAction)
+		result := <-resultChan
+		if result.Error != nil {
+			log.Printf("[Disconnect-%s] handleGameDisconnection: ERROR - Failed to set player connection status: %v", correlationID, result.Error)
+		} else {
+			log.Printf("[Disconnect-%s] handleGameDisconnection: Successfully set connection status to DISCONNECTED and broadcasted to other players", correlationID)
+		}
 
 		// Start grace period timer
 		glm.startGracePeriodTimer(event.GameID, event.PlayerID)
+	} else {
+		log.Printf("[Disconnect-%s] handleGameDisconnection: GameActor not found for game %s", correlationID, event.GameID)
 	}
 }
 
 // startGracePeriodTimer starts a grace period timer for a disconnected player
 func (glm *GameLifecycleManager) startGracePeriodTimer(gameID, playerID string) {
 	gracePeriodKey := fmt.Sprintf("%s:%s", gameID, playerID)
-	
+
 	// Create grace period context
 	gracePeriodCtx, cancel := context.WithCancel(glm.ctx)
-	
+
 	glm.mutex.Lock()
 	glm.disconnectedCancel[gracePeriodKey] = cancel
 	glm.mutex.Unlock()
 
-	log.Printf("GameLifecycleManager: Starting %v grace period for player %s in game %s", 
+	log.Printf("GameLifecycleManager: Starting %v grace period for player %s in game %s",
 		playerReconnectionGracePeriod, playerID, gameID)
 
-	// Start grace period timer in a goroutine
-	go glm.runGracePeriodTimer(gracePeriodCtx, gameID, playerID)
+	// Start grace period timer in a goroutine with panic protection
+	helpers.GoSafe(gracePeriodCtx, func(ctx context.Context) { glm.runGracePeriodTimer(ctx, gameID, playerID) })
 }
 
 // runGracePeriodTimer runs the grace period timer and handles expiration
 func (glm *GameLifecycleManager) runGracePeriodTimer(ctx context.Context, gameID, playerID string) {
 	gracePeriodKey := fmt.Sprintf("%s:%s", gameID, playerID)
-	
+
 	defer func() {
 		glm.mutex.Lock()
 		delete(glm.disconnectedPlayers, gracePeriodKey)
@@ -442,15 +465,15 @@ func (glm *GameLifecycleManager) abandonDisconnectedPlayer(gameID, playerID stri
 				"reason": "grace_period_expired",
 			},
 		}
-		
-		// Post action asynchronously
-		go func() {
+
+		// Post action asynchronously with panic protection
+		helpers.GoSafe(glm.ctx, func(_ context.Context) {
 			resultChan := gameActor.PostAction(abandonAction)
 			result := <-resultChan
 			if result.Error != nil {
 				log.Printf("GameLifecycleManager: Error abandoning player: %v", result.Error)
 			}
-		}()
+		})
 
 		// Check if this was the last player out and trigger garbage collection
 		if session != nil && len(session) == 0 {
@@ -477,7 +500,7 @@ func (glm *GameLifecycleManager) abandonDisconnectedPlayer(gameID, playerID stri
 // cancelGracePeriod cancels the grace period timer for a reconnecting player
 func (glm *GameLifecycleManager) cancelGracePeriod(gameID, playerID string) {
 	gracePeriodKey := fmt.Sprintf("%s:%s", gameID, playerID)
-	
+
 	glm.mutex.Lock()
 	if cancelFunc, exists := glm.disconnectedCancel[gracePeriodKey]; exists {
 		cancelFunc()
@@ -567,6 +590,7 @@ func (glm *GameLifecycleManager) periodicCleanup() {
 		case <-ticker.C:
 			glm.cleanupStaleLobbies()
 			glm.cleanupStaleGameSessions()
+			glm.cleanupExpiredTokens()
 		}
 	}
 }
@@ -581,7 +605,8 @@ func (glm *GameLifecycleManager) cleanupStaleLobbies() {
 
 	glm.mutex.RLock()
 	for lobbyID, lobby := range glm.lobbies {
-		playerCount := len(lobby.GetPlayerActors())
+		lobby.RLock()
+		playerCount := len(lobby.Players)
 		status := lobby.Status
 		createdAt := lobby.CreatedAt
 		lastActivity := lobby.LastActivity
@@ -690,15 +715,17 @@ func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobb
 	// Use the userID as the playerID to ensure consistency
 	hostPlayerID := userID
 
+	glm.mutex.Lock()
+	defer glm.mutex.Unlock()
+
 	// Generate session token
-	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(lobbyID, hostPlayerID, hostPlayerName, playerAvatar, lobbyName, true, isPrivate)
+	sessionToken, err := glm.generateSessionTokenWithLobbyInfo_unsafe(lobbyID, hostPlayerID, hostPlayerName, playerAvatar, lobbyName, true, isPrivate)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}
 
 	// Create the lobby immediately (not waiting for WebSocket connection)
 	// This ensures it appears in the lobby list right away
-	glm.mutex.Lock()
 	if lobbyName == "" {
 		lobbyName = hostPlayerName + "'s Game"
 	}
@@ -718,7 +745,6 @@ func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobb
 	}
 
 	glm.lobbies[lobbyID] = newLobby
-	glm.mutex.Unlock()
 
 	// Publish lobby created event
 	glm.eventBus.Publish(events.LobbyCreatedEvent{
@@ -734,6 +760,12 @@ func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobb
 
 // JoinLobbyWithActor adds a player actor to a lobby, creating it if needed
 func (glm *GameLifecycleManager) JoinLobbyWithActor(lobbyID string, playerActor interfaces.PlayerActorInterface) error {
+	// Generate correlation ID for tracking this connection flow
+	correlationID := uuid.New().String()[:8]
+	playerID := playerActor.GetPlayerID()
+	
+	log.Printf("[Connection-%s] JoinLobbyWithActor: Starting join process for player %s to lobby %s", correlationID, playerID, lobbyID)
+	
 	glm.mutex.Lock()
 	targetLobby, exists := glm.lobbies[lobbyID]
 
@@ -741,37 +773,45 @@ func (glm *GameLifecycleManager) JoinLobbyWithActor(lobbyID string, playerActor 
 		// This should not happen in the regular flow anymore, as the lobby
 		// is created via HTTP first. But as a safeguard:
 		glm.mutex.Unlock()
+		log.Printf("[Connection-%s] JoinLobbyWithActor: FAILED - lobby not found: %s", correlationID, lobbyID)
 		return fmt.Errorf("lobby not found: %s", lobbyID)
 	}
+	
+	log.Printf("[Connection-%s] JoinLobbyWithActor: Found existing lobby %s", correlationID, lobbyID)
 
 	// Lock the specific lobby for state changes
 	targetLobby.Lock()
 
-	playerID := playerActor.GetPlayerID()
 	// Check if this is the host connecting for the first time
 	if targetLobby.Status == "WAITING_FOR_HOST" && targetLobby.HostPlayerID == playerID {
 		// Host is connecting - transition lobby from placeholder to active
 		targetLobby.Status = "WAITING"
-		log.Printf("GameLifecycleManager: Host %s connected, lobby %s is now active", playerID, lobbyID)
+		log.Printf("[Connection-%s] JoinLobbyWithActor: Host %s connected, lobby %s is now active", correlationID, playerID, lobbyID)
 	} else if targetLobby.Status == "WAITING_FOR_HOST" {
 		// If another player tries to join before the host, reject them.
 		targetLobby.Unlock()
 		glm.mutex.Unlock()
+		log.Printf("[Connection-%s] JoinLobbyWithActor: FAILED - lobby %s is waiting for host, rejecting player %s", correlationID, lobbyID, playerID)
 		return fmt.Errorf("lobby is not accepting new players yet")
 	}
 	targetLobby.Unlock() // Unlock the lobby after status check/update
 	glm.mutex.Unlock() // Unlock the manager after getting the lobby ref
 
+	log.Printf("[Connection-%s] JoinLobbyWithActor: Status validated, checking for blocked players", correlationID)
+
 	// Check for blocked players before allowing the join
 	err := glm.checkForBlockedPlayers(playerActor.GetPlayerID(), targetLobby)
 	if err != nil {
+		log.Printf("[Connection-%s] JoinLobbyWithActor: FAILED - blocked player check failed: %v", correlationID, err)
 		return err
 	}
 
+	log.Printf("[Connection-%s] JoinLobbyWithActor: Blocked player check passed", correlationID)
+
 	// Check if this is a reconnection (player exists but is disconnected)
 	if targetLobby.IsPlayerDisconnected(playerID) {
-		log.Printf("GameLifecycleManager: Player %s is reconnecting to lobby %s", playerID, lobbyID)
-		
+		log.Printf("[Connection-%s] JoinLobbyWithActor: Player %s is reconnecting to lobby %s", correlationID, playerID, lobbyID)
+
 		// Cancel the grace period timer
 		gracePeriodKey := fmt.Sprintf("lobby:%s:%s", lobbyID, playerID)
 		glm.mutex.Lock()
@@ -779,25 +819,45 @@ func (glm *GameLifecycleManager) JoinLobbyWithActor(lobbyID string, playerActor 
 			cancelFunc()
 			delete(glm.disconnectedCancel, gracePeriodKey)
 			delete(glm.disconnectedPlayers, gracePeriodKey)
-			log.Printf("GameLifecycleManager: Cancelled grace period for reconnecting player %s in lobby %s", playerID, lobbyID)
+			log.Printf("[Connection-%s] JoinLobbyWithActor: Cancelled grace period for reconnecting player %s in lobby %s", correlationID, playerID, lobbyID)
 		}
 		glm.mutex.Unlock()
 
-		// Reconnect the player
+		// Reconnect the player - this will automatically broadcast state update to all players
 		targetLobby.ReconnectPlayer(playerID, playerActor)
-		
+		log.Printf("[Connection-%s] JoinLobbyWithActor: Player %s reconnected to lobby, state broadcasted", correlationID, playerID)
+
 		// Transition player actor to lobby state
-		return playerActor.TransitionToLobby(lobbyID)
+		err := playerActor.TransitionToLobby(lobbyID)
+		if err != nil {
+			log.Printf("[Connection-%s] JoinLobbyWithActor: FAILED - transition to lobby failed: %v", correlationID, err)
+			return err
+		}
+		
+		log.Printf("[Connection-%s] JoinLobbyWithActor: SUCCESS - Player %s reconnected to lobby %s and received state", correlationID, playerID, lobbyID)
+		return nil
 	}
+
+	log.Printf("[Connection-%s] JoinLobbyWithActor: Adding new player %s to lobby %s", correlationID, playerID, lobbyID)
 
 	// Add player to lobby (this will handle its own locking and broadcasting)
 	err = targetLobby.AddPlayer(playerActor)
 	if err != nil {
+		log.Printf("[Connection-%s] JoinLobbyWithActor: FAILED - AddPlayer failed: %v", correlationID, err)
 		return err
 	}
 
+	log.Printf("[Connection-%s] JoinLobbyWithActor: Player %s added to lobby, transitioning to lobby state", correlationID, playerID)
+
 	// Transition player actor to lobby state
-	return playerActor.TransitionToLobby(lobbyID)
+	err = playerActor.TransitionToLobby(lobbyID)
+	if err != nil {
+		log.Printf("[Connection-%s] JoinLobbyWithActor: FAILED - transition to lobby failed: %v", correlationID, err)
+		return err
+	}
+	
+	log.Printf("[Connection-%s] JoinLobbyWithActor: SUCCESS - Player %s joined lobby %s", correlationID, playerID, lobbyID)
+	return nil
 }
 
 // StartGame initiates a 3-second countdown before starting the game
@@ -867,8 +927,8 @@ func (glm *GameLifecycleManager) startCountdown(lobbyID string) error {
 		actor.SendServerMessage(countdownEvent)
 	}
 
-	// Start countdown timer in a goroutine
-	go glm.runCountdown(countdownCtx, lobbyID, 3)
+	// Start countdown timer in a goroutine with panic protection
+	helpers.GoSafe(countdownCtx, func(ctx context.Context) { glm.runCountdown(ctx, lobbyID, 3) })
 
 	return nil
 }
@@ -1096,10 +1156,35 @@ func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActor
 
 	// Persist all events generated during game initialization
 	for _, event := range initialEvents {
-		if err := glm.datastore.AppendEvent(gameID, event); err != nil {
+		if err := glm.datastore.AppendEvent(glm.ctx, gameID, event); err != nil {
 			log.Printf("CRITICAL: Failed to persist event %s for %s: %v", event.ID, gameID, err)
 			// Don't fail the whole process, but log critically
 		}
+	}
+
+	// Assign corporate mandate for this game
+	mandateAction := core.Action{
+		Type:     core.ActionType("ASSIGN_CORPORATE_MANDATE"),
+		GameID:   gameID,
+		PlayerID: "SYSTEM",
+	}
+	mandateResponseChan := gameActor.PostAction(mandateAction)
+	select {
+	case result := <-mandateResponseChan:
+		if result.Error != nil {
+			log.Printf("WARNING: Failed to assign corporate mandate for game %s: %v", gameID, result.Error)
+			// Don't fail the whole process, but log the warning
+		} else {
+			// Persist mandate assignment events
+			for _, event := range result.Events {
+				if err := glm.datastore.AppendEvent(glm.ctx, gameID, event); err != nil {
+					log.Printf("CRITICAL: Failed to persist mandate event %s for %s: %v", event.ID, gameID, err)
+				}
+			}
+		}
+	case <-time.After(2 * time.Second):
+		log.Printf("WARNING: Timeout waiting for corporate mandate assignment for game %s", gameID)
+		// Don't fail the whole process, continue without mandate
 	}
 
 	// 2. Now that the GameActor's state is fully initialized, we can safely
@@ -1151,8 +1236,34 @@ func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActor
 }
 
 
-// Helper methods for token management (copied from original LobbyManager)
+// generateSessionTokenWithLobbyInfo creates a session token for a player in a lobby
 func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost, isPrivate bool) (string, error) {
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(tokenBytes)
+
+	joinToken := &lobby.JoinToken{
+		Token:        token,
+		LobbyID:      lobbyID,
+		PlayerID:     playerID,
+		PlayerName:   playerName,
+		PlayerAvatar: playerAvatar,
+		LobbyName:    lobbyName,
+		IsHost:       isHost,
+		IsPrivate:    isPrivate,
+		ExpiresAt:    time.Now().Add(30 * time.Minute),
+	}
+
+	glm.mutex.Lock()
+	defer glm.mutex.Unlock()
+	glm.tokens[token] = joinToken
+	return token, nil
+}
+
+// generateSessionTokenWithLobbyInfo_unsafe is a private helper that assumes the caller holds the lock.
+func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo_unsafe(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost, isPrivate bool) (string, error) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return "", err
@@ -1205,6 +1316,27 @@ func (glm *GameLifecycleManager) ValidateSessionToken(token string) (interface{}
 	return joinToken, nil
 }
 
+// cleanupExpiredTokens removes tokens that have expired
+func (glm *GameLifecycleManager) cleanupExpiredTokens() {
+	glm.mutex.Lock()
+	defer glm.mutex.Unlock()
+
+	now := time.Now()
+	var expiredTokens []string
+	for tokenStr, token := range glm.tokens {
+		if now.After(token.ExpiresAt) {
+			expiredTokens = append(expiredTokens, tokenStr)
+		}
+	}
+
+	if len(expiredTokens) > 0 {
+		for _, tokenStr := range expiredTokens {
+			delete(glm.tokens, tokenStr)
+		}
+		log.Printf("GameLifecycleManager: Cleaned up %d expired tokens", len(expiredTokens))
+	}
+}
+
 // Stop gracefully shuts down the manager
 func (glm *GameLifecycleManager) Stop() {
 	log.Println("GameLifecycleManager: Shutting down")
@@ -1213,23 +1345,33 @@ func (glm *GameLifecycleManager) Stop() {
 
 // JoinLobby creates credentials for joining an existing lobby via HTTP
 func (glm *GameLifecycleManager) JoinLobby(lobbyID, userID, playerName, playerAvatar string) (string, string, error) {
-	// Check if lobby exists
 	glm.mutex.RLock()
 	lobby, exists := glm.lobbies[lobbyID]
-	glm.mutex.RUnlock()
+	glm.mutex.RUnlock() // Release manager lock after getting lobby reference
 
 	if !exists {
 		return "", "", fmt.Errorf("lobby not found")
 	}
 
-	// Check if lobby can accept players
-	if !lobby.CanStart() && len(lobby.GetPlayerActors()) >= lobby.MaxPlayers {
+	// Now lock the specific lobby to read its state safely
+	lobby.RLock() // Using read lock
+	status := lobby.Status
+	playerCount := len(lobby.Players)
+	maxPlayers := lobby.MaxPlayers
+	isPrivate := lobby.IsPrivate
+	lobby.RUnlock()
+
+	// Now do checks without holding a lock
+	if status != "WAITING" && status != "WAITING_FOR_HOST" {
+		return "", "", fmt.Errorf("lobby is not accepting new players")
+	}
+
+	if playerCount >= maxPlayers {
 		return "", "", fmt.Errorf("lobby is full")
 	}
 
-	// Use the userID as the playerID to ensure consistency
 	playerID := userID
-	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, "", false, lobby.IsPrivate)
+	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, "", false, isPrivate)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}
@@ -1237,52 +1379,69 @@ func (glm *GameLifecycleManager) JoinLobby(lobbyID, userID, playerName, playerAv
 	return playerID, sessionToken, nil
 }
 
+// JoinAsSpectator allows a user to join a running game as a spectator
+func (glm *GameLifecycleManager) JoinAsSpectator(gameID, userID, spectatorName string) (string, string, error) {
+	glm.mutex.RLock()
+	_, exists := glm.gameActors[gameID]
+	glm.mutex.RUnlock()
+
+	if !exists {
+		return "", "", fmt.Errorf("game not found")
+	}
+
+	// Check if the game is in progress
+	// Note: We can't easily check the game state here without adding more complexity
+	// For now, we'll let the GameActor handle the validation
+
+	// Generate a unique spectator ID
+	spectatorID := fmt.Sprintf("spectator-%s", userID)
+
+	// Generate session token for spectator
+	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(gameID, spectatorID, spectatorName, "", "", false, false)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate session token: %w", err)
+	}
+
+	return spectatorID, sessionToken, nil
+}
+
 // SendActionToGame forwards an action to the appropriate GameActor
-func (glm *GameLifecycleManager) SendActionToGame(gameID string, action core.Action) error {
+func (glm *GameLifecycleManager) SendActionToGame(gameID string, action core.Action) (chan interfaces.ProcessActionResult, error) {
 	glm.mutex.RLock()
 	gameActor, exists := glm.gameActors[gameID]
 	glm.mutex.RUnlock()
 
 	if !exists {
-		return fmt.Errorf("game not found: %s", gameID)
+		return nil, fmt.Errorf("game not found: %s", gameID)
 	}
 
-	// Post the action and get the response channel (non-blocking)
+	// Return the response channel directly to enable request-response pattern
 	resultChan := gameActor.PostAction(action)
-	go func() {
-		// Handle the result asynchronously to prevent blocking
-		result := <-resultChan
-		if result.Error != nil {
-			log.Printf("GameLifecycleManager: Error processing action in game %s: %v", gameID, result.Error)
-			// In a real scenario, you might want to send an error back to the originating player.
-			// For now, we just log and stop.
-			return
-		}
+	return resultChan, nil
+}
 
-		// Get the players to broadcast to
-		glm.mutex.RLock()
-		playerActors, sessionExists := glm.gameSessions[gameID]
-		glm.mutex.RUnlock()
+// BroadcastEventsToGame broadcasts events to all players in a game session
+func (glm *GameLifecycleManager) BroadcastEventsToGame(gameID string, events []core.Event) error {
+	glm.mutex.RLock()
+	playerActors, sessionExists := glm.gameSessions[gameID]
+	glm.mutex.RUnlock()
 
-		if !sessionExists {
-			log.Printf("GameLifecycleManager: Could not find session for game %s to broadcast events", gameID)
-			return
-		}
+	if !sessionExists {
+		return fmt.Errorf("could not find session for game %s", gameID)
+	}
 
-		// Broadcast events to players in the game session
-		for _, event := range result.Events {
-			if event.PlayerID != "" { // Private event for a specific player
-				if actor, ok := playerActors[event.PlayerID]; ok {
-					actor.SendServerMessage(event)
-				}
-			} else { // Public event for all players in the game
-				for _, actor := range playerActors {
-					actor.SendServerMessage(event)
-				}
+	// Broadcast events to players in the game session
+	for _, event := range events {
+		if event.PlayerID != "" { // Private event for a specific player
+			if actor, ok := playerActors[event.PlayerID]; ok {
+				actor.SendServerMessage(event)
+			}
+		} else { // Public event for all players in the game
+			for _, actor := range playerActors {
+				actor.SendServerMessage(event)
 			}
 		}
-	}()
-
+	}
 	return nil
 }
 
@@ -1298,10 +1457,10 @@ func (glm *GameLifecycleManager) ValidateSession(gameID, playerID, sessionToken 
 
 	// Check if token is expired - if so, trigger force logout for cleanup
 	if !time.Now().Before(token.ExpiresAt) {
-		// Schedule force logout outside of the read lock
-		go func() {
+		// Schedule force logout outside of the read lock with panic protection
+		helpers.GoSafe(glm.ctx, func(_ context.Context) {
 			glm.ForceLogoutPlayer(playerID, "session_expired")
-		}()
+		})
 		return false
 	}
 
@@ -1324,6 +1483,70 @@ func (glm *GameLifecycleManager) GetPlayerInfo(gameID, playerID string) (string,
 	}
 
 	return "", "", fmt.Errorf("player info not found")
+}
+
+// GetInitialStateForPlayer returns the appropriate initial state snapshot for a connecting player
+func (glm *GameLifecycleManager) GetInitialStateForPlayer(gameID, playerID string) (interface{}, error) {
+	correlationID := uuid.New().String()[:8]
+	log.Printf("[InitialState-%s] Getting initial state for player %s in game/lobby %s", correlationID, playerID, gameID)
+
+	glm.mutex.RLock()
+	defer glm.mutex.RUnlock()
+
+	// Check if it's a lobby first
+	if lobby, exists := glm.lobbies[gameID]; exists {
+		log.Printf("[InitialState-%s] Found lobby %s, generating lobby state snapshot", correlationID, gameID)
+		
+		lobby.RLock()
+		defer lobby.RUnlock()
+		
+		// Create lobby state snapshot
+		var playerInfos []interface{}
+		for _, playerInfo := range lobby.Players {
+			playerInfos = append(playerInfos, map[string]interface{}{
+				"id":               playerInfo.ID,
+				"name":             playerInfo.Name,
+				"avatar":           playerInfo.Avatar,
+				"joinedAt":         playerInfo.JoinedAt,
+				"connectionStatus": playerInfo.ConnectionStatus,
+			})
+		}
+
+		snapshot := map[string]interface{}{
+			"type": "LOBBY_STATE_UPDATE",
+			"payload": map[string]interface{}{
+				"lobby_id":      lobby.ID,
+				"players":       playerInfos,
+				"host_id":       lobby.HostPlayerID,
+				"can_start":     len(lobby.Players) >= lobby.MinPlayers && (lobby.Status == "WAITING" || lobby.Status == "COUNTDOWN"),
+				"name":          lobby.Name,
+				"max_players":   lobby.MaxPlayers,
+				"game_settings": lobby.GameSettings,
+			},
+		}
+
+		log.Printf("[InitialState-%s] Generated lobby snapshot with %d players", correlationID, len(playerInfos))
+		return snapshot, nil
+	}
+
+	// Check if it's an active game
+	if gameActor, exists := glm.gameActors[gameID]; exists {
+		log.Printf("[InitialState-%s] Found active game %s, generating game state snapshot", correlationID, gameID)
+		
+		// Get game state snapshot from the GameActor
+		stateSnapshot := gameActor.CreatePlayerStateUpdateEvent(playerID)
+		
+		snapshot := map[string]interface{}{
+			"type":    stateSnapshot.Type,
+			"payload": stateSnapshot.Payload,
+		}
+
+		log.Printf("[InitialState-%s] Generated game state snapshot for player %s", correlationID, playerID)
+		return snapshot, nil
+	}
+
+	log.Printf("[InitialState-%s] No lobby or game found for ID %s", correlationID, gameID)
+	return nil, fmt.Errorf("no lobby or game found with ID: %s", gameID)
 }
 
 // GetLobbyList returns a list of active lobbies for the HTTP API
@@ -1361,22 +1584,31 @@ func (glm *GameLifecycleManager) GetGameActor(gameID string) (interfaces.GameAct
 
 // ReconnectPlayerToGame re-adds a reconnecting player to an active game session
 func (glm *GameLifecycleManager) ReconnectPlayerToGame(gameID string, playerActor interfaces.PlayerActorInterface) error {
+	// Generate correlation ID for tracking this reconnection flow
+	correlationID := uuid.New().String()[:8]
+	playerID := playerActor.GetPlayerID()
+	
+	log.Printf("[Connection-%s] ReconnectPlayerToGame: Starting reconnection for player %s to game %s", correlationID, playerID, gameID)
+	
 	glm.mutex.Lock()
 	defer glm.mutex.Unlock()
 
 	// Check if the game session exists
 	session, exists := glm.gameSessions[gameID]
 	if !exists {
+		log.Printf("[Connection-%s] ReconnectPlayerToGame: FAILED - game session not found: %s", correlationID, gameID)
 		return fmt.Errorf("game session not found: %s", gameID)
 	}
-
-	playerID := playerActor.GetPlayerID()
+	
+	log.Printf("[Connection-%s] ReconnectPlayerToGame: Found existing game session %s", correlationID, gameID)
 
 	// Cancel the grace period timer if it exists
 	glm.cancelGracePeriod(gameID, playerID)
+	log.Printf("[Connection-%s] ReconnectPlayerToGame: Cancelled grace period for player %s", correlationID, playerID)
 
 	// Add the player back to the game session
 	session[playerID] = playerActor
+	log.Printf("[Connection-%s] ReconnectPlayerToGame: Player %s added back to game session", correlationID, playerID)
 
 	// Notify the GameActor about the reconnection (set connection status to CONNECTED)
 	glm.mutex.RLock()
@@ -1384,6 +1616,8 @@ func (glm *GameLifecycleManager) ReconnectPlayerToGame(gameID string, playerActo
 	glm.mutex.RUnlock()
 
 	if exists {
+		log.Printf("[Connection-%s] ReconnectPlayerToGame: Found GameActor, sending connection status update and state snapshot", correlationID)
+		
 		// Send SET_PLAYER_CONNECTION_STATUS action to GameActor
 		reconnectAction := core.Action{
 			Type:     core.ActionSetPlayerConnectionStatus,
@@ -1393,18 +1627,95 @@ func (glm *GameLifecycleManager) ReconnectPlayerToGame(gameID string, playerActo
 				"connection_status": "CONNECTED",
 			},
 		}
-		
-		// Post action asynchronously
-		go func() {
-			resultChan := gameActor.PostAction(reconnectAction)
-			result := <-resultChan
-			if result.Error != nil {
-				log.Printf("GameLifecycleManager: Error setting player connection status: %v", result.Error)
-			}
-		}()
+
+		// Post action synchronously to ensure connection status is updated first
+		log.Printf("[Connection-%s] ReconnectPlayerToGame: Posting connection status action to GameActor", correlationID)
+		resultChan := gameActor.PostAction(reconnectAction)
+		result := <-resultChan
+		if result.Error != nil {
+			log.Printf("[Connection-%s] ReconnectPlayerToGame: ERROR - Failed to set player connection status: %v", correlationID, result.Error)
+		} else {
+			log.Printf("[Connection-%s] ReconnectPlayerToGame: Successfully updated connection status in GameActor", correlationID)
+		}
+
+		// Now send the player a complete state snapshot to ensure they have current game state
+		log.Printf("[Connection-%s] ReconnectPlayerToGame: Sending game state snapshot to reconnected player", correlationID)
+		stateSnapshot := gameActor.CreatePlayerStateUpdateEvent(playerID)
+		playerActor.SendServerMessage(stateSnapshot)
+		log.Printf("[Connection-%s] ReconnectPlayerToGame: Game state snapshot sent to player %s", correlationID, playerID)
+	} else {
+		log.Printf("[Connection-%s] ReconnectPlayerToGame: WARNING - GameActor not found for game %s", correlationID, gameID)
 	}
 
-	log.Printf("GameLifecycleManager: Player %s reconnected to game session %s", playerID, gameID)
+	log.Printf("[Connection-%s] ReconnectPlayerToGame: SUCCESS - Player %s reconnected to game session %s", correlationID, playerID, gameID)
+	return nil
+}
+
+// RehydrateGamesFromStore scans Redis for active games and restarts their actors
+func (glm *GameLifecycleManager) RehydrateGamesFromStore() error {
+	log.Println("GameLifecycleManager: Starting game rehydration from persistent store")
+	
+	activeGameIDs, err := glm.datastore.ListActiveGames(glm.ctx)
+	if err != nil {
+		return fmt.Errorf("could not list active games from datastore: %w", err)
+	}
+
+	log.Printf("GameLifecycleManager: Found %d active games to rehydrate", len(activeGameIDs))
+	
+	successCount := 0
+	errorCount := 0
+	
+	for _, gameID := range activeGameIDs {
+		log.Printf("GameLifecycleManager: Rehydrating game: %s", gameID)
+		
+		// Load the game state snapshot to understand the current state
+		gameState, err := glm.datastore.GetLatestSnapshot(glm.ctx, gameID)
+		if err != nil {
+			log.Printf("GameLifecycleManager: Error loading snapshot for game %s: %v", gameID, err)
+			errorCount++
+			continue
+		}
+		
+		// Skip games that are already completed
+		if gameState.Phase.Type == core.PhaseGameOver {
+			log.Printf("GameLifecycleManager: Skipping completed game %s", gameID)
+			continue
+		}
+		
+		// Extract players from the game state to reconstruct the player map
+		players := make(map[string]*core.Player)
+		for playerID, player := range gameState.Players {
+			players[playerID] = player
+		}
+		
+		// Create the GameActor via Supervisor
+		// The supervisor will spawn the actor, which will then trigger its own recovery logic
+		gameActor, err := glm.supervisor.CreateGameWithPlayers(gameID, players)
+		if err != nil {
+			log.Printf("GameLifecycleManager: Error rehydrating game %s: %v", gameID, err)
+			errorCount++
+			continue
+		}
+		
+		// Track the rehydrated game in our internal state
+		glm.mutex.Lock()
+		glm.gameActors[gameID] = gameActor
+		// Note: We don't populate gameSessions since the actual player WebSocket connections
+		// will be established when players reconnect. The GameActor itself maintains
+		// the authoritative game state.
+		glm.mutex.Unlock()
+		
+		log.Printf("GameLifecycleManager: Successfully rehydrated game %s", gameID)
+		successCount++
+	}
+	
+	log.Printf("GameLifecycleManager: Game rehydration completed - Success: %d, Errors: %d", 
+		successCount, errorCount)
+	
+	if errorCount > 0 {
+		log.Printf("GameLifecycleManager: Warning - %d games failed to rehydrate", errorCount)
+	}
+	
 	return nil
 }
 

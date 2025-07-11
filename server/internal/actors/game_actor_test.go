@@ -48,6 +48,181 @@ func createTestGameActor(t *testing.T) *GameActor {
 	return actor
 }
 
+// TestSitrepPhaseTransition tests the SITREP phase transition generates correct events
+func TestSitrepPhaseTransition(t *testing.T) {
+	actor := createTestGameActor(t)
+	
+	// Set up game state for SITREP phase transition
+	actor.state.Phase = core.Phase{Type: core.PhaseNight}
+	actor.state.DayNumber = 1
+	
+	// Create a phase transition action to SITREP
+	action := core.Action{
+		Type: "PHASE_TRANSITION",
+		Payload: map[string]interface{}{
+			"next_phase": "SITREP",
+		},
+	}
+	
+	// Process the action
+	responseChan := actor.PostAction(action)
+	result := <-responseChan
+	
+	// Verify the action was processed successfully
+	if result.Error != nil {
+		t.Fatalf("Expected no error, got: %v", result.Error)
+	}
+	
+	// Verify events were generated
+	if len(result.Events) == 0 {
+		t.Fatal("Expected events to be generated for SITREP phase transition")
+	}
+	
+	// Check for SITREP_PUBLISHED event
+	var sitrepEvent *core.Event
+	for _, event := range result.Events {
+		if event.Type == core.EventSitrepPublished {
+			sitrepEvent = &event
+			break
+		}
+	}
+	
+	if sitrepEvent == nil {
+		t.Fatal("Expected SITREP_PUBLISHED event to be generated")
+	}
+	
+	// Verify the event has the correct structure
+	if sitrepEvent.GameID != "test-game" {
+		t.Errorf("Expected GameID 'test-game', got %v", sitrepEvent.GameID)
+	}
+	
+	// Verify the payload contains daily_sitrep
+	if _, exists := sitrepEvent.Payload["daily_sitrep"]; !exists {
+		t.Error("Expected daily_sitrep in event payload")
+	}
+}
+
+// TestPulseCheckPhaseTransition tests the PULSE_CHECK phase transition generates correct events
+func TestPulseCheckPhaseTransition(t *testing.T) {
+	actor := createTestGameActor(t)
+	
+	// Set up game state for PULSE_CHECK phase transition
+	actor.state.Phase = core.Phase{Type: core.PhaseSitrep}
+	actor.state.DayNumber = 2
+	
+	// Create a crisis event to provide pulse check question
+	actor.state.CrisisEvent = &core.CrisisEvent{
+		Type:             "Test Crisis",
+		Title:            "Test Crisis Title",
+		Description:      "Test crisis description",
+		PulseCheckPrompt: "What is your response to this crisis?",
+	}
+	
+	// Create a phase transition action to PULSE_CHECK
+	action := core.Action{
+		Type: "PHASE_TRANSITION",
+		Payload: map[string]interface{}{
+			"next_phase": "PULSE_CHECK",
+		},
+	}
+	
+	// Process the action
+	responseChan := actor.PostAction(action)
+	result := <-responseChan
+	
+	// Verify the action was processed successfully
+	if result.Error != nil {
+		t.Fatalf("Expected no error, got: %v", result.Error)
+	}
+	
+	// Verify events were generated
+	if len(result.Events) == 0 {
+		t.Fatal("Expected events to be generated for PULSE_CHECK phase transition")
+	}
+	
+	// Check for PULSE_CHECK_STARTED event
+	var pulseCheckEvent *core.Event
+	for _, event := range result.Events {
+		if event.Type == core.EventPulseCheckStarted {
+			pulseCheckEvent = &event
+			break
+		}
+	}
+	
+	if pulseCheckEvent == nil {
+		t.Fatal("Expected PULSE_CHECK_STARTED event to be generated")
+	}
+	
+	// Verify the event has the correct structure
+	if pulseCheckEvent.GameID != "test-game" {
+		t.Errorf("Expected GameID 'test-game', got %v", pulseCheckEvent.GameID)
+	}
+	
+	// Verify the payload contains question and day_number
+	if _, exists := pulseCheckEvent.Payload["question"]; !exists {
+		t.Error("Expected question in event payload")
+	}
+	if _, exists := pulseCheckEvent.Payload["day_number"]; !exists {
+		t.Error("Expected day_number in event payload")
+	}
+}
+
+// TestPulseCheckRevelation tests the pulse check revelation event generation
+func TestPulseCheckRevelation(t *testing.T) {
+	actor := createTestGameActor(t)
+	
+	// Set up game state with pulse check responses
+	actor.state.Phase = core.Phase{Type: core.PhasePulseCheck}
+	actor.state.DayNumber = 2
+	actor.state.PulseCheckResponses = map[string]string{
+		"player1": "This is my response to the crisis",
+		"player2": "I think we should take immediate action",
+	}
+	
+	// Create a phase transition action to DISCUSSION (which should trigger pulse check revelation)
+	action := core.Action{
+		Type: "PHASE_TRANSITION",
+		Payload: map[string]interface{}{
+			"next_phase": "DISCUSSION",
+		},
+	}
+	
+	// Process the action
+	responseChan := actor.PostAction(action)
+	result := <-responseChan
+	
+	// Verify the action was processed successfully
+	if result.Error != nil {
+		t.Fatalf("Expected no error, got: %v", result.Error)
+	}
+	
+	// Check for PULSE_CHECK_REVEALED event
+	var revelationEvent *core.Event
+	for _, event := range result.Events {
+		if event.Type == core.EventPulseCheckRevealed {
+			revelationEvent = &event
+			break
+		}
+	}
+	
+	if revelationEvent == nil {
+		t.Fatal("Expected PULSE_CHECK_REVEALED event to be generated")
+	}
+	
+	// Verify the event has the correct structure
+	if revelationEvent.GameID != "test-game" {
+		t.Errorf("Expected GameID 'test-game', got %v", revelationEvent.GameID)
+	}
+	
+	// Verify the payload contains player responses
+	if _, exists := revelationEvent.Payload["player_responses"]; !exists {
+		t.Error("Expected player_responses in event payload")
+	}
+	if _, exists := revelationEvent.Payload["total_responses"]; !exists {
+		t.Error("Expected total_responses in event payload")
+	}
+}
+
 func TestGameActor_ProcessAction_LeaveGame(t *testing.T) {
 	actor := createTestGameActor(t)
 
@@ -263,5 +438,65 @@ func TestGameActor_ProcessAction_WhistleblowerVote(t *testing.T) {
 	
 	if result3.Error == nil {
 		t.Error("Expected error for missing crisis_choice in payload")
+	}
+}
+
+// TestGameActor_PostAction_Backpressure tests that the mailbox backpressure mechanism works correctly
+func TestGameActor_PostAction_Backpressure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create test players
+	players := map[string]*core.Player{
+		"player1": {
+			ID:       "player1",
+			Name:     "Alice",
+			JobTitle: "Employee",
+			IsAlive:  true,
+		},
+	}
+
+	// Create actor but don't start it (so the mailbox won't be processed)
+	actor := NewGameActor(ctx, cancel, "test-game", players, nil)
+
+	// Fill the mailbox (capacity is 100)
+	// We need to send 101 messages to trigger backpressure
+	testAction := core.Action{
+		Type:      core.ActionLeaveGame,
+		PlayerID:  "player1",
+		GameID:    "test-game",
+		Timestamp: time.Now(),
+		Payload:   make(map[string]interface{}),
+	}
+
+	// Fill the mailbox to capacity
+	for i := 0; i < 100; i++ {
+		responseChan := actor.PostAction(testAction)
+		// Don't wait for response since the actor isn't started
+		select {
+		case result := <-responseChan:
+			if result.Error != nil {
+				t.Fatalf("Unexpected error on message %d: %v", i, result.Error)
+			}
+		case <-time.After(10 * time.Millisecond):
+			// This is expected for the unsent messages since the actor isn't processing
+		}
+	}
+
+	// Now the 101st message should trigger backpressure
+	responseChan := actor.PostAction(testAction)
+	
+	// This should return immediately with an error (backpressure)
+	select {
+	case result := <-responseChan:
+		if result.Error == nil {
+			t.Error("Expected error due to backpressure, but got no error")
+		}
+		expectedErrMsg := "server is busy, action for game test-game was dropped"
+		if result.Error.Error() != expectedErrMsg {
+			t.Errorf("Expected error message '%s', got '%s'", expectedErrMsg, result.Error.Error())
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Error("PostAction should have returned immediately due to backpressure")
 	}
 }

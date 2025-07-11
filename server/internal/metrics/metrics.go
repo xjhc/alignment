@@ -78,6 +78,12 @@ var (
 		Help:    "Time taken to process HTTP requests",
 		Buckets: prometheus.DefBuckets,
 	}, []string{"method", "endpoint"})
+
+	// Actor backpressure metrics
+	MailboxDroppedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "alignment_mailbox_dropped_total",
+		Help: "The total number of messages dropped due to full mailboxes",
+	}, []string{"actor_type"})
 )
 
 // RecordGameCreated increments the games created counter and active games gauge
@@ -112,6 +118,12 @@ func RecordPlayerLeft() {
 	PlayersConnected.Dec()
 }
 
+// RecordSpectatorJoined increments the spectator joined counter
+func RecordSpectatorJoined() {
+	// For now, use the same metric as players. In the future, we could add spectator-specific metrics
+	PlayersJoinedTotal.Inc()
+}
+
 // RecordWebSocketConnect increments the WebSocket connections gauge
 func RecordWebSocketConnect() {
 	WebSocketConnections.Inc()
@@ -132,4 +144,9 @@ func SetServerHealthy() {
 func SetServerOverloaded() {
 	ServerHealthStatus.WithLabelValues("healthy").Set(0)
 	ServerHealthStatus.WithLabelValues("overloaded").Set(1)
+}
+
+// RecordMailboxDropped increments the mailbox dropped counter for the specified actor type
+func RecordMailboxDropped(actorType string) {
+	MailboxDroppedTotal.WithLabelValues(actorType).Inc()
 }

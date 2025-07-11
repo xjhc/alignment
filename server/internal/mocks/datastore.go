@@ -1,6 +1,7 @@
 package mocks
 
 import (
+	"context"
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 )
@@ -13,6 +14,7 @@ type MockDataStore struct {
 	LoadEventsCalls          []LoadEventsCall
 	CreateSnapshotCalls      []CreateSnapshotCall
 	GetLatestSnapshotCalls   []GetLatestSnapshotCall
+	ListActiveGamesCalls     []ListActiveGamesCall
 	CloseCalls               []CloseCall
 
 	AppendEventResults       []error
@@ -21,6 +23,7 @@ type MockDataStore struct {
 	LoadEventsResults        []LoadEventsResult
 	CreateSnapshotResults    []error
 	GetLatestSnapshotResults []GetLatestSnapshotResult
+	ListActiveGamesResults   []ListActiveGamesResult
 	CloseResults             []error
 }
 
@@ -72,12 +75,19 @@ type GetLatestSnapshotResult struct {
 	Error error
 }
 
+type ListActiveGamesCall struct{}
+
+type ListActiveGamesResult struct {
+	GameIDs []string
+	Error   error
+}
+
 type CloseCall struct{}
 
 // Ensure MockDataStore implements the interface at compile time
 var _ interfaces.DataStore = (*MockDataStore)(nil)
 
-func (m *MockDataStore) AppendEvent(gameID string, event core.Event) error {
+func (m *MockDataStore) AppendEvent(ctx context.Context, gameID string, event core.Event) error {
 	m.AppendEventCalls = append(m.AppendEventCalls, AppendEventCall{
 		GameID: gameID,
 		Event:  event,
@@ -94,7 +104,7 @@ func (m *MockDataStore) AppendEvent(gameID string, event core.Event) error {
 	return nil
 }
 
-func (m *MockDataStore) GetEvents(gameID string) ([]core.Event, error) {
+func (m *MockDataStore) GetEvents(ctx context.Context, gameID string) ([]core.Event, error) {
 	m.GetEventsCalls = append(m.GetEventsCalls, GetEventsCall{
 		GameID: gameID,
 	})
@@ -110,7 +120,7 @@ func (m *MockDataStore) GetEvents(gameID string) ([]core.Event, error) {
 	return nil, nil
 }
 
-func (m *MockDataStore) GetEventsSince(gameID string, timestamp string) ([]core.Event, error) {
+func (m *MockDataStore) GetEventsSince(ctx context.Context, gameID string, timestamp string) ([]core.Event, error) {
 	m.GetEventsSinceCalls = append(m.GetEventsSinceCalls, GetEventsSinceCall{
 		GameID:    gameID,
 		Timestamp: timestamp,
@@ -127,7 +137,7 @@ func (m *MockDataStore) GetEventsSince(gameID string, timestamp string) ([]core.
 	return nil, nil
 }
 
-func (m *MockDataStore) LoadEvents(gameID string, afterSequence int) ([]core.Event, error) {
+func (m *MockDataStore) LoadEvents(ctx context.Context, gameID string, afterSequence int) ([]core.Event, error) {
 	m.LoadEventsCalls = append(m.LoadEventsCalls, LoadEventsCall{
 		GameID:        gameID,
 		AfterSequence: afterSequence,
@@ -144,7 +154,7 @@ func (m *MockDataStore) LoadEvents(gameID string, afterSequence int) ([]core.Eve
 	return nil, nil
 }
 
-func (m *MockDataStore) CreateSnapshot(gameID string, state core.GameState) error {
+func (m *MockDataStore) CreateSnapshot(ctx context.Context, gameID string, state core.GameState) error {
 	m.CreateSnapshotCalls = append(m.CreateSnapshotCalls, CreateSnapshotCall{
 		GameID: gameID,
 		State:  state,
@@ -161,7 +171,7 @@ func (m *MockDataStore) CreateSnapshot(gameID string, state core.GameState) erro
 	return nil
 }
 
-func (m *MockDataStore) GetLatestSnapshot(gameID string) (*core.GameState, error) {
+func (m *MockDataStore) GetLatestSnapshot(ctx context.Context, gameID string) (*core.GameState, error) {
 	m.GetLatestSnapshotCalls = append(m.GetLatestSnapshotCalls, GetLatestSnapshotCall{
 		GameID: gameID,
 	})
@@ -172,6 +182,20 @@ func (m *MockDataStore) GetLatestSnapshot(gameID string) (*core.GameState, error
 			m.GetLatestSnapshotResults = m.GetLatestSnapshotResults[1:]
 		}
 		return result.State, result.Error
+	}
+
+	return nil, nil
+}
+
+func (m *MockDataStore) ListActiveGames(ctx context.Context) ([]string, error) {
+	m.ListActiveGamesCalls = append(m.ListActiveGamesCalls, ListActiveGamesCall{})
+
+	if len(m.ListActiveGamesResults) > 0 {
+		result := m.ListActiveGamesResults[0]
+		if len(m.ListActiveGamesResults) > 1 {
+			m.ListActiveGamesResults = m.ListActiveGamesResults[1:]
+		}
+		return result.GameIDs, result.Error
 	}
 
 	return nil, nil

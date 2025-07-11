@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/xjhc/alignment/core"
+	"github.com/xjhc/alignment/server/internal/test_helpers"
 )
 
 // TestScheduler_BasicTimerScheduling tests basic timer functionality
@@ -106,11 +107,13 @@ func TestScheduler_TimerCancellation(t *testing.T) {
 func TestScheduler_GameTimerCancellation(t *testing.T) {
 	callbackCount := 0
 	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	callback := func(timer Timer) {
 		mu.Lock()
 		defer mu.Unlock()
 		callbackCount++
+		wg.Done() // Signal that a callback was executed
 	}
 
 	scheduler := NewScheduler(callback)
@@ -130,6 +133,7 @@ func TestScheduler_GameTimerCancellation(t *testing.T) {
 	}
 
 	// Schedule a timer for a different game
+	wg.Add(1) // Expect only 1 callback (from other-game)
 	otherTimer := Timer{
 		ID:        "other-timer",
 		GameID:    "other-game",
@@ -142,11 +146,8 @@ func TestScheduler_GameTimerCancellation(t *testing.T) {
 	// Cancel all timers for test-game
 	scheduler.CancelGameTimers("test-game")
 
-	// Wait for expiration
-	time.Sleep(2000 * time.Millisecond)
-	
-	// Give extra time for callback execution
-	time.Sleep(100 * time.Millisecond)
+	// Wait deterministically for the remaining timer to fire
+	test_helpers.WaitWithTimeout(&wg, 5*time.Second, t)
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -161,11 +162,13 @@ func TestScheduler_GameTimerCancellation(t *testing.T) {
 func TestScheduler_MultipleTimers(t *testing.T) {
 	callbackCount := 0
 	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	callback := func(timer Timer) {
 		mu.Lock()
 		defer mu.Unlock()
 		callbackCount++
+		wg.Done() // Signal that a callback was executed
 	}
 
 	scheduler := NewScheduler(callback)
@@ -173,7 +176,10 @@ func TestScheduler_MultipleTimers(t *testing.T) {
 	defer scheduler.Stop()
 
 	// Schedule multiple timers with different expiration times
-	for i := 0; i < 5; i++ {
+	expectedCallbacks := 5
+	wg.Add(expectedCallbacks) // Expect 5 callbacks
+	
+	for i := 0; i < expectedCallbacks; i++ {
 		timer := Timer{
 			ID:        "timer-" + string(rune('1'+i)),
 			GameID:    "test-game",
@@ -184,14 +190,14 @@ func TestScheduler_MultipleTimers(t *testing.T) {
 		scheduler.ScheduleTimer(timer)
 	}
 
-	// Wait for all timers to expire
-	time.Sleep(6000 * time.Millisecond)
+	// Wait for all timers to expire deterministically
+	test_helpers.WaitWithTimeout(&wg, 10*time.Second, t)
 
 	mu.Lock()
 	defer mu.Unlock()
 
-	if callbackCount != 5 {
-		t.Errorf("Expected 5 callbacks, got %d", callbackCount)
+	if callbackCount != expectedCallbacks {
+		t.Errorf("Expected %d callbacks, got %d", expectedCallbacks, callbackCount)
 	}
 }
 

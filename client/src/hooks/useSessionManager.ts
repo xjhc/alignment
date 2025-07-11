@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useCallback } from "react";
+import { useReducer, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useGameEngineContext } from "../contexts/GameEngineContext";
@@ -14,6 +14,7 @@ import { ClientActionType } from "../types";
 export function useSessionManager() {
   const location = useLocation();
   const [state, dispatch] = useReducer(appReducer, initialAppState);
+  const didRestoreSession = useRef(false);
 
   const {
     navigateToLogin,
@@ -34,8 +35,13 @@ export function useSessionManager() {
     loadGameState,
   } = useGameEngineContext();
 
-  // Authentication and session restoration
+  // Authentication and session restoration (run-once)
   useEffect(() => {
+    if (didRestoreSession.current) {
+      return; // Exit early if we've already run this
+    }
+    didRestoreSession.current = true;
+
     const checkAuthAndSession = async () => {
       try {
         const response = await fetch("/api/me");
@@ -89,7 +95,10 @@ export function useSessionManager() {
                   return;
                 }
               } catch (error) {
-                console.error("[App] Failed to parse authenticated user's session data:", error);
+                console.error(
+                  "[App] Failed to parse authenticated user's session data:",
+                  error
+                );
                 localStorage.removeItem("alignmentGameSession");
               }
             }
@@ -134,6 +143,32 @@ export function useSessionManager() {
     };
     checkAuthAndSession();
   }, [navigateToLobbyList]);
+
+  // Session persistence (runs whenever session state changes)
+  useEffect(() => {
+    if (state.isInGameSession && state.appState.gameId && state.appState.playerId && state.appState.sessionToken) {
+      const sessionData = {
+        gameId: state.appState.gameId,
+        playerId: state.appState.playerId,
+        sessionToken: state.appState.sessionToken,
+        sessionState: state.sessionState,
+        lobbyName: state.lobbyState.lobbyName || "",
+        ...(state.appState.isSpectating && { isSpectating: true }),
+      };
+      localStorage.setItem("alignmentGameSession", JSON.stringify(sessionData));
+    } else if (!state.isInGameSession) {
+      // If we are not in a session, ensure localStorage is clean
+      localStorage.removeItem("alignmentGameSession");
+    }
+  }, [
+    state.isInGameSession, 
+    state.sessionState, 
+    state.appState.gameId, 
+    state.appState.playerId, 
+    state.appState.sessionToken, 
+    state.lobbyState.lobbyName,
+    state.appState.isSpectating
+  ]);
 
   // Game state synchronization
   useEffect(() => {
@@ -200,16 +235,21 @@ export function useSessionManager() {
     if (!coreGameState) return;
     if (coreGameState.phase && location.pathname === "/waiting") {
       const phaseType = coreGameState.phase.type;
-      
-      console.log(`[SessionManager] Game phase navigation: phase=${phaseType}, location=${location.pathname}`);
-      
+
+      console.log(
+        `[SessionManager] Game phase navigation: phase=${phaseType}, location=${location.pathname}`
+      );
+
       // Navigate to appropriate screen based on game phase
       if (phaseType === "LOBBY") {
         // Stay on waiting screen - this is correct
         return;
       } else if (phaseType === "SITREP" || phaseType === "PULSE_CHECK") {
         // These are the initial game phases - go to role reveal first
-        console.log("[SessionManager] Navigating to role reveal for phase:", phaseType);
+        console.log(
+          "[SessionManager] Navigating to role reveal for phase:",
+          phaseType
+        );
         navigateToRoleReveal();
       } else if (
         phaseType === "DISCUSSION" ||
@@ -220,19 +260,34 @@ export function useSessionManager() {
         phaseType === "NIGHT"
       ) {
         // These are active game phases - go directly to game screen
-        console.log("[SessionManager] Navigating to game screen for phase:", phaseType);
+        console.log(
+          "[SessionManager] Navigating to game screen for phase:",
+          phaseType
+        );
         navigateToGame();
       } else if (phaseType === "GAME_OVER") {
         // Game is over
-        console.log("[SessionManager] Navigating to game over for phase:", phaseType);
+        console.log(
+          "[SessionManager] Navigating to game over for phase:",
+          phaseType
+        );
         navigateToGameOver();
       } else {
         // Unknown phase - default to role reveal
-        console.log("[SessionManager] Unknown phase, defaulting to role reveal:", phaseType);
+        console.log(
+          "[SessionManager] Unknown phase, defaulting to role reveal:",
+          phaseType
+        );
         navigateToRoleReveal();
       }
     }
-  }, [coreGameState, location.pathname, navigateToRoleReveal, navigateToGame, navigateToGameOver]);
+  }, [
+    coreGameState,
+    location.pathname,
+    navigateToRoleReveal,
+    navigateToGame,
+    navigateToGameOver,
+  ]);
 
   // Theme setup
   useEffect(() => {
@@ -303,27 +358,40 @@ export function useSessionManager() {
   ]);
 
   // Event handler creators
-  const handleLobbyStateUpdate = useCallback(
-    (event: any) => {
-      console.log("[SessionManager] LOBBY_STATE_UPDATE received:", event.payload);
-      console.log("[SessionManager] Player data in payload:", event.payload.players || event.payload.connected_players || event.payload.player_infos || "NOT FOUND");
-      dispatch({ type: "UPDATE_LOBBY_STATE", payload: event.payload });
-    },
-    []
-  );
-  const handleClientError = useCallback(
-    (event: any) => {
-      console.warn("[SessionManager] Client error received:", event.payload);
-      // Don't show generic client errors as connection errors unless they're severe
-      if (event.payload?.error_code === 'CONNECTION_ERROR') {
-        dispatch({ 
-          type: "SET_CONNECTION_ERROR", 
-          payload: { message: event.payload.message || "A connection error occurred." }
-        });
-      }
-    },
-    []
-  );
+  const handleLobbyStateUpdate = useCallback((event: any) => {
+    console.log("[SessionManager] LOBBY_STATE_UPDATE received:", event.payload);
+    console.log(
+      "[SessionManager] Player data in payload:",
+      event.payload.players ||
+        event.payload.connected_players ||
+        event.payload.player_infos ||
+        "NOT FOUND"
+    );
+    dispatch({ type: "UPDATE_LOBBY_STATE", payload: event.payload });
+  }, []);
+
+  const handlePlayerConnectionStatusChanged = useCallback((event: any) => {
+    console.log(
+      "[SessionManager] PLAYER_CONNECTION_STATUS_CHANGED received:",
+      event.payload
+    );
+    dispatch({
+      type: "UPDATE_PLAYER_CONNECTION_STATUS",
+      payload: event.payload,
+    });
+  }, []);
+  const handleClientError = useCallback((event: any) => {
+    console.warn("[SessionManager] Client error received:", event.payload);
+    // Don't show generic client errors as connection errors unless they're severe
+    if (event.payload?.error_code === "CONNECTION_ERROR") {
+      dispatch({
+        type: "SET_CONNECTION_ERROR",
+        payload: {
+          message: event.payload.message || "A connection error occurred.",
+        },
+      });
+    }
+  }, []);
   const handleClientIdentified = useCallback(
     (event: any) =>
       dispatch({
@@ -373,14 +441,22 @@ export function useSessionManager() {
   );
   const handleGameStateUpdate = useCallback(
     async (event: any) => {
-      console.log("[SessionManager] GAME_STATE_UPDATE received:", event.payload);
+      console.log(
+        "[SessionManager] GAME_STATE_UPDATE received:",
+        event.payload
+      );
       if (event.payload?.game_state) {
         try {
           // Use loadGameState (which calls resetAndLoadState) to update the core with the reconnection snapshot
           await loadGameState(event.payload.game_state);
-          console.log("[SessionManager] Successfully loaded game state from reconnection snapshot");
+          console.log(
+            "[SessionManager] Successfully loaded game state from reconnection snapshot"
+          );
         } catch (error) {
-          console.error("[SessionManager] Failed to load game state from reconnection snapshot:", error);
+          console.error(
+            "[SessionManager] Failed to load game state from reconnection snapshot:",
+            error
+          );
         }
       }
     },
@@ -403,6 +479,10 @@ export function useSessionManager() {
         subscribe("CHAT_HISTORY_SNAPSHOT", handleChatHistorySnapshot),
         subscribe("GAME_STATE_UPDATE", handleGameStateUpdate),
         subscribe("LOBBY_STATE_UPDATE", handleLobbyStateUpdate),
+        subscribe(
+          "PLAYER_CONNECTION_STATUS_CHANGED",
+          handlePlayerConnectionStatusChanged
+        ),
         subscribe("CLIENT_ERROR", handleClientError),
         subscribe("GAME_START_COUNTDOWN_INITIATED", handleCountdownStart),
         subscribe("GAME_START_COUNTDOWN_UPDATE", handleCountdownUpdate),
@@ -420,6 +500,7 @@ export function useSessionManager() {
     handleChatHistorySnapshot,
     handleGameStateUpdate,
     handleLobbyStateUpdate,
+    handlePlayerConnectionStatusChanged,
     handleClientError,
     handleCountdownStart,
     handleCountdownUpdate,
@@ -427,58 +508,21 @@ export function useSessionManager() {
     handleHostTransferred,
   ]);
 
-  // Lobby loading timeout - trigger error if connected but no lobby info after 10 seconds
-  useEffect(() => {
-    if (location.pathname === "/waiting" && isConnected && !state.lobbyState.connectionError) {
-      // Case 1: No lobby name at all
-      if (!state.lobbyState.lobbyName) {
-        const timeoutId = setTimeout(() => {
-          console.warn("[SessionManager] Lobby loading timeout - connected but no lobby name received");
-          dispatch({ type: "LOBBY_LOADING_TIMEOUT" });
-        }, 10000); // 10 second timeout
 
-        return () => clearTimeout(timeoutId);
-      }
-      
-      // Case 2: Have lobby name but no players (likely reconnection issue)
-      // Only trigger sync if we're actually in lobby phase, not during an active game
-      if (state.lobbyState.lobbyName && 
-          state.lobbyState.playerInfos.length === 0 &&
-          (!coreGameState || !coreGameState.phase || coreGameState.phase.type === "LOBBY")) {
-        // Try to trigger a lobby state update by sending a SyncLobbyState action
-        // This action is specifically designed for this purpose and only works in lobby phase
-        const triggerStateSync = setTimeout(() => {
-          console.log("[SessionManager] Attempting to trigger lobby state sync with SyncLobbyState action...");
-          if (state.appState.gameId && state.appState.playerId) {
-            try {
-              sendAction({
-                type: ClientActionType.SyncLobbyState,
-                payload: { 
-                  game_id: state.appState.gameId,
-                  player_id: state.appState.playerId
-                },
-              });
-            } catch (error) {
-              console.warn("[SessionManager] Failed to send SyncLobbyState action:", error);
-            }
-          }
-        }, 3000); // Try this after 3 seconds
-        
-        const timeoutId = setTimeout(() => {
-          console.warn("[SessionManager] Player list sync timeout - connected to lobby but no players received");
-          dispatch({ 
-            type: "SET_CONNECTION_ERROR", 
-            payload: { message: "Unable to sync player list. This may be a reconnection issue. Try refreshing the page or leaving and rejoining the lobby." }
-          });
-        }, 15000); // 15 second timeout for this case
-
-        return () => {
-          clearTimeout(triggerStateSync);
-          clearTimeout(timeoutId);
-        };
-      }
-    }
-  }, [location.pathname, isConnected, state.lobbyState.lobbyName, state.lobbyState.playerInfos.length, state.lobbyState.connectionError, state.appState.gameId, sendAction]);
+  // Skip vote event handler
+  const handleSkipVoteUpdated = useCallback((event: any) => {
+    console.log("[SessionManager] Skip vote updated:", event.payload);
+    dispatch({
+      type: "UPDATE_SKIP_VOTES",
+      payload: {
+        skipVoteState: {
+          currentVotes: event.payload.current_votes || 0,
+          requiredVotes: event.payload.required_votes || 0,
+          voters: event.payload.voters || [],
+        },
+      },
+    });
+  }, []);
 
   // Game event subscriptions
   useEffect(() => {
@@ -486,9 +530,17 @@ export function useSessionManager() {
     const unsubscribers = [
       subscribe("PULSE_CHECK_UPDATED", handlePulseCheckUpdated),
       subscribe("GAME_STATE_UPDATE", handleGameStateUpdate),
+      subscribe("SKIP_VOTE_UPDATED", handleSkipVoteUpdated),
     ];
     return () => unsubscribers.forEach((unsub) => unsub());
-  }, [isConnected, location.pathname, subscribe, handlePulseCheckUpdated, handleGameStateUpdate]);
+  }, [
+    isConnected,
+    location.pathname,
+    subscribe,
+    handlePulseCheckUpdated,
+    handleGameStateUpdate,
+    handleSkipVoteUpdated,
+  ]);
 
   // WebSocket connection
   useEffect(() => {
@@ -498,12 +550,15 @@ export function useSessionManager() {
       state.appState.playerId &&
       state.appState.sessionToken
     ) {
-      console.log("[SessionManager] Initiating WebSocket connection with credentials:", {
-        gameId: state.appState.gameId,
-        playerId: state.appState.playerId,
-        sessionToken: state.appState.sessionToken ? "***" : "missing"
-      });
-      
+      console.log(
+        "[SessionManager] Initiating WebSocket connection with credentials:",
+        {
+          gameId: state.appState.gameId,
+          playerId: state.appState.playerId,
+          sessionToken: state.appState.sessionToken ? "***" : "missing",
+        }
+      );
+
       connect(
         state.appState.gameId,
         state.appState.playerId,
@@ -517,11 +572,14 @@ export function useSessionManager() {
       });
       return () => disconnect();
     } else if (state.isInGameSession) {
-      console.warn("[SessionManager] In game session but missing required credentials:", {
-        gameId: state.appState.gameId || "missing",
-        playerId: state.appState.playerId || "missing", 
-        sessionToken: state.appState.sessionToken ? "present" : "missing"
-      });
+      console.warn(
+        "[SessionManager] In game session but missing required credentials:",
+        {
+          gameId: state.appState.gameId || "missing",
+          playerId: state.appState.playerId || "missing",
+          sessionToken: state.appState.sessionToken ? "present" : "missing",
+        }
+      );
     }
   }, [
     state.isInGameSession,
@@ -546,7 +604,7 @@ export function useSessionManager() {
   ) => {
     dispatch({
       type: "JOIN_LOBBY",
-      payload: { gameId, playerId, sessionToken, lobbyName },
+      payload: { gameId, playerId, sessionToken, lobbyName, isNewJoin: true },
     });
     navigateToWaiting();
   };
@@ -559,9 +617,22 @@ export function useSessionManager() {
   ) => {
     dispatch({
       type: "CREATE_GAME",
-      payload: { gameId, playerId, sessionToken, lobbyName },
+      payload: { gameId, playerId, sessionToken, lobbyName, isNewJoin: true },
     });
     navigateToWaiting();
+  };
+
+  const handleSpectateGame = (
+    gameId: string,
+    playerId: string,
+    sessionToken: string,
+    lobbyName?: string
+  ) => {
+    dispatch({
+      type: "SPECTATE_GAME",
+      payload: { gameId, playerId, sessionToken, lobbyName, isNewJoin: true },
+    });
+    navigateToGame();
   };
 
   const handleEnterGame = () => {
@@ -613,7 +684,9 @@ export function useSessionManager() {
   useEffect(() => {
     if (!isConnected) return;
     const unsubscribe = subscribe("SESSION_EXPIRED", (event: any) => {
-      console.log("Session expired, clearing session and returning to lobby list");
+      console.log(
+        "Session expired, clearing session and returning to lobby list"
+      );
       // Clear local storage
       localStorage.removeItem("alignmentGameSession");
       // Clear the current session state
@@ -630,7 +703,9 @@ export function useSessionManager() {
   useEffect(() => {
     if (!isConnected) return;
     const unsubscribe = subscribe("FORCE_LOGOUT", (event: any) => {
-      console.log("Server forced logout, clearing all session data and returning to login");
+      console.log(
+        "Server forced logout, clearing all session data and returning to login"
+      );
       // Clear all session data
       localStorage.removeItem("alignmentGameSession");
       localStorage.removeItem("wsConnectionCredentials");
@@ -650,7 +725,9 @@ export function useSessionManager() {
     const unsubscribe = subscribe("PLAYER_ABANDONED", (event: any) => {
       // Check if the abandoned player is the local player
       if (event.playerId === state.appState.playerId) {
-        console.log("Player abandoned game, clearing session and returning to lobby list");
+        console.log(
+          "Player abandoned game, clearing session and returning to lobby list"
+        );
         // Clear session data
         localStorage.removeItem("alignmentGameSession");
         // Clear the current session state
@@ -662,7 +739,30 @@ export function useSessionManager() {
       }
     });
     return unsubscribe;
-  }, [isConnected, subscribe, disconnect, navigateToLobbyList, state.appState.playerId]);
+  }, [
+    isConnected,
+    subscribe,
+    disconnect,
+    navigateToLobbyList,
+    state.appState.playerId,
+  ]);
+
+  // Alignment changed event handling (for AI conversions)
+  useEffect(() => {
+    if (!isConnected) return;
+    const unsubscribe = subscribe("ALIGNMENT_CHANGED", (event: any) => {
+      console.log("Alignment changed event received:", event.payload);
+      // Update the local player's alignment in the central state
+      dispatch({
+        type: "UPDATE_LOCAL_PLAYER_ALIGNMENT",
+        payload: {
+          newAlignment: event.payload.new_alignment,
+          message: event.payload.message,
+        },
+      });
+    });
+    return unsubscribe;
+  }, [isConnected, subscribe]);
 
   return {
     state,
@@ -674,6 +774,7 @@ export function useSessionManager() {
       onLogin: handleLogin,
       onJoinLobby: handleJoinLobby,
       onCreateGame: handleCreateGame,
+      onSpectateGame: handleSpectateGame,
       onBackToLogin: handleBackToLogin,
       onStartGame: handleStartGameAction,
       onLeaveLobby: handleLeaveLobby,

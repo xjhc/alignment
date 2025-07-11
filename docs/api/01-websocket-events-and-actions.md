@@ -16,9 +16,10 @@ The actions listed below are only those sent over the **WebSocket**.
 
 These are the commands a client can send to the server via WebSocket. The server will validate each action and, if valid, generate one or more corresponding events.
 
-**Note:** Game creation and lobby joining are handled via REST endpoints:
+**Note:** Game creation, lobby joining, and spectating are handled via REST endpoints:
 - `POST /api/games` - Create a new game lobby
 - `POST /api/games/{id}/join` - Join an existing lobby
+- `POST /api/games/{id}/spectate` - Join a running game as a spectator
 
 | Action Name | Payload | Description |
 | :--- | :--- | :--- |
@@ -30,6 +31,7 @@ These are the commands a client can send to the server via WebSocket. The server
 | **`SUBMIT_VOTE`** | `{ "vote_target_id"?: string, "verdict"?: string }` | Casts a vote. During nomination, `vote_target_id` is used. During the verdict, `verdict` (`YES` or `NO`) is used. |
 | **`SUBMIT_PULSE_CHECK`**| `{ "response": string }` | Submits the player's one-sentence response to the daily Pulse Check prompt. |
 | **`SUBMIT_EXIT_INTERVIEW`**| `{ "action": string, "target_player_id"?: string, "final_status": string }` | Sent by a just-deactivated player. `action` can be `HANDOFF`, `CONFIDENTIAL_FEEDBACK`, or `BURN_BRIDGES`. |
+| **`POST_SPECTATOR_MESSAGE`** | `{ "content": string }` | Sends a chat message to the `#spectators` channel. Only available to spectators. |
 
 ---
 
@@ -53,6 +55,10 @@ These are the immutable facts the server broadcasts. The client uses these event
 | **`NIGHT_ACTIONS_RESOLVED`**| `{ "results": NightResultsObject }` | Summarizes the outcomes of the Night Phase. The full `NightResultsObject` is defined in the [Core Data Structures](./02-data-structures.md) document. This event triggers the start of the next Day Phase. |
 | **`GAME_ENDED`** | `{ "winning_faction": string, "reason": string, "player_states": Player[] }` | Announces the end of the game, the winner, and the final state of all players. |
 | **`PRIVATE_NOTIFICATION`**| `{ "message": string, "type": string }` | **Sent privately** to a single player to deliver sensitive information that only they should see. The `type` field allows the client to handle different kinds of notifications. <br> **Examples:** <br> • `"type": "SYSTEM_SHOCK_AFFLICTED"` <br> • `"type": "KPI_OBJECTIVE_COMPLETED"`|
+| **`SPECTATOR_STATE_SNAPSHOT`** | `{ "game_state": PublicGameState, "spectators": Spectator[] }` | **Sent privately** to a new spectator. Contains a filtered, public-only view of the game state and the current list of spectators. |
+| **`SPECTATOR_JOINED`** | `{ "spectator": SpectatorObject }` | A new spectator has joined. Broadcast only to other spectators. |
+| **`SPECTATOR_LEFT`** | `{ "player_id": string }` | A spectator has left. Broadcast only to other spectators. |
+| **`SPECTATOR_CHAT_MESSAGE`**| `{ "message": ChatMessageObject }` | A new chat message for the `#spectators` channel. Broadcast only to spectators. |
 
 ---
 

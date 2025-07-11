@@ -93,9 +93,9 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
     );
   }
 
-  if (gameState.phase.type === "VERDICT") {
-    const nominatedPlayer = gameState.players.find(
-      (p) => p.id === gameState.nominatedPlayer
+  if (gameState?.phase?.type === "VERDICT") {
+    const nominatedPlayer = gameState?.players?.find(
+      (p) => p.id === gameState?.nominatedPlayer
     );
     if (!nominatedPlayer) return null;
 

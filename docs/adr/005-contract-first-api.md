@@ -1,7 +1,6 @@
 # ADR-005: Adopt a "Contract-First" Approach for API and Events
 
-*   **Status:** Implemented
-*   **Supersedes:** Implicit, manual synchronization between backend and frontend.
+- **Supersedes:** Implicit, manual synchronization between backend and frontend.
 
 ## Context
 
@@ -24,14 +23,15 @@ This will be achieved through two primary initiatives:
 
 ## Consequences
 
-*   **Pros:**
-    *   **Eliminates an Entire Class of Bugs:** It becomes impossible for backend and frontend data structures to drift out of sync. Discrepancies will now be caught at compile-time on the frontend, not as mysterious bugs at runtime.
-    *   **Improved Developer Velocity:** Frontend developers no longer need to manually create or update TypeScript types. The process is automated, reducing boilerplate and human error.
-    *   **Single Source of Truth:** The `/core` package becomes the definitive contract. Changes made there are automatically propagated, simplifying the development workflow.
-    *   **Enhanced Reliability:** The system becomes more robust and predictable, as the on-the-wire data format is now explicitly defined and enforced by tooling.
+- **Pros:**
 
-*   **Cons:**
-    *   **Increased Build Complexity:** We are adding a new step to our build process (`npm run generate:types`). This introduces a new dependency and a small amount of overhead to the dev and CI loops. This is a worthwhile trade-off for the massive gain in reliability.
-    *   **Initial Implementation Cost:** There is a one-time cost to research, implement, and integrate the chosen code-generation tools.
+  - **Eliminates an Entire Class of Bugs:** It becomes impossible for backend and frontend data structures to drift out of sync. Discrepancies will now be caught at compile-time on the frontend, not as mysterious bugs at runtime.
+  - **Improved Developer Velocity:** Frontend developers no longer need to manually create or update TypeScript types. The process is automated, reducing boilerplate and human error.
+  - **Single Source of Truth:** The `/core` package becomes the definitive contract. Changes made there are automatically propagated, simplifying the development workflow.
+  - **Enhanced Reliability:** The system becomes more robust and predictable, as the on-the-wire data format is now explicitly defined and enforced by tooling.
+
+- **Cons:**
+  - **Increased Build Complexity:** We are adding a new step to our build process (`npm run generate:types`). This introduces a new dependency and a small amount of overhead to the dev and CI loops. This is a worthwhile trade-off for the massive gain in reliability.
+  - **Initial Implementation Cost:** There is a one-time cost to research, implement, and integrate the chosen code-generation tools.
 
 This decision moves our project towards a more mature, professional engineering practice that prioritizes automated correctness over manual synchronization.

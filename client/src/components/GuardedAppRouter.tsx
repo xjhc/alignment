@@ -26,9 +26,10 @@ export function GuardedAppRouter() {
     onBackToLogin,
     onJoinLobby,
     onCreateGame,
+    onSpectateGame,
     onEnterGame
   } = useSessionContext();
-  const { isReconnecting, lastError } = useWebSocketContext();
+  const { isReconnecting, lastError, isConnected } = useWebSocketContext();
   const location = useLocation();
 
   // Show WASM test screen if query parameter is present
@@ -43,67 +44,34 @@ export function GuardedAppRouter() {
     return <Navigate to="/login" replace />;
   }
 
+  // --- DEFINITIVE: Reconnection Guardian ---
+  // Show syncing screen ONLY for session restoration, not for fresh joins
+  const showSyncingScreen = 
+    !appState.isNewJoin && // Not a fresh join (i.e., this is a restore)
+    !appState.hasSyncedInitialState && // We haven't received the first update yet
+    (sessionState === 'IN_LOBBY' || sessionState === 'IN_GAME'); // And we're in a session
+
+  if (showSyncingScreen) {
+    // This now correctly shows ONLY on session restoration, not on new lobby creation
+    return (
+      <div className="screen-transition animation-fade-in">
+        <ReconnectionOverlay show={true} />
+      </div>
+    );
+  }
+
   // --- The "State Guardian" Logic ---
-  // If the user is in an active session (lobby or game), they should not be able to
-  // manually navigate back to the /login or /lobby-list pages.
-  if (sessionState === 'IN_LOBBY' || sessionState === 'IN_GAME') {
+  // Once state is loaded, prevent navigating to incorrect pages.
+  if (sessionState !== 'IDLE') {
     if (location.pathname.startsWith('/login') || location.pathname.startsWith('/lobby-list')) {
-      // Only redirect if we have valid session data (gameId and playerId)
-      // Otherwise, the session state might be stale and we should go to login
-      if (appState.gameId && appState.playerId) {
-        // If we're currently reconnecting, prevent any navigation changes
-        // and let the reconnection overlay handle the user experience
-        if (isReconnecting) {
-          console.log('[GuardedAppRouter] Reconnecting - preventing navigation, showing overlay');
-          // Block the redirect during reconnection - the overlay will handle this
-          return (
-            <div className="screen-transition animation-fade-in">
-              <div className="flex items-center justify-center min-h-screen bg-background-primary">
-                <div className="text-center">
-                  <h2 className="text-lg font-semibold text-text-primary mb-2">
-                    Reconnecting to your game...
-                  </h2>
-                  <p className="text-text-secondary">Please wait while we restore your session.</p>
-                </div>
-              </div>
-              <ReconnectionOverlay 
-                show={true}
-              />
-            </div>
-          );
-        } else {
-          // The internal state says we're in a game, but the URL is for login/lobbies.
-          // The state wins. Navigate to the appropriate screen based on game phase.
-          
-          // If we have game state and it's not in LOBBY phase, go to the appropriate screen
-          if (gameState && gameState.phase) {
-            console.log(`[GuardedAppRouter] Navigating based on game phase: ${gameState.phase.type}`);
-            switch (gameState.phase.type) {
-              case 'LOBBY':
-                return <Navigate to="/waiting" replace />;
-              case 'SITREP':
-              case 'PULSE_CHECK':
-              case 'DISCUSSION':
-              case 'EXTENSION':
-              case 'NOMINATION':
-              case 'TRIAL':
-              case 'VERDICT':
-              case 'NIGHT':
-                return <Navigate to="/game" replace />;
-              case 'GAME_OVER':
-                return <Navigate to="/game-over" replace />;
-              default:
-                return <Navigate to="/waiting" replace />;
-            }
-          } else {
-            // No game state yet, default to waiting
-            console.log(`[GuardedAppRouter] No game state available, defaulting to waiting. sessionState: ${sessionState}`);
-            return <Navigate to="/waiting" replace />;
-          }
-        }
+      if (sessionState === 'IN_GAME') {
+        return <Navigate to="/game" replace />;
+      } else if (sessionState === 'IN_LOBBY') {
+        return <Navigate to="/waiting" replace />;
+      } else if (sessionState === 'POST_GAME') {
+        return <Navigate to="/game-over" replace />;
       } else {
-        // Session state indicates active session but we don't have valid session data
-        // This suggests stale/invalid state, so redirect to login
+        // Fallback for any other state
         return <Navigate to="/login" replace />;
       }
     }
@@ -146,6 +114,7 @@ export function GuardedAppRouter() {
               playerAvatar={appState.playerAvatar}
               onJoinLobby={onJoinLobby}
               onCreateGame={onCreateGame}
+              onSpectateGame={onSpectateGame}
               onBack={onBackToLogin}
             />
           }
@@ -164,11 +133,8 @@ export function GuardedAppRouter() {
       </Routes>
       
       {/* Reconnection overlay - shows on top of any page during reconnection */}
-      {/* Only show overlay if we're not in the special reconnection screen above */}
-      <ReconnectionOverlay 
-        show={isReconnecting && (sessionState === 'IN_LOBBY' || sessionState === 'IN_GAME') && 
-              !(location.pathname.startsWith('/login') || location.pathname.startsWith('/lobby-list'))} 
-      />
+      {/* This overlay is for mid-session network drops, only show if session was already synced */}
+      <ReconnectionOverlay show={isReconnecting && !!appState.hasSyncedInitialState} />
     </div>
   );
 }

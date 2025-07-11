@@ -217,21 +217,30 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if !wsm.tokenValidator.ValidateSession(gameID, playerID, sessionToken) {
-		http.Error(w, "Invalid session", http.StatusUnauthorized)
-		return
-	}
-
-	// Get player information
+	// Check session validity
+	sessionValid := wsm.tokenValidator.ValidateSession(gameID, playerID, sessionToken)
+	
+	// Get player information regardless of session validity (for SESSION_EXPIRED handling)
 	playerName, playerAvatar, err := wsm.tokenValidator.GetPlayerInfo(gameID, playerID)
-	if err != nil {
+	if err != nil && sessionValid {
+		// Only error out if session is valid but we can't get player info
 		http.Error(w, fmt.Sprintf("Failed to get player info: %v", err), http.StatusInternalServerError)
 		return
 	}
-
+	
+	// Always upgrade to WebSocket connection
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade failed: %v", err)
+		return
+	}
+	
+	// If session is invalid, send SESSION_EXPIRED and close
+	if !sessionValid {
+		// Create a temporary PlayerActor to send the session expired event
+		tempActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, conn)
+		tempActor.Start()
+		wsm.sendSessionExpiredAndClose(tempActor, gameID, "session_invalid", "Your session has expired. Please log in again.")
 		return
 	}
 
@@ -263,6 +272,7 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	playerActor.Start()
 
 	// Determine if this is a reconnection to an active game or joining a lobby
+	// The initial state snapshot is now sent atomically by JoinLobbyWithActor or ReconnectPlayerToGame
 	wsm.handleConnectionRoutingLogic(gameID, playerActor)
 
 	log.Printf("WebSocketManager: Created PlayerActor for %s (%s) and joined lobby %s", playerID, playerName, gameID)

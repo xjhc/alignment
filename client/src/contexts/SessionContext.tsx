@@ -14,6 +14,7 @@ export interface SessionContextType {
     onLogin: (playerName: string, avatar: string) => void;
     onJoinLobby: (gameId: string, playerId: string, sessionToken: string, lobbyName?: string) => void;
     onCreateGame: (gameId: string, playerId: string, sessionToken: string, lobbyName?: string) => void;
+    onSpectateGame: (gameId: string, playerId: string, sessionToken: string, lobbyName?: string) => void;
     onBackToLogin: () => void;
     onStartGame: () => void;
     onLeaveLobby: () => void;

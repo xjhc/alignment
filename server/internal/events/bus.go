@@ -1,8 +1,11 @@
 package events
 
 import (
+	"context"
 	"log"
 	"sync"
+
+	"github.com/xjhc/alignment/server/internal/helpers"
 )
 
 // Event represents a generic event that can be published to the bus
@@ -14,12 +17,14 @@ type Event interface {
 type EventBus struct {
 	subscribers map[string][]chan Event
 	mu          sync.RWMutex
+	ctx         context.Context
 }
 
 // NewEventBus creates a new event bus
 func NewEventBus() *EventBus {
 	return &EventBus{
 		subscribers: make(map[string][]chan Event),
+		ctx:         context.Background(),
 	}
 }
 
@@ -54,7 +59,8 @@ func (eb *EventBus) Publish(event Event) {
 	
 	// Publish to all subscribers in separate goroutines to prevent blocking
 	for _, ch := range subscribers {
-		go func(subscriber chan Event) {
+		subscriber := ch // Capture loop variable
+		helpers.GoSafe(eb.ctx, func(_ context.Context) {
 			select {
 			case subscriber <- event:
 				// Event delivered successfully
@@ -62,7 +68,7 @@ func (eb *EventBus) Publish(event Event) {
 				// Channel is full or closed, skip this subscriber
 				log.Printf("EventBus: Failed to deliver event %s to subscriber (channel full/closed)", event.EventType())
 			}
-		}(ch)
+		})
 	}
 	
 	log.Printf("EventBus: Published event %s to %d subscribers", event.EventType(), len(subscribers))

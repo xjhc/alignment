@@ -15,6 +15,8 @@ import {
   GeneratedCrisisEvent,
   GeneratedWinCondition,
   GeneratedWhistleblowerVoting,
+  GeneratedDailySitrep,
+  GeneratedSitrepSection,
 } from "./generated";
 
 // WebSocket message types
@@ -47,6 +49,8 @@ export type Ability = GeneratedAbility;
 export type PersonalKPI = GeneratedPersonalKPI;
 export type SystemShock = GeneratedSystemShock;
 export type NightAction = GeneratedNightAction;
+export type DailySitrep = GeneratedDailySitrep;
+export type SitrepSection = GeneratedSitrepSection;
 
 // EmojiReaction type - define it here since not yet in core types
 export interface EmojiReaction {
@@ -213,4 +217,7 @@ export interface AppState {
   sessionToken?: string;
   lobbyInfo?: LobbyInfo;
   userIdentity?: UserIdentity;
+  isSpectating?: boolean;
+  hasSyncedInitialState?: boolean; // Track if we've received initial state for this session
+  isNewJoin?: boolean; // Track if this is a fresh join vs session restoration
 }

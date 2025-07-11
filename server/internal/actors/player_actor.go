@@ -16,6 +16,7 @@ import (
 	"golang.org/x/time/rate"
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/events"
+	"github.com/xjhc/alignment/server/internal/helpers"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/lobby"
 )
@@ -140,14 +141,14 @@ func (pa *PlayerActor) SetActionSemaphore(sem *semaphore.Weighted) {
 func (pa *PlayerActor) Start() {
 	log.Printf("[PlayerActor/%s] Starting", pa.playerID)
 
-	// Start WebSocket read pump
-	go pa.readPump()
+	// Start WebSocket read pump with panic protection
+	helpers.GoSafe(pa.ctx, func(_ context.Context) { pa.readPump() })
 
-	// Start WebSocket write pump
-	go pa.writePump()
+	// Start WebSocket write pump with panic protection
+	helpers.GoSafe(pa.ctx, func(_ context.Context) { pa.writePump() })
 
-	// Start main processing loop
-	go pa.processLoop()
+	// Start main processing loop with panic protection
+	helpers.GoSafe(pa.ctx, func(_ context.Context) { pa.processLoop() })
 }
 
 // Stop gracefully shuts down the PlayerActor
@@ -586,7 +587,7 @@ func (pa *PlayerActor) handleStartGame(action core.Action) {
 
 	// Launch the potentially long-running StartGame process in a new goroutine
 	// to prevent blocking the PlayerActor's main processing loop.
-	go func() {
+	helpers.GoSafe(pa.ctx, func(_ context.Context) {
 		log.Printf("[PlayerActor/%s] Dispatching START_GAME for lobby %s", pa.playerID, pa.lobbyID)
 		err := pa.lifecycleManager.StartGame(pa.lobbyID, pa.playerID)
 		if err != nil {
@@ -594,7 +595,7 @@ func (pa *PlayerActor) handleStartGame(action core.Action) {
 			// This is safe to call from a goroutine as it sends to a channel.
 			pa.sendError(fmt.Sprintf("Failed to start game: %v", err))
 		}
-	}()
+	})
 	log.Printf("[PlayerActor/%s] Dispatched START_GAME action for lobby %s", pa.playerID, pa.lobbyID)
 }
 
@@ -637,10 +638,29 @@ func (pa *PlayerActor) handleSyncLobbyState(action core.Action) {
 	action.GameID = pa.lobbyID // Use lobbyID as gameID for lobby actions
 	action.PlayerID = pa.playerID
 
-	err := pa.lifecycleManager.SendActionToGame(pa.lobbyID, action)
+	resultChan, err := pa.lifecycleManager.SendActionToGame(pa.lobbyID, action)
 	if err != nil {
 		log.Printf("[PlayerActor/%s] Failed to send sync lobby state action: %v", pa.playerID, err)
 		pa.sendError(fmt.Sprintf("Failed to sync lobby state: %v", err))
+		return
+	}
+
+	// Wait for the result
+	select {
+	case result := <-resultChan:
+		if result.Error != nil {
+			log.Printf("[PlayerActor/%s] Sync lobby state action rejected: %v", pa.playerID, result.Error)
+			pa.sendError(fmt.Sprintf("Failed to sync lobby state: %v", result.Error))
+		} else if len(result.Events) > 0 {
+			if err := pa.lifecycleManager.BroadcastEventsToGame(pa.lobbyID, result.Events); err != nil {
+				log.Printf("[PlayerActor/%s] Failed to broadcast lobby sync events: %v", pa.playerID, err)
+			}
+		}
+	case <-time.After(2 * time.Second):
+		log.Printf("[PlayerActor/%s] Sync lobby state action timed out", pa.playerID)
+		pa.sendError("Lobby sync timed out. The server is busy.")
+	case <-pa.ctx.Done():
+		return
 	}
 }
 
@@ -750,10 +770,35 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 	action.PlayerID = pa.playerID
 	action.GameID = pa.gameID
 
-	err := pa.lifecycleManager.SendActionToGame(pa.gameID, action)
+	// Send action and get response channel
+	resultChan, err := pa.lifecycleManager.SendActionToGame(pa.gameID, action)
 	if err != nil {
 		log.Printf("[PlayerActor/%s] Failed to send action to game: %v", pa.playerID, err)
 		pa.sendError(fmt.Sprintf("Failed to process action: %v", err))
+		return
+	}
+
+	// Wait for the result with a timeout to prevent the PlayerActor from hanging indefinitely
+	select {
+	case result := <-resultChan:
+		if result.Error != nil {
+			// The action was rejected by the GameActor. Propagate the error to the client.
+			log.Printf("[PlayerActor/%s] Action rejected by game: %v", pa.playerID, result.Error)
+			pa.sendError(fmt.Sprintf("Action rejected: %v", result.Error))
+		} else {
+			// Action was successful. Broadcast the resulting events to all players in the game.
+			if len(result.Events) > 0 {
+				if err := pa.lifecycleManager.BroadcastEventsToGame(pa.gameID, result.Events); err != nil {
+					log.Printf("[PlayerActor/%s] Failed to broadcast events: %v", pa.playerID, err)
+				}
+			}
+		}
+	case <-time.After(2 * time.Second): // 2-second timeout
+		log.Printf("[PlayerActor/%s] Action timed out after 2 seconds", pa.playerID)
+		pa.sendError("Action timed out. The server is busy.")
+	case <-pa.ctx.Done():
+		// PlayerActor is shutting down, do nothing.
+		return
 	}
 }
 

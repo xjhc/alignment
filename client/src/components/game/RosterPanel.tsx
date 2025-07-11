@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameContext } from '../../contexts/GameContext';
+import { useSessionContext } from '../../contexts/SessionContext';
 import { useTheme } from '../../hooks/useTheme';
 import { PlayerCard } from './PlayerCard';
 import { soundManager } from '../../services/soundManager';
@@ -8,7 +9,9 @@ import { CHANNEL_UNLOCK } from '../../utils/animations';
 
 export const RosterPanel: React.FC = () => {
   const { gameState, localPlayerId, localPlayer, viewedPlayerId, setViewedPlayer, activeChannel, setActiveChannel } = useGameContext();
+  const { appState } = useSessionContext();
   const { theme, toggleTheme } = useTheme();
+  const isSpectating = appState.isSpectating;
   const players = gameState?.players || [];
   const [isMuted, setIsMuted] = useState(soundManager.isMutedState());
   const [alignedChannelJustUnlocked, setAlignedChannelJustUnlocked] = useState(false);
@@ -59,11 +62,13 @@ export const RosterPanel: React.FC = () => {
   const getChannelAccess = (channelId: string) => {
     switch (channelId) {
       case '#war-room':
-        return localPlayer?.isAlive || false;
+        return localPlayer?.isAlive || isSpectating || false;
       case '#aligned':
         return isAI;
       case '#off-boarding':
         return !localPlayer?.isAlive || false;
+      case '#spectators':
+        return isSpectating || false;
       default:
         return false;
     }
@@ -175,6 +180,25 @@ export const RosterPanel: React.FC = () => {
             {!getChannelAccess('#off-boarding') && <span className="ml-auto text-xs opacity-50">❌</span>}
           </button>
         )}
+
+        {/* Spectators Channel - only show for spectators */}
+        {isSpectating && (
+          <button
+            onClick={() => handleChannelClick('#spectators')}
+            disabled={!getChannelAccess('#spectators')}
+            aria-current={activeChannel === '#spectators' ? 'page' : undefined}
+            aria-label={`Spectators channel${getUnreadCount('#spectators') > 0 ? ` (${getUnreadCount('#spectators')} unread messages)` : ''}`}
+            className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md mb-0.5 transition-all duration-150 text-sm border-0 ${
+              activeChannel === '#spectators' 
+                ? 'bg-background-quaternary text-text-primary border-l-2 border-primary' 
+                : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
+            } cursor-pointer hover:translate-x-0.5`}
+          >
+            <span>#</span>
+            <span className={`channel-name ${getUnreadCount('#spectators') > 0 ? 'font-bold text-text-primary' : ''}`}>spectators</span>
+            <span className="ml-auto text-xs">👁️</span>
+          </button>
+        )}
       </nav>
 
       <div className="px-2 py-3 flex-grow overflow-y-auto">
@@ -202,7 +226,7 @@ export const RosterPanel: React.FC = () => {
                 isSelf={player.id === localPlayerId}
                 isSelected={player.id === viewedPlayerId}
                 onSelect={setViewedPlayer}
-                isOnTrial={gameState.phase.type === 'TRIAL' && gameState.nominatedPlayer === player.id}
+                isOnTrial={gameState?.phase?.type === 'TRIAL' && gameState?.nominatedPlayer === player.id}
               />
             ))}
           </AnimatePresence>

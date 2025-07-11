@@ -24,8 +24,8 @@ export const ExtensionVoteUI: React.FC<ExtensionVoteUIProps> = ({
     await handleExtensionVote(choice);
   };
 
-  const extendVotes = gameState.voteState?.results?.["EXTEND"] || 0;
-  const nominateVotes = gameState.voteState?.results?.["NOMINATE"] || 0;
+  const extendVotes = gameState?.voteState?.results?.["EXTEND"] || 0;
+  const nominateVotes = gameState?.voteState?.results?.["NOMINATE"] || 0;
 
   return (
     <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-background-primary border border-yellow-500 rounded-lg p-4 shadow-lg z-50 min-w-96 animation-slide-in-up">

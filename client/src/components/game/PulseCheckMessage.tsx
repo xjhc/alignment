@@ -11,7 +11,7 @@ export const PulseCheckMessage: React.FC<PulseCheckMessageProps> = ({ message, g
   const pulseCheckResponses = message.metadata?.pulseCheckResponses || message.metadata?.player_responses || {};
   
   // Get question from crisis event if available, otherwise use message metadata
-  const question = gameState.crisisEvent?.pulseCheckPrompt || message.metadata?.question || message.message;
+  const question = gameState?.crisisEvent?.pulseCheckPrompt || message.metadata?.question || message.message;
   const totalResponses = message.metadata?.total_responses || Object.keys(pulseCheckResponses).length;
 
   return (

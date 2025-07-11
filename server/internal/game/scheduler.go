@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xjhc/alignment/core"
+	"github.com/xjhc/alignment/server/internal/helpers"
 )
 
 // Timer represents a scheduled event
@@ -71,7 +72,7 @@ func (s *Scheduler) Start() {
 	}
 
 	s.running = true
-	go s.run()
+	helpers.GoSafe(s.ctx, func(_ context.Context) { s.run() })
 	log.Println("Scheduler: Started")
 }
 
@@ -153,7 +154,9 @@ func (s *Scheduler) processExpiredTimers(now time.Time) {
 	for _, timer := range expiredTimers {
 		log.Printf("Scheduler: Executing expired timer %s", timer.ID)
 		if s.callback != nil {
-			go s.callback(*timer) // Execute in goroutine to avoid blocking
+			// Use a copy of the timer variable to avoid closure issues
+			t := *timer
+			helpers.GoSafe(s.ctx, func(_ context.Context) { s.callback(t) })
 		}
 	}
 }

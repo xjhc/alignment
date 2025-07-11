@@ -3,9 +3,9 @@ import { useSessionContext } from '../contexts/SessionContext';
 
 export function GameOverScreen() {
   const { gameState, onViewAnalysis, onPlayAgain } = useSessionContext();
-  const isHumanVictory = gameState.winCondition?.winner === 'HUMANS';
+  const isHumanVictory = gameState?.winCondition?.winner === 'HUMANS';
   
-  const sortedPlayers = [...gameState.players].sort((a, b) => {
+  const sortedPlayers = [...(gameState?.players || [])].sort((a, b) => {
     // Sort by: survivors first, then by alignment (humans first), then by tokens
     if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
     if (a.alignment !== b.alignment) {

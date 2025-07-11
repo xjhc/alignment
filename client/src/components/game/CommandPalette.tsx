@@ -40,15 +40,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         id: "skip-phase",
         label: "Skip Phase",
         shortcut: "Ctrl+S",
-        description: `Vote to skip the current ${getPhaseDisplayName(gameState.phase.type)} phase`,
+        description: `Vote to skip the current ${getPhaseDisplayName(gameState?.phase?.type || 'UNKNOWN')} phase`,
         action: () => {
           handleSkipPhase();
           onClose();
         },
         category: "game",
         enabled:
-          gameState.phase.type !== "TRIAL" &&
-          gameState.phase.type !== "GAME_OVER" &&
+          gameState?.phase?.type !== "TRIAL" &&
+          gameState?.phase?.type !== "GAME_OVER" &&
           localPlayer?.isAlive === true,
       },
       {

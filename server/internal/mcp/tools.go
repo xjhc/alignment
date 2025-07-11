@@ -3,6 +3,7 @@ package mcp
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/interfaces"
@@ -82,10 +83,28 @@ func callSendChatMessage(id interface{}, args map[string]interface{}, glm interf
 		Payload:  map[string]interface{}{"content": message},
 	}
 
-	err := glm.SendActionToGame(gameID, action)
+	resultChan, err := glm.SendActionToGame(gameID, action)
 	if err != nil {
 		log.Printf("MCP: Error sending chat action to game: %v", err)
 		return createErrorResponse(id, InternalError, "Failed to send message to game", err.Error())
+	}
+
+	// Wait for the result (MCP operations should be synchronous)
+	select {
+	case result := <-resultChan:
+		if result.Error != nil {
+			log.Printf("MCP: Chat action rejected by game: %v", result.Error)
+			return createErrorResponse(id, InternalError, "Message rejected by game", result.Error.Error())
+		}
+		// Broadcast the events if successful
+		if len(result.Events) > 0 {
+			if err := glm.BroadcastEventsToGame(gameID, result.Events); err != nil {
+				log.Printf("MCP: Failed to broadcast events: %v", err)
+			}
+		}
+	case <-time.After(5 * time.Second):
+		log.Printf("MCP: Chat action timed out")
+		return createErrorResponse(id, InternalError, "Message timed out", "The server is busy")
 	}
 
 	return Response{

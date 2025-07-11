@@ -169,12 +169,20 @@ func (vv *VoteValidator) CanPlayerVote(playerID string) error {
 
 // CanPlayerBeVoted checks if a player can be voted for
 func (vv *VoteValidator) CanPlayerBeVoted(targetID string, voteType core.VoteType) error {
+	// Extension votes have special targets that aren't players
+	if voteType == core.VoteExtension {
+		if targetID != "EXTEND" && targetID != "NOMINATE" {
+			return fmt.Errorf("extension votes must target 'EXTEND' or 'NOMINATE', got: %s", targetID)
+		}
+		return nil
+	}
+
 	target, exists := vv.gameState.Players[targetID]
 	if !exists {
 		return fmt.Errorf("target player %s not found", targetID)
 	}
 
-	if !target.IsAlive && voteType != core.VoteExtension {
+	if !target.IsAlive {
 		return fmt.Errorf("cannot vote for eliminated player")
 	}
 

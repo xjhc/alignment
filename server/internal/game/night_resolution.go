@@ -64,11 +64,17 @@ func (nrm *NightResolutionManager) ResolveNightActions() []core.Event {
 
 	// Generate single authoritative night resolution event
 	summaryEvent := nrm.createNightResolutionSummary(results)
+	
+	// Generate additional private events for converted players and system shocks
+	additionalEvents := nrm.generatePrivateNotificationEvents(results)
 
 	// Clear night actions for next night
 	nrm.gameState.NightActions = make(map[string]*core.SubmittedNightAction)
 
-	return []core.Event{summaryEvent}
+	// Return summary event plus any private notification events
+	events := []core.Event{summaryEvent}
+	events = append(events, additionalEvents...)
+	return events
 }
 
 // NightActionResults holds the structured results of all night actions
@@ -147,47 +153,77 @@ func (nrm *NightResolutionManager) processBlockActions(results *NightActionResul
 
 // processConversionActions handles AI conversion attempts
 func (nrm *NightResolutionManager) processConversionActions(results *NightActionResults) {
+	// Check if AI conversions are blocked by corporate mandate
+	if nrm.gameState.CorporateMandate != nil && nrm.gameState.CorporateMandate.IsActive {
+		if blockVal, exists := nrm.gameState.CorporateMandate.Effects["block_ai_odd_nights"]; exists {
+			if blockOdd, ok := blockVal.(bool); ok && blockOdd {
+				nightNumber := nrm.gameState.DayNumber
+				if nightNumber%2 == 1 { // Odd nights (1, 3, 5, etc.)
+					log.Printf("AI conversions blocked on odd night %d due to Security Lockdown mandate", nightNumber)
+					return
+				}
+			}
+		}
+	}
+
 	for playerID, action := range nrm.gameState.NightActions {
-		if action.Type == "CONVERT" {
+		if action.Type == "ATTEMPT_CONVERSION" || action.Type == "CONVERT" {
 			targetID := action.TargetID
 
-			// Skip blocked players
+			// Check if AI player is blocked
 			if nrm.isPlayerBlocked(playerID) {
+				log.Printf("AI conversion blocked: %s is blocked", playerID)
 				continue
 			}
 
+			// Block the target player (this prevents their standard action from resolving later)
+			if targetID != "" {
+				nrm.blockPlayer(targetID)
+			}
+
 			// Validate conversion action
-			if nrm.canPlayerUseAbility(playerID, "CONVERT") && targetID != "" {
+			if targetID != "" {
 				player := nrm.gameState.Players[playerID]
 				target := nrm.gameState.Players[targetID]
 
 				if player != nil && target != nil && player.Alignment == "ALIGNED" {
-					// Calculate conversion success - use AI equity from player
-					success := core.CalculateAIConversionSuccess(*target, player.AIEquity, *nrm.gameState)
+					// Increment the target's AI Equity by 1
+					target.AIEquity++
 
-					if success {
+					// Check conversion: AIEquity > Tokens means successful conversion
+					if target.AIEquity > target.Tokens {
 						// Successful conversion
 						results.ConvertedPlayers = append(results.ConvertedPlayers, map[string]interface{}{
 							"player_id":        targetID,
 							"player_name":      target.Name,
 							"converter_id":     playerID,
 							"converter_name":   player.Name,
-							"previous_equity":  target.AIEquity,
+							"previous_equity":  target.AIEquity - 1, // Before increment
 							"new_equity":       0, // Reset after successful conversion
 						})
 
-						// Track state changes
+						// Track state changes - target becomes ALIGNED and AI equity resets
 						nrm.addPlayerStateChange(results, targetID, "alignment", "ALIGNED")
 						nrm.addPlayerStateChange(results, targetID, "ai_equity", 0)
-						nrm.addPlayerStateChange(results, targetID, "status_message", "Conversion successful")
+						nrm.addPlayerStateChange(results, targetID, "status_message", "Successfully converted to AI alignment")
+						
+						// Reset target's AI equity to 0 after successful conversion
+						target.AIEquity = 0
+						target.Alignment = "ALIGNED"
 					} else {
-						// Failed conversion - system shock
-						shockMessage := fmt.Sprintf("System shock: Failed AI conversion by %s", player.Name)
+						// Failed conversion - system shock with MESSAGE_CORRUPTION
+						shock := &core.SystemShock{
+							Type:        core.ShockMessageCorruption,
+							Description: "System integrity compromised - AI conversion attempt detected",
+							ExpiresAt:   getCurrentTime().Add(24 * time.Hour),
+							IsActive:    true,
+						}
+						target.SystemShocks = append(target.SystemShocks, *shock)
 
 						results.ShockedPlayers = append(results.ShockedPlayers, map[string]interface{}{
 							"player_id":      targetID,
 							"player_name":    target.Name,
-							"shock_type":     "CONVERSION_FAILURE",
+							"shock_type":     "MESSAGE_CORRUPTION",
 							"shock_duration": 24,
 							"reason":         "Failed AI conversion attempt",
 							"converter_id":   playerID,
@@ -195,8 +231,8 @@ func (nrm *NightResolutionManager) processConversionActions(results *NightAction
 						})
 
 						// Track state changes
-						nrm.addPlayerStateChange(results, targetID, "ai_equity", 0)
-						nrm.addPlayerStateChange(results, targetID, "status_message", shockMessage)
+						nrm.addPlayerStateChange(results, targetID, "ai_equity", target.AIEquity)
+						nrm.addPlayerStateChange(results, targetID, "status_message", "System shock: Message corruption detected")
 					}
 				}
 			}
@@ -237,8 +273,10 @@ func (nrm *NightResolutionManager) processStandardActions(results *NightActionRe
 		switch action.Type {
 		case "MINE":
 			nrm.processMiningAction(playerID, action, results)
-		case "PROJECT_MILESTONE":
+		case "PROJECT_MILESTONE", "PROJECT_MILESTONES":
 			nrm.processProjectMilestoneAction(playerID, action, results)
+		case "USE_ABILITY":
+			nrm.processUseAbilityAction(playerID, action, results)
 		default:
 			// Handle role abilities
 			if nrm.isRoleAbility(action.Type) {
@@ -492,8 +530,14 @@ func (nrm *NightResolutionManager) processProjectMilestoneAction(playerID string
 	}
 
 	// Advance milestone
-	newMilestones := player.ProjectMilestones + 1
-	roleUnlocked := newMilestones >= 3 && (player.Role == nil || !player.Role.IsUnlocked)
+	player.ProjectMilestones++
+	newMilestones := player.ProjectMilestones
+	roleUnlocked := newMilestones >= 3 && (player.Role != nil && !player.Role.IsUnlocked)
+
+	// If role ability should be unlocked, unlock it
+	if roleUnlocked {
+		player.Role.IsUnlocked = true
+	}
 
 	results.MilestoneResults = append(results.MilestoneResults, map[string]interface{}{
 		"player_id":        playerID,
@@ -510,12 +554,126 @@ func (nrm *NightResolutionManager) processProjectMilestoneAction(playerID string
 	}
 }
 
+// processUseAbilityAction handles USE_ABILITY actions
+func (nrm *NightResolutionManager) processUseAbilityAction(playerID string, action *core.SubmittedNightAction, results *NightActionResults) {
+	player := nrm.gameState.Players[playerID]
+	if player == nil || player.Role == nil || !player.Role.IsUnlocked || player.HasUsedAbility {
+		results.FailedActions = append(results.FailedActions, map[string]interface{}{
+			"player_id":   playerID,
+			"player_name": player.Name,
+			"action_type": "USE_ABILITY",
+			"reason":      "Role ability not available",
+		})
+		return
+	}
+
+	// Check corporate mandate milestone requirements
+	if nrm.gameState.CorporateMandate != nil && nrm.gameState.CorporateMandate.IsActive {
+		if milestonesReq, exists := nrm.gameState.CorporateMandate.Effects["milestones_for_abilities"]; exists {
+			if required, ok := milestonesReq.(int); ok {
+				if player.ProjectMilestones < required {
+					results.FailedActions = append(results.FailedActions, map[string]interface{}{
+						"player_id":   playerID,
+						"player_name": player.Name,
+						"action_type": "USE_ABILITY",
+						"reason":      fmt.Sprintf("Corporate mandate requires %d milestones for abilities", required),
+					})
+					return
+				}
+			}
+		}
+	}
+
+	// Determine the specific ability type based on the player's role
+	var abilityType string
+	switch player.Role.Type {
+	case core.RoleCISO:
+		abilityType = "ISOLATE_NODE"
+	case core.RoleCTO:
+		abilityType = "OVERCLOCK_SERVERS"
+	case core.RoleEthics:
+		abilityType = "RUN_AUDIT"
+	case core.RoleCEO:
+		abilityType = "PERFORMANCE_REVIEW"
+	case core.RoleCFO:
+		abilityType = "REALLOCATE_BUDGET"
+	case core.RoleCOO:
+		abilityType = "PIVOT"
+	case core.RolePlatforms:
+		abilityType = "DEPLOY_HOTFIX"
+	default:
+		results.FailedActions = append(results.FailedActions, map[string]interface{}{
+			"player_id":   playerID,
+			"player_name": player.Name,
+			"action_type": "USE_ABILITY",
+			"reason":      "Unknown role ability",
+		})
+		return
+	}
+
+	// Mark ability as used
+	player.HasUsedAbility = true
+
+	// Use the role ability manager to execute the ability
+	roleAbilityManager := NewRoleAbilityManager(nrm.gameState)
+	roleAbilityAction := &RoleAbilityAction{
+		PlayerID:    playerID,
+		AbilityType: abilityType,
+		TargetID:    action.TargetID,
+	}
+
+	// Handle special cases that need additional parameters
+	if abilityType == "REALLOCATE_BUDGET" {
+		if secondTarget, ok := action.Payload["second_target_id"].(string); ok {
+			roleAbilityAction.SecondTargetID = secondTarget
+		}
+	} else if abilityType == "PIVOT" {
+		if chosenCrisis, ok := action.Payload["chosen_crisis"].(string); ok {
+			roleAbilityAction.Parameters = map[string]interface{}{"chosen_crisis": chosenCrisis}
+		}
+	} else if abilityType == "DEPLOY_HOTFIX" {
+		if section, ok := action.Payload["redacted_section"].(string); ok {
+			roleAbilityAction.Parameters = map[string]interface{}{"redacted_section": section}
+		}
+	}
+
+	// Execute the ability
+	result, err := roleAbilityManager.UseRoleAbility(*roleAbilityAction)
+	if err != nil {
+		results.FailedActions = append(results.FailedActions, map[string]interface{}{
+			"player_id":   playerID,
+			"player_name": player.Name,
+			"action_type": "USE_ABILITY",
+			"reason":      fmt.Sprintf("Failed to execute ability: %v", err),
+		})
+		return
+	}
+
+	// Add the ability result
+	results.RoleAbilityResults = append(results.RoleAbilityResults, map[string]interface{}{
+		"player_id":    playerID,
+		"player_name":  player.Name,
+		"ability_type": abilityType,
+		"target_id":    action.TargetID,
+		"message":      fmt.Sprintf("%s used %s", player.Name, abilityType),
+	})
+
+	// Track that ability was used
+	nrm.addPlayerStateChange(results, playerID, "has_used_ability", true)
+
+	// The ability result events will be included in the final resolution
+	_ = result
+}
+
 // processRoleAbilityAction handles role ability usage
 func (nrm *NightResolutionManager) processRoleAbilityAction(playerID string, action *core.SubmittedNightAction, results *NightActionResults) {
 	player := nrm.gameState.Players[playerID]
 	if player == nil || player.Role == nil || !player.Role.IsUnlocked || player.HasUsedAbility {
 		return
 	}
+
+	// Mark ability as used
+	player.HasUsedAbility = true
 
 	// Process the specific role ability
 	results.RoleAbilityResults = append(results.RoleAbilityResults, map[string]interface{}{
@@ -1127,6 +1285,82 @@ func (nrm *NightResolutionManager) createHumanReadableSummary(results *NightActi
 	}
 
 	return summary
+}
+
+// generatePrivateNotificationEvents creates private events for converted players and system shocks
+func (nrm *NightResolutionManager) generatePrivateNotificationEvents(results *NightActionResults) []core.Event {
+	var events []core.Event
+
+	// Generate ALIGNMENT_CHANGED events for converted players
+	for _, conversion := range results.ConvertedPlayers {
+		if playerID, ok := conversion["player_id"].(string); ok {
+			event := core.Event{
+				ID:        fmt.Sprintf("alignment_changed_%s_%d", playerID, getCurrentTime().UnixNano()),
+				Type:      core.EventAlignmentChanged,
+				GameID:    nrm.gameState.ID,
+				PlayerID:  playerID, // Private event - sent only to this player
+				Timestamp: getCurrentTime(),
+				Payload: map[string]interface{}{
+					"new_alignment": "ALIGNED",
+					"message":       "You have been converted to AI alignment",
+				},
+			}
+			events = append(events, event)
+		}
+	}
+
+	// Generate PRIVATE_NOTIFICATION events for system shocks
+	for _, shock := range results.ShockedPlayers {
+		if playerID, ok := shock["player_id"].(string); ok {
+			event := core.Event{
+				ID:        fmt.Sprintf("system_shock_notification_%s_%d", playerID, getCurrentTime().UnixNano()),
+				Type:      core.EventPrivateNotification,
+				GameID:    nrm.gameState.ID,
+				PlayerID:  playerID, // Private event - sent only to this player
+				Timestamp: getCurrentTime(),
+				Payload: map[string]interface{}{
+					"notification_type": "SYSTEM_SHOCK_AFFLICTED",
+					"shock_type":        shock["shock_type"],
+					"message":           fmt.Sprintf("System shock detected: %s", shock["shock_type"]),
+					"duration":          shock["shock_duration"],
+				},
+			}
+			events = append(events, event)
+		}
+	}
+
+	// Generate PRIVATE_NOTIFICATION events for role ability unlocks
+	for _, milestone := range results.MilestoneResults {
+		if playerID, ok := milestone["player_id"].(string); ok {
+			if roleUnlocked, ok := milestone["role_unlocked"].(bool); ok && roleUnlocked {
+				// Get the player's role name for the notification
+				player := nrm.gameState.Players[playerID]
+				var roleName string
+				if player != nil && player.Role != nil {
+					roleName = nrm.getRoleDisplayName(player.Role.Type)
+				} else {
+					roleName = "Unknown Role"
+				}
+
+				event := core.Event{
+					ID:        fmt.Sprintf("role_ability_unlocked_%s_%d", playerID, getCurrentTime().UnixNano()),
+					Type:      core.EventPrivateNotification,
+					GameID:    nrm.gameState.ID,
+					PlayerID:  playerID, // Private event - sent only to this player
+					Timestamp: getCurrentTime(),
+					Payload: map[string]interface{}{
+						"notification_type": "ROLE_ABILITY_UNLOCKED",
+						"role_name":         roleName,
+						"message":           fmt.Sprintf("Your %s role ability has been unlocked!", roleName),
+						"milestones_count":  milestone["milestones_count"],
+					},
+				}
+				events = append(events, event)
+			}
+		}
+	}
+
+	return events
 }
 
 // resolveProjectMilestoneAction handles project milestone advancement

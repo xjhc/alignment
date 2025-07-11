@@ -33,16 +33,25 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
   const alivePlayers = Array.isArray(players)
     ? players.filter((p) => p.isAlive)
     : [];
-  const hasUnlockedAbility =
-    localPlayer.role?.type && localPlayer.projectMilestones >= 3;
+  // Check milestone requirements based on corporate mandate
+  const getMilestoneRequirement = () => {
+    if (gameState?.corporateMandate?.isActive && gameState.corporateMandate.effects?.milestones_for_abilities) {
+      return gameState.corporateMandate.effects.milestones_for_abilities;
+    }
+    return 3; // Default requirement
+  };
 
-  const isIntern = localPlayer.role?.type === "INTERN";
-  const bootcampPoints = localPlayer.bootcampPoints || 0;
+  const milestoneRequirement = getMilestoneRequirement();
+  const hasUnlockedAbility =
+    localPlayer?.role?.type && (localPlayer?.role?.isUnlocked || (localPlayer?.projectMilestones || 0) >= milestoneRequirement);
+
+  const isIntern = localPlayer?.role?.type === "INTERN";
+  const bootcampPoints = localPlayer?.bootcampPoints || 0;
   const canUseShadow = isIntern && bootcampPoints >= 1;
   const eligibleShadowTargets = alivePlayers.filter(
     (p) =>
       p.role?.type &&
-      p.projectMilestones >= 3 &&
+      p.projectMilestones >= milestoneRequirement &&
       ["CISO", "CTO", "CEO", "COO", "CFO", "ETHICS", "PLATFORMS"].includes(
         p.role.type
       )
@@ -93,10 +102,17 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
     if (action === "mine") {
       if (alivePlayers.length === 0) return "N/A";
       const totalMiningAttempts = alivePlayers.length;
-      const successRate = Math.max(
+      let successRate = Math.max(
         33,
         Math.min(75, Math.floor((3 / totalMiningAttempts) * 100))
       );
+      
+      // Apply corporate mandate modifier
+      if (gameState?.corporateMandate?.isActive && gameState.corporateMandate.effects?.mining_success_modifier) {
+        const modifier = gameState.corporateMandate.effects.mining_success_modifier;
+        successRate = Math.floor(successRate * modifier);
+      }
+      
       return `${successRate}% Success`;
     }
     return null;
@@ -227,6 +243,12 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
               Generate 1 Token for any player. Success depends on liquidity
               pool (currently 3 slots for {alivePlayers.length} players
               attempting).
+              {gameState?.corporateMandate?.isActive && gameState.corporateMandate.effects?.mining_success_modifier && 
+               gameState.corporateMandate.effects.mining_success_modifier < 1 && (
+                <span className="text-yellow-400 ml-1">
+                  (Corporate mandate reduces mining efficiency)
+                </span>
+              )}
             </div>
             <div className="text-xs text-gray-500">
               <strong className="text-gray-100 font-semibold">Command:</strong>{" "}
@@ -249,8 +271,13 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
               </span>
             </div>
             <div className="text-xs text-gray-400 leading-snug mb-1.5">
-              Advance your role's project by 1 point. At 3 points, unlock your
+              Advance your role's project by 1 point. At {milestoneRequirement} points, unlock your
               powerful role-specific ability for future nights.
+              {milestoneRequirement > 3 && (
+                <span className="text-yellow-400 ml-1">
+                  (Corporate mandate requires {milestoneRequirement} milestones)
+                </span>
+              )}
             </div>
             <div className="text-xs text-gray-500">
               <strong className="text-gray-100 font-semibold">Command:</strong>{" "}
@@ -335,13 +362,18 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
                     ? canPlayerAffordAbility(localPlayer.id)
                       ? "Ready"
                       : "No Tokens"
-                    : "Locked"}
+                    : `Need ${milestoneRequirement} milestones`}
                 </span>
               </div>
               <div className="text-xs text-gray-400 leading-snug mb-1.5">
                 {hasUnlockedAbility
                   ? `Use your role-specific ability. ${canPlayerAffordAbility(localPlayer.id) ? "Available to use." : "Requires more tokens."}`
-                  : "Role ability requires system access currently unavailable."}
+                  : `Role ability requires ${milestoneRequirement} project milestones to unlock.`}
+                {milestoneRequirement > 3 && (
+                  <span className="text-yellow-400 ml-1">
+                    (Corporate mandate requires enhanced clearance)
+                  </span>
+                )}
               </div>
               <div className="text-xs text-gray-500">
                 <strong className="text-gray-100 font-semibold">Status:</strong>{" "}

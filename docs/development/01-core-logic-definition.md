@@ -4,22 +4,35 @@ In the `Alignment` codebase, "Core Logic" refers to the deterministic, pure-func
 
 ---
 
+### Core Philosophy: Single Authoritative Events
+
+The root cause of issues like a non-updating vote counter is that the server is not sending the client the **complete, authoritative state** after an action. The client should not calculate state; it should only render the state it receives.
+
+Our implementation will strictly follow this pattern:
+
+1.  **Client:** Sends an action (e.g., `SUBMIT_SKIP_VOTE`).
+2.  **Server:** Receives the action, updates its internal `GameState`.
+3.  **Server:** Broadcasts a **new, comprehensive event** (e.g., `SKIP_VOTE_UPDATED`) containing the _complete and current_ state for that feature (e.g., `{ "votes": 2, "required": 5 }`).
+4.  **Client:** Receives the new event and uses its payload to directly update the UI, with no client-side calculation.
+
+---
+
 ### 1. Universal Core Logic (`/core`)
 
 This is the code that encodes the **universal rules of the game**. It is shared between the server and the Go/Wasm client to ensure they both interpret events identically. It must be completely isolated from all side effects.
 
-*   **Primary Example: `ApplyEvent(state, event)` function**
-    *   **Signature:** `func ApplyEvent(currentState GameState, event Event) GameState`
-    *   **Description:** This pure function is the single source of truth for state transitions. It takes the current state of a game and a single event, and returns the new state. For example, it defines that a `MINING_SUCCESSFUL` event increments a player's token count.
-    *   **Location:** `core/game_state.go`
+- **Primary Example: `ApplyEvent(state, event)` function**
+  - **Signature:** `func ApplyEvent(currentState GameState, event Event) GameState`
+  - **Description:** This pure function is the single source of truth for state transitions. It takes the current state of a game and a single event, and returns the new state. For example, it defines that a `MINING_SUCCESSFUL` event increments a player's token count.
+  - **Location:** `core/game_state.go`
 
 ### 2. Server-Side Core Logic (`/server`)
 
 This is the code that encodes the **authoritative, secret, or infrastructure-dependent rules**. It runs only on the server and is not shared with the client.
 
-*   **Primary Example: `RulesEngine.DecideAction(state)` methods**
-    *   **Signature:** `func (re *RulesEngine) DecideVote(currentState GameState) Action`
-    *   **Description:** This is a collection of pure functions that encapsulates the AI's strategic decision-making. Given a `GameState`, it deterministically calculates the optimal move (e.g., who to vote for, who to target). It contains the secret `calculateThreat` and `calculateSuspicionScore` heuristics.
-    *   **Location:** `server/internal/ai/rules.go`
+- **Primary Example: `RulesEngine.DecideAction(state)` methods**
+  - **Signature:** `func (re *RulesEngine) DecideVote(currentState GameState) Action`
+  - **Description:** This is a collection of pure functions that encapsulates the AI's strategic decision-making. Given a `GameState`, it deterministically calculates the optimal move (e.g., who to vote for, who to target). It contains the secret `calculateThreat` and `calculateSuspicionScore` heuristics.
+  - **Location:** `server/internal/ai/rules.go`
 
 By keeping both categories of logic pure within their respective boundaries, we can test them exhaustively and be confident in their correctness, separate from the complexities of the surrounding actor system.

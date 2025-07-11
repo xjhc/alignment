@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/mocks"
 	"github.com/xjhc/alignment/server/internal/store"
+	"github.com/xjhc/alignment/server/internal/test_helpers"
 )
 
 // MockPlayerActor for testing (since each test file has its own)
@@ -328,14 +330,31 @@ func TestGameLifecycleManager_EventHandling(t *testing.T) {
 	lobby, _ := manager.GetLobbyByID(lobbyID)
 	assert.Len(t, lobby.GetPlayerActors(), 2)
 
+	// Set up a WaitGroup to wait for event processing
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// Monitor for lobby state changes using a goroutine
+	go func() {
+		defer wg.Done()
+		// Poll for the expected state change with a timeout
+		for i := 0; i < 50; i++ { // Poll up to 50 times
+			lobby, _ := manager.GetLobbyByID(lobbyID)
+			if len(lobby.GetPlayerActors()) == 1 {
+				return // Expected state reached
+			}
+			time.Sleep(10 * time.Millisecond) // Brief pause between polls
+		}
+	}()
+
 	// Publish player disconnected event
 	eventBus.Publish(events.PlayerDisconnectedEvent{
 		PlayerID: "player2",
 		LobbyID:  lobbyID,
 	})
 
-	// Give the event processor time to handle the event
-	time.Sleep(50 * time.Millisecond)
+	// Wait deterministically for the event to be processed
+	test_helpers.WaitWithTimeout(&wg, 1*time.Second, t)
 
 	// Verify player was removed from lobby
 	lobby, _ = manager.GetLobbyByID(lobbyID)
@@ -343,4 +362,68 @@ func TestGameLifecycleManager_EventHandling(t *testing.T) {
 	assert.Len(t, players, 1)
 	assert.Contains(t, players, hostPlayerID)
 	assert.NotContains(t, players, "player2")
+}
+
+func TestGameLifecycleManager_RehydrateGamesFromStore_Success(t *testing.T) {
+	manager, mockDataStore, mockSupervisor, _ := setupTestManager(t)
+
+	// Set up mock data for active games
+	gameIDs := []string{"game-1", "game-2", "game-3"}
+	mockDataStore.ListActiveGamesResults = []mocks.ListActiveGamesResult{
+		{GameIDs: gameIDs, Error: nil},
+	}
+
+	// Set up mock snapshots for each game
+	for i, gameID := range gameIDs {
+		gameState := test_helpers.CreateTestGameState(gameID, i+1)
+		mockDataStore.GetLatestSnapshotResults = append(mockDataStore.GetLatestSnapshotResults, mocks.GetLatestSnapshotResult{
+			State: gameState,
+			Error: nil,
+		})
+		
+		// Mock successful game actor creation
+		mockGameActor := mocks.NewMockGameActor(gameID)
+		mockSupervisor.CreateGameWithPlayersResults = append(mockSupervisor.CreateGameWithPlayersResults, mocks.CreateGameWithPlayersResult{
+			Actor: mockGameActor,
+			Error: nil,
+		})
+	}
+
+	// Execute rehydration
+	err := manager.RehydrateGamesFromStore()
+
+	// Verify success
+	assert.NoError(t, err)
+	
+	// Verify all calls were made
+	assert.Len(t, mockDataStore.ListActiveGamesCalls, 1)
+	assert.Len(t, mockDataStore.GetLatestSnapshotCalls, 3)
+	assert.Len(t, mockSupervisor.CreateGameWithPlayersCalls, 3)
+	
+	// Verify games are tracked in manager
+	manager.mutex.RLock()
+	assert.Len(t, manager.gameActors, 3)
+	for _, gameID := range gameIDs {
+		assert.Contains(t, manager.gameActors, gameID)
+	}
+	manager.mutex.RUnlock()
+}
+
+func TestGameLifecycleManager_RehydrateGamesFromStore_EmptyGameList(t *testing.T) {
+	manager, mockDataStore, _, _ := setupTestManager(t)
+
+	// No active games
+	mockDataStore.ListActiveGamesResults = []mocks.ListActiveGamesResult{
+		{GameIDs: []string{}, Error: nil},
+	}
+
+	err := manager.RehydrateGamesFromStore()
+
+	assert.NoError(t, err)
+	assert.Len(t, mockDataStore.ListActiveGamesCalls, 1)
+
+	// Verify no games tracked
+	manager.mutex.RLock()
+	assert.Len(t, manager.gameActors, 0)
+	manager.mutex.RUnlock()
 }

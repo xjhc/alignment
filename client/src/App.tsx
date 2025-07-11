@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
 import { GuardedAppRouter } from "./components/GuardedAppRouter";
 import { AchievementNotificationManager } from "./components/AchievementNotification";
@@ -20,23 +20,23 @@ import { useGameEngineContext } from "./contexts/GameEngineContext";
 import { useWebSocketContext } from "./contexts/WebSocketContext";
 
 function AppContent() {
-  const { state, gameEngineLoading, gameEngineError, isConnected, sessionActions } = useSessionManager();
+  const { state, dispatch, gameEngineLoading, gameEngineError, isConnected, sessionActions } = useSessionManager();
 
   const { commandPaletteOpen, closeCommandPalette } = useKeyboardShortcuts();
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { canPlayerAffordAbility, isValidNightActionTarget } = useGameEngineContext();
   const { sendAction } = useWebSocketContext();
 
   useEffect(() => {
-    const handleOpenSettings = () => setSettingsModalOpen(true);
+    const handleOpenSettings = () => dispatch({ type: "SET_SETTINGS_MODAL_OPEN", payload: { isOpen: true } });
     window.addEventListener("open-settings-modal", handleOpenSettings);
     return () =>
       window.removeEventListener("open-settings-modal", handleOpenSettings);
-  }, []);
+  }, [dispatch]);
 
   const localPlayer =
-    state.gameState?.players.find((p) => p.id === state.appState.playerId) ||
-    null;
+    (state.gameState?.players && state.appState?.playerId) 
+      ? state.gameState.players.find((p) => p.id === state.appState.playerId) || null
+      : null;
 
   const {
     addMessageToBuffer,
@@ -46,47 +46,34 @@ function AppContent() {
     getBufferStatus,
   } = useChatBuffer(localPlayer, state.gameState?.id, sendAction);
 
-  const [viewedPlayerId, setViewedPlayerId] = useState(
-    state.appState.playerId || ""
-  );
-  const [activeChannel, setActiveChannel] = useState("#war-room");
-  const [chatInput, setChatInput] = useState("");
-  const [selectedNominee, setSelectedNominee] = useState<string>("");
-  const [selectedVote, setSelectedVote] = useState<"GUILTY" | "INNOCENT" | "">(
-    ""
-  );
-  const [conversionTarget, setConversionTarget] = useState<string>("");
-  const [miningTarget, setMiningTarget] = useState<string>("");
-  const [replyingTo, setReplyingTo] = useState<{
-    messageId: string;
-    playerName: string;
-    message: string;
-  } | null>(null);
-
   const viewedPlayer =
-    state.gameState?.players.find((p) => p.id === viewedPlayerId) ||
-    localPlayer;
+    (state.gameState?.players && state.gameUIState?.viewedPlayerId) 
+      ? state.gameState.players.find((p) => p.id === state.gameUIState.viewedPlayerId) || localPlayer
+      : localPlayer;
 
+  // Update viewed player when local player changes
   useEffect(() => {
-    if (state.appState.playerId) setViewedPlayerId(state.appState.playerId);
-  }, [state.appState.playerId]);
+    if (state.appState?.playerId && state.gameUIState.viewedPlayerId !== state.appState.playerId) {
+      dispatch({ type: "SET_VIEWED_PLAYER", payload: { playerId: state.appState.playerId } });
+    }
+  }, [state.appState?.playerId, state.gameUIState.viewedPlayerId, dispatch]);
 
   const gameActions = useGameActions({
     gameId: state.gameState?.id || null,
     localPlayer,
-    chatInput,
-    setChatInput,
-    activeChannel,
-    miningTarget,
-    setMiningTarget,
-    conversionTarget,
-    setConversionTarget,
-    selectedNominee,
-    setSelectedNominee,
-    selectedVote,
-    setSelectedVote,
-    replyingTo,
-    setReplyingTo,
+    chatInput: state.gameUIState.chatInput,
+    setChatInput: (input: string) => dispatch({ type: "SET_CHAT_INPUT", payload: { input } }),
+    activeChannel: state.gameUIState.activeChannel,
+    miningTarget: state.gameUIState.miningTarget,
+    setMiningTarget: (target: string) => dispatch({ type: "SET_MINING_TARGET", payload: { target } }),
+    conversionTarget: state.gameUIState.conversionTarget,
+    setConversionTarget: (target: string) => dispatch({ type: "SET_CONVERSION_TARGET", payload: { target } }),
+    selectedNominee: state.gameUIState.selectedNominee,
+    setSelectedNominee: (nominee: string) => dispatch({ type: "SET_SELECTED_NOMINEE", payload: { nominee } }),
+    selectedVote: state.gameUIState.selectedVote,
+    setSelectedVote: (vote: "GUILTY" | "INNOCENT" | "") => dispatch({ type: "SET_SELECTED_VOTE", payload: { vote } }),
+    replyingTo: state.gameUIState.replyingTo,
+    setReplyingTo: (replyingTo: { messageId: string; playerName: string; message: string } | null) => dispatch({ type: "SET_REPLYING_TO", payload: { replyingTo } }),
     addMessageToBuffer,
   });
 
@@ -132,25 +119,26 @@ function AppContent() {
   const gameContextValue: GameContextType = {
     gameState: state.gameState,
     localPlayerId: state.appState.playerId || "",
-    viewedPlayerId,
+    viewedPlayerId: state.gameUIState.viewedPlayerId || "",
     localPlayer,
     viewedPlayer,
     isConnected,
-    activeChannel,
+    activeChannel: state.gameUIState.activeChannel,
+    skipVoteState: state.gameUIState.skipVoteState,
     sendAction,
-    setViewedPlayer: setViewedPlayerId,
-    setActiveChannel,
-    chatInput,
-    setChatInput,
-    selectedNominee,
-    setSelectedNominee,
-    selectedVote,
-    setSelectedVote,
-    conversionTarget,
-    setConversionTarget,
-    miningTarget,
-    setMiningTarget,
-    replyingTo,
+    setViewedPlayer: (playerId: string) => dispatch({ type: "SET_VIEWED_PLAYER", payload: { playerId } }),
+    setActiveChannel: (channelId: string) => dispatch({ type: "SET_ACTIVE_CHANNEL", payload: { channelId } }),
+    chatInput: state.gameUIState.chatInput,
+    setChatInput: (input: string) => dispatch({ type: "SET_CHAT_INPUT", payload: { input } }),
+    selectedNominee: state.gameUIState.selectedNominee,
+    setSelectedNominee: (nominee: string) => dispatch({ type: "SET_SELECTED_NOMINEE", payload: { nominee } }),
+    selectedVote: state.gameUIState.selectedVote,
+    setSelectedVote: (vote: "GUILTY" | "INNOCENT" | "") => dispatch({ type: "SET_SELECTED_VOTE", payload: { vote } }),
+    conversionTarget: state.gameUIState.conversionTarget,
+    setConversionTarget: (target: string) => dispatch({ type: "SET_CONVERSION_TARGET", payload: { target } }),
+    miningTarget: state.gameUIState.miningTarget,
+    setMiningTarget: (target: string) => dispatch({ type: "SET_MINING_TARGET", payload: { target } }),
+    replyingTo: state.gameUIState.replyingTo,
     ...gameActions,
     canPlayerAffordAbility: (id: string) => canPlayerAffordAbility(id),
     isValidNightActionTarget: (actorId, targetId, actionType) =>
@@ -175,8 +163,8 @@ function AppContent() {
           onClose={closeCommandPalette}
         />
         <SettingsModal
-          isOpen={settingsModalOpen}
-          onClose={() => setSettingsModalOpen(false)}
+          isOpen={state.gameUIState.settingsModalOpen}
+          onClose={() => dispatch({ type: "SET_SETTINGS_MODAL_OPEN", payload: { isOpen: false } })}
         />
       </GameProvider>
     </SessionProvider>

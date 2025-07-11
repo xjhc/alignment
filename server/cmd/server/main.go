@@ -110,6 +110,7 @@ func getClientIP(r *http.Request) string {
 
 // Server represents the main application server
 type Server struct {
+	ctx                 context.Context
 	supervisor          *actors.Supervisor
 	wsManager           *comms.WebSocketManager
 	datastore           *store.RedisDataStore
@@ -241,6 +242,7 @@ func NewServer() (*Server, error) {
 	}
 
 	server := &Server{
+		ctx:                 ctx,
 		supervisor:          supervisor,
 		wsManager:           wsManager,
 		datastore:           datastore,
@@ -298,8 +300,13 @@ func (s *Server) startRateLimiterCleanup() {
 	ticker := time.NewTicker(10 * time.Minute) // Clean up every 10 minutes
 	defer ticker.Stop()
 
-	for range ticker.C {
-		s.joinLobbyRateLimiter.CleanupStale()
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.joinLobbyRateLimiter.CleanupStale()
+		}
 	}
 }
 
@@ -346,6 +353,7 @@ func (s *Server) setupRoutes() {
 	// Game endpoints with proper routing
 	mux.HandleFunc("/api/games", s.gamesHandlerWithDifferentiatedRateLimit)
 	mux.HandleFunc("POST /api/games/{gameId}/join", s.joinLobbyRateLimitMiddleware(s.joinLobbyHandler))
+	mux.HandleFunc("POST /api/games/{gameId}/spectate", s.joinLobbyRateLimitMiddleware(s.spectateGameHandler))
 
 	// Admin endpoints
 	s.adminHandlers.SetupRoutes()
@@ -851,6 +859,136 @@ func (s *Server) joinLobby(w http.ResponseWriter, r *http.Request, gameID string
 	json.NewEncoder(w).Encode(response)
 }
 
+// spectateGameHandler handles the HTTP routing for spectate game requests
+func (s *Server) spectateGameHandler(w http.ResponseWriter, r *http.Request) {
+	gameID := r.PathValue("gameId")
+	if gameID == "" {
+		http.Error(w, "Invalid game ID", http.StatusBadRequest)
+		return
+	}
+	s.spectateGame(w, r, gameID)
+}
+
+// SpectateGameRequest represents the request to spectate a running game
+type SpectateGameRequest struct {
+	UserID       string `json:"user_id" example:"guest:xyz789" binding:"required"`
+	SpectatorName string `json:"spectator_name" example:"Observer1" binding:"required"`
+}
+
+// SpectateGameResponse represents the response after joining as spectator
+type SpectateGameResponse struct {
+	GameID       string `json:"game_id" example:"abc123"`
+	PlayerID     string `json:"player_id" example:"spectator-xyz"`
+	SessionToken string `json:"session_token" example:"spectator-token456"`
+}
+
+// spectateGame handles spectator join requests
+// @Summary Join a running game as a spectator
+// @Description Join an in-progress game as a spectator to observe gameplay
+// @Tags spectators
+// @Accept json
+// @Produce json
+// @Param gameId path string true "Game ID"
+// @Param request body SpectateGameRequest true "Spectate game request"
+// @Success 200 {object} SpectateGameResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse "Game not found"
+// @Failure 409 {object} ErrorResponse "Game not in progress or spectator limit reached"
+// @Failure 500 {object} ErrorResponse
+// @Router /api/games/{gameId}/spectate [post]
+func (s *Server) spectateGame(w http.ResponseWriter, r *http.Request, gameID string) {
+	log := logger.WithFields(map[string]interface{}{
+		"endpoint": "spectateGame",
+		"game_id":  gameID,
+	})
+	
+	var req SpectateGameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Warn("Invalid request body", "error", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate request parameters
+	if err := s.validateSpectateGameRequest(req); err != nil {
+		log.Warn("Invalid spectate game request", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Determine the actual user ID (prefer authenticated user over guest)
+	actualUserID := req.UserID
+	if s.authHandlers != nil {
+		if authUserID, err := s.authHandlers.GetAuthenticatedUserID(r); err == nil {
+			actualUserID = authUserID
+			log.Info("Using authenticated user ID instead of guest ID", "auth_user_id", authUserID, "guest_id", req.UserID)
+		}
+	}
+
+	log.Info("User joining as spectator", "user_id", actualUserID, "spectator_name", req.SpectatorName, "game_id", gameID)
+
+	// Check single-session rule (spectators still count as sessions)
+	if err := s.activeUserTracker.CheckSingleSession(actualUserID, gameID); err != nil {
+		log.Warn("Single-session rule violation", "user_id", actualUserID, "error", err)
+		http.Error(w, "You are already in an active game session", http.StatusConflict)
+		return
+	}
+
+	// Call lifecycle manager to join as spectator
+	spectatorID, sessionToken, err := s.lifecycleManager.JoinAsSpectator(gameID, actualUserID, req.SpectatorName)
+	if err != nil {
+		log.Warn("Failed to join as spectator", "error", err, "spectator_name", req.SpectatorName)
+		switch err.Error() {
+		case "game not found":
+			http.Error(w, "Game not found", http.StatusNotFound)
+		case "game not in progress":
+			http.Error(w, "Game is not in progress", http.StatusConflict)
+		case "spectator limit reached":
+			http.Error(w, "Spectator limit reached", http.StatusConflict)
+		default:
+			http.Error(w, "Failed to join as spectator", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Record metrics
+	metrics.RecordSpectatorJoined()
+
+	// Add user to active session tracker
+	if err := s.activeUserTracker.AddUserSession(actualUserID, gameID, spectatorID); err != nil {
+		log.Error("Failed to add spectator to active session tracker", "error", err, "user_id", actualUserID)
+		// Don't fail the request, just log the error
+	}
+
+	response := SpectateGameResponse{
+		GameID:       gameID,
+		PlayerID:     spectatorID,
+		SessionToken: sessionToken,
+	}
+
+	log.Info("Spectator joined successfully", "spectator_id", spectatorID, "spectator_name", req.SpectatorName, "user_id", actualUserID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// validateSpectateGameRequest validates the spectate game request
+func (s *Server) validateSpectateGameRequest(req SpectateGameRequest) error {
+	if req.UserID == "" {
+		return fmt.Errorf("user_id is required")
+	}
+	if req.SpectatorName == "" {
+		return fmt.Errorf("spectator_name is required")
+	}
+	if len(req.SpectatorName) > 50 {
+		return fmt.Errorf("spectator_name too long (max 50 characters)")
+	}
+	if len(req.UserID) > 100 {
+		return fmt.Errorf("user_id too long (max 100 characters)")
+	}
+	return nil
+}
+
 // StatsResponse represents the server statistics response
 type StatsResponse struct {
 	Supervisor interface{} `json:"supervisor"`
@@ -948,6 +1086,12 @@ func main() {
 	// Setup routes
 	server.setupRoutes()
 
+	// Rehydrate games from persistent store after restart
+	err = server.lifecycleManager.RehydrateGamesFromStore()
+	if err != nil {
+		log.Fatalf("Failed to rehydrate active games: %v", err)
+	}
+
 	// Start server components
 	server.Start()
 
@@ -970,6 +1114,7 @@ func main() {
 	fmt.Println("  GET  /api/games               - List lobbies")
 	fmt.Println("  POST /api/games              - Create lobby")
 	fmt.Println("  POST /api/games/{gameId}/join - Join lobby")
+	fmt.Println("  POST /api/games/{gameId}/spectate - Spectate game")
 	fmt.Println("  GET  /api/stats")
 	fmt.Println("  GET  /api/debug/event-types   - List event and action types")
 	fmt.Println("Admin endpoints (requires authentication):")

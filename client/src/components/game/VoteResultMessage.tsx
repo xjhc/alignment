@@ -21,7 +21,7 @@ export const VoteResultMessage: React.FC<VoteResultMessageProps> = ({ message, g
 
   // Helper function to get player avatar emoji
   const getPlayerAvatar = (playerId: string) => {
-    const player = gameState.players.find(p => p.id === playerId);
+    const player = gameState?.players?.find(p => p.id === playerId);
     if (!player) return '👤';
     
     switch (player.jobTitle) {

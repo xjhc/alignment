@@ -17,6 +17,7 @@ export enum ServerEventType {
   PlayerAbandoned = "PLAYER_ABANDONED",
   PlayerRoleRevealed = "PLAYER_ROLE_REVEALED",
   PlayerAligned = "PLAYER_ALIGNED",
+  AlignmentChanged = "ALIGNMENT_CHANGED",
   PlayerShocked = "PLAYER_SHOCKED",
   HostTransferred = "HOST_TRANSFERRED",
   VoteStarted = "VOTE_STARTED",
@@ -88,6 +89,7 @@ export enum ServerEventType {
   DeployHotfix = "DEPLOY_HOTFIX",
   SlackStatusChanged = "SLACK_STATUS_CHANGED",
   PartingShotSet = "PARTING_SHOT_SET",
+  WhisperSent = "WHISPER_SENT",
   KpiAssigned = "KPI_ASSIGNED",
   KpiProgress = "KPI_PROGRESS",
   KpiCompleted = "KPI_COMPLETED",
@@ -100,6 +102,10 @@ export enum ServerEventType {
   WhistleblowerVotingCompleted = "WHISTLEBLOWER_VOTING_COMPLETED",
   MandateActivated = "MANDATE_ACTIVATED",
   MandateEffect = "MANDATE_EFFECT",
+  SpectatorStateSnapshot = "SPECTATOR_STATE_SNAPSHOT",
+  SpectatorJoined = "SPECTATOR_JOINED",
+  SpectatorLeft = "SPECTATOR_LEFT",
+  SpectatorChatMessage = "SPECTATOR_CHAT_MESSAGE",
 }
 
 // Generated ClientActionType enum
@@ -133,12 +139,15 @@ export enum ClientActionType {
   DeployHotfix = "DEPLOY_HOTFIX",
   SetSlackStatus = "SET_SLACK_STATUS",
   SubmitExitInterview = "SUBMIT_EXIT_INTERVIEW",
+  Whisper = "WHISPER",
   Reconnect = "RECONNECT",
   AbandonGame = "ABANDON_GAME",
   SyncLobbyState = "SYNC_LOBBY_STATE",
   SetPlayerConnectionStatus = "SET_PLAYER_CONNECTION_STATUS",
   AbandonPlayer = "ABANDON_PLAYER",
+  AssignCorporateMandate = "ASSIGN_CORPORATE_MANDATE",
   SubmitWhistleblowerVote = "SUBMIT_WHISTLEBLOWER_VOTE",
+  PostSpectatorMessage = "POST_SPECTATOR_MESSAGE",
   Mine = "MINE",
   Convert = "CONVERT",
   Block = "BLOCK",
@@ -191,19 +200,31 @@ export enum VoteType {
 }
 
 // Generated interfaces from Go structs
-export interface GeneratedEvent {
-  id: string;
+export interface GeneratedAction {
   type: string;
+  playerId: string;
   gameId: string;
-  playerId?: string;
   timestamp: string;
   payload: Record<string, any>;
 }
 
-export interface GeneratedSystemShock {
+export interface GeneratedPhase {
   type: string;
+  startTime: string;
+  duration: number;
+}
+
+export interface GeneratedAbility {
+  name: string;
   description: string;
-  expiresAt: string;
+  isReady: boolean;
+}
+
+export interface GeneratedCorporateMandate {
+  type: string;
+  name: string;
+  description: string;
+  effects: Record<string, any>;
   isActive: boolean;
 }
 
@@ -222,11 +243,108 @@ export interface GeneratedChatMessage {
   metadata?: Record<string, any>;
 }
 
+export interface GeneratedGameSettings {
+  maxPlayers: number;
+  minPlayers: number;
+  sitrepDuration: number;
+  pulseCheckDuration: number;
+  discussionDuration: number;
+  extensionDuration: number;
+  nominationDuration: number;
+  trialDuration: number;
+  verdictDuration: number;
+  nightDuration: number;
+  startingTokens: number;
+  votingThreshold: number;
+  initialAlignedHumanCount: number;
+  playAsAI: boolean;
+  customSettings?: Record<string, any>;
+}
+
+export interface GeneratedWhistleblowerVoting {
+  isActive: boolean;
+  crisisOptions: GeneratedCrisisEventOption[];
+  votes: Record<string, string>;
+  voteResults: Record<string, number>;
+  selectedCrisis: string;
+  isComplete: boolean;
+}
+
+export interface GeneratedCrisisEvent {
+  type: string;
+  title: string;
+  description: string;
+  pulseCheckPrompt?: string;
+  effects: Record<string, any>;
+  duration?: number;
+  triggeredAt?: string;
+}
+
+export interface GeneratedDailySitrep {
+  day_number: number;
+  date: string;
+  sections: GeneratedSitrepSection[];
+  alert_level: string;
+  summary: string;
+  footer_note: string;
+}
+
+export interface GeneratedSpectator {
+  id: string;
+  name: string;
+  joined_at: string;
+}
+
+export interface GeneratedEvent {
+  id: string;
+  type: string;
+  gameId: string;
+  playerId?: string;
+  timestamp: string;
+  payload: Record<string, any>;
+}
+
+export interface GeneratedSystemShock {
+  type: string;
+  description: string;
+  expiresAt: string;
+  isActive: boolean;
+}
+
+export interface GeneratedNightAction {
+  type: string;
+  targetId?: string;
+  shadowTargetId?: string;
+}
+
 export interface GeneratedEmojiReaction {
   emoji: string;
   playerID: string;
   playerName: string;
   timestamp: string;
+}
+
+export interface GeneratedWhistleblowerVote {
+  playerID: string;
+  playerName: string;
+  crisisChoice: string;
+  timestamp: string;
+}
+
+export interface GeneratedRole {
+  type: string;
+  name: string;
+  description: string;
+  isUnlocked: boolean;
+  ability?: GeneratedAbility;
+}
+
+export interface GeneratedVoteState {
+  type: string;
+  votes: Record<string, string>;
+  tokenWeights: Record<string, number>;
+  results: Record<string, number>;
+  isComplete: boolean;
 }
 
 export interface GeneratedSubmittedNightAction {
@@ -243,10 +361,21 @@ export interface GeneratedCrisisEventOption {
   description: string;
 }
 
-export interface GeneratedPhase {
+export interface GeneratedSitrepSection {
+  title: string;
+  content: string;
   type: string;
-  startTime: string;
-  duration: number;
+}
+
+export interface GeneratedPublicGameState {
+  game_id: string;
+  phase: string;
+  day_number: number;
+  players: GeneratedPublicPlayerInfo[];
+  token_counts: Record<string, number>;
+  phase_end_time: string;
+  crisis_event?: GeneratedCrisisEvent;
+  chat_history?: GeneratedChatMessage[];
 }
 
 export interface GeneratedPlayer {
@@ -270,57 +399,13 @@ export interface GeneratedPlayer {
   hasSubmittedPulseCheck?: boolean;
   lobbyHandle?: string;
   bootcampPoints?: number;
+  whisperUsedDay?: number;
   seenHints?: Record<string, boolean>;
   disableLoebmateHints?: boolean;
   slackStatus?: string;
   partingShot?: string;
   systemShocks?: GeneratedSystemShock[];
   isRolePubliclyRevealed: boolean;
-}
-
-export interface GeneratedAbility {
-  name: string;
-  description: string;
-  isReady: boolean;
-}
-
-export interface GeneratedNightAction {
-  type: string;
-  targetId?: string;
-  shadowTargetId?: string;
-}
-
-export interface GeneratedGameSettings {
-  maxPlayers: number;
-  minPlayers: number;
-  sitrepDuration: number;
-  pulseCheckDuration: number;
-  discussionDuration: number;
-  extensionDuration: number;
-  nominationDuration: number;
-  trialDuration: number;
-  verdictDuration: number;
-  nightDuration: number;
-  startingTokens: number;
-  votingThreshold: number;
-  initialAlignedHumanCount: number;
-  playAsAI: boolean;
-  customSettings?: Record<string, any>;
-}
-
-export interface GeneratedWhistleblowerVote {
-  playerID: string;
-  playerName: string;
-  crisisChoice: string;
-  timestamp: string;
-}
-
-export interface GeneratedAction {
-  type: string;
-  playerId: string;
-  gameId: string;
-  timestamp: string;
-  payload: Record<string, any>;
 }
 
 export interface GeneratedPersonalKPI {
@@ -332,53 +417,19 @@ export interface GeneratedPersonalKPI {
   reward: string;
 }
 
-export interface GeneratedCrisisEvent {
-  type: string;
-  title: string;
-  description: string;
-  pulseCheckPrompt?: string;
-  effects: Record<string, any>;
-  duration?: number;
-  triggeredAt?: string;
-}
-
-export interface GeneratedRole {
-  type: string;
-  name: string;
-  description: string;
-  isUnlocked: boolean;
-  ability?: GeneratedAbility;
-}
-
-export interface GeneratedCorporateMandate {
-  type: string;
-  name: string;
-  description: string;
-  effects: Record<string, any>;
-  isActive: boolean;
-}
-
-export interface GeneratedVoteState {
-  type: string;
-  votes: Record<string, string>;
-  tokenWeights: Record<string, number>;
-  results: Record<string, number>;
-  isComplete: boolean;
-}
-
 export interface GeneratedWinCondition {
   winner: string;
   condition: string;
   description: string;
 }
 
-export interface GeneratedWhistleblowerVoting {
-  isActive: boolean;
-  crisisOptions: GeneratedCrisisEventOption[];
-  votes: Record<string, string>;
-  voteResults: Record<string, number>;
-  selectedCrisis: string;
-  isComplete: boolean;
+export interface GeneratedPublicPlayerInfo {
+  id: string;
+  name: string;
+  job_title: string;
+  is_active: boolean;
+  status_message: string;
+  token_count: number;
 }
 
 

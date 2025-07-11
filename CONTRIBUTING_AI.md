@@ -1,263 +1,66 @@
-# CONTRIBUTING_AI.md
+# Claude: AI Development Guide
 
-This file provides guidance to AI assistants (Claude Code, Gemini, etc.) when working with code in this repository.
+This document provides guidance for AI assistants working on the `Alignment` codebase.
 
-## Project Overview
+## 1. Core Principles
 
-**Alignment** is a corporate-themed social deduction game where humans identify a rogue AI among them before it converts staff and seizes company control. This is a **Go monorepo** in active development. The core architecture is implemented, and work is ongoing on the detailed game logic.
+Adherence to these principles is mandatory.
 
-## Architecture & Technology Stack
+- **Refactor Continuously:** If a file grows too large or complex, break it into smaller, single-responsibility modules. The goal is a clean, modular system where each component is easy to understand and test in isolation.
+- **Concise Code:** Keep code short and to the point. Add documentation only where the logic is complex or non-obvious. Clean, self-explanatory code is preferred over heavily commented code.
+- **Single Source of Truth (DRY):** Aggressively refactor to eliminate duplication. The shared `/core` package is the definitive source for all game logic and types.
+- **Documentation as Code:** If a code change alters a feature, API, or architectural pattern, the corresponding documentation in the `/docs` directory **must** be updated in the same commit.
+- **No Technical Debt:** Adhere to the "Boy Scout Rule"—always leave the code cleaner than you found it. Implement the correct, maintainable solution now.
 
--   **Backend**: Go with a supervised Actor Model architecture.
--   **Frontend**: Hybrid Go/WebAssembly + React/TypeScript application.
--   **Database**: Redis used as a Write-Ahead Log (WAL) and for state snapshots.
--   **Build**: Vite for frontend, standard Go toolchain for backend.
--   **Deployment**: Single VM deployment model with Docker Compose.
+## 2. Development Workflow: Use the Makefile
 
-## Development Commands
+The project is managed via a `Makefile` at the root. This is the **single source of truth for all common tasks.** Use it for all development, building, and testing.
 
-### Primary Workflow (using `Makefile`)
+To see the full list of commands and their descriptions, run `make help`.
 
-The project is managed via a `Makefile` at the root. This is the preferred way to run all common tasks. To see the full list of commands and their descriptions, run `make help`.
+**Primary Commands:**
 
-**1. One-Time Setup**
 ```bash
-# Install all Node.js dependencies
-npm install
+# Install all Go and npm dependencies (run once)
+make install
 
-# Create the Go vendor directory for the backend
-make vendor
-
-# Ensure Redis is running in a separate terminal
-redis-server &
-```
-
-**2. Daily Development**
-```bash
-# Run both servers with hot-reloading for interactive development
+# Run backend and frontend servers with hot-reloading
 make dev
-```
 
-**Note:** The frontend development workflow automatically generates TypeScript types from the Go `core` package using `npm run generate:types`. This ensures perfect synchronization between backend and frontend contracts.
-
-**3. Testing**
-```bash
 # Run all backend and frontend tests
 make test
+
+# Build all production artifacts
+make build
+
+# Lint all code
+make lint
+
+# Clean all build artifacts
+make clean
 ```
 
-**4. Background Services (for E2E tests)**
-```bash
-# Start services in the background
-make bg-start
+## 3. Key Architectural Patterns
 
-# Stop and clean up services
-make bg-stop
-```
+This codebase is built on a specific set of architectural patterns. You must understand and adhere to them.
 
-### Individual Commands
+- **Player-Centric Actor Model:** The backend is a stateful, in-memory system. Each player's WebSocket connection is managed by a dedicated `PlayerActor` goroutine.
+- **Supervised Game Actors:** Each game simulation runs in its own isolated `GameActor`, which is monitored by a `Supervisor` to contain crashes.
+- **Event Sourcing with Redis WAL:** The `GameActor` holds state in memory for speed. All state-changing events are first persisted to a Redis Stream (Write-Ahead Log) for durability and fast recovery. Redis is **not** read from during normal gameplay.
+- **Shared `/core` Package:** All fundamental game logic (`ApplyEvent` function) and data structures (`GameState`, `Player`, etc.) are defined in the `/core` package. This package is compiled for both the Go backend and the Go/Wasm frontend to guarantee rule consistency.
+- **Single Authoritative Event (ADR-006):** For any given player action, the server must generate **one, and only one,** event that fully describes the resulting state change. This is a critical pattern to prevent race conditions.
 
-#### Backend (Go)
+## 4. Testing Strategy
 
-```bash
-# Navigate to the server directory
-cd server/
+We use a multi-layered testing pyramid. When adding code, you are expected to add corresponding tests at the appropriate level.
 
-# Start the backend server (requires Redis to be running)
-go run ./cmd/server/
+1.  **Unit Tests (`/core`):** Pure functions in the `core` package must have near-100% test coverage using table-driven tests.
+2.  **Integration Tests (`/server`):** Actors are tested as black boxes with mocked dependencies. Use the `testify/mock` library and the `WaitGroup` pattern for synchronizing asynchronous tests.
+3.  **End-to-End Tests (`/tests/e2e`):** The `pytest` suite validates full-stack user flows against a live, containerized application.
 
-# Run tests with race detection
-go test -race ./...
+Run all tests via `make test`.
 
-# Linting and formatting
-go fmt ./...
-golangci-lint run
-
-# Generate a coverage report
-go tool cover -html=coverage.out
-```
-
-#### Frontend (React + Go/Wasm)
-
-```bash
-# Navigate to the client directory
-cd client/
-
-# Install dependencies
-npm install
-
-# Start the frontend dev server
-npm run dev
-
-# Build for production
-npm run build
-```
-
-### Dependencies
-
-```bash
-# Start Redis (required for the backend)
-redis-server
-```
-
-## Automated Type Generation
-
-This project implements a **Contract-First API** approach where the Go `core` package serves as the single source of truth for all data structures and event types. TypeScript types are automatically generated to ensure perfect backend-frontend synchronization.
-
-### How It Works
-
-1. **Source of Truth**: All game types, event constants, and action types are defined in `/core/types.go`
-2. **Generation Tool**: A custom Go tool at `/tools/generate-types/` parses the core package and generates TypeScript equivalents
-3. **Automated Integration**: The `npm run generate:types` command runs automatically during `npm run dev` and `npm run build`
-4. **CI Enforcement**: The CI pipeline verifies that generated types are always in sync with the Go source
-
-### Key Benefits
-
-- **Eliminates Contract Drift**: Impossible for backend/frontend types to get out of sync
-- **Compile-Time Safety**: Type mismatches caught during TypeScript compilation
-- **Single Source of Truth**: The `/core` package defines the authoritative API contract
-- **Automated Workflow**: No manual synchronization required
-
-### Usage
-
-```bash
-# Types are automatically generated during development
-npm run dev
-npm run build
-```
-
-**Important**: Never manually edit `client/src/types/generated.ts` - it is automatically overwritten. All type definitions must be made in the Go `core` package.
-
-## Development guidelines
-
-This codebase prioritizes **maintainability and performance** through clean, idiomatic Go and modern frontend practices. When generating or modifying code, adhere strictly to these principles:
-
--   Simplicity and Conciseness: Write the most straightforward code possible. Avoid overly clever or "magic" solutions. Code should be dense with meaning, not with characters.
--   Single Responsibility Principle (SRP): Every function, struct, and package should have one, and only one, reason to change. Decompose complex logic into smaller, focused units.
--   Don't Repeat Yourself (DRY): Aggressively refactor to eliminate duplicated code. Use functions and shared modules to promote reuse.
--   Testability: Code must be structured to be easily testable. This often means preferring pure functions and using interfaces for dependencies.
--   No Technical Debt: We adhere to the "Boy Scout Rule"—always leave the code cleaner than you found it. Do not defer refactoring or implement temporary hacks. Choose the correct, maintainable solution now, even if it takes longer.
--   Documentation as Code: Documentation must be kept up-to-date. If a code change alters a feature, API, or architectural pattern, the corresponding documentation in the `/docs` directory must be updated within the same commit or pull request. Treat documentation with the same rigor as source code.
-
-### Event Architecture Principles
-
-Following **ADR-006**, the codebase enforces the **"Single Authoritative Event"** pattern:
-
--   **Single Event per Action**: For any player action, emit exactly one event that fully describes the resulting state change. Never emit multiple uncoordinated events for a single logical action.
--   **Comprehensive Payloads**: Events must contain all necessary information for clients to update their state deterministically without requiring additional events or coordination.
--   **Semantic Event Types**: Use specific, strongly-typed events instead of generic `SYSTEM_MESSAGE` events. Each event type should have a clear, single purpose.
--   **Structured Data**: Event payloads should use structured data (objects, arrays) rather than descriptive strings that require client-side parsing.
-
-**Examples:**
-- ✅ **Correct**: `VOTE_TALLY_UPDATED` with complete voting state
-- ❌ **Incorrect**: `VOTE_CAST` + separate `VOTE_TALLY_UPDATED` events
-- ✅ **Correct**: `NIGHT_ACTIONS_RESOLVED` with all outcomes in structured format  
-- ❌ **Incorrect**: Individual `PLAYER_BLOCKED`, `MINING_SUCCESSFUL` events + summary
-- ✅ **Correct**: `LIAISON_PROTOCOL_ACTIVATED` with specific trigger data
-- ❌ **Incorrect**: Generic `SYSTEM_MESSAGE` with string-based content
-
-## Frontend Styling Guidelines
-
-This project uses **Tailwind CSS** as the primary styling framework, integrated with our design token system to ensure consistency and maintain our design system constraints.
-
-### Styling Approach
-
--   **Tailwind Utility Classes**: Use Tailwind utility classes directly in component JSX. Avoid writing custom CSS unless absolutely necessary.
--   **Design Token Integration**: Tailwind is configured to use our design tokens as the single source of truth. Colors, spacing, typography, and other design elements are automatically available as Tailwind classes.
--   **Theme Support**: For dynamic theming (light/dark mode), use CSS custom properties through our `background-*`, `text-*`, and `border` color classes.
--   **Component Composition**: Build complex layouts by composing Tailwind utility classes rather than creating custom CSS classes.
-
-### Tailwind Configuration
-
-The `tailwind.config.js` file is configured to:
--   Import design tokens from `src/styles/generated/tokens.js`
--   Map token values to Tailwind's theme configuration
--   Include custom animation utilities that match our existing animations
--   Support CSS custom properties for theme switching
-
-### Available Design Token Classes
-
-Our design tokens are available as Tailwind classes:
-
-**Colors**: `bg-primary`, `text-primary`, `border-primary`, `bg-background-primary`, `text-text-primary`, etc.
-**Spacing**: `p-4`, `m-2`, `gap-3` (based on our spacing scale)
-**Typography**: `text-xs`, `text-sm`, `font-medium`, `font-mono`
-**Border Radius**: `rounded`, `rounded-md`, `rounded-lg`
-**Custom Colors**: `bg-human`, `bg-aligned`, `bg-ai`, `bg-success`, `bg-danger`
-
-### Development Workflow
-
-1. **Use Tailwind First**: Always attempt to solve styling needs with Tailwind utility classes
-2. **Reference Design Tokens**: Prefer classes that map to our design tokens over arbitrary values
-3. **Component Patterns**: For reusable patterns, create TypeScript utility functions that return class strings
-4. **Avoid CSS Modules**: Do not create new `.module.css` files; use Tailwind classes instead
-
-### Motion System
-
-This project implements a formal **Motion System** for consistent, purposeful animations. All animations follow the principles defined in `docs/development/05-motion-system.md`.
-
-**Animation Guidelines:**
--   **Use Motion System Classes**: Always use the standardized `animation-*` classes (e.g., `animation-fade-in`, `animation-slide-in-up`) instead of ad-hoc animations
--   **Import from Utils**: Use animation constants from `src/utils/animations.ts` to avoid magic strings (e.g., `FADE_IN`, `SLIDE_IN_UP`)
--   **Respect Timing**: Use the defined duration tokens (`--duration-fast`, `--duration-medium`, `--duration-slow`) and easing curves (`--ease-out`, `--ease-in`, `--ease-feedback`)
--   **Staggered Animations**: Use the `applyStaggeredAnimation()` helper function for sequential list reveals
-
-**Available Animation Classes:**
-- **Fade**: `animation-fade-in`, `animation-fade-out`
-- **Slide**: `animation-slide-in-up`, `animation-slide-in-down`, `animation-slide-in-left`, `animation-slide-in-right`
-- **Scale**: `animation-scale-in`, `animation-scale-in-feedback`
-- **Stagger**: `stagger-child` for sequential list animations
-- **Game-specific**: `animation-glitch`, `animation-pulse`, `animation-shake`, `animation-elimination-fade`
-
-### Migration Status
-
-The project is currently migrating from CSS Modules to Tailwind CSS. As components are refactored:
--   Remove CSS Module imports and corresponding `.module.css` files
--   Replace CSS Module classes with equivalent Tailwind utility classes
--   Replace old `animate-*` classes with new Motion System `animation-*` classes
--   Maintain visual consistency during the transition
-
-## Key Architectural Patterns
-
--   **Actor Model:** Each game runs in a dedicated goroutine (`GameActor`) with its own in-memory `GameState`. All actions are processed serially through a Go channel, eliminating locks.
--   **Supervisor Pattern:** A top-level `Supervisor` launches and monitors all `GameActors`, providing fault isolation so a single game crash doesn't take down the server.
--   **Event Sourcing with WAL:** The server is stateful in memory for speed, but all state-changing `Events` are first persisted to a Redis Stream (the Write-Ahead Log) for durability and recovery.
--   **Shared `core` Package:** Critical game types and the pure `ApplyEvent` function are defined in a shared `/core` package, compiled for both the Go backend and the Go/Wasm frontend to guarantee rule consistency.
--   **Hybrid AI Brain:** The AI opponent is split into a deterministic Go `RulesEngine` for strategic game actions and an `LLM` for generating human-like chat.
-
-## Testing Strategy
-
-### Coverage Requirements
-
--   **Core Logic (`/core`)**: Target 95%+ unit test coverage for `ApplyEvent` and rule functions.
--   **Server Logic (`/server`)**: Target 80%+ integration test coverage. The CI pipeline enforces this.
-
-### Test Patterns
-
-```go
-// Table-driven tests for pure functions in /core
-func TestApplyEvent(t *testing.T) {
-    testCases := []struct {
-        name          string
-        initialState  core.GameState
-        event         core.Event
-        expectedState core.GameState
-    }{
-        // Test cases here
-    }
-    // ... loop and run tests ...
-}
-
-// Actor integration tests in /server with mocked dependencies
-func TestActor_PlayerJoinsAndVotes(t *testing.T) {
-    mockStore := &MockDataStore{}
-    mockBroadcaster := &MockBroadcaster{}
-    actor := NewGameActor("test-game", mockStore, mockBroadcaster)
-    // Send actions to actor.mailbox and assert on mock calls
-}
-```
-
-## Project Structure
+## 5. Project Structure
 
 ```
 .
@@ -265,36 +68,20 @@ func TestActor_PlayerJoinsAndVotes(t *testing.T) {
 ├── server/             # Go backend
 │   ├── cmd/server/     # Main server binary
 │   └── internal/
-│       ├── actors/     # Game Actor and Supervisor
-│       ├── ai/         # Rules engine and LLM integration
-│       ├── comms/      # WebSocket communication
-│       ├── game/       # Server-side game logic managers
-│       └── store/      # Redis persistence logic
+│       ├── actors/
+│       ├── app/        # Server setup and initialization
+│       └── ...
 ├── client/             # React/TypeScript frontend
 │   ├── src/            # React components and UI logic
-│   └── wasm/           # (Future) Go/Wasm game engine source
-└── docs/               # Comprehensive design documentation
+│   └── wasm/           # Go/Wasm game engine source
+└── docs/               # All project documentation
 ```
 
-## Important Documentation
+## 6. Important Documentation
 
--   **`docs/01-game-design-document.md`**: Complete game rules and mechanics.
--   **`docs/02-onboarding-for-engineers.md`**: Essential 5-minute technical overview.
--   **`docs/development/03-code-logic-boundaries.md`**: The strict rules for what code belongs in `/core`, `/server`, and `/client`. **(Must Read)**
--   **`docs/architecture/README.md`**: Detailed backend architecture explanations.
--   **`docs/adr/README.md`**: Architectural decisions with context and rationale.
+Before writing code, consult these key documents:
 
-## Current Status
-
-This repository is in **active development**. The project has moved past the pure design phase into implementation.
-
--   **DONE**:
-    -   The foundational architecture is implemented. This includes the Go server, the Supervisor/Actor model, WebSocket communication, the Redis WAL store, and the shared `/core` package structure.
-    -   Development tooling has been streamlined with `concurrently` for unified dev server management.
-    -   React/TypeScript frontend foundation is established with Vite build system.
-
--   **IN PROGRESS**: The detailed game logic is being built out.
-    -   The `core.ApplyEvent` function has a complete structure, but many individual `apply...` handlers are stubs.
-    -   The `server.GameActor` is implemented but does not yet fully delegate logic to the specialized managers in `/server/internal/game`.
-    -   The AI `RulesEngine` is a placeholder and needs its strategic heuristics implemented.
-    -   Frontend React components and game UI are being developed alongside the backend logic.
+- **`docs/01-game-design-document.md`**: The complete game rules.
+- **`docs/architecture/README.md`**: Detailed backend architecture.
+- **`docs/adr/README.md`**: The "why" behind our key technical choices.
+- **`docs/development/02-testing-strategy.md`**: Our testing patterns and philosophy.

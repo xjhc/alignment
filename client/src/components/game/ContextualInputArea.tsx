@@ -117,7 +117,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
 
   if (!localPlayer) return null;
 
-  switch (gameState.phase.type) {
+  switch (gameState?.phase?.type) {
     case "NOMINATION":
     case "VERDICT":
       return <VoteUI />;
@@ -128,7 +128,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
     case "PULSE_CHECK":
       if (!localPlayer?.hasSubmittedPulseCheck) {
         const pulseCheckQuestion = generateCrisisQuestion(
-          gameState.crisisEvent
+          gameState?.crisisEvent
         );
         return (
           <PulseCheckInput
@@ -218,6 +218,16 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
               <div className="flex items-center gap-2 text-red-600">
                 <span>⚠️</span>
                 <span>{rateLimitError}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Corporate Mandate Communication Warning */}
+          {gameState?.corporateMandate?.isActive && gameState.corporateMandate.effects?.no_direct_messages && (
+            <div className="flex items-center justify-between bg-yellow-500/10 border border-yellow-500/30 rounded-md px-3 py-2 mb-3 text-sm">
+              <div className="flex items-center gap-2 text-yellow-600">
+                <span>👁️</span>
+                <span>Total Transparency Initiative: Private communications suspended</span>
               </div>
             </div>
           )}

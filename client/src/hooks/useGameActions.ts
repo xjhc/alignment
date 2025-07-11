@@ -67,6 +67,17 @@ export function useGameActions({
       if (replyingTo) {
         message = `[quote=${replyingTo.playerName}]${replyingTo.message}[/quote]\n${message}`;
       }
+      
+      // Apply system shock effects
+      const isCorrupted = localPlayer.systemShocks?.some(shock => 
+        shock.type === 'MESSAGE_CORRUPTION' && shock.isActive
+      );
+      
+      if (isCorrupted && Math.random() < 0.25) {
+        // Override message content with corruption effect
+        message = "lol";
+      }
+      
       addMessageToBuffer(message, activeChannel);
       setChatInput("");
       setReplyingTo(null);

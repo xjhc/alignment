@@ -192,6 +192,16 @@ func CalculateMiningSuccess(player Player, difficulty float64, gameState GameSta
 	}
 
 	successRate := baseRate + tokenBonus + milestoneBonus - difficulty
+	
+	// Apply corporate mandate modifier
+	if gameState.CorporateMandate != nil && gameState.CorporateMandate.IsActive {
+		if modifierVal, exists := gameState.CorporateMandate.Effects["mining_success_modifier"]; exists {
+			if modifier, ok := modifierVal.(float64); ok {
+				successRate = successRate * modifier
+			}
+		}
+	}
+	
 	if successRate < 0.1 { // Minimum 10% chance
 		successRate = 0.1
 	}

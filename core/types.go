@@ -35,6 +35,7 @@ const (
 	EventPlayerAbandoned     EventType = "PLAYER_ABANDONED"
 	EventPlayerRoleRevealed  EventType = "PLAYER_ROLE_REVEALED"
 	EventPlayerAligned       EventType = "PLAYER_ALIGNED"
+	EventAlignmentChanged    EventType = "ALIGNMENT_CHANGED"
 	EventPlayerShocked       EventType = "PLAYER_SHOCKED"
 	EventHostTransferred     EventType = "HOST_TRANSFERRED"
 
@@ -140,6 +141,7 @@ const (
 	// Player Status events
 	EventSlackStatusChanged EventType = "SLACK_STATUS_CHANGED"
 	EventPartingShotSet     EventType = "PARTING_SHOT_SET"
+	EventWhisperSent        EventType = "WHISPER_SENT"
 
 	// Personal KPI events
 	EventKPIAssigned  EventType = "KPI_ASSIGNED"
@@ -162,6 +164,12 @@ const (
 	// Corporate Mandate events
 	EventMandateActivated EventType = "MANDATE_ACTIVATED"
 	EventMandateEffect    EventType = "MANDATE_EFFECT"
+
+	// Spectator events
+	EventSpectatorStateSnapshot EventType = "SPECTATOR_STATE_SNAPSHOT"
+	EventSpectatorJoined        EventType = "SPECTATOR_JOINED"
+	EventSpectatorLeft          EventType = "SPECTATOR_LEFT"
+	EventSpectatorChatMessage   EventType = "SPECTATOR_CHAT_MESSAGE"
 )
 
 // Action represents a player action that can generate events
@@ -219,6 +227,7 @@ const (
 	// Status actions
 	ActionSetSlackStatus      ActionType = "SET_SLACK_STATUS"
 	ActionSubmitExitInterview ActionType = "SUBMIT_EXIT_INTERVIEW"
+	ActionWhisper             ActionType = "WHISPER"
 
 	// Meta actions
 	ActionReconnect      ActionType = "RECONNECT"
@@ -228,9 +237,13 @@ const (
 	// Internal server actions (for GameLifecycleManager -> GameActor communication)
 	ActionSetPlayerConnectionStatus ActionType = "SET_PLAYER_CONNECTION_STATUS"
 	ActionAbandonPlayer            ActionType = "ABANDON_PLAYER"
+	ActionAssignCorporateMandate   ActionType = "ASSIGN_CORPORATE_MANDATE"
 
 	// Whistleblower Protocol actions
 	ActionSubmitWhistleblowerVote ActionType = "SUBMIT_WHISTLEBLOWER_VOTE"
+
+	// Spectator actions
+	ActionPostSpectatorMessage ActionType = "POST_SPECTATOR_MESSAGE"
 )
 
 // Phase represents the current game phase
@@ -280,6 +293,7 @@ type Player struct {
 	HasSubmittedPulseCheck bool         `json:"hasSubmittedPulseCheck,omitempty"`
 	LobbyHandle            string       `json:"lobbyHandle,omitempty"` // Original lobby identity for post-game reveal
 	BootcampPoints         int          `json:"bootcampPoints,omitempty"` // Intern role resource for shadowing abilities
+	WhisperUsedDay         int          `json:"whisperUsedDay,omitempty"` // Day number when whisper was last used
 
 	// FTUE and Assistance Settings
 	SeenHints            map[string]bool `json:"seenHints,omitempty"`             // Phase hints the player has seen (key: phase name)
@@ -519,4 +533,51 @@ type CrisisEvent struct {
 	Effects          map[string]interface{} `json:"effects"`
 	Duration         int                    `json:"duration,omitempty"`
 	TriggeredAt      time.Time              `json:"triggeredAt,omitempty"`
+}
+
+// SitrepSection represents a section of the daily report
+type SitrepSection struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
+	Type    string `json:"type"` // "standard", "classified", "redacted"
+}
+
+// DailySitrep represents the complete daily situation report
+type DailySitrep struct {
+	DayNumber  int             `json:"day_number"`
+	Date       time.Time       `json:"date"`
+	Sections   []SitrepSection `json:"sections"`
+	AlertLevel string          `json:"alert_level"`
+	Summary    string          `json:"summary"`
+	FooterNote string          `json:"footer_note"`
+}
+
+// Spectator represents a spectator observing the game
+type Spectator struct {
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	JoinedAt time.Time `json:"joined_at"`
+}
+
+// PublicGameState represents a filtered view of the game state for spectators
+type PublicGameState struct {
+	GameID       string              `json:"game_id"`
+	Phase        PhaseType           `json:"phase"`
+	DayNumber    int                 `json:"day_number"`
+	Players      []PublicPlayerInfo  `json:"players"`
+	TokenCounts  map[string]int      `json:"token_counts"`
+	PhaseEndTime time.Time           `json:"phase_end_time"`
+	CrisisEvent  *CrisisEvent        `json:"crisis_event,omitempty"`
+	ChatHistory  []ChatMessage       `json:"chat_history,omitempty"`
+}
+
+// PublicPlayerInfo represents public information about a player for spectators
+type PublicPlayerInfo struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	JobTitle      string `json:"job_title"`
+	IsActive      bool   `json:"is_active"`
+	StatusMessage string `json:"status_message"`
+	TokenCount    int    `json:"token_count"`
+	// Note: No role, alignment, or KPI information for spectators
 }

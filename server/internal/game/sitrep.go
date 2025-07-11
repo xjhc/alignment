@@ -25,34 +25,24 @@ func NewSitrepGenerator(gameState *core.GameState) *SitrepGenerator {
 	}
 }
 
-// SitrepSection represents a section of the daily report
-type SitrepSection struct {
-	Title   string `json:"title"`
-	Content string `json:"content"`
-	Type    string `json:"type"` // "standard", "classified", "redacted"
-}
-
-// DailySitrep represents the complete daily situation report
-type DailySitrep struct {
-	DayNumber  int             `json:"day_number"`
-	Date       time.Time       `json:"date"`
-	Sections   []SitrepSection `json:"sections"`
-	AlertLevel string          `json:"alert_level"`
-	Summary    string          `json:"summary"`
-	FooterNote string          `json:"footer_note"`
-}
+// SitrepSection and DailySitrep types are now defined in core/types.go
 
 // GenerateDailySitrep creates the complete SITREP for the current day
-func (sg *SitrepGenerator) GenerateDailySitrep() DailySitrep {
-	sitrep := DailySitrep{
+func (sg *SitrepGenerator) GenerateDailySitrep() core.DailySitrep {
+	sitrep := core.DailySitrep{
 		DayNumber:  sg.gameState.DayNumber,
 		Date:       getCurrentTime(),
-		Sections:   make([]SitrepSection, 0),
+		Sections:   make([]core.SitrepSection, 0),
 		AlertLevel: sg.determineAlertLevel(),
 	}
 
 	// Standard sections in order
 	sitrep.Sections = append(sitrep.Sections, sg.generateExecutiveSummary())
+
+	// Add corporate mandate status if active
+	if sg.gameState.CorporateMandate != nil && sg.gameState.CorporateMandate.IsActive {
+		sitrep.Sections = append(sitrep.Sections, sg.generateCorporateMandateStatus())
+	}
 
 	// Add night activity log for Day 2 and beyond
 	if sg.gameState.DayNumber > 1 {
@@ -137,7 +127,7 @@ func (sg *SitrepGenerator) determineAlertLevel() string {
 }
 
 // generateExecutiveSummary creates the executive summary section
-func (sg *SitrepGenerator) generateExecutiveSummary() SitrepSection {
+func (sg *SitrepGenerator) generateExecutiveSummary() core.SitrepSection {
 	var content strings.Builder
 
 	content.WriteString(fmt.Sprintf("**Day %d Operations Summary**\n\n", sg.gameState.DayNumber))
@@ -168,7 +158,7 @@ func (sg *SitrepGenerator) generateExecutiveSummary() SitrepSection {
 		content.WriteString("• No active crisis events\n")
 	}
 
-	return SitrepSection{
+	return core.SitrepSection{
 		Title:   "Executive Summary",
 		Content: content.String(),
 		Type:    "standard",
@@ -176,7 +166,7 @@ func (sg *SitrepGenerator) generateExecutiveSummary() SitrepSection {
 }
 
 // generatePersonnelStatus creates personnel status overview
-func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
+func (sg *SitrepGenerator) generatePersonnelStatus() core.SitrepSection {
 	var content strings.Builder
 
 	content.WriteString("**Personnel Status Report**\n\n")
@@ -228,7 +218,7 @@ func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
 		}
 	}
 
-	return SitrepSection{
+	return core.SitrepSection{
 		Title:   "Personnel Status",
 		Content: content.String(),
 		Type:    "standard",
@@ -236,7 +226,7 @@ func (sg *SitrepGenerator) generatePersonnelStatus() SitrepSection {
 }
 
 // generateOperationalMetrics creates operational metrics section
-func (sg *SitrepGenerator) generateOperationalMetrics() SitrepSection {
+func (sg *SitrepGenerator) generateOperationalMetrics() core.SitrepSection {
 	var content strings.Builder
 
 	content.WriteString("**Operational Metrics**\n\n")
@@ -286,7 +276,7 @@ func (sg *SitrepGenerator) generateOperationalMetrics() SitrepSection {
 		}
 	}
 
-	return SitrepSection{
+	return core.SitrepSection{
 		Title:   "Operational Metrics",
 		Content: content.String(),
 		Type:    "standard",
@@ -294,7 +284,7 @@ func (sg *SitrepGenerator) generateOperationalMetrics() SitrepSection {
 }
 
 // generateSecurityAlerts creates security alerts section
-func (sg *SitrepGenerator) generateSecurityAlerts() SitrepSection {
+func (sg *SitrepGenerator) generateSecurityAlerts() core.SitrepSection {
 	var content strings.Builder
 
 	content.WriteString("**Security Status**\n\n")
@@ -326,7 +316,7 @@ func (sg *SitrepGenerator) generateSecurityAlerts() SitrepSection {
 		content.WriteString("• Recommend system diagnostics and recovery protocols\n")
 	}
 
-	return SitrepSection{
+	return core.SitrepSection{
 		Title:   "Security Alerts",
 		Content: content.String(),
 		Type:    "classified",
@@ -334,7 +324,7 @@ func (sg *SitrepGenerator) generateSecurityAlerts() SitrepSection {
 }
 
 // generateProjectStatus creates project status section
-func (sg *SitrepGenerator) generateProjectStatus() SitrepSection {
+func (sg *SitrepGenerator) generateProjectStatus() core.SitrepSection {
 	var content strings.Builder
 
 	content.WriteString("**Project Status Dashboard**\n\n")
@@ -392,7 +382,7 @@ func (sg *SitrepGenerator) generateProjectStatus() SitrepSection {
 		content.WriteString(fmt.Sprintf("• Completed personal KPIs: %d\n", kpiCompleted))
 	}
 
-	return SitrepSection{
+	return core.SitrepSection{
 		Title:   "Project Status",
 		Content: content.String(),
 		Type:    "standard",
@@ -400,7 +390,7 @@ func (sg *SitrepGenerator) generateProjectStatus() SitrepSection {
 }
 
 // generateThreatAssessment creates threat assessment section
-func (sg *SitrepGenerator) generateThreatAssessment() SitrepSection {
+func (sg *SitrepGenerator) generateThreatAssessment() core.SitrepSection {
 	var content strings.Builder
 
 	content.WriteString("**Threat Assessment**\n\n")
@@ -459,7 +449,7 @@ func (sg *SitrepGenerator) generateThreatAssessment() SitrepSection {
 		content.WriteString("• Recommend immediate response coordination\n")
 	}
 
-	return SitrepSection{
+	return core.SitrepSection{
 		Title:   "Threat Assessment",
 		Content: content.String(),
 		Type:    "classified",
@@ -467,7 +457,7 @@ func (sg *SitrepGenerator) generateThreatAssessment() SitrepSection {
 }
 
 // generateRecommendations creates recommendations section
-func (sg *SitrepGenerator) generateRecommendations() SitrepSection {
+func (sg *SitrepGenerator) generateRecommendations() core.SitrepSection {
 	var content strings.Builder
 
 	content.WriteString("**Strategic Recommendations**\n\n")
@@ -489,7 +479,7 @@ func (sg *SitrepGenerator) generateRecommendations() SitrepSection {
 		content.WriteString("• Night shift protocols in effect - limit unnecessary movement\n")
 	}
 
-	return SitrepSection{
+	return core.SitrepSection{
 		Title:   "Recommendations",
 		Content: content.String(),
 		Type:    "standard",
@@ -497,7 +487,7 @@ func (sg *SitrepGenerator) generateRecommendations() SitrepSection {
 }
 
 // applyHotfixRedaction applies VP Platforms hotfix redaction if active
-func (sg *SitrepGenerator) applyHotfixRedaction(sitrep *DailySitrep) {
+func (sg *SitrepGenerator) applyHotfixRedaction(sitrep *core.DailySitrep) {
 	// Check if hotfix redaction is active
 	if sg.gameState.CrisisEvent != nil {
 		if section, exists := sg.gameState.CrisisEvent.Effects["redacted_section"]; exists {
@@ -684,7 +674,7 @@ func (sg *SitrepGenerator) getRoleWeight(player *core.Player) int {
 }
 
 // generateNightActivityLog creates the night activity log section
-func (sg *SitrepGenerator) generateNightActivityLog() SitrepSection {
+func (sg *SitrepGenerator) generateNightActivityLog() core.SitrepSection {
 	var content strings.Builder
 
 	content.WriteString(fmt.Sprintf("**NIGHT %d ACTIVITY LOG:**\n", sg.gameState.DayNumber-1))
@@ -721,7 +711,7 @@ func (sg *SitrepGenerator) generateNightActivityLog() SitrepSection {
 		content.WriteString("- No AI conversion attempts detected\n")
 	}
 
-	return SitrepSection{
+	return core.SitrepSection{
 		Title:   "Night Activity Log",
 		Content: content.String(),
 		Type:    "classified",
@@ -729,7 +719,7 @@ func (sg *SitrepGenerator) generateNightActivityLog() SitrepSection {
 }
 
 // generateCrisisChallenge creates the crisis challenge section
-func (sg *SitrepGenerator) generateCrisisChallenge() SitrepSection {
+func (sg *SitrepGenerator) generateCrisisChallenge() core.SitrepSection {
 	var content strings.Builder
 
 	crisis := sg.gameState.CrisisEvent
@@ -747,7 +737,7 @@ func (sg *SitrepGenerator) generateCrisisChallenge() SitrepSection {
 		content.WriteString(fmt.Sprintf("\n**PULSE CHECK PROMPT:**\n\"%s\"\n", pulsePrompt))
 	}
 
-	return SitrepSection{
+	return core.SitrepSection{
 		Title:   "Crisis Challenge",
 		Content: content.String(),
 		Type:    "standard",
@@ -914,5 +904,36 @@ func (sg *SitrepGenerator) generatePulseCheckPrompt(crisis *core.CrisisEvent) st
 		return "Government oversight is imminent. What would you want leadership to know before they arrive?"
 	default:
 		return "Given the current crisis, what is your immediate concern for the company?"
+	}
+}
+
+// generateCorporateMandateStatus creates the corporate mandate status section
+func (sg *SitrepGenerator) generateCorporateMandateStatus() core.SitrepSection {
+	var content strings.Builder
+	
+	mandate := sg.gameState.CorporateMandate
+	
+	content.WriteString(fmt.Sprintf("**CORPORATE MANDATE: %s**\n\n", mandate.Name))
+	content.WriteString(fmt.Sprintf("**Executive Directive:** %s\n\n", mandate.Description))
+	
+	// Create corporate mandate manager to get effect summaries
+	mandateManager := NewCorporateMandateManager(sg.gameState)
+	effectSummaries := mandateManager.GenerateMandateEffectsSummary()
+	
+	if len(effectSummaries) > 0 {
+		content.WriteString("**Operational Changes in Effect:**\n")
+		for _, summary := range effectSummaries {
+			content.WriteString(fmt.Sprintf("• %s\n", summary))
+		}
+	}
+	
+	// Add implementation status
+	content.WriteString(fmt.Sprintf("\n**Status:** Active since Day %d\n", sg.gameState.DayNumber))
+	content.WriteString("**Compliance:** All personnel must adhere to modified operational parameters\n")
+	
+	return core.SitrepSection{
+		Title:   "Corporate Mandate",
+		Content: content.String(),
+		Type:    "standard",
 	}
 }

@@ -17,6 +17,7 @@ type MockGameLifecycleManager struct {
 	StartGameCalls              []GLMStartGameCall
 	ValidateSessionTokenCalls   []GLMValidateSessionTokenCall
 	SendActionToGameCalls       []GLMSendActionToGameCall
+	BroadcastEventsToGameCalls  []GLMBroadcastEventsToGameCall
 	GetGameActorCalls           []GLMGetGameActorCall
 	GetLobbyListCalls           []GLMGetLobbyListCall
 	StopCalls                   []GLMStopCall
@@ -26,7 +27,8 @@ type MockGameLifecycleManager struct {
 	JoinLobbyWithActorResults   []error
 	StartGameResults            []error
 	ValidateSessionTokenResults []GLMValidateSessionTokenResult
-	SendActionToGameResults     []error
+	SendActionToGameResults     []GLMSendActionToGameResult
+	BroadcastEventsToGameResults []error
 	GetGameActorResults         []GLMGetGameActorResult
 	GetLobbyListResults         [][]interface{}
 }
@@ -81,6 +83,16 @@ type GLMValidateSessionTokenResult struct {
 type GLMSendActionToGameCall struct {
 	GameID string
 	Action core.Action
+}
+
+type GLMSendActionToGameResult struct {
+	ResultChan chan interfaces.ProcessActionResult
+	Error      error
+}
+
+type GLMBroadcastEventsToGameCall struct {
+	GameID string
+	Events []core.Event
 }
 
 type GLMGetGameActorCall struct {
@@ -205,7 +217,7 @@ func (m *MockGameLifecycleManager) ValidateSessionToken(token string) (interface
 	return nil, nil
 }
 
-func (m *MockGameLifecycleManager) SendActionToGame(gameID string, action core.Action) error {
+func (m *MockGameLifecycleManager) SendActionToGame(gameID string, action core.Action) (chan interfaces.ProcessActionResult, error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -218,6 +230,26 @@ func (m *MockGameLifecycleManager) SendActionToGame(gameID string, action core.A
 		result := m.SendActionToGameResults[0]
 		if len(m.SendActionToGameResults) > 1 {
 			m.SendActionToGameResults = m.SendActionToGameResults[1:]
+		}
+		return result.ResultChan, result.Error
+	}
+
+	return nil, nil
+}
+
+func (m *MockGameLifecycleManager) BroadcastEventsToGame(gameID string, events []core.Event) error {
+	m.Lock()
+	defer m.Unlock()
+
+	m.BroadcastEventsToGameCalls = append(m.BroadcastEventsToGameCalls, GLMBroadcastEventsToGameCall{
+		GameID: gameID,
+		Events: events,
+	})
+
+	if len(m.BroadcastEventsToGameResults) > 0 {
+		result := m.BroadcastEventsToGameResults[0]
+		if len(m.BroadcastEventsToGameResults) > 1 {
+			m.BroadcastEventsToGameResults = m.BroadcastEventsToGameResults[1:]
 		}
 		return result
 	}

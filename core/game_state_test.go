@@ -616,3 +616,63 @@ func TestApplyEvent_RoleAbilities(t *testing.T) {
 		})
 	}
 }
+
+func TestApplyEvent_ChatMessage_NestedPayload(t *testing.T) {
+	gameState := NewGameState("test-game", time.Now())
+	gameState.Players["player-1"] = &Player{
+		ID:      "player-1",
+		Name:    "Kelly",
+		IsAlive: true,
+	}
+
+	now := time.Now()
+	event := Event{
+		ID:        "event-1",
+		Type:      EventChatMessage,
+		GameID:    "test-game",
+		PlayerID:  "player-1",
+		Timestamp: now,
+		Payload: map[string]interface{}{
+			"channel_id":         "#war-room",
+			"client_message_id":  "1752251515357_q50ckoe8m",
+			"day_number":         1,
+			"phase":              "SITREP",
+			"message": map[string]interface{}{
+				"channelID":  "#war-room",
+				"id":         "msg-1752251515631258344",
+				"isSystem":   false,
+				"message":    "Hello, this is a test message",
+				"playerID":   "player-1",
+				"playerName": "Kelly",
+				"timestamp":  "2025-07-11T09:31:55.631258598-07:00",
+			},
+		},
+	}
+
+	newState := ApplyEvent(*gameState, event)
+
+	// Check that chat message was added
+	if len(newState.ChatMessages) != 1 {
+		t.Errorf("Expected 1 chat message, got %d", len(newState.ChatMessages))
+	}
+
+	chatMsg := newState.ChatMessages[0]
+	if chatMsg.ID != "msg-1752251515631258344" {
+		t.Errorf("Expected message ID 'msg-1752251515631258344', got '%s'", chatMsg.ID)
+	}
+	if chatMsg.PlayerID != "player-1" {
+		t.Errorf("Expected player ID 'player-1', got '%s'", chatMsg.PlayerID)
+	}
+	if chatMsg.PlayerName != "Kelly" {
+		t.Errorf("Expected player name 'Kelly', got '%s'", chatMsg.PlayerName)
+	}
+	if chatMsg.Message != "Hello, this is a test message" {
+		t.Errorf("Expected message 'Hello, this is a test message', got '%s'", chatMsg.Message)
+	}
+	if chatMsg.ChannelID != "#war-room" {
+		t.Errorf("Expected channel ID '#war-room', got '%s'", chatMsg.ChannelID)
+	}
+	if chatMsg.IsSystem != false {
+		t.Errorf("Expected IsSystem false, got %v", chatMsg.IsSystem)
+	}
+}
