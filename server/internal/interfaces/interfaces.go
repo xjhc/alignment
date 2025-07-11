@@ -15,6 +15,7 @@ type PlayerActorInterface interface {
 	GetState() PlayerState
 	TransitionToLobby(lobbyID string) error
 	TransitionToGame(gameID string) error
+	TransitionToSpectating(gameID string) error
 	TransitionToIdle() error
 	SendServerMessage(message interface{})
 	Stop() // Add Stop method for proper cleanup
@@ -27,6 +28,7 @@ const (
 	StateIdle PlayerState = iota
 	StateInLobby
 	StateInGame
+	StateSpectating
 )
 
 func (ps PlayerState) String() string {
@@ -37,6 +39,8 @@ func (ps PlayerState) String() string {
 		return "InLobby"
 	case StateInGame:
 		return "InGame"
+	case StateSpectating:
+		return "Spectating"
 	default:
 		return "Unknown"
 	}
@@ -48,6 +52,8 @@ type GameActorInterface interface {
 	PostAction(action core.Action) chan ProcessActionResult
 	GetGameState() *core.GameState
 	CreatePlayerStateUpdateEvent(playerID string) core.Event
+	AddSpectator(spectator PlayerActorInterface)
+	RemoveSpectator(spectatorID string)
 	Stop()
 }
 
@@ -93,6 +99,9 @@ type GameLifecycleManagerInterface interface {
 	BroadcastEventsToGame(gameID string, events []core.Event) error
 	GetGameActor(gameID string) (GameActorInterface, bool)
 	ReconnectPlayerToGame(gameID string, playerActor PlayerActorInterface) error
+	
+	// Spectator management
+	JoinAsSpectator(gameID, userID, spectatorName string) (string, string, error)
 	
 	// Utility
 	Stop()

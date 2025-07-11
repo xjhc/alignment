@@ -28,6 +28,8 @@ func (h *PlayerInteractionHandler) Handle(state *core.GameState, action core.Act
 		return h.handleWhistleblowerVote(state, action, acker)
 	case core.ActionTriggerExtensionVoting:
 		return h.handleExtensionVotingTrigger(state, action, acker)
+	case core.ActionWhisper:
+		return h.handleWhisper(state, action, acker)
 	default:
 		return nil, fmt.Errorf("unsupported player interaction action type: %s", action.Type)
 	}
@@ -244,4 +246,99 @@ func (h *PlayerInteractionHandler) generatePulseCheckQuestion() string {
 	// For now, return a simple question. In a full implementation,
 	// this might use randomization or be based on game state
 	return questions[0]
+}
+
+// handleWhisper processes whisper actions between players
+func (h *PlayerInteractionHandler) handleWhisper(state *core.GameState, action core.Action, acker ActionAcker) ([]core.Event, error) {
+	// Validate player exists and is alive
+	player := state.Players[action.PlayerID]
+	if player == nil || !player.IsAlive {
+		return nil, fmt.Errorf("invalid or dead player attempting to whisper")
+	}
+
+	// Validate that whispers are allowed (only during DAY phases)
+	if state.Phase.Type != core.PhaseDiscussion && state.Phase.Type != core.PhaseNomination {
+		return nil, fmt.Errorf("whispers only allowed during discussion or nomination phases")
+	}
+
+	// Check if player has already used their whisper for this day
+	if player.WhisperUsedDay == state.DayNumber {
+		return nil, fmt.Errorf("player has already used their whisper for day %d", state.DayNumber)
+	}
+
+	// Extract target player ID and message from action payload
+	targetPlayerID, ok := action.Payload["target_player_id"].(string)
+	if !ok || targetPlayerID == "" {
+		return nil, fmt.Errorf("invalid or missing target_player_id")
+	}
+
+	message, ok := action.Payload["message"].(string)
+	if !ok || message == "" {
+		return nil, fmt.Errorf("invalid or missing message")
+	}
+
+	// Validate target player exists and is alive
+	targetPlayer := state.Players[targetPlayerID]
+	if targetPlayer == nil || !targetPlayer.IsAlive {
+		return nil, fmt.Errorf("invalid or dead target player for whisper")
+	}
+
+	// Can't whisper to yourself
+	if targetPlayerID == action.PlayerID {
+		return nil, fmt.Errorf("cannot whisper to yourself")
+	}
+
+	var events []core.Event
+
+	// Create public announcement about the whisper
+	publicEvent := core.Event{
+		ID:        fmt.Sprintf("whisper_public_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventChatMessage,
+		GameID:    acker.GetGameID(),
+		PlayerID:  "", // Public event
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"message":      fmt.Sprintf("%s whispers to %s.", player.Name, targetPlayer.Name),
+			"sender_name":  "System",
+			"sender_id":    "system",
+			"channel":      "#war-room",
+			"message_type": "whisper_announcement",
+		},
+	}
+	events = append(events, publicEvent)
+
+	// Create private notification to target player
+	privateEvent := core.Event{
+		ID:        fmt.Sprintf("whisper_private_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventPrivateNotification,
+		GameID:    acker.GetGameID(),
+		PlayerID:  targetPlayerID, // Private to target player
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"type":         "whisper",
+			"title":        fmt.Sprintf("Whisper from %s", player.Name),
+			"message":      message,
+			"sender_id":    action.PlayerID,
+			"sender_name":  player.Name,
+			"priority":     "high",
+		},
+	}
+	events = append(events, privateEvent)
+
+	// Create whisper sent event to track usage
+	whisperSentEvent := core.Event{
+		ID:        fmt.Sprintf("whisper_sent_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventWhisperSent,
+		GameID:    acker.GetGameID(),
+		PlayerID:  action.PlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"target_player_id": targetPlayerID,
+			"target_name":      targetPlayer.Name,
+			"day_number":       state.DayNumber,
+		},
+	}
+	events = append(events, whisperSentEvent)
+
+	return events, nil
 }

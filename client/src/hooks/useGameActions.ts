@@ -1,6 +1,7 @@
 import { useCallback, KeyboardEvent } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useGameEngineContext } from "../contexts/GameEngineContext";
+import { useSessionContext } from "../contexts/SessionContext";
 import { useSound } from "./useSound";
 import { ClientActionType } from "../types";
 
@@ -43,12 +44,38 @@ export function useGameActions({
 }: UseGameActionsProps) {
   const { sendAction, isConnected } = useWebSocketContext();
   const { canPlayerAffordAbility, isValidNightActionTarget } = useGameEngineContext();
+  const { appState } = useSessionContext();
   const { playSound } = useSound();
+  const isSpectating = appState.isSpectating;
 
   const handleSendMessage = useCallback(async () => {
-    if (!chatInput.trim() || !localPlayer || !isConnected || !gameId) return;
+    // For spectators, we don't need a localPlayer. For regular players, we do.
+    if (!chatInput.trim() || (!isSpectating && !localPlayer) || !isConnected || !gameId) return;
     try {
       let message = chatInput.trim();
+      
+      // For spectators, handle different action type
+      if (isSpectating) {
+        if (activeChannel === '#spectators') {
+          // Send spectator message action
+          sendAction({
+            type: "POST_SPECTATOR_MESSAGE", // Custom action type for spectators
+            payload: {
+              game_id: gameId,
+              messages: [{ message, client_message_id: `spectator_${Date.now()}` }],
+              channel_id: '#spectators',
+            },
+          });
+          setChatInput("");
+          setReplyingTo(null);
+          playSound("message");
+          return;
+        }
+        // Spectators can only send messages in #spectators channel
+        return;
+      }
+      
+      // Regular player message handling
       const statusMatch = message.match(/^\/status\s+(.+)$/);
       if (statusMatch) {
         const statusMessage = statusMatch[1].trim();
@@ -89,6 +116,7 @@ export function useGameActions({
   }, [
     chatInput,
     localPlayer,
+    isSpectating,
     isConnected,
     addMessageToBuffer,
     replyingTo,

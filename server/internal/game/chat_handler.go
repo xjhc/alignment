@@ -96,6 +96,17 @@ func (h *ChatHandler) handleChatMessage(state *core.GameState, action core.Actio
 			continue
 		}
 
+		// Check for /status command
+		if len(message) > 8 && message[:8] == "/status " {
+			statusMessage := message[8:] // Remove "/status " prefix
+			statusEvents, err := h.handleStatusCommand(state, action.PlayerID, statusMessage, acker)
+			if err != nil {
+				return nil, fmt.Errorf("failed to handle status command: %v", err)
+			}
+			events = append(events, statusEvents...)
+			continue
+		}
+
 		// Create a copy of the payload for this specific message
 		messagePayload := make(map[string]interface{})
 		for k, v := range action.Payload {
@@ -321,6 +332,7 @@ func (h *ChatHandler) generateHelpMessage(state *core.GameState, player *core.Pl
 	helpText := fmt.Sprintf("**Help for %s**\n\n", player.Name)
 	helpText += "**Available Commands:**\n"
 	helpText += "• `/help` - Show this help message\n"
+	helpText += "• `/status <message>` - Set your status message\n"
 	helpText += "• Type messages to communicate with other players\n"
 	helpText += "• Use reactions to respond to messages\n\n"
 	
@@ -333,6 +345,33 @@ func (h *ChatHandler) generateHelpMessage(state *core.GameState, player *core.Pl
 	}
 	
 	return helpText
+}
+
+// handleStatusCommand handles the /status command
+func (h *ChatHandler) handleStatusCommand(state *core.GameState, playerID string, statusMessage string, acker ActionAcker) ([]core.Event, error) {
+	player := state.Players[playerID]
+	if player == nil {
+		return nil, fmt.Errorf("player %s not found", playerID)
+	}
+
+	// Validate status message length
+	if len(statusMessage) > 100 {
+		return nil, fmt.Errorf("status message too long (max 100 characters)")
+	}
+
+	// Generate status changed event
+	event := core.Event{
+		ID:        fmt.Sprintf("status_changed_%s_%d", playerID, time.Now().UnixNano()),
+		Type:      core.EventSlackStatusChanged,
+		GameID:    acker.GetGameID(),
+		PlayerID:  playerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"status": statusMessage,
+		},
+	}
+
+	return []core.Event{event}, nil
 }
 
 // createChatMessageEvent creates a chat message event

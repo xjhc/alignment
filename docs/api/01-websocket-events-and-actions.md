@@ -102,49 +102,83 @@ This eliminates race conditions and ensures deterministic client behavior.
 **NIGHT_ACTIONS_RESOLVED Payload:**
 ```json
 {
-  "night_number": number,
-  "total_actions": number,
-  "blocked_players": [
-    {
-      "player_id": "string",
-      "player_name": "string", 
-      "blocker_id": "string",
-      "blocker_name": "string",
-      "block_type": "BLOCK|ISOLATE_NODE"
-    }
-  ],
-  "converted_players": [
-    {
-      "player_id": "string",
-      "player_name": "string",
-      "converter_id": "string", 
-      "converter_name": "string",
-      "previous_equity": number,
-      "new_equity": number
-    }
-  ],
-  "mining_results": [
-    {
-      "miner_id": "string",
-      "miner_name": "string",
-      "target_id": "string", 
-      "target_name": "string",
-      "tokens_mined": number,
-      "success": boolean
-    }
-  ],
+  "summary": "string",
   "player_state_changes": {
     "player_id": {
       "tokens_gained": number,
-      "status_message": "string",
-      "alignment": "HUMAN|ALIGNED", 
+      "tokens_lost": number,
+      "alignment": "HUMAN|ALIGNED|UNKNOWN",
       "ai_equity": number,
       "project_milestones": number,
       "has_used_ability": boolean,
-      "role_unlocked": boolean
+      "role_unlocked": boolean,
+      "was_blocked": boolean,
+      "was_protected": boolean,
+      "status_message": "string"
     }
   },
-  "summary_message": "string"
+  "action_results": {
+    "player_id": {
+      "action_type": "BLOCK|CONVERT|MINE|PROTECT|INVESTIGATE|PROJECT_MILESTONES|ROLE_ABILITY",
+      "success": boolean,
+      "target_id": "string",
+      "result_message": "string",
+      "tokens_gained": number,
+      "tokens_lost": number,
+      "ability_used": "string"
+    }
+  },
+  "blocked_players": ["string"],
+  "conversion_attempts": [
+    {
+      "converter_id": "string",
+      "target_id": "string",
+      "success": boolean,
+      "target_ai_equity_before": number,
+      "target_ai_equity_after": number,
+      "target_tokens": number,
+      "reason": "string"
+    }
+  ],
+  "role_ability_usages": [
+    {
+      "player_id": "string",
+      "ability_type": "BLOCK|INVESTIGATE|PROTECT|ISOLATE_NODE|REALLOCATE_BUDGET|EMERGENCY_MEETING|CRISIS_RESPONSE|SYSTEM_AUDIT|MANDATE_PROPOSAL|PERFORMANCE_REVIEW",
+      "target_id": "string",
+      "success": boolean,
+      "result_message": "string",
+      "additional_data": "object"
+    }
+  ],
+  "mining_results": {
+    "total_available_slots": number,
+    "successful_attempts": [
+      {
+        "miner_id": "string",
+        "target_id": "string",
+        "tokens_mined": number,
+        "miner_token_weight": number,
+        "target_available_tokens": number
+      }
+    ],
+    "failed_attempts": [
+      {
+        "miner_id": "string",
+        "target_id": "string",
+        "reason": "BLOCKED|INSUFFICIENT_TOKENS|NO_SLOTS_AVAILABLE|INVALID_TARGET"
+      }
+    ]
+  },
+  "public_announcements": ["string"],
+  "private_notifications": {
+    "player_id": [
+      {
+        "type": "INVESTIGATION_RESULT|SYSTEM_SHOCK|ABILITY_FEEDBACK|GENERAL",
+        "message": "string",
+        "data": "object"
+      }
+    ]
+  }
 }
 ```
 

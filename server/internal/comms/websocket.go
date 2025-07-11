@@ -287,9 +287,28 @@ func (wsm *WebSocketManager) handleConnectionRoutingLogic(gameID string, playerA
 	}
 
 	// First, check if this is an active game (for reconnection)
-	_, gameExists := wsm.lifecycleManager.GetGameActor(gameID)
+	gameActor, gameExists := wsm.lifecycleManager.GetGameActor(gameID)
 	if gameExists {
-		// This is a reconnection to an active game
+		// Check if this is a spectator (player ID starts with "spectator-")
+		if isSpectator := len(playerActor.GetPlayerID()) > 10 && playerActor.GetPlayerID()[:10] == "spectator-"; isSpectator {
+			log.Printf("WebSocketManager: Spectator %s connecting to active game %s", playerActor.GetPlayerID(), gameID)
+			
+			// Transition the player actor to the spectating state
+			err := playerActor.TransitionToSpectating(gameID)
+			if err != nil {
+				log.Printf("WebSocketManager: Failed to transition spectator %s to spectating state: %v", playerActor.GetPlayerID(), err)
+				wsm.sendSessionExpiredAndClose(playerActor, gameID, "transition_failed", "Failed to transition to spectating")
+				return
+			}
+			
+			// Add the spectator to the game actor
+			gameActor.AddSpectator(playerActor)
+			
+			log.Printf("WebSocketManager: Successfully connected spectator %s to game %s", playerActor.GetPlayerID(), gameID)
+			return
+		}
+		
+		// This is a regular player reconnection to an active game
 		log.Printf("WebSocketManager: Player %s reconnecting to active game %s", playerActor.GetPlayerID(), gameID)
 		
 		err := wsm.lifecycleManager.ReconnectPlayerToGame(gameID, playerActor)
@@ -308,7 +327,6 @@ func (wsm *WebSocketManager) handleConnectionRoutingLogic(gameID string, playerA
 		}
 		
 		// Send the current game state to the reconnecting player
-		gameActor, _ := wsm.lifecycleManager.GetGameActor(gameID)
 		gameStateEvent := gameActor.CreatePlayerStateUpdateEvent(playerActor.GetPlayerID())
 		playerActor.SendServerMessage(gameStateEvent)
 		

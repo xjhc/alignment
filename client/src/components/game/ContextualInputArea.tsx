@@ -1,5 +1,6 @@
 import React, { KeyboardEvent, useState, useRef, useEffect } from "react";
 import { useGameContext } from "../../contexts/GameContext";
+import { useSessionContext } from "../../contexts/SessionContext";
 import { VoteUI } from "./VoteUI";
 import { NightActionSelection } from "./NightActionSelection";
 import { PulseCheckInput } from "./PulseCheckInput";
@@ -55,7 +56,11 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
     handleKeyDown,
     handleSendMessage,
     handlePulseCheck,
+    activeChannel,
   } = useGameContext();
+  
+  const { appState } = useSessionContext();
+  const isSpectating = appState.isSpectating;
 
   // Enhanced input features state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -115,83 +120,101 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker]);
 
-  if (!localPlayer) return null;
+  // For spectators, we don't need a localPlayer. For regular players, we do.
+  if (!isSpectating && !localPlayer) return null;
 
-  switch (gameState?.phase?.type) {
-    case "NOMINATION":
-    case "VERDICT":
-      return <VoteUI />;
+  // Spectators can only chat, no voting or night actions
+  if (isSpectating) {
+    // Only show chat input for spectators in the #spectators channel
+    if (activeChannel !== '#spectators') {
+      return (
+        <div className="p-4 text-center text-text-muted text-sm">
+          <p>Switch to #spectators to chat with other spectators</p>
+        </div>
+      );
+    }
+    // Show spectator chat input
+  } else {
+    // Regular player logic
+    switch (gameState?.phase?.type) {
+      case "NOMINATION":
+      case "VERDICT":
+        return <VoteUI />;
 
-    case "NIGHT":
-      return <NightActionSelection />;
+      case "NIGHT":
+        return <NightActionSelection />;
 
-    case "PULSE_CHECK":
-      if (!localPlayer?.hasSubmittedPulseCheck) {
-        const pulseCheckQuestion = generateCrisisQuestion(
-          gameState?.crisisEvent
-        );
-        return (
-          <PulseCheckInput
-            handlePulseCheck={handlePulseCheck}
-            localPlayerName={localPlayer.name}
-            question={pulseCheckQuestion}
-          />
-        );
-      }
-    // After submission, fall through to the default case to show the chat input
-    // Fallthrough is intentional here.
-
-    case "SITREP":
-    case "DISCUSSION":
-    case "TRIAL":
-    default:
-      const isChatEnabled = () => {
-        if (!isConnected) return false;
-
-        switch (gameState.phase.type) {
-          case "SITREP":
-          case "DISCUSSION":
-          case "TRIAL":
-          case "VERDICT":
-            return true;
-          case "PULSE_CHECK":
-            return localPlayer?.hasSubmittedPulseCheck === true;
-          default:
-            return false;
+      case "PULSE_CHECK":
+        if (!localPlayer?.hasSubmittedPulseCheck) {
+          const pulseCheckQuestion = generateCrisisQuestion(
+            gameState?.crisisEvent
+          );
+          return (
+            <PulseCheckInput
+              handlePulseCheck={handlePulseCheck}
+              localPlayerName={localPlayer.name}
+              question={pulseCheckQuestion}
+            />
+          );
         }
-      };
+      // After submission, fall through to the default case to show the chat input
+      // Fallthrough is intentional here.
 
-      const getPlaceholder = () => {
-        if (!isConnected) return "Reconnecting...";
-        if (replyingTo) return `Reply to ${replyingTo.playerName}...`;
+      case "SITREP":
+      case "DISCUSSION":
+      case "TRIAL":
+      default:
+        break; // Continue to chat input below
+    }
+  }
 
-        switch (gameState.phase.type) {
-          case "SITREP":
-          case "DISCUSSION":
-            return "Message #war-room";
-          case "PULSE_CHECK":
-            if (!localPlayer?.hasSubmittedPulseCheck) {
-              return "Submit your pulse check response to enable chat";
-            }
-            return "Message #war-room";
-          case "TRIAL":
-            return localPlayer?.id === gameState.nominatedPlayer
-              ? "Present your defense..."
-              : "Question the nominated player...";
-          case "VERDICT":
-            return "Discuss the verdict...";
-          case "NIGHT":
-            return "Channel locked during Night Phase";
-          default:
-            return `Channel locked during ${gameState.phase.type}`;
+  const isChatEnabled = () => {
+    if (!isConnected) return false;
+
+    switch (gameState.phase.type) {
+      case "SITREP":
+      case "DISCUSSION":
+      case "TRIAL":
+      case "VERDICT":
+        return true;
+      case "PULSE_CHECK":
+        return localPlayer?.hasSubmittedPulseCheck === true;
+      default:
+        return false;
+    }
+  };
+
+  const getPlaceholder = () => {
+    if (!isConnected) return "Reconnecting...";
+    if (replyingTo) return `Reply to ${replyingTo.playerName}...`;
+
+    switch (gameState.phase.type) {
+      case "SITREP":
+      case "DISCUSSION":
+        return "Message #war-room";
+      case "PULSE_CHECK":
+        if (!localPlayer?.hasSubmittedPulseCheck) {
+          return "Submit your pulse check response to enable chat";
         }
-      };
+        return "Message #war-room";
+      case "TRIAL":
+        return localPlayer?.id === gameState.nominatedPlayer
+          ? "Present your defense..."
+          : "Question the nominated player...";
+      case "VERDICT":
+        return "Discuss the verdict...";
+      case "NIGHT":
+        return "Channel locked during Night Phase";
+      default:
+        return `Channel locked during ${gameState.phase.type}`;
+    }
+  };
 
-      const handleSendButtonClick = () => {
-        if (chatInput.trim() && isChatEnabled()) {
-          handleSendMessage();
-        }
-      };
+  const handleSendButtonClick = () => {
+    if (chatInput.trim() && isChatEnabled()) {
+      handleSendMessage();
+    }
+  };
 
       return (
         <div className="border-t border-border bg-background-primary p-3">
@@ -382,5 +405,4 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
           </div>
         </div>
       );
-  }
 };

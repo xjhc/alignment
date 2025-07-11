@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useGameContext } from "../../contexts/GameContext";
+import { useSessionContext } from "../../contexts/SessionContext";
 import { usePhaseTimer } from "../../hooks/usePhaseTimer";
 import { ContextualInputArea } from "./ContextualInputArea";
 import { SitrepMessage } from "./SitrepMessage";
@@ -28,6 +29,8 @@ export const CommsPanel: React.FC = () => {
     skipVoteState,
   } = useGameContext();
 
+  const { appState } = useSessionContext();
+  const isSpectating = appState.isSpectating;
   const timeRemaining = usePhaseTimer(gameState?.phase);
   const { typingUsers } = useTypingIndicator();
 
@@ -41,7 +44,8 @@ export const CommsPanel: React.FC = () => {
     anchorElement: null,
   });
 
-  if (!localPlayer) {
+  // For spectators, we don't need a localPlayer. For regular players, we do.
+  if (!isSpectating && !localPlayer) {
     return <div>Loading...</div>;
   }
 

@@ -340,12 +340,37 @@ func (glm *GameLifecycleManager) checkLobbyCleanup(lobbyID string, lobby *lobby.
 	glm.mutex.Unlock()
 }
 
+// handleSpectatorDisconnection handles spectator disconnection (immediate cleanup)
+func (glm *GameLifecycleManager) handleSpectatorDisconnection(event events.PlayerDisconnectedEvent) {
+	correlationID := uuid.New().String()[:8]
+	log.Printf("[Disconnect-%s] handleSpectatorDisconnection: Processing spectator disconnect for %s in game %s", correlationID, event.PlayerID, event.GameID)
+
+	// Remove spectator from game actor immediately (no grace period for spectators)
+	glm.mutex.RLock()
+	gameActor, exists := glm.gameActors[event.GameID]
+	glm.mutex.RUnlock()
+
+	if exists {
+		gameActor.RemoveSpectator(event.PlayerID)
+		log.Printf("[Disconnect-%s] handleSpectatorDisconnection: Removed spectator %s from game %s", correlationID, event.PlayerID, event.GameID)
+	} else {
+		log.Printf("[Disconnect-%s] handleSpectatorDisconnection: Game %s not found for spectator %s", correlationID, event.GameID, event.PlayerID)
+	}
+}
+
 // handleGameDisconnection handles disconnection from games (with grace period)
 func (glm *GameLifecycleManager) handleGameDisconnection(event events.PlayerDisconnectedEvent) {
 	correlationID := uuid.New().String()[:8]
 	gracePeriodKey := fmt.Sprintf("%s:%s", event.GameID, event.PlayerID)
 
 	log.Printf("[Disconnect-%s] handleGameDisconnection: Processing game disconnect for player %s in game %s", correlationID, event.PlayerID, event.GameID)
+
+	// Check if this is a spectator (player ID starts with "spectator-")
+	if len(event.PlayerID) > 10 && event.PlayerID[:10] == "spectator-" {
+		log.Printf("[Disconnect-%s] handleGameDisconnection: Processing spectator disconnect for %s", correlationID, event.PlayerID)
+		glm.handleSpectatorDisconnection(event)
+		return
+	}
 
 	// Check if this player is already in a grace period (duplicate disconnect event)
 	glm.mutex.RLock()

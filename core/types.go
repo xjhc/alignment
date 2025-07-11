@@ -499,6 +499,106 @@ type SubmittedNightAction struct {
 	Timestamp time.Time              `json:"timestamp"`
 }
 
+// NightActionResolutionPayload represents the comprehensive payload for NIGHT_ACTIONS_RESOLVED event
+type NightActionResolutionPayload struct {
+	Summary              string                                `json:"summary"`
+	PlayerStateChanges   map[string]PlayerStateChanges        `json:"player_state_changes"`
+	ActionResults        map[string]ActionResult              `json:"action_results"`
+	BlockedPlayers       []string                             `json:"blocked_players"`
+	ConversionAttempts   []ConversionAttempt                  `json:"conversion_attempts"`
+	RoleAbilityUsages    []RoleAbilityUsage                   `json:"role_ability_usages"`
+	MiningResults        MiningResults                        `json:"mining_results"`
+	PublicAnnouncements  []string                             `json:"public_announcements"`
+	PrivateNotifications map[string][]PrivateNotification     `json:"private_notifications"`
+}
+
+// PlayerStateChanges represents all changes to a player's state during night resolution
+type PlayerStateChanges struct {
+	TokensGained        int                    `json:"tokens_gained,omitempty"`
+	TokensLost          int                    `json:"tokens_lost,omitempty"`
+	StatusMessage       string                 `json:"status_message,omitempty"`
+	Alignment           string                 `json:"alignment,omitempty"`
+	AIEquity            int                    `json:"ai_equity,omitempty"`
+	ProjectMilestones   int                    `json:"project_milestones,omitempty"`
+	HasUsedAbility      bool                   `json:"has_used_ability,omitempty"`
+	RoleUnlocked        bool                   `json:"role_unlocked,omitempty"`
+	SystemShocks        []SystemShock          `json:"system_shocks,omitempty"`
+	WasBlocked          bool                   `json:"was_blocked,omitempty"`
+	WasTargeted         bool                   `json:"was_targeted,omitempty"`
+	ActionCancelled     bool                   `json:"action_cancelled,omitempty"`
+	CustomEffects       map[string]interface{} `json:"custom_effects,omitempty"`
+}
+
+// ActionResult represents the outcome of a specific night action
+type ActionResult struct {
+	PlayerID    string                 `json:"player_id"`
+	ActionType  string                 `json:"action_type"`
+	TargetID    string                 `json:"target_id,omitempty"`
+	Success     bool                   `json:"success"`
+	BlockedBy   string                 `json:"blocked_by,omitempty"`
+	FailReason  string                 `json:"fail_reason,omitempty"`
+	Effects     map[string]interface{} `json:"effects,omitempty"`
+	Description string                 `json:"description,omitempty"`
+}
+
+// ConversionAttempt represents an AI conversion attempt and its outcome
+type ConversionAttempt struct {
+	AIID           string `json:"ai_id"`
+	TargetID       string `json:"target_id"`
+	AIEquityBefore int    `json:"ai_equity_before"`
+	AIEquityAfter  int    `json:"ai_equity_after"`
+	TargetTokens   int    `json:"target_tokens"`
+	Success        bool   `json:"success"`
+	SystemShock    string `json:"system_shock,omitempty"`
+	WasBlocked     bool   `json:"was_blocked,omitempty"`
+	BlockedBy      string `json:"blocked_by,omitempty"`
+}
+
+// RoleAbilityUsage represents a role ability being used during the night
+type RoleAbilityUsage struct {
+	PlayerID     string                 `json:"player_id"`
+	RoleType     string                 `json:"role_type"`
+	AbilityName  string                 `json:"ability_name"`
+	TargetID     string                 `json:"target_id,omitempty"`
+	Success      bool                   `json:"success"`
+	PublicEffect string                 `json:"public_effect,omitempty"`
+	WasBlocked   bool                   `json:"was_blocked,omitempty"`
+	BlockedBy    string                 `json:"blocked_by,omitempty"`
+	Effects      map[string]interface{} `json:"effects,omitempty"`
+}
+
+// MiningResults represents the aggregated mining results for the night
+type MiningResults struct {
+	TotalAttempts    int                    `json:"total_attempts"`
+	SuccessfulSlots  int                    `json:"successful_slots"`
+	AvailableSlots   int                    `json:"available_slots"`
+	LiquidityPool    int                    `json:"liquidity_pool"`
+	SuccessfulMiners []MiningAttempt        `json:"successful_miners"`
+	FailedMiners     []MiningAttempt        `json:"failed_miners"`
+	PriorityRules    map[string]interface{} `json:"priority_rules"`
+}
+
+// MiningAttempt represents a single mining attempt
+type MiningAttempt struct {
+	PlayerID        string `json:"player_id"`
+	BeneficiaryID   string `json:"beneficiary_id"`
+	TokensAwarded   int    `json:"tokens_awarded"`
+	Priority        int    `json:"priority"`
+	FailureReason   string `json:"failure_reason,omitempty"`
+	WasBlocked      bool   `json:"was_blocked,omitempty"`
+	BlockedBy       string `json:"blocked_by,omitempty"`
+}
+
+// PrivateNotification represents a private message delivered to specific players
+type PrivateNotification struct {
+	Type        string                 `json:"type"`
+	Title       string                 `json:"title,omitempty"`
+	Message     string                 `json:"message"`
+	Data        map[string]interface{} `json:"data,omitempty"`
+	Channel     string                 `json:"channel,omitempty"`
+	Urgent      bool                   `json:"urgent,omitempty"`
+}
+
 // WhistleblowerVote represents a vote by a deactivated player on crisis options
 type WhistleblowerVote struct {
 	PlayerID     string    `json:"playerID"`

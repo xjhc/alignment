@@ -25,9 +25,10 @@ import (
 type PlayerState = interfaces.PlayerState
 
 const (
-	StateIdle    = interfaces.StateIdle
-	StateInLobby = interfaces.StateInLobby
-	StateInGame  = interfaces.StateInGame
+	StateIdle       = interfaces.StateIdle
+	StateInLobby    = interfaces.StateInLobby
+	StateInGame     = interfaces.StateInGame
+	StateSpectating = interfaces.StateSpectating
 )
 
 // Input validation constants
@@ -58,8 +59,9 @@ type PlayerActor struct {
 	stateMutex   sync.RWMutex
 
 	// Current context
-	lobbyID string
-	gameID  string
+	lobbyID      string
+	gameID       string
+	isSpectating bool
 
 	// Communication channels
 	mailbox       chan interface{} // From client WebSocket
@@ -211,6 +213,12 @@ func (pa *PlayerActor) GetLobbyID() string {
 	return pa.lobbyID
 }
 
+func (pa *PlayerActor) IsSpectating() bool {
+	pa.stateMutex.RLock()
+	defer pa.stateMutex.RUnlock()
+	return pa.isSpectating
+}
+
 // isConnectionValid checks if the player's connection is in a valid state
 func (pa *PlayerActor) isConnectionValid() bool {
 	// Check if WebSocket connection is still active
@@ -284,7 +292,26 @@ func (pa *PlayerActor) TransitionToGame(gameID string) error {
 	pa.state = StateInGame
 	pa.gameID = gameID
 	pa.lobbyID = "" // Clear lobby reference
+	pa.isSpectating = false
 	log.Printf("[PlayerActor/%s] Transitioned to InGame (game: %s)", pa.playerID, gameID)
+
+	return nil
+}
+
+// TransitionToSpectating transitions the player to spectating state
+func (pa *PlayerActor) TransitionToSpectating(gameID string) error {
+	pa.stateMutex.Lock()
+	defer pa.stateMutex.Unlock()
+
+	if pa.state != StateIdle {
+		return fmt.Errorf("invalid state transition from %s to Spectating", pa.state)
+	}
+
+	pa.state = StateSpectating
+	pa.gameID = gameID
+	pa.lobbyID = "" // Clear lobby reference
+	pa.isSpectating = true
+	log.Printf("[PlayerActor/%s] Transitioned to Spectating (game: %s)", pa.playerID, gameID)
 
 	return nil
 }
@@ -298,6 +325,7 @@ func (pa *PlayerActor) TransitionToIdle() error {
 	pa.state = StateIdle
 	pa.lobbyID = ""
 	pa.gameID = ""
+	pa.isSpectating = false
 	log.Printf("[PlayerActor/%s] Transitioned from %s to Idle", pa.playerID, oldState)
 
 	return nil
@@ -476,6 +504,8 @@ func (pa *PlayerActor) handleClientAction(action core.Action) {
 		pa.handleLobbyAction(action)
 	case StateInGame:
 		pa.handleGameAction(action)
+	case StateSpectating:
+		pa.handleSpectatorAction(action)
 	default:
 		pa.sendError(fmt.Sprintf("Invalid player state: %s", currentState))
 	}
@@ -564,6 +594,16 @@ func (pa *PlayerActor) handleLeaveGame(action core.Action) {
 		}
 		pa.TransitionToIdle()
 	case StateInGame:
+		// Publish disconnection event for lifecycle manager to handle
+		if pa.eventBus != nil {
+			pa.eventBus.Publish(events.PlayerDisconnectedEvent{
+				PlayerID: pa.playerID,
+				LobbyID:  "",
+				GameID:   pa.gameID,
+			})
+		}
+		pa.TransitionToIdle()
+	case StateSpectating:
 		// Publish disconnection event for lifecycle manager to handle
 		if pa.eventBus != nil {
 			pa.eventBus.Publish(events.PlayerDisconnectedEvent{
@@ -664,6 +704,69 @@ func (pa *PlayerActor) handleSyncLobbyState(action core.Action) {
 	}
 }
 
+// handleSpectatorAction handles actions valid in Spectating state
+func (pa *PlayerActor) handleSpectatorAction(action core.Action) {
+	switch action.Type {
+	case core.ActionLeaveGame:
+		pa.handleLeaveGame(action)
+	case core.ActionPostSpectatorMessage:
+		pa.handleSpectatorChat(action)
+	default:
+		pa.sendError(fmt.Sprintf("Action %s not allowed in Spectating state", action.Type))
+	}
+}
+
+// handleSpectatorChat handles spectator chat messages
+func (pa *PlayerActor) handleSpectatorChat(action core.Action) {
+	// Apply rate limiting for spectator chat
+	if !pa.chatLimiter.Allow() {
+		pa.sendRateLimitError("You are sending messages too quickly.")
+		return
+	}
+
+	// Handle bulk message validation and processing
+	if err := pa.processBulkMessages(&action); err != nil {
+		pa.sendError(fmt.Sprintf("Invalid message format: %v", err))
+		return
+	}
+
+	// Forward to game as spectator action
+	if pa.lifecycleManager == nil {
+		pa.sendError("Lifecycle manager not available")
+		return
+	}
+
+	// Ensure the action is properly attributed to this player and game
+	action.PlayerID = pa.playerID
+	action.GameID = pa.gameID
+
+	// Send action and get response channel
+	resultChan, err := pa.lifecycleManager.SendActionToGame(pa.gameID, action)
+	if err != nil {
+		log.Printf("[PlayerActor/%s] Failed to send spectator action to game: %v", pa.playerID, err)
+		pa.sendError(fmt.Sprintf("Failed to process spectator action: %v", err))
+		return
+	}
+
+	// Wait for the result with a timeout
+	select {
+	case result := <-resultChan:
+		if result.Error != nil {
+			log.Printf("[PlayerActor/%s] Spectator action rejected by game: %v", pa.playerID, result.Error)
+			pa.sendError(fmt.Sprintf("Spectator action rejected: %v", result.Error))
+		} else if len(result.Events) > 0 {
+			if err := pa.lifecycleManager.BroadcastEventsToGame(pa.gameID, result.Events); err != nil {
+				log.Printf("[PlayerActor/%s] Failed to broadcast spectator events: %v", pa.playerID, err)
+			}
+		}
+	case <-time.After(2 * time.Second):
+		log.Printf("[PlayerActor/%s] Spectator action timed out after 2 seconds", pa.playerID)
+		pa.sendError("Spectator action timed out. The server is busy.")
+	case <-pa.ctx.Done():
+		return
+	}
+}
+
 // handleGameAction forwards actions to the game
 func (pa *PlayerActor) handleGameAction(action core.Action) {
 	// Handle special non-game actions first
@@ -750,6 +853,7 @@ func (pa *PlayerActor) handleGameAction(action core.Action) {
 		core.ActionSetSlackStatus:      true,
 		core.ActionProjectMilestones:   true,
 		core.ActionReconnect:           true,
+		core.ActionPostSpectatorMessage: true, // Allow spectator messages to be forwarded
 	}
 
 	// Check if this is a valid game action
@@ -872,6 +976,15 @@ func (pa *PlayerActor) handleDisconnect() {
 		}
 	case StateInGame:
 		log.Printf("[PlayerActor/%s] Leaving game %s", pa.playerID, pa.gameID)
+		if pa.eventBus != nil {
+			pa.eventBus.Publish(events.PlayerDisconnectedEvent{
+				PlayerID: pa.playerID,
+				LobbyID:  "",
+				GameID:   pa.gameID,
+			})
+		}
+	case StateSpectating:
+		log.Printf("[PlayerActor/%s] Leaving spectating game %s", pa.playerID, pa.gameID)
 		if pa.eventBus != nil {
 			pa.eventBus.Publish(events.PlayerDisconnectedEvent{
 				PlayerID: pa.playerID,

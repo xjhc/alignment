@@ -129,10 +129,15 @@ go build -o alignment-server ./cmd/server
 - [x] Graceful shutdown
 - [x] HTTP API for game management
 
+### ✅ Advanced Features
+- [x] Role abilities and night actions
+- [x] Mining and token mechanics
+- [x] AI conversion system with system shock
+- [x] Complete night resolution with 3-pass logic
+- [x] Comprehensive event system (30+ event types)
+
 ### 🔄 In Progress / Planned
 - [ ] AI rules engine implementation
-- [ ] Role abilities and night actions
-- [ ] Mining and token mechanics refinement
 - [ ] LLM integration via MCP protocol
 - [ ] Comprehensive test coverage
 - [ ] Load testing and optimization

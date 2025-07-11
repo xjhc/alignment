@@ -75,9 +75,10 @@ func deepCopyGameState(original *core.GameState) *core.GameState {
 
 // GameActor represents a pure game simulation engine
 type GameActor struct {
-	gameID  string
-	state   *core.GameState
-	mailbox chan interface{} // Changed to interface{} to handle both actorRequest and gameStateRequest
+	gameID     string
+	state      *core.GameState
+	spectators map[string]interfaces.PlayerActorInterface // Map of spectator ID to PlayerActor
+	mailbox    chan interface{} // Changed to interface{} to handle both actorRequest and gameStateRequest
 
 	// Context for graceful shutdown
 	ctx    context.Context
@@ -128,12 +129,13 @@ func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string,
 	}
 
 	actor := &GameActor{
-		gameID:  gameID,
-		state:   state,
-		mailbox: make(chan interface{}, 100), // Buffered channel for async requests (actorRequest and gameStateRequest)
-		ctx:     ctx,
-		cancel:  cancel,
-		rng:     rng,
+		gameID:     gameID,
+		state:      state,
+		spectators: make(map[string]interfaces.PlayerActorInterface),
+		mailbox:    make(chan interface{}, 100), // Buffered channel for async requests (actorRequest and gameStateRequest)
+		ctx:        ctx,
+		cancel:     cancel,
+		rng:        rng,
 
 		// Initialize managers with shared state
 		votingManager:           game.NewVotingManager(state),
@@ -283,6 +285,135 @@ func (ga *GameActor) CreatePlayerStateUpdateEvent(playerID string) core.Event {
 		Payload: map[string]interface{}{
 			"game_state": playerView,
 		},
+	}
+}
+
+// AddSpectator adds a spectator to the game
+func (ga *GameActor) AddSpectator(spectator interfaces.PlayerActorInterface) {
+	spectatorID := spectator.GetPlayerID()
+	ga.spectators[spectatorID] = spectator
+	
+	// Create spectator object for game state
+	spectatorObj := &core.Spectator{
+		ID:       spectatorID,
+		Name:     spectator.GetPlayerName(),
+		JoinedAt: time.Now(),
+	}
+	
+	// Add to game state
+	if ga.state.Spectators == nil {
+		ga.state.Spectators = make(map[string]*core.Spectator)
+	}
+	ga.state.Spectators[spectatorID] = spectatorObj
+	
+	// Broadcast spectator joined event to other spectators
+	spectatorJoinedEvent := core.Event{
+		ID:        fmt.Sprintf("spectator_joined_%d", time.Now().UnixNano()),
+		Type:      core.EventSpectatorJoined,
+		GameID:    ga.gameID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"spectator": spectatorObj,
+		},
+	}
+	
+	// Send to all spectators except the new one
+	for id, spec := range ga.spectators {
+		if id != spectatorID {
+			spec.SendServerMessage(spectatorJoinedEvent)
+		}
+	}
+	
+	// Send initial state snapshot to the new spectator
+	ga.sendSpectatorStateSnapshot(spectator)
+	
+	log.Printf("[GameActor/%s] Added spectator %s (%s)", ga.gameID, spectatorID, spectator.GetPlayerName())
+}
+
+// RemoveSpectator removes a spectator from the game
+func (ga *GameActor) RemoveSpectator(spectatorID string) {
+	if spectator, exists := ga.spectators[spectatorID]; exists {
+		delete(ga.spectators, spectatorID)
+		
+		// Remove from game state
+		if ga.state.Spectators != nil {
+			delete(ga.state.Spectators, spectatorID)
+		}
+		
+		// Broadcast spectator left event to remaining spectators
+		spectatorLeftEvent := core.Event{
+			ID:        fmt.Sprintf("spectator_left_%d", time.Now().UnixNano()),
+			Type:      core.EventSpectatorLeft,
+			GameID:    ga.gameID,
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"spectator_id": spectatorID,
+				"spectator_name": spectator.GetPlayerName(),
+			},
+		}
+		
+		// Send to all remaining spectators
+		for _, spec := range ga.spectators {
+			spec.SendServerMessage(spectatorLeftEvent)
+		}
+		
+		log.Printf("[GameActor/%s] Removed spectator %s", ga.gameID, spectatorID)
+	}
+}
+
+// sendSpectatorStateSnapshot sends the current game state to a spectator (filtered for public info only)
+func (ga *GameActor) sendSpectatorStateSnapshot(spectator interfaces.PlayerActorInterface) {
+	// Create a filtered state for spectators (public info only)
+	publicState := ga.createSpectatorGameView()
+	
+	spectatorStateEvent := core.Event{
+		ID:        fmt.Sprintf("spectator_state_%d", time.Now().UnixNano()),
+		Type:      core.EventSpectatorStateSnapshot,
+		GameID:    ga.gameID,
+		PlayerID:  spectator.GetPlayerID(),
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"public_game_state": publicState,
+		},
+	}
+	
+	spectator.SendServerMessage(spectatorStateEvent)
+}
+
+// createSpectatorGameView creates a public view of the game state for spectators
+func (ga *GameActor) createSpectatorGameView() core.PublicGameState {
+	publicPlayers := make([]core.PublicPlayerInfo, 0, len(ga.state.Players))
+	tokenCounts := make(map[string]int)
+	
+	for _, player := range ga.state.Players {
+		publicPlayers = append(publicPlayers, core.PublicPlayerInfo{
+			ID:            player.ID,
+			Name:          player.Name,
+			JobTitle:      player.JobTitle,
+			IsActive:      player.IsAlive,
+			StatusMessage: player.StatusMessage,
+			TokenCount:    player.Tokens,
+		})
+		tokenCounts[player.ID] = player.Tokens
+	}
+	
+	// Filter chat history to only include public messages
+	publicChatHistory := make([]core.ChatMessage, 0)
+	for _, msg := range ga.state.ChatMessages {
+		if msg.ChannelID == "#war-room" || msg.ChannelID == "" {
+			publicChatHistory = append(publicChatHistory, msg)
+		}
+	}
+	
+	return core.PublicGameState{
+		GameID:       ga.gameID,
+		Phase:        ga.state.Phase.Type,
+		DayNumber:    ga.state.DayNumber,
+		Players:      publicPlayers,
+		TokenCounts:  tokenCounts,
+		PhaseEndTime: ga.state.Phase.StartTime.Add(ga.state.Phase.Duration),
+		CrisisEvent:  ga.state.CrisisEvent,
+		ChatHistory:  publicChatHistory,
 	}
 }
 
@@ -1234,47 +1365,80 @@ func (ga *GameActor) handleSpectatorMessage(action core.Action) ([]core.Event, e
 		return nil, fmt.Errorf("spectator %s not found", action.PlayerID)
 	}
 
-	// Extract message content
-	content, ok := action.Payload["content"].(string)
-	if !ok {
-		return nil, fmt.Errorf("content field is required and must be a string")
+	// Handle bulk messages (extract from messages array)
+	var messagesToProcess []map[string]interface{}
+	if messagesPayload, ok := action.Payload["messages"]; ok {
+		// Handle bulk messages format
+		messagesInterface, ok := messagesPayload.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("messages field must be an array of objects")
+		}
+
+		for i, msg := range messagesInterface {
+			msgData, ok := msg.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("message at index %d is not a valid object", i)
+			}
+			messagesToProcess = append(messagesToProcess, msgData)
+		}
+	} else {
+		// Handle single message (legacy support)
+		content, ok := action.Payload["content"].(string)
+		if !ok {
+			return nil, fmt.Errorf("content field is required and must be a string")
+		}
+		messagesToProcess = append(messagesToProcess, map[string]interface{}{
+			"message": content,
+		})
 	}
 
-	// Validate message length
-	if len(content) == 0 {
-		return nil, fmt.Errorf("message content cannot be empty")
-	}
-	if len(content) > 500 {
-		return nil, fmt.Errorf("message too long: %d characters (max 500)", len(content))
-	}
+	var events []core.Event
+	
+	// Process each message
+	for _, msgData := range messagesToProcess {
+		content, ok := msgData["message"].(string)
+		if !ok {
+			return nil, fmt.Errorf("message content must be a string")
+		}
 
-	// Create chat message
-	chatMessage := core.ChatMessage{
-		ID:         fmt.Sprintf("spectator-msg-%d", time.Now().UnixNano()),
-		PlayerID:   spectator.ID,
-		PlayerName: spectator.Name,
-		Message:    content,
-		Timestamp:  time.Now(),
-		IsSystem:   false,
-		ChannelID:  "#spectators",
-	}
+		// Validate message length
+		if len(content) == 0 {
+			return nil, fmt.Errorf("message content cannot be empty")
+		}
+		if len(content) > 500 {
+			return nil, fmt.Errorf("message too long: %d characters (max 500)", len(content))
+		}
 
-	// Create event
-	event := core.Event{
-		ID:        fmt.Sprintf("spectator-chat-%d", time.Now().UnixNano()),
-		Type:      core.EventSpectatorChatMessage,
-		GameID:    ga.gameID,
-		PlayerID:  "", // Broadcast to spectators only
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"message": chatMessage,
-		},
+		// Create chat message
+		chatMessage := core.ChatMessage{
+			ID:         fmt.Sprintf("spectator-msg-%d", time.Now().UnixNano()),
+			PlayerID:   spectator.ID,
+			PlayerName: spectator.Name,
+			Message:    content,
+			Timestamp:  time.Now(),
+			IsSystem:   false,
+			ChannelID:  "#spectators",
+		}
+
+		// Create event
+		event := core.Event{
+			ID:        fmt.Sprintf("spectator-chat-%d", time.Now().UnixNano()),
+			Type:      core.EventSpectatorChatMessage,
+			GameID:    ga.gameID,
+			PlayerID:  "", // Broadcast to spectators only
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"message": chatMessage,
+			},
+		}
+
+		events = append(events, event)
 	}
 
 	// Broadcast only to spectators
-	ga.broadcastToSpectators([]core.Event{event})
+	ga.broadcastToSpectators(events)
 
-	return []core.Event{event}, nil
+	return events, nil
 }
 
 // handleLegacyMessageFormat handles the old string array format for backward compatibility
@@ -2691,62 +2855,7 @@ Use /help during any phase to get specific guidance for that phase.
 	}
 }
 
-// AddSpectator adds a spectator to the game
-func (ga *GameActor) AddSpectator(spectatorID, spectatorName string) error {
-	// Create and add the spectator to the game state
-	spectator := &core.Spectator{
-		ID:       spectatorID,
-		Name:     spectatorName,
-		JoinedAt: time.Now(),
-	}
-	
-	ga.state.Spectators[spectatorID] = spectator
-	
-	// Notify other spectators about the new spectator
-	spectatorJoinedEvent := core.Event{
-		ID:        fmt.Sprintf("spectator-joined-%d", time.Now().UnixNano()),
-		Type:      core.EventSpectatorJoined,
-		GameID:    ga.gameID,
-		PlayerID:  "", // Broadcast to spectators only
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"spectator": spectator,
-		},
-	}
-	
-	// Broadcast the event only to spectators
-	ga.broadcastToSpectators([]core.Event{spectatorJoinedEvent})
-	
-	return nil
-}
 
-// RemoveSpectator removes a spectator from the game
-func (ga *GameActor) RemoveSpectator(spectatorID string) error {
-	// Check if spectator exists
-	if _, exists := ga.state.Spectators[spectatorID]; !exists {
-		return fmt.Errorf("spectator %s not found", spectatorID)
-	}
-	
-	// Remove from game state
-	delete(ga.state.Spectators, spectatorID)
-	
-	// Notify other spectators about the spectator leaving
-	spectatorLeftEvent := core.Event{
-		ID:        fmt.Sprintf("spectator-left-%d", time.Now().UnixNano()),
-		Type:      core.EventSpectatorLeft,
-		GameID:    ga.gameID,
-		PlayerID:  "", // Broadcast to spectators only
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"player_id": spectatorID,
-		},
-	}
-	
-	// Broadcast the event only to spectators
-	ga.broadcastToSpectators([]core.Event{spectatorLeftEvent})
-	
-	return nil
-}
 
 // GetSpectatorStateSnapshot creates a filtered state snapshot for spectators
 func (ga *GameActor) GetSpectatorStateSnapshot() (*core.PublicGameState, []core.Spectator) {
@@ -2807,17 +2916,11 @@ func (ga *GameActor) filterGameStateForSpectator() *core.PublicGameState {
 
 // broadcastToSpectators sends events only to spectators
 func (ga *GameActor) broadcastToSpectators(events []core.Event) {
-	if ga.eventCallback != nil {
-		// Use the existing event callback but mark events as spectator-only
-		// The actual filtering will be done by the WebSocket manager based on connection type
-		for _, event := range events {
-			// Mark events as spectator-only by setting a special marker in the payload
-			if event.Payload == nil {
-				event.Payload = make(map[string]interface{})
-			}
-			event.Payload["spectator_only"] = true
+	// Send directly to spectators via their PlayerActor connections
+	for _, event := range events {
+		for _, spectator := range ga.spectators {
+			spectator.SendServerMessage(event)
 		}
-		ga.eventCallback(ga.gameID, events)
 	}
 }
 

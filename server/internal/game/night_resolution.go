@@ -1193,22 +1193,35 @@ func (nrm *NightResolutionManager) resolveConvertAction(playerID string, action 
 
 // createNightResolutionSummary creates a comprehensive summary event from structured results
 func (nrm *NightResolutionManager) createNightResolutionSummary(results *NightActionResults) core.Event {
+	// Convert the legacy results structure to the new comprehensive payload format
+	payload := nrm.convertToNewPayloadFormat(results)
+	
 	// Create comprehensive summary payload with structured information
 	summary := map[string]interface{}{
+		"summary":               payload.Summary,
+		"player_state_changes":  payload.PlayerStateChanges,
+		"action_results":        payload.ActionResults,
+		"blocked_players":       payload.BlockedPlayers,
+		"conversion_attempts":   payload.ConversionAttempts,
+		"role_ability_usages":   payload.RoleAbilityUsages,
+		"mining_results":        payload.MiningResults,
+		"public_announcements":  payload.PublicAnnouncements,
+		"private_notifications": payload.PrivateNotifications,
+		// Legacy fields for backward compatibility
 		"night_number":         nrm.gameState.DayNumber,
 		"total_actions":        len(nrm.gameState.NightActions),
-		"blocked_players":      results.BlockedPlayers,
-		"converted_players":    results.ConvertedPlayers,
-		"shocked_players":      results.ShockedPlayers,
-		"eliminated_players":   results.EliminatedPlayers,
-		"mining_results":       results.MiningResults,
-		"role_ability_results": results.RoleAbilityResults,
-		"milestone_results":    results.MilestoneResults,
-		"failed_actions":       results.FailedActions,
-		"player_state_changes": results.PlayerStateChanges,
-		"phase_end":            true,
-		"next_phase":           "SITREP",
-		"summary_message":      nrm.createHumanReadableSummary(results),
+		"blocked_players_legacy": results.BlockedPlayers,
+		"converted_players":     results.ConvertedPlayers,
+		"shocked_players":       results.ShockedPlayers,
+		"eliminated_players":    results.EliminatedPlayers,
+		"mining_results_legacy": results.MiningResults,
+		"role_ability_results":  results.RoleAbilityResults,
+		"milestone_results":     results.MilestoneResults,
+		"failed_actions":        results.FailedActions,
+		"player_state_changes_legacy": results.PlayerStateChanges,
+		"phase_end":             true,
+		"next_phase":            "SITREP",
+		"summary_message":       nrm.createHumanReadableSummary(results),
 	}
 
 	return core.Event{
@@ -1455,4 +1468,171 @@ func (nrm *NightResolutionManager) getRoleDisplayName(roleType core.RoleType) st
 	default:
 		return "Unknown Role"
 	}
+}
+
+// convertToNewPayloadFormat converts legacy results to the new comprehensive payload format
+func (nrm *NightResolutionManager) convertToNewPayloadFormat(results *NightActionResults) *core.NightActionResolutionPayload {
+	payload := &core.NightActionResolutionPayload{
+		Summary:              nrm.createHumanReadableSummary(results),
+		PlayerStateChanges:   make(map[string]core.PlayerStateChanges),
+		ActionResults:        make(map[string]core.ActionResult),
+		BlockedPlayers:       []string{},
+		ConversionAttempts:   []core.ConversionAttempt{},
+		RoleAbilityUsages:    []core.RoleAbilityUsage{},
+		MiningResults:        core.MiningResults{},
+		PublicAnnouncements:  []string{},
+		PrivateNotifications: make(map[string][]core.PrivateNotification),
+	}
+	
+	// Convert blocked players
+	for _, blocked := range results.BlockedPlayers {
+		if playerID, ok := blocked["player_id"].(string); ok {
+			payload.BlockedPlayers = append(payload.BlockedPlayers, playerID)
+		}
+	}
+	
+	// Convert conversion attempts
+	for _, conversion := range results.ConvertedPlayers {
+		if playerID, ok := conversion["player_id"].(string); ok {
+			attempt := core.ConversionAttempt{
+				TargetID: playerID,
+				Success:  true,
+			}
+			if converterID, ok := conversion["converter_id"].(string); ok {
+				attempt.AIID = converterID
+			}
+			if prevEquity, ok := conversion["previous_equity"].(int); ok {
+				attempt.AIEquityBefore = prevEquity
+			}
+			if newEquity, ok := conversion["new_equity"].(int); ok {
+				attempt.AIEquityAfter = newEquity
+			}
+			payload.ConversionAttempts = append(payload.ConversionAttempts, attempt)
+		}
+	}
+	
+	// Convert shocked players to failed conversion attempts
+	for _, shock := range results.ShockedPlayers {
+		if playerID, ok := shock["player_id"].(string); ok {
+			attempt := core.ConversionAttempt{
+				TargetID: playerID,
+				Success:  false,
+			}
+			if converterID, ok := shock["converter_id"].(string); ok {
+				attempt.AIID = converterID
+			}
+			if shockType, ok := shock["shock_type"].(string); ok {
+				attempt.SystemShock = shockType
+			}
+			payload.ConversionAttempts = append(payload.ConversionAttempts, attempt)
+		}
+	}
+	
+	// Convert role ability results
+	for _, ability := range results.RoleAbilityResults {
+		if playerID, ok := ability["player_id"].(string); ok {
+			usage := core.RoleAbilityUsage{
+				PlayerID: playerID,
+				Success:  true,
+			}
+			if abilityType, ok := ability["ability_type"].(string); ok {
+				usage.AbilityName = abilityType
+			}
+			if targetID, ok := ability["target_id"].(string); ok {
+				usage.TargetID = targetID
+			}
+			if message, ok := ability["message"].(string); ok {
+				usage.PublicEffect = message
+				payload.PublicAnnouncements = append(payload.PublicAnnouncements, message)
+			}
+			payload.RoleAbilityUsages = append(payload.RoleAbilityUsages, usage)
+		}
+	}
+	
+	// Convert mining results
+	payload.MiningResults = core.MiningResults{
+		TotalAttempts:    len(results.MiningResults),
+		SuccessfulSlots:  len(results.MiningResults),
+		AvailableSlots:   nrm.calculateAvailableSlots(),
+		LiquidityPool:    nrm.calculateAvailableSlots(),
+		SuccessfulMiners: []core.MiningAttempt{},
+		FailedMiners:     []core.MiningAttempt{},
+	}
+	
+	for _, mining := range results.MiningResults {
+		if playerID, ok := mining["miner_id"].(string); ok {
+			attempt := core.MiningAttempt{
+				PlayerID:      playerID,
+				TokensAwarded: 1,
+				Priority:      1,
+			}
+			if targetID, ok := mining["target_id"].(string); ok {
+				attempt.BeneficiaryID = targetID
+			}
+			if success, ok := mining["success"].(bool); ok && success {
+				payload.MiningResults.SuccessfulMiners = append(payload.MiningResults.SuccessfulMiners, attempt)
+			} else {
+				attempt.TokensAwarded = 0
+				attempt.FailureReason = "Mining pool exhausted"
+				payload.MiningResults.FailedMiners = append(payload.MiningResults.FailedMiners, attempt)
+			}
+		}
+	}
+	
+	// Convert player state changes
+	for playerID, changes := range results.PlayerStateChanges {
+		stateChange := core.PlayerStateChanges{}
+		
+		if tokensGained, ok := changes["tokens_gained"].(int); ok {
+			stateChange.TokensGained = tokensGained
+		}
+		if statusMessage, ok := changes["status_message"].(string); ok {
+			stateChange.StatusMessage = statusMessage
+		}
+		if alignment, ok := changes["alignment"].(string); ok {
+			stateChange.Alignment = alignment
+		}
+		if aiEquity, ok := changes["ai_equity"].(int); ok {
+			stateChange.AIEquity = aiEquity
+		}
+		if hasUsedAbility, ok := changes["has_used_ability"].(bool); ok {
+			stateChange.HasUsedAbility = hasUsedAbility
+		}
+		if projectMilestones, ok := changes["project_milestones"].(int); ok {
+			stateChange.ProjectMilestones = projectMilestones
+		}
+		if roleUnlocked, ok := changes["role_unlocked"].(bool); ok {
+			stateChange.RoleUnlocked = roleUnlocked
+		}
+		if bootcampPoints, ok := changes["bootcamp_points"].(int); ok {
+			stateChange.CustomEffects = map[string]interface{}{
+				"bootcamp_points": bootcampPoints,
+			}
+		}
+		
+		payload.PlayerStateChanges[playerID] = stateChange
+	}
+	
+	return payload
+}
+
+// calculateAvailableSlots calculates available mining slots based on current rules
+func (nrm *NightResolutionManager) calculateAvailableSlots() int {
+	livingHumans := 0
+	for _, player := range nrm.gameState.Players {
+		if player.IsAlive && player.ControlType == "HUMAN" {
+			livingHumans++
+		}
+	}
+	
+	baseSlots := livingHumans / 2
+	
+	// Apply liaison protocol bonus if active
+	if nrm.gameState.CrisisEvent != nil && nrm.gameState.CrisisEvent.Effects != nil {
+		if bonusSlots, exists := nrm.gameState.CrisisEvent.Effects["liaison_mining_bonus"].(int); exists {
+			baseSlots += bonusSlots
+		}
+	}
+	
+	return baseSlots
 }

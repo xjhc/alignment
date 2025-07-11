@@ -234,14 +234,16 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
             </div>
           </div>
         </div>
-        {(player.statusMessage || player.connectionStatus === 'DISCONNECTED') && (
+        {(player.statusMessage || player.connectionStatus === 'DISCONNECTED' || (!player.isAlive && player.partingShot)) && (
           <div className={`text-[11px] italic mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap leading-tight ${
             player.statusMessage === 'ABANDONED' ? 'text-red-500 font-semibold' :
             player.connectionStatus === 'DISCONNECTED' ? 'text-gray-500 font-semibold' :
+            !player.isAlive && player.partingShot ? 'text-yellow-400 font-semibold' :
             player.systemShocks?.some(shock => shock.isActive) ? 'text-pink-500' : 'text-text-muted'
           } ${!player.isAlive ? 'opacity-80' : ''}`}>
             {player.statusMessage === 'ABANDONED' ? '🚪 ABANDONED' : 
-             player.connectionStatus === 'DISCONNECTED' ? '🔌 DISCONNECTED' : 
+             player.connectionStatus === 'DISCONNECTED' ? '🔌 DISCONNECTED' :
+             !player.isAlive && player.partingShot ? `💀 "${player.partingShot}"` :
              `"${player.statusMessage}"`}
           </div>
         )}

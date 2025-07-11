@@ -20,6 +20,118 @@ func NewKPIManager(gameState *core.GameState) *KPIManager {
 	}
 }
 
+// AssignKPIs assigns a random KPI to each human player
+func (km *KPIManager) AssignKPIs() []core.Event {
+	var events []core.Event
+	
+	// Available KPI types
+	kpiTypes := []core.KPIType{
+		core.KPICapitalist,
+		core.KPIGuardian,
+		core.KPIInquisitor,
+		core.KPISuccessionPlanner,
+		core.KPIScapegoat,
+	}
+	
+	// Shuffle KPI types to randomize assignment
+	for i := len(kpiTypes) - 1; i > 0; i-- {
+		j := int(getKPICurrentTime().UnixNano()) % (i + 1)
+		kpiTypes[i], kpiTypes[j] = kpiTypes[j], kpiTypes[i]
+	}
+	
+	// Assign KPIs to human players
+	kpiIndex := 0
+	for playerID, player := range km.gameState.Players {
+		if player.Alignment == "HUMAN" && player.ControlType == "HUMAN" {
+			if kpiIndex < len(kpiTypes) {
+				kpiType := kpiTypes[kpiIndex]
+				player.PersonalKPI = km.createKPI(kpiType)
+				
+				// Generate KPI assignment event
+				assignmentEvent := core.Event{
+					ID:        fmt.Sprintf("kpi_assigned_%s_%d", playerID, getKPICurrentTime().UnixNano()),
+					Type:      core.EventKPIAssigned,
+					GameID:    km.gameState.ID,
+					PlayerID:  playerID,
+					Timestamp: getKPICurrentTime(),
+					Payload: map[string]interface{}{
+						"kpi_type":    string(kpiType),
+						"description": player.PersonalKPI.Description,
+						"target":      player.PersonalKPI.Target,
+						"reward":      player.PersonalKPI.Reward,
+					},
+				}
+				events = append(events, assignmentEvent)
+				
+				log.Printf("[KPIManager] Assigned %s KPI to player %s", kpiType, playerID)
+				kpiIndex++
+			}
+		}
+	}
+	
+	return events
+}
+
+// createKPI creates a PersonalKPI struct for a given KPI type
+func (km *KPIManager) createKPI(kpiType core.KPIType) *core.PersonalKPI {
+	switch kpiType {
+	case core.KPICapitalist:
+		return &core.PersonalKPI{
+			Type:        core.KPICapitalist,
+			Description: "End the game with the most tokens",
+			Progress:    0,
+			Target:      1, // Binary: have most tokens or not
+			IsCompleted: false,
+			Reward:      "Alternate win condition: Win if you have the most tokens",
+		}
+	case core.KPIGuardian:
+		return &core.PersonalKPI{
+			Type:        core.KPIGuardian,
+			Description: "Keep the CISO alive until Day 4",
+			Progress:    0,
+			Target:      4, // Target day
+			IsCompleted: false,
+			Reward:      "Alternate win condition: Win if CISO survives to Day 4",
+		}
+	case core.KPIInquisitor:
+		return &core.PersonalKPI{
+			Type:        core.KPIInquisitor,
+			Description: "Vote correctly to eliminate AI players 3 times",
+			Progress:    0,
+			Target:      3, // Number of correct votes
+			IsCompleted: false,
+			Reward:      "Gain 2 extra tokens for each correct vote",
+		}
+	case core.KPISuccessionPlanner:
+		return &core.PersonalKPI{
+			Type:        core.KPISuccessionPlanner,
+			Description: "End the game with exactly 2 humans alive",
+			Progress:    0,
+			Target:      2, // Exact number of humans
+			IsCompleted: false,
+			Reward:      "Alternate win condition: Win if exactly 2 humans remain",
+		}
+	case core.KPIScapegoat:
+		return &core.PersonalKPI{
+			Type:        core.KPIScapegoat,
+			Description: "Get eliminated by unanimous vote",
+			Progress:    0,
+			Target:      1, // Binary: eliminated unanimously or not
+			IsCompleted: false,
+			Reward:      "Alternate win condition: Win if eliminated unanimously",
+		}
+	default:
+		return &core.PersonalKPI{
+			Type:        kpiType,
+			Description: "Unknown KPI",
+			Progress:    0,
+			Target:      1,
+			IsCompleted: false,
+			Reward:      "KPI completion bonus",
+		}
+	}
+}
+
 // TrackPlayerEliminated handles KPI progress when a player is eliminated
 func (km *KPIManager) TrackPlayerEliminated(eliminatedPlayerID string) []core.Event {
 	var events []core.Event
