@@ -571,11 +571,11 @@ func (gs *GameState) applyChatMessage(event Event) {
 		message.PlayerName = playerName
 	}
 
-	if playerID, ok := msgData["playerID"].(string); ok && message.PlayerID == "" {
-		// If event.PlayerID is empty, use playerID from payload
+	if playerID, ok := msgData["playerID"].(string); ok && playerID != "" {
+		// Use playerID from payload if available
 		message.PlayerID = playerID
-	} else if senderID, ok := msgData["sender_id"].(string); ok && message.PlayerID == "" {
-		// If event.PlayerID is empty, use sender_id from payload
+	} else if senderID, ok := msgData["sender_id"].(string); ok && senderID != "" {
+		// Use sender_id from payload if available
 		message.PlayerID = senderID
 	}
 
@@ -599,7 +599,7 @@ func (gs *GameState) applyChatMessage(event Event) {
 
 	// Handle timestamp from nested structure
 	if timestampStr, ok := msgData["timestamp"].(string); ok {
-		if timestamp, err := time.Parse(time.RFC3339, timestampStr); err == nil {
+		if timestamp, err := time.Parse(time.RFC3339Nano, timestampStr); err == nil {
 			message.Timestamp = timestamp
 		}
 	}
@@ -2129,7 +2129,42 @@ func processSkipVoteAction(gameState GameState, action Action, currentTime time.
 		return nil, fmt.Errorf("player %s has already voted to skip", action.PlayerID)
 	}
 
-	// Generate skip vote updated event
+	// Calculate the new skip vote state
+	newSkipVotes := make(map[string]bool)
+	if gameState.SkipVotes != nil {
+		for k, v := range gameState.SkipVotes {
+			newSkipVotes[k] = v
+		}
+	}
+	newSkipVotes[action.PlayerID] = true
+	
+	// Calculate current votes and required votes
+	currentVotes := len(newSkipVotes)
+	
+	// Count living human players to determine required votes
+	livingHumans := 0
+	for _, player := range gameState.Players {
+		if player.IsAlive && player.ControlType == "HUMAN" {
+			livingHumans++
+		}
+	}
+	requiredVotes := livingHumans
+	
+	// Get list of voters for transparency
+	voters := make([]string, 0, len(newSkipVotes))
+	for voterID := range newSkipVotes {
+		if player, exists := gameState.Players[voterID]; exists {
+			voters = append(voters, player.Name)
+		}
+	}
+	
+	// Get the voting player's name
+	playerName := ""
+	if player, exists := gameState.Players[action.PlayerID]; exists {
+		playerName = player.Name
+	}
+	
+	// Generate skip vote updated event with complete state
 	events := []Event{
 		{
 			ID:        fmt.Sprintf("skip_vote_%s_%d", action.PlayerID, currentTime.UnixNano()),
@@ -2138,7 +2173,11 @@ func processSkipVoteAction(gameState GameState, action Action, currentTime time.
 			GameID:    gameState.ID,
 			Timestamp: currentTime,
 			Payload: map[string]interface{}{
-				"has_voted": true,
+				"current_votes":  currentVotes,
+				"required_votes": requiredVotes,
+				"voters":         voters,
+				"has_voted":      true,
+				"player_name":    playerName,
 			},
 		},
 	}

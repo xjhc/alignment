@@ -3,6 +3,8 @@ package core
 import (
 	"testing"
 	"time"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestApplyEvent_PlayerJoined(t *testing.T) {
@@ -675,4 +677,49 @@ func TestApplyEvent_ChatMessage_NestedPayload(t *testing.T) {
 	if chatMsg.IsSystem != false {
 		t.Errorf("Expected IsSystem false, got %v", chatMsg.IsSystem)
 	}
+}
+
+func TestApplyEvent_ChatMessage_NestedPayload_BugFix(t *testing.T) {
+	// Setup: Create an initial state and a CHAT_MESSAGE event with a nested payload,
+	// mirroring the structure from the bug report.
+	gameState := NewGameState("test-game", time.Now())
+	gameState.Players["player-1"] = &Player{ID: "player-1", Name: "Kelly", IsAlive: true}
+
+	now := time.Now()
+	event := Event{
+		ID:        "event-1",
+		Type:      EventChatMessage,
+		GameID:    "test-game",
+		PlayerID:  "player-1", // This top-level ID might be from the session.
+		Timestamp: now,
+		Payload: map[string]interface{}{
+			"channel_id":         "#war-room",
+			"client_message_id":  "1752251515357_q50ckoe8m",
+			"day_number":         float64(1), // JSON unmarshals numbers to float64
+			"phase":              "SITREP",
+			"message": map[string]interface{}{
+				"id":         "msg-1752251515631258344",
+				"playerID":   "guest:924472f5-652f-4cb0-bb18-881e79dc503c", // The authoritative ID
+				"playerName": "Kelly",
+				"message":    "4",
+				"isSystem":   false,
+				"channelID":  "#war-room",
+				"timestamp":  now.Format(time.RFC3339Nano),
+			},
+		},
+	}
+
+	// Act: Apply the event using the refactored function.
+	newState := ApplyEvent(*gameState, event)
+
+	// Assert: Verify that the chat message was added to the state correctly.
+	require.Len(t, newState.ChatMessages, 1, "A chat message should have been added")
+
+	chatMsg := newState.ChatMessages[0]
+	assert.Equal(t, "msg-1752251515631258344", chatMsg.ID, "Message ID should be populated from the nested object")
+	assert.Equal(t, "guest:924472f5-652f-4cb0-bb18-881e79dc503c", chatMsg.PlayerID, "PlayerID should be populated from the nested object")
+	assert.Equal(t, "Kelly", chatMsg.PlayerName, "PlayerName should be populated")
+	assert.Equal(t, "4", chatMsg.Message, "Message content should be populated")
+	assert.Equal(t, "#war-room", chatMsg.ChannelID, "ChannelID should be populated")
+	assert.False(t, chatMsg.IsSystem, "IsSystem flag should be populated")
 }

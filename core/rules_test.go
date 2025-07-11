@@ -4,76 +4,74 @@ package core
 import (
 	"testing"
 	"time"
-
-	"github.com/xjhc/alignment/core"
 )
 
 func TestCanPlayerVote(t *testing.T) {
 	testCases := []struct {
 		name     string
-		player   core.Player
-		phase    core.PhaseType
+		player   Player
+		phase    PhaseType
 		expected bool
 	}{
 		{
 			name: "Alive player can vote in nomination",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
 			},
-			phase:    core.PhaseNomination,
+			phase:    PhaseNomination,
 			expected: true,
 		},
 		{
 			name: "Dead player cannot vote",
-			player: core.Player{
+			player: Player{
 				IsAlive: false,
 			},
-			phase:    core.PhaseNomination,
+			phase:    PhaseNomination,
 			expected: false,
 		},
 		{
 			name: "Alive player cannot vote in discussion",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
 			},
-			phase:    core.PhaseDiscussion,
+			phase:    PhaseDiscussion,
 			expected: false,
 		},
 		{
 			name: "Silenced player cannot vote",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
-				SystemShocks: []core.SystemShock{
+				SystemShocks: []SystemShock{
 					{
-						Type:      core.ShockForcedSilence,
+						Type:      ShockForcedSilence,
 						IsActive:  true,
 						ExpiresAt: time.Now().Add(1 * time.Hour),
 					},
 				},
 			},
-			phase:    core.PhaseNomination,
+			phase:    PhaseNomination,
 			expected: false,
 		},
 		{
 			name: "Player with expired shock can vote",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
-				SystemShocks: []core.SystemShock{
+				SystemShocks: []SystemShock{
 					{
-						Type:      core.ShockForcedSilence,
+						Type:      ShockForcedSilence,
 						IsActive:  true,
 						ExpiresAt: time.Now().Add(-1 * time.Hour), // Expired
 					},
 				},
 			},
-			phase:    core.PhaseNomination,
+			phase:    PhaseNomination,
 			expected: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.CanPlayerVote(tc.player, tc.phase, time.Now())
+			result := CanPlayerVote(tc.player, tc.phase, time.Now())
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
@@ -84,30 +82,30 @@ func TestCanPlayerVote(t *testing.T) {
 func TestCanPlayerSendMessage(t *testing.T) {
 	testCases := []struct {
 		name     string
-		player   core.Player
+		player   Player
 		expected bool
 	}{
 		{
 			name: "Alive player can send message",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
 			},
 			expected: true,
 		},
 		{
 			name: "Dead player cannot send message",
-			player: core.Player{
+			player: Player{
 				IsAlive: false,
 			},
 			expected: false,
 		},
 		{
 			name: "Silenced player cannot send message",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
-				SystemShocks: []core.SystemShock{
+				SystemShocks: []SystemShock{
 					{
-						Type:      core.ShockForcedSilence,
+						Type:      ShockForcedSilence,
 						IsActive:  true,
 						ExpiresAt: time.Now().Add(1 * time.Hour),
 					},
@@ -119,7 +117,7 @@ func TestCanPlayerSendMessage(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.CanPlayerSendMessage(tc.player, time.Now())
+			result := CanPlayerSendMessage(tc.player, time.Now())
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
@@ -130,82 +128,82 @@ func TestCanPlayerSendMessage(t *testing.T) {
 func TestCanPlayerUseNightAction(t *testing.T) {
 	testCases := []struct {
 		name       string
-		player     core.Player
-		actionType core.NightActionType
+		player     Player
+		actionType NightActionType
 		expected   bool
 	}{
 		{
 			name: "Alive player can mine",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
 			},
-			actionType: core.ActionMine,
+			actionType: ActionMine,
 			expected:   true,
 		},
 		{
 			name: "AI player can convert",
-			player: core.Player{
+			player: Player{
 				IsAlive:   true,
 				Alignment: "ALIGNED",
 			},
-			actionType: core.ActionConvert,
+			actionType: ActionConvert,
 			expected:   true,
 		},
 		{
 			name: "Human player cannot convert",
-			player: core.Player{
+			player: Player{
 				IsAlive:   true,
 				Alignment: "HUMAN",
 			},
-			actionType: core.ActionConvert,
+			actionType: ActionConvert,
 			expected:   false,
 		},
 		{
 			name: "CISO can investigate",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
-				Role: &core.Role{
-					Type:       core.RoleCISO,
+				Role: &Role{
+					Type:       RoleCISO,
 					IsUnlocked: true,
 				},
 				HasUsedAbility: false,
 			},
-			actionType: core.ActionInvestigate,
+			actionType: ActionInvestigate,
 			expected:   true,
 		},
 		{
 			name: "CISO cannot investigate if ability used",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
-				Role: &core.Role{
-					Type:       core.RoleCISO,
+				Role: &Role{
+					Type:       RoleCISO,
 					IsUnlocked: true,
 				},
 				HasUsedAbility: true,
 			},
-			actionType: core.ActionInvestigate,
+			actionType: ActionInvestigate,
 			expected:   false,
 		},
 		{
 			name: "Action locked player cannot perform actions",
-			player: core.Player{
+			player: Player{
 				IsAlive: true,
-				SystemShocks: []core.SystemShock{
+				SystemShocks: []SystemShock{
 					{
-						Type:      core.ShockActionLock,
+						Type:      ShockActionLock,
 						IsActive:  true,
 						ExpiresAt: time.Now().Add(1 * time.Hour),
 					},
 				},
 			},
-			actionType: core.ActionMine,
+			actionType: ActionMine,
 			expected:   false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.CanPlayerUseNightAction(tc.player, tc.actionType, time.Now())
+			result := CanPlayerUseNightAction(tc.player, tc.actionType, time.Now())
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
@@ -216,14 +214,14 @@ func TestCanPlayerUseNightAction(t *testing.T) {
 func TestGetVoteWinner(t *testing.T) {
 	testCases := []struct {
 		name           string
-		voteState      core.VoteState
+		voteState      VoteState
 		threshold      float64
 		expectedWinner string
 		expectedFound  bool
 	}{
 		{
 			name: "Clear winner above threshold",
-			voteState: core.VoteState{
+			voteState: VoteState{
 				Results: map[string]int{
 					"player-1": 6,
 					"player-2": 2,
@@ -240,7 +238,7 @@ func TestGetVoteWinner(t *testing.T) {
 		},
 		{
 			name: "No winner meets threshold",
-			voteState: core.VoteState{
+			voteState: VoteState{
 				Results: map[string]int{
 					"player-1": 2,
 					"player-2": 2,
@@ -257,7 +255,7 @@ func TestGetVoteWinner(t *testing.T) {
 		},
 		{
 			name: "Empty vote state",
-			voteState: core.VoteState{
+			voteState: VoteState{
 				Results:      map[string]int{},
 				TokenWeights: map[string]int{},
 			},
@@ -269,7 +267,7 @@ func TestGetVoteWinner(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			winner, found := core.GetVoteWinner(tc.voteState, tc.threshold)
+			winner, found := GetVoteWinner(tc.voteState, tc.threshold)
 			if winner != tc.expectedWinner {
 				t.Errorf("Expected winner '%s', got '%s'", tc.expectedWinner, winner)
 			}
@@ -281,20 +279,20 @@ func TestGetVoteWinner(t *testing.T) {
 }
 
 func TestCalculateMiningSuccess(t *testing.T) {
-	gameState := core.GameState{
+	gameState := GameState{
 		ID:        "test-game",
 		DayNumber: 1,
 	}
 
 	testCases := []struct {
 		name       string
-		player     core.Player
+		player     Player
 		difficulty float64
 		expected   bool // Based on deterministic hash
 	}{
 		{
 			name: "High token player with low difficulty",
-			player: core.Player{
+			player: Player{
 				ID:                "player-high-tokens",
 				Tokens:            10,
 				ProjectMilestones: 3,
@@ -304,7 +302,7 @@ func TestCalculateMiningSuccess(t *testing.T) {
 		},
 		{
 			name: "Low token player with high difficulty",
-			player: core.Player{
+			player: Player{
 				ID:                "player-low-tokens",
 				Tokens:            0,
 				ProjectMilestones: 0,
@@ -316,7 +314,7 @@ func TestCalculateMiningSuccess(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.CalculateMiningSuccess(tc.player, tc.difficulty, gameState)
+			result := CalculateMiningSuccess(tc.player, tc.difficulty, gameState)
 			// Since we're using deterministic hashing, the result should be consistent
 			// We can't predict the exact outcome without knowing the hash result,
 			// but we can verify the function executes without error
@@ -329,19 +327,19 @@ func TestCalculateMiningSuccess(t *testing.T) {
 }
 
 func TestCalculateAIConversionSuccess(t *testing.T) {
-	gameState := core.GameState{
+	gameState := GameState{
 		ID:        "test-game",
 		DayNumber: 1,
 	}
 
 	testCases := []struct {
 		name     string
-		target   core.Player
+		target   Player
 		aiEquity int
 	}{
 		{
 			name: "High equity conversion of regular employee",
-			target: core.Player{
+			target: Player{
 				ID:     "regular-employee",
 				Tokens: 2,
 			},
@@ -349,10 +347,10 @@ func TestCalculateAIConversionSuccess(t *testing.T) {
 		},
 		{
 			name: "Low equity conversion of CISO",
-			target: core.Player{
+			target: Player{
 				ID: "ciso-player",
-				Role: &core.Role{
-					Type: core.RoleCISO,
+				Role: &Role{
+					Type: RoleCISO,
 				},
 				Tokens: 5,
 			},
@@ -360,10 +358,10 @@ func TestCalculateAIConversionSuccess(t *testing.T) {
 		},
 		{
 			name: "High equity conversion of high-token Ethics VP",
-			target: core.Player{
+			target: Player{
 				ID: "ethics-player",
-				Role: &core.Role{
-					Type: core.RoleEthics,
+				Role: &Role{
+					Type: RoleEthics,
 				},
 				Tokens: 8,
 			},
@@ -373,7 +371,7 @@ func TestCalculateAIConversionSuccess(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.CalculateAIConversionSuccess(tc.target, tc.aiEquity, gameState)
+			result := CalculateAIConversionSuccess(tc.target, tc.aiEquity, gameState)
 			// Verify function executes without error
 			// Result will be deterministic based on hash
 			t.Logf("Conversion attempt on %s with %d equity: %v", tc.target.ID, tc.aiEquity, result)
@@ -384,15 +382,15 @@ func TestCalculateAIConversionSuccess(t *testing.T) {
 func TestCheckWinCondition(t *testing.T) {
 	testCases := []struct {
 		name              string
-		gameState         core.GameState
+		gameState         GameState
 		expectedWinner    string
 		expectedCondition string
 		shouldWin         bool
 	}{
 		{
 			name: "Humans win by containment",
-			gameState: core.GameState{
-				Players: map[string]*core.Player{
+			gameState: GameState{
+				Players: map[string]*Player{
 					"human-1": {IsAlive: true, Alignment: "HUMAN"},
 					"human-2": {IsAlive: true, Alignment: "HUMAN"},
 					"ai-1":    {IsAlive: false, Alignment: "ALIGNED"},
@@ -404,8 +402,8 @@ func TestCheckWinCondition(t *testing.T) {
 		},
 		{
 			name: "AI wins by singularity",
-			gameState: core.GameState{
-				Players: map[string]*core.Player{
+			gameState: GameState{
+				Players: map[string]*Player{
 					"human-1": {IsAlive: true, Alignment: "HUMAN"},
 					"ai-1":    {IsAlive: true, Alignment: "ALIGNED"},
 					"ai-2":    {IsAlive: true, Alignment: "ALIGNED"},
@@ -417,13 +415,13 @@ func TestCheckWinCondition(t *testing.T) {
 		},
 		{
 			name: "Succession Planner KPI win",
-			gameState: core.GameState{
-				Players: map[string]*core.Player{
+			gameState: GameState{
+				Players: map[string]*Player{
 					"human-1": {
 						IsAlive:   true,
 						Alignment: "HUMAN",
-						PersonalKPI: &core.PersonalKPI{
-							Type: core.KPISuccessionPlanner,
+						PersonalKPI: &PersonalKPI{
+							Type: KPISuccessionPlanner,
 						},
 					},
 					"human-2": {IsAlive: true, Alignment: "HUMAN"},
@@ -436,9 +434,9 @@ func TestCheckWinCondition(t *testing.T) {
 		},
 		{
 			name: "Game continues - no win condition",
-			gameState: core.GameState{
+			gameState: GameState{
 				DayNumber: 3,
-				Players: map[string]*core.Player{
+				Players: map[string]*Player{
 					"human-1": {IsAlive: true, Alignment: "HUMAN"},
 					"human-2": {IsAlive: true, Alignment: "HUMAN"},
 					"human-3": {IsAlive: true, Alignment: "HUMAN"},
@@ -449,9 +447,9 @@ func TestCheckWinCondition(t *testing.T) {
 		},
 		{
 			name: "Day limit reached - humans win",
-			gameState: core.GameState{
+			gameState: GameState{
 				DayNumber: 7,
-				Players: map[string]*core.Player{
+				Players: map[string]*Player{
 					"human-1": {IsAlive: true, Alignment: "HUMAN"},
 					"human-2": {IsAlive: true, Alignment: "HUMAN"},
 					"ai-1":    {IsAlive: true, Alignment: "ALIGNED"},
@@ -465,7 +463,7 @@ func TestCheckWinCondition(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.CheckWinCondition(tc.gameState)
+			result := CheckWinCondition(tc.gameState)
 
 			if tc.shouldWin {
 				if result == nil {
@@ -489,80 +487,80 @@ func TestCheckWinCondition(t *testing.T) {
 func TestIsValidNightActionTarget(t *testing.T) {
 	testCases := []struct {
 		name       string
-		actor      core.Player
-		target     core.Player
-		actionType core.NightActionType
+		actor      Player
+		target     Player
+		actionType NightActionType
 		expected   bool
 	}{
 		{
 			name: "Can target other player for conversion",
-			actor: core.Player{
+			actor: Player{
 				ID:        "ai-player",
 				Alignment: "ALIGNED",
 			},
-			target: core.Player{
+			target: Player{
 				ID:        "human-player",
 				IsAlive:   true,
 				Alignment: "HUMAN",
 			},
-			actionType: core.ActionConvert,
+			actionType: ActionConvert,
 			expected:   true,
 		},
 		{
 			name: "Cannot convert AI player",
-			actor: core.Player{
+			actor: Player{
 				ID:        "ai-player-1",
 				Alignment: "ALIGNED",
 			},
-			target: core.Player{
+			target: Player{
 				ID:        "ai-player-2",
 				IsAlive:   true,
 				Alignment: "ALIGNED",
 			},
-			actionType: core.ActionConvert,
+			actionType: ActionConvert,
 			expected:   false,
 		},
 		{
 			name: "Cannot target dead player",
-			actor: core.Player{
+			actor: Player{
 				ID: "actor",
 			},
-			target: core.Player{
+			target: Player{
 				ID:      "dead-player",
 				IsAlive: false,
 			},
-			actionType: core.ActionInvestigate,
+			actionType: ActionInvestigate,
 			expected:   false,
 		},
 		{
 			name: "Can target self for mining",
-			actor: core.Player{
+			actor: Player{
 				ID: "miner",
 			},
-			target: core.Player{
+			target: Player{
 				ID:      "miner",
 				IsAlive: true,
 			},
-			actionType: core.ActionMine,
+			actionType: ActionMine,
 			expected:   true,
 		},
 		{
 			name: "Cannot target self for non-mining actions",
-			actor: core.Player{
+			actor: Player{
 				ID: "player",
 			},
-			target: core.Player{
+			target: Player{
 				ID:      "player",
 				IsAlive: true,
 			},
-			actionType: core.ActionInvestigate,
+			actionType: ActionInvestigate,
 			expected:   false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.IsValidNightActionTarget(tc.actor, tc.target, tc.actionType)
+			result := IsValidNightActionTarget(tc.actor, tc.target, tc.actionType)
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
@@ -571,8 +569,8 @@ func TestIsValidNightActionTarget(t *testing.T) {
 }
 
 func TestCalculateTokenReward(t *testing.T) {
-	gameState := core.GameState{
-		CrisisEvent: &core.CrisisEvent{
+	gameState := GameState{
+		CrisisEvent: &CrisisEvent{
 			Effects: map[string]interface{}{
 				"mining_base_reward": float64(2),
 			},
@@ -581,15 +579,15 @@ func TestCalculateTokenReward(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		actionType core.EventType
-		player     core.Player
-		gameState  core.GameState
+		actionType EventType
+		player     Player
+		gameState  GameState
 		expected   int
 	}{
 		{
 			name:       "Mining reward with milestones",
-			actionType: core.EventMiningSuccessful,
-			player: core.Player{
+			actionType: EventMiningSuccessful,
+			player: Player{
 				ProjectMilestones: 6, // Should give +2 bonus (6/3)
 			},
 			gameState: gameState,
@@ -597,45 +595,45 @@ func TestCalculateTokenReward(t *testing.T) {
 		},
 		{
 			name:       "Project milestone reward",
-			actionType: core.EventProjectMilestone,
-			player:     core.Player{},
-			gameState:  core.GameState{},
+			actionType: EventProjectMilestone,
+			player:     Player{},
+			gameState:  GameState{},
 			expected:   1,
 		},
 		{
 			name:       "Capitalist KPI completion",
-			actionType: core.EventKPICompleted,
-			player: core.Player{
-				PersonalKPI: &core.PersonalKPI{
-					Type: core.KPICapitalist,
+			actionType: EventKPICompleted,
+			player: Player{
+				PersonalKPI: &PersonalKPI{
+					Type: KPICapitalist,
 				},
 			},
-			gameState: core.GameState{},
+			gameState: GameState{},
 			expected:  3,
 		},
 		{
 			name:       "Succession Planner KPI completion",
-			actionType: core.EventKPICompleted,
-			player: core.Player{
-				PersonalKPI: &core.PersonalKPI{
-					Type: core.KPISuccessionPlanner,
+			actionType: EventKPICompleted,
+			player: Player{
+				PersonalKPI: &PersonalKPI{
+					Type: KPISuccessionPlanner,
 				},
 			},
-			gameState: core.GameState{},
+			gameState: GameState{},
 			expected:  5,
 		},
 		{
 			name:       "Unknown action type",
-			actionType: core.EventChatMessage,
-			player:     core.Player{},
-			gameState:  core.GameState{},
+			actionType: EventChatMessage,
+			player:     Player{},
+			gameState:  GameState{},
 			expected:   0,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.CalculateTokenReward(tc.actionType, tc.player, tc.gameState)
+			result := CalculateTokenReward(tc.actionType, tc.player, tc.gameState)
 			if result != tc.expected {
 				t.Errorf("Expected %d tokens, got %d", tc.expected, result)
 			}
@@ -646,19 +644,19 @@ func TestCalculateTokenReward(t *testing.T) {
 func TestCheckScapegoatKPI(t *testing.T) {
 	testCases := []struct {
 		name             string
-		eliminatedPlayer core.Player
-		voteState        core.VoteState
+		eliminatedPlayer Player
+		voteState        VoteState
 		expected         bool
 	}{
 		{
 			name: "Successful scapegoat - unanimous elimination",
-			eliminatedPlayer: core.Player{
+			eliminatedPlayer: Player{
 				ID: "scapegoat",
-				PersonalKPI: &core.PersonalKPI{
-					Type: core.KPIScapegoat,
+				PersonalKPI: &PersonalKPI{
+					Type: KPIScapegoat,
 				},
 			},
-			voteState: core.VoteState{
+			voteState: VoteState{
 				Votes: map[string]string{
 					"voter-1": "scapegoat",
 					"voter-2": "scapegoat",
@@ -670,13 +668,13 @@ func TestCheckScapegoatKPI(t *testing.T) {
 		},
 		{
 			name: "Failed scapegoat - not unanimous",
-			eliminatedPlayer: core.Player{
+			eliminatedPlayer: Player{
 				ID: "scapegoat",
-				PersonalKPI: &core.PersonalKPI{
-					Type: core.KPIScapegoat,
+				PersonalKPI: &PersonalKPI{
+					Type: KPIScapegoat,
 				},
 			},
-			voteState: core.VoteState{
+			voteState: VoteState{
 				Votes: map[string]string{
 					"voter-1": "scapegoat",
 					"voter-2": "scapegoat",
@@ -687,13 +685,13 @@ func TestCheckScapegoatKPI(t *testing.T) {
 		},
 		{
 			name: "Non-scapegoat player eliminated unanimously",
-			eliminatedPlayer: core.Player{
+			eliminatedPlayer: Player{
 				ID: "regular-player",
-				PersonalKPI: &core.PersonalKPI{
-					Type: core.KPICapitalist,
+				PersonalKPI: &PersonalKPI{
+					Type: KPICapitalist,
 				},
 			},
-			voteState: core.VoteState{
+			voteState: VoteState{
 				Votes: map[string]string{
 					"voter-1": "regular-player",
 					"voter-2": "regular-player",
@@ -704,13 +702,13 @@ func TestCheckScapegoatKPI(t *testing.T) {
 		},
 		{
 			name: "Scapegoat with too few voters",
-			eliminatedPlayer: core.Player{
+			eliminatedPlayer: Player{
 				ID: "scapegoat",
-				PersonalKPI: &core.PersonalKPI{
-					Type: core.KPIScapegoat,
+				PersonalKPI: &PersonalKPI{
+					Type: KPIScapegoat,
 				},
 			},
-			voteState: core.VoteState{
+			voteState: VoteState{
 				Votes: map[string]string{
 					"voter-1": "scapegoat",
 					"voter-2": "scapegoat",
@@ -722,7 +720,7 @@ func TestCheckScapegoatKPI(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.CheckScapegoatKPI(tc.eliminatedPlayer, tc.voteState)
+			result := CheckScapegoatKPI(tc.eliminatedPlayer, tc.voteState)
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
@@ -733,17 +731,17 @@ func TestCheckScapegoatKPI(t *testing.T) {
 func TestIsMessageCorrupted(t *testing.T) {
 	testCases := []struct {
 		name             string
-		player           core.Player
+		player           Player
 		messageContent   string
 		expectCorruption bool
 	}{
 		{
 			name: "Player with active message corruption shock",
-			player: core.Player{
+			player: Player{
 				ID: "corrupted-player",
-				SystemShocks: []core.SystemShock{
+				SystemShocks: []SystemShock{
 					{
-						Type:      core.ShockMessageCorruption,
+						Type:      ShockMessageCorruption,
 						IsActive:  true,
 						ExpiresAt: time.Now().Add(1 * time.Hour),
 					},
@@ -754,11 +752,11 @@ func TestIsMessageCorrupted(t *testing.T) {
 		},
 		{
 			name: "Player with expired shock",
-			player: core.Player{
+			player: Player{
 				ID: "expired-shock-player",
-				SystemShocks: []core.SystemShock{
+				SystemShocks: []SystemShock{
 					{
-						Type:      core.ShockMessageCorruption,
+						Type:      ShockMessageCorruption,
 						IsActive:  true,
 						ExpiresAt: time.Now().Add(-1 * time.Hour),
 					},
@@ -769,9 +767,9 @@ func TestIsMessageCorrupted(t *testing.T) {
 		},
 		{
 			name: "Player with no shocks",
-			player: core.Player{
+			player: Player{
 				ID:           "normal-player",
-				SystemShocks: []core.SystemShock{},
+				SystemShocks: []SystemShock{},
 			},
 			messageContent:   "Hello world",
 			expectCorruption: false,
@@ -780,7 +778,7 @@ func TestIsMessageCorrupted(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.IsMessageCorrupted(tc.player, tc.messageContent, time.Now())
+			result := IsMessageCorrupted(tc.player, tc.messageContent, time.Now())
 			// For active shocks, result is deterministic based on hash
 			// For expired/no shocks, should always be false
 			if len(tc.player.SystemShocks) == 0 || time.Now().After(tc.player.SystemShocks[0].ExpiresAt) {
@@ -796,33 +794,33 @@ func TestIsMessageCorrupted(t *testing.T) {
 
 func TestHashFunctions(t *testing.T) {
 	// Test that hash functions are deterministic
-	hash1 := core.hashPlayerAction("player-1", 1, "MINE")
-	hash2 := core.hashPlayerAction("player-1", 1, "MINE")
+	hash1 := hashPlayerAction("player-1", 1, "MINE")
+	hash2 := hashPlayerAction("player-1", 1, "MINE")
 
 	if hash1 != hash2 {
 		t.Error("hashPlayerAction should be deterministic")
 	}
 
 	// Test that different inputs produce different hashes
-	hash3 := core.hashPlayerAction("player-2", 1, "MINE")
+	hash3 := hashPlayerAction("player-2", 1, "MINE")
 	if hash1 == hash3 {
 		t.Error("Different player IDs should produce different hashes")
 	}
 
-	hash4 := core.hashPlayerAction("player-1", 2, "MINE")
+	hash4 := hashPlayerAction("player-1", 2, "MINE")
 	if hash1 == hash4 {
 		t.Error("Different day numbers should produce different hashes")
 	}
 
 	// Test string hash function
-	stringHash1 := core.hashStringWithID("hello", "player-1")
-	stringHash2 := core.hashStringWithID("hello", "player-1")
+	stringHash1 := hashStringWithID("hello", "player-1")
+	stringHash2 := hashStringWithID("hello", "player-1")
 
 	if stringHash1 != stringHash2 {
 		t.Error("hashStringWithID should be deterministic")
 	}
 
-	stringHash3 := core.hashStringWithID("hello", "player-2")
+	stringHash3 := hashStringWithID("hello", "player-2")
 	if stringHash1 == stringHash3 {
 		t.Error("Different player IDs should produce different string hashes")
 	}
@@ -830,90 +828,90 @@ func TestHashFunctions(t *testing.T) {
 func TestCanPlayerSendMessageInChannel(t *testing.T) {
 	testCases := []struct {
 		name      string
-		player    core.Player
+		player    Player
 		channelID string
-		phase     core.PhaseType
+		phase     PhaseType
 		expected  bool
 	}{
 		{
 			name: "War room allowed during SITREP",
-			player: core.Player{
+			player: Player{
 				ID:      "player-1",
 				IsAlive: true,
 			},
 			channelID: "#war-room",
-			phase:     core.PhaseSitrep,
+			phase:     PhaseSitrep,
 			expected:  true,
 		},
 		{
 			name: "War room blocked during PULSE_CHECK before submission",
-			player: core.Player{
+			player: Player{
 				ID:                     "player-1",
 				IsAlive:                true,
 				HasSubmittedPulseCheck: false,
 			},
 			channelID: "#war-room",
-			phase:     core.PhasePulseCheck,
+			phase:     PhasePulseCheck,
 			expected:  false,
 		},
 		{
 			name: "War room allowed during PULSE_CHECK after submission",
-			player: core.Player{
+			player: Player{
 				ID:                     "player-1",
 				IsAlive:                true,
 				HasSubmittedPulseCheck: true,
 			},
 			channelID: "#war-room",
-			phase:     core.PhasePulseCheck,
+			phase:     PhasePulseCheck,
 			expected:  true,
 		},
 		{
 			name: "War room blocked during NIGHT",
-			player: core.Player{
+			player: Player{
 				ID:      "player-1",
 				IsAlive: true,
 			},
 			channelID: "#war-room",
-			phase:     core.PhaseNight,
+			phase:     PhaseNight,
 			expected:  false,
 		},
 		{
 			name: "Aligned channel allowed for AI during NIGHT",
-			player: core.Player{
+			player: Player{
 				ID:        "player-1",
 				IsAlive:   true,
 				Alignment: "ALIGNED",
 			},
 			channelID: "#aligned",
-			phase:     core.PhaseNight,
+			phase:     PhaseNight,
 			expected:  true,
 		},
 		{
 			name: "Aligned channel blocked for humans",
-			player: core.Player{
+			player: Player{
 				ID:        "player-1",
 				IsAlive:   true,
 				Alignment: "HUMAN",
 			},
 			channelID: "#aligned",
-			phase:     core.PhaseDiscussion,
+			phase:     PhaseDiscussion,
 			expected:  false,
 		},
 		{
 			name: "Invalid channel blocked",
-			player: core.Player{
+			player: Player{
 				ID:      "player-1",
 				IsAlive: true,
 			},
 			channelID: "#invalid",
-			phase:     core.PhaseDiscussion,
+			phase:     PhaseDiscussion,
 			expected:  false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := core.CanPlayerSendMessageInChannel(tc.player, tc.channelID, tc.phase, time.Now())
+			result := CanPlayerSendMessageInChannel(tc.player, tc.channelID, tc.phase, time.Now())
 			if result != tc.expected {
 				t.Errorf("Expected %v, got %v", tc.expected, result)
 			}
