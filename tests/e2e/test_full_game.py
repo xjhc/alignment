@@ -253,6 +253,18 @@ def test_full_game_happy_path(game_setup):
         
         end_payload = game_ended.get("payload", {})
         assert end_payload.get("winning_faction") == "HUMANS", f"Expected HUMAN faction to win, but got {end_payload.get('winning_faction')}"
+        
+        # Verify game analysis data is included for live data integration
+        analysis = end_payload.get("analysis")
+        if analysis:  # Analysis might not be available in all test scenarios
+            print(f"  ✅ {p.name} received game analysis data")
+            # Verify basic structure of analysis data
+            assert isinstance(analysis.get("playerStats"), list), f"Analysis playerStats should be a list"
+            assert isinstance(analysis.get("timeline"), list), f"Analysis timeline should be a list"
+            if analysis.get("mvp"):
+                assert "playerName" in analysis["mvp"] or "player" in analysis["mvp"], f"MVP should have player name"
+                assert "reason" in analysis["mvp"], f"MVP should have reason"
+        
         print(f"  ✅ {p.name} received correct GAME_ENDED event.")
 
 

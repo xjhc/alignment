@@ -55,13 +55,13 @@ export const VoteBlock: React.FC<VoteBlockProps> = ({
         margin: "0 4px",
         padding: "8px 10px",
         background: isSelf
-          ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
-          : "linear-gradient(135deg, #374151 0%, #1f2937 100%)",
-        border: isSelf ? "2px solid #f59e0b" : "1px solid #4b5563",
+          ? "linear-gradient(135deg, var(--accent-amber) 0%, var(--accent-amber-dark) 100%)"
+          : "linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-quaternary) 100%)",
+        border: isSelf ? "2px solid var(--accent-amber)" : "1px solid var(--border)",
         borderRadius: "8px",
         minWidth: "64px",
         boxShadow: isSelf
-          ? "0 0 16px rgba(245, 158, 11, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+          ? "0 0 16px var(--accent-amber-light), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
           : "0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
         position: "relative",
         overflow: "hidden",
@@ -89,7 +89,7 @@ export const VoteBlock: React.FC<VoteBlockProps> = ({
             fontSize: "12px",
             fontWeight: "bold",
             fontFamily: "monospace",
-            color: isSelf ? "#000" : "#f59e0b",
+            color: isSelf ? "var(--bg-primary)" : "var(--accent-amber)",
           }}
         >
           🪙{tokenCount}
@@ -101,9 +101,9 @@ export const VoteBlock: React.FC<VoteBlockProps> = ({
         style={{
           fontSize: "10px",
           fontFamily: "monospace",
-          color: isSelf ? "#000" : "#9ca3af",
+          color: isSelf ? "var(--bg-primary)" : "var(--text-muted)",
           textAlign: "center",
-          borderTop: "1px solid " + (isSelf ? "#d97706" : "#374151"),
+          borderTop: "1px solid " + (isSelf ? "var(--accent-amber-dark)" : "var(--bg-tertiary)"),
           paddingTop: "4px",
           lineHeight: "1.2",
         }}
@@ -117,8 +117,8 @@ export const VoteBlock: React.FC<VoteBlockProps> = ({
               gap: "2px",
             }}
           >
-            <span style={{ color: "#000", fontSize: "10px" }}>⭐</span>
-            <span style={{ fontWeight: "bold", color: "#000" }}>YOU</span>
+            <span style={{ color: "var(--bg-primary)", fontSize: "10px" }}>⭐</span>
+            <span style={{ fontWeight: "bold", color: "var(--bg-primary)" }}>YOU</span>
           </div>
         ) : (
           <span style={{ fontSize: "9px" }}>
@@ -153,7 +153,7 @@ export const VoteBlock: React.FC<VoteBlockProps> = ({
             right: "-2px",
             bottom: "-2px",
             background:
-              "linear-gradient(45deg, #f59e0b, #d97706, #f59e0b, #d97706)",
+              "linear-gradient(45deg, var(--accent-amber), var(--accent-amber-dark), var(--accent-amber), var(--accent-amber-dark))",
             borderRadius: "10px",
             zIndex: -1,
             backgroundSize: "400% 400%",

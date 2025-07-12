@@ -188,3 +188,109 @@ export const NoStatusMessage: Story = {
     isSelf: false,
   },
 };
+
+// A story showing multiple players in a staggered layout
+export const StaggeredPlayerList: Story = {
+  render: () => (
+    <div className="space-y-2 max-w-sm" data-testid="player-list">
+      <PlayerCard
+        player={{
+          ...basePlayer,
+          id: 'p-1',
+          name: 'Alice',
+          jobTitle: 'Chief Security Officer',
+          avatar: '👤',
+          tokens: 5,
+          projectMilestones: 2,
+        }}
+        isSelf={true}
+        isSelected={false}
+        onSelect={() => {}}
+      />
+      <PlayerCard
+        player={{
+          ...basePlayer,
+          id: 'p-2',
+          name: 'Bob',
+          jobTitle: 'Systems Architect',
+          avatar: '🧑‍💻',
+          tokens: 3,
+          projectMilestones: 1,
+        }}
+        isSelf={false}
+        isSelected={true}
+        onSelect={() => {}}
+      />
+      <PlayerCard
+        player={{
+          ...basePlayer,
+          id: 'p-3',
+          name: 'Charlie',
+          jobTitle: 'Ethics Officer',
+          avatar: '🕵️',
+          tokens: 7,
+          projectMilestones: 3,
+        }}
+        isSelf={false}
+        isSelected={false}
+        onSelect={() => {}}
+      />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Multiple player cards demonstrating the staggered animation effect and different selection states. The first card shows the "self" state, the second shows "selected" state.',
+      },
+    },
+  },
+};
+
+// A story for a player on trial
+export const OnTrial: Story = {
+  args: {
+    player: {
+      ...basePlayer,
+      name: 'Suspect',
+      jobTitle: 'Under Investigation',
+      statusMessage: '"I\'m innocent!"',
+      avatar: '😰',
+      tokens: 2,
+      projectMilestones: 1,
+    },
+    isSelf: false,
+    isSelected: false,
+    isOnTrial: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Player card in the "on trial" state, showing special visual treatment for the nominated player during elimination phases.',
+      },
+    },
+  },
+};
+
+// A story for a disconnected player
+export const Disconnected: Story = {
+  args: {
+    player: {
+      ...basePlayer,
+      name: 'Offline Player',
+      jobTitle: 'Connection Lost',
+      statusMessage: '"Network error"',
+      avatar: '📡',
+      tokens: 4,
+      projectMilestones: 2,
+      connectionStatus: 'DISCONNECTED',
+    },
+    isSelf: false,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Player card showing disconnected state with appropriate visual indicators and accessibility labels.',
+      },
+    },
+  },
+};

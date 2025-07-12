@@ -48,11 +48,11 @@ function AchievementNotification({ achievement, onClose }: AchievementNotificati
 
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
-      case 'common': return '#9ca3af';
-      case 'rare': return '#3b82f6';
-      case 'epic': return '#8b5cf6';
-      case 'legendary': return '#f59e0b';
-      default: return '#9ca3af';
+      case 'common': return 'var(--text-muted)';
+      case 'rare': return 'var(--accent-blue)';
+      case 'epic': return 'var(--accent-magenta)';
+      case 'legendary': return 'var(--accent-amber)';
+      default: return 'var(--text-muted)';
     }
   };
 

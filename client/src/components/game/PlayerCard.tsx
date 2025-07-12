@@ -165,6 +165,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
             if (elementRef) elementRef.current = node;
           }}
           className={`${getPlayerClasses()} relative overflow-hidden border-0 text-left w-full`}
+          data-player-card="true"
           {...getDataAttributes()}
           onClick={() => {
             // Play selection sound for interactive feedback

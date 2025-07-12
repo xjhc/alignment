@@ -12,7 +12,7 @@ const meta: Meta<typeof Button> = {
   argTypes: {
     variant: {
       control: 'select',
-      options: ['primary', 'secondary', 'danger', 'ghost', 'outline'],
+      options: ['primary', 'secondary', 'danger', 'ghost', 'outline', 'success'],
     },
     size: {
       control: 'select',
@@ -21,6 +21,11 @@ const meta: Meta<typeof Button> = {
     fullWidth: { control: 'boolean' },
     disabled: { control: 'boolean' },
     isLoading: { control: 'boolean' },
+    disableSound: { control: 'boolean' },
+    hapticFeedback: {
+      control: 'select',
+      options: ['light', 'medium', 'strong', 'confirm', 'vote', false],
+    },
     children: { control: 'text' },
   },
 } satisfies Meta<typeof Button>;
@@ -60,6 +65,13 @@ export const Outline: Story = {
   args: {
     variant: 'outline',
     children: 'Outline Button',
+  },
+};
+
+export const Success: Story = {
+  args: {
+    variant: 'success',
+    children: 'Success Button',
   },
 };
 
@@ -145,6 +157,47 @@ export const LoadingInteractive: Story = {
     docs: {
       description: {
         story: 'Click to see the loading state in action. The loading will automatically stop after 2 seconds.',
+      },
+    },
+  },
+};
+
+export const HapticFeedbackVariations: Story = {
+  render: () => (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Button hapticFeedback="light">Light Haptic</Button>
+        <Button hapticFeedback="medium">Medium Haptic</Button>
+        <Button hapticFeedback="strong">Strong Haptic</Button>
+        <Button hapticFeedback="confirm" variant="success">Confirm Haptic</Button>
+        <Button hapticFeedback="vote" variant="primary">Vote Haptic</Button>
+        <Button hapticFeedback={false}>No Haptic</Button>
+      </div>
+      <p className="text-sm text-text-secondary">
+        Click buttons on mobile devices to feel different haptic feedback patterns.
+        On desktop, these have no effect but demonstrate the different haptic intensity options.
+      </p>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Different haptic feedback intensities for mobile devices. Each button provides unique tactile feedback when pressed.',
+      },
+    },
+  },
+};
+
+export const SoundAndHapticDisabled: Story = {
+  args: {
+    children: 'Silent Button',
+    disableSound: true,
+    hapticFeedback: false,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Button with both sound and haptic feedback disabled for situations requiring silent interaction.',
       },
     },
   },

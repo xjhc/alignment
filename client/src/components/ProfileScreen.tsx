@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSessionContext } from '../contexts/SessionContext';
 import { Button } from './ui';
+import { Skeleton, SkeletonCard } from './ui/Skeleton';
 
 interface PlayerProfile {
   id: string;
@@ -72,7 +73,29 @@ export function ProfileScreen() {
 
   const fetchProfileData = async () => {
     try {
-      // Mock data for demonstration
+      // Try to fetch from API first
+      try {
+        const response = await fetch('/api/players/profile', {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setProfile(data.profile);
+          setAvatars(data.avatars || []);
+          setTitles(data.titles || []);
+          setAchievements(data.achievements || []);
+          setGameHistory(data.gameHistory || []);
+          return;
+        }
+      } catch (apiError) {
+        console.log('API not available, using mock data:', apiError);
+      }
+      
+      // Fallback to mock data for development
       setProfile({
         id: 'user-123',
         username: 'player1',
@@ -97,9 +120,9 @@ export function ProfileScreen() {
       ]);
 
       setTitles([
-        { id: 'rookie', name: 'Rookie', description: 'New to the corporate world', color: '#ffffff', rarity: 'common' },
-        { id: 'veteran', name: 'Veteran', description: 'Seasoned corporate warrior', color: '#4ade80', rarity: 'rare' },
-        { id: 'mastermind', name: 'Mastermind', description: 'Strategic genius', color: '#8b5cf6', rarity: 'epic' },
+        { id: 'rookie', name: 'Rookie', description: 'New to the corporate world', color: 'var(--text-primary)', rarity: 'common' },
+        { id: 'veteran', name: 'Veteran', description: 'Seasoned corporate warrior', color: 'var(--accent-green)', rarity: 'rare' },
+        { id: 'mastermind', name: 'Mastermind', description: 'Strategic genius', color: 'var(--accent-magenta)', rarity: 'epic' },
       ]);
 
       setAchievements([
@@ -131,18 +154,52 @@ export function ProfileScreen() {
   };
 
   const equipAvatar = async (avatarId: string) => {
-    // In a real implementation, this would call the API
-    console.log('Equipping avatar:', avatarId);
-    if (profile) {
-      setProfile({ ...profile, equippedAvatar: avatarId });
+    try {
+      const response = await fetch('/api/players/equip-avatar', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ avatar_id: avatarId }),
+      });
+      
+      if (response.ok && profile) {
+        setProfile({ ...profile, equippedAvatar: avatarId });
+      } else {
+        console.error('Failed to equip avatar');
+      }
+    } catch (error) {
+      console.error('Error equipping avatar:', error);
+      // Fallback to local state update for development
+      if (profile) {
+        setProfile({ ...profile, equippedAvatar: avatarId });
+      }
     }
   };
 
   const equipTitle = async (titleId: string) => {
-    // In a real implementation, this would call the API
-    console.log('Equipping title:', titleId);
-    if (profile) {
-      setProfile({ ...profile, equippedTitle: titleId });
+    try {
+      const response = await fetch('/api/players/equip-title', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title_id: titleId }),
+      });
+      
+      if (response.ok && profile) {
+        setProfile({ ...profile, equippedTitle: titleId });
+      } else {
+        console.error('Failed to equip title');
+      }
+    } catch (error) {
+      console.error('Error equipping title:', error);
+      // Fallback to local state update for development
+      if (profile) {
+        setProfile({ ...profile, equippedTitle: titleId });
+      }
     }
   };
 
@@ -175,11 +232,21 @@ export function ProfileScreen() {
     );
   }
 
-  const renderOverviewTab = () => (
-    <div className="space-y-6">
-      <div className="bg-background-secondary border border-border rounded-xl p-6">
-        <h3 className="text-xl font-bold text-text-primary mb-4">Player Statistics</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+  const renderOverviewTab = () => {
+    if (loading) {
+      return (
+        <div className="space-y-6 p-6">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      );
+    }
+    
+    return (
+      <div className="space-y-6">
+        <div className="bg-background-secondary border border-border rounded-xl p-6">
+          <h3 className="text-xl font-bold text-text-primary mb-4">Player Statistics</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">{profile.totalGamesPlayed}</div>
             <div className="text-sm text-text-secondary">Games Played</div>
@@ -217,7 +284,7 @@ export function ProfileScreen() {
             </div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-bold mb-2" style={{ color: titles.find(t => t.id === profile.equippedTitle)?.color || '#ffffff' }}>
+            <div className="text-lg font-bold mb-2" style={{ color: titles.find(t => t.id === profile.equippedTitle)?.color || 'var(--text-primary)' }}>
               {titles.find(t => t.id === profile.equippedTitle)?.name || 'No Title'}
             </div>
             <div className="text-sm text-text-secondary">Title</div>
@@ -225,7 +292,8 @@ export function ProfileScreen() {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderCustomizationTab = () => (
     <div className="space-y-6">

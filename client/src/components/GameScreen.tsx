@@ -12,6 +12,7 @@ import { ExitInterviewScreen } from './game/ExitInterviewScreen';
 import { AlignmentConversionOverlay } from './game/AlignmentConversionOverlay';
 import { ExtensionVoteUI } from './game/ExtensionVoteUI';
 import { MandateBanner } from './game/MandateBanner';
+import { AccessibilityAnnouncements } from './AccessibilityAnnouncements';
 import { ServerEventType } from '../types/generated';
 
 export function GameScreen() {
@@ -135,6 +136,9 @@ export function GameScreen() {
 
   return (
     <main className="w-screen h-screen grid grid-cols-[260px_1fr_320px] gap-px bg-border overflow-hidden">
+      {/* Accessibility Announcements - ARIA live regions for screen readers */}
+      <AccessibilityAnnouncements />
+
       {/* Exit Interview Overlay (only for actual players) */}
       {!isSpectating && showExitInterview && (
         <ExitInterviewScreen

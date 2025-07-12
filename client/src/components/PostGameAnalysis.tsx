@@ -374,11 +374,11 @@ function HighlightsTab({ data }: { data: any }) {
 }
 
 export function PostGameAnalysis({ analysisData }: PostGameAnalysisProps) {
-  const { onBackToResults, onPlayAgain } = useSessionContext();
+  const { onBackToResults, onPlayAgain, gameAnalysis } = useSessionContext();
   const [activeTab, setActiveTab] = useState<'summary' | 'timeline' | 'analytics' | 'highlights'>('summary');
   
-  // Use provided analysis data or fall back to mock data
-  const data = analysisData || mockAnalysisData;
+  // Use provided analysis data, or from session context, or fall back to mock data for development
+  const data = analysisData || gameAnalysis || mockAnalysisData;
 
   // Extract player list for social actions
   const players = (data.playerStats || []).map((player: any) => ({

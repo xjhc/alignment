@@ -5,7 +5,7 @@ import { useSessionContext } from '../../contexts/SessionContext';
 import { useTheme } from '../../hooks/useTheme';
 import { PlayerCard } from './PlayerCard';
 import { soundManager } from '../../services/soundManager';
-import { CHANNEL_UNLOCK } from '../../utils/animations';
+import { CHANNEL_UNLOCK, applyStaggeredAnimation } from '../../utils/animations';
 
 export const RosterPanel: React.FC = () => {
   const { gameState, localPlayerId, localPlayer, viewedPlayerId, setViewedPlayer, activeChannel, setActiveChannel } = useGameContext();
@@ -211,7 +211,18 @@ export const RosterPanel: React.FC = () => {
           </div>
         </div>
 
-        <motion.div layout>
+        <motion.div 
+          layout
+          ref={(ref) => {
+            // Apply staggered animation to player cards when they mount
+            if (ref) {
+              const playerCards = ref.querySelectorAll('[data-player-card]');
+              if (playerCards.length > 0) {
+                applyStaggeredAnimation(playerCards, 75);
+              }
+            }
+          }}
+        >
           <AnimatePresence mode="popLayout">
             {Array.isArray(players) && players.sort((a, b) => {
               // Sort self to top, then by alive status, then by name

@@ -50,13 +50,36 @@ export const Modal: React.FC<ModalProps> & {
       }
     };
 
+    const handleTabKeyPress = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+
+      const focusableElements = modalRef.current?.querySelectorAll(
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+      );
+
+      if (!focusableElements || focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0] as HTMLElement;
+      const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+      // Focus trap: if user tabs from last element, focus first element
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
+      document.addEventListener('keydown', handleTabKeyPress);
       document.body.style.overflow = 'hidden';
       
       // Focus management
       const focusableElements = modalRef.current?.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
       );
       if (focusableElements && focusableElements.length > 0) {
         (focusableElements[0] as HTMLElement).focus();
@@ -65,6 +88,7 @@ export const Modal: React.FC<ModalProps> & {
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleTabKeyPress);
       document.body.style.overflow = '';
     };
   }, [isOpen, closeOnEscape, onClose]);
