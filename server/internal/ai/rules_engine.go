@@ -19,6 +19,11 @@ func NewRulesEngine() *RulesEngine {
 	}
 }
 
+// NewRulesEngineWithDefaultPersona creates a rules engine with default persona (for backward compatibility)
+func NewRulesEngineWithDefaultPersona() *RulesEngine {
+	return NewRulesEngine()
+}
+
 // Decision represents an AI decision
 type Decision struct {
 	Action  string                 `json:"action"`

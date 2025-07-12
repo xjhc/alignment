@@ -200,6 +200,22 @@ export enum VoteType {
 }
 
 // Generated interfaces from Go structs
+export interface GeneratedPlayerStateChanges {
+  tokens_gained?: number;
+  tokens_lost?: number;
+  status_message?: string;
+  alignment?: string;
+  ai_equity?: number;
+  project_milestones?: number;
+  has_used_ability?: boolean;
+  role_unlocked?: boolean;
+  system_shocks?: GeneratedSystemShock[];
+  was_blocked?: boolean;
+  was_targeted?: boolean;
+  action_cancelled?: boolean;
+  custom_effects?: Record<string, any>;
+}
+
 export interface GeneratedActionResult {
   player_id: string;
   action_type: string;
@@ -217,6 +233,78 @@ export interface GeneratedCrisisEventOption {
   description: string;
 }
 
+export interface GeneratedDailySitrep {
+  day_number: number;
+  date: string;
+  sections: GeneratedSitrepSection[];
+  alert_level: string;
+  summary: string;
+  footer_note: string;
+}
+
+export interface GeneratedCorporateMandate {
+  type: string;
+  name: string;
+  description: string;
+  effects: Record<string, any>;
+  isActive: boolean;
+}
+
+export interface GeneratedVoteState {
+  type: string;
+  votes: Record<string, string>;
+  tokenWeights: Record<string, number>;
+  results: Record<string, number>;
+  isComplete: boolean;
+}
+
+export interface GeneratedNightActionResolutionPayload {
+  summary: string;
+  player_state_changes: Record<string, GeneratedPlayerStateChanges>;
+  action_results: Record<string, GeneratedActionResult>;
+  blocked_players: string[];
+  conversion_attempts: GeneratedConversionAttempt[];
+  role_ability_usages: GeneratedRoleAbilityUsage[];
+  mining_results: GeneratedMiningResults;
+  public_announcements: string[];
+  private_notifications: Record<string, GeneratedPrivateNotification[]>;
+}
+
+export interface GeneratedWhistleblowerVoting {
+  isActive: boolean;
+  crisisOptions: GeneratedCrisisEventOption[];
+  votes: Record<string, string>;
+  voteResults: Record<string, number>;
+  selectedCrisis: string;
+  isComplete: boolean;
+}
+
+export interface GeneratedSpectator {
+  id: string;
+  name: string;
+  joined_at: string;
+}
+
+export interface GeneratedAction {
+  type: string;
+  playerId: string;
+  gameId: string;
+  timestamp: string;
+  payload: Record<string, any>;
+}
+
+export interface GeneratedConversionAttempt {
+  ai_id: string;
+  target_id: string;
+  ai_equity_before: number;
+  ai_equity_after: number;
+  target_tokens: number;
+  success: boolean;
+  system_shock?: string;
+  was_blocked?: boolean;
+  blocked_by?: string;
+}
+
 export interface GeneratedCrisisEvent {
   type: string;
   title: string;
@@ -225,6 +313,50 @@ export interface GeneratedCrisisEvent {
   effects: Record<string, any>;
   duration?: number;
   triggeredAt?: string;
+}
+
+export interface GeneratedPhase {
+  type: string;
+  startTime: string;
+  duration: number;
+}
+
+export interface GeneratedAbility {
+  name: string;
+  description: string;
+  isReady: boolean;
+}
+
+export interface GeneratedPrivateNotification {
+  type: string;
+  title?: string;
+  message: string;
+  data?: Record<string, any>;
+  channel?: string;
+  urgent?: boolean;
+}
+
+export interface GeneratedPublicGameState {
+  game_id: string;
+  phase: string;
+  day_number: number;
+  players: GeneratedPublicPlayerInfo[];
+  token_counts: Record<string, number>;
+  phase_end_time: string;
+  crisis_event?: GeneratedCrisisEvent;
+  chat_history?: GeneratedChatMessage[];
+}
+
+export interface GeneratedNightAction {
+  type: string;
+  targetId?: string;
+  shadowTargetId?: string;
+}
+
+export interface GeneratedWinCondition {
+  winner: string;
+  condition: string;
+  description: string;
 }
 
 export interface GeneratedGameSettings {
@@ -245,107 +377,6 @@ export interface GeneratedGameSettings {
   customSettings?: Record<string, any>;
 }
 
-export interface GeneratedWhistleblowerVote {
-  playerID: string;
-  playerName: string;
-  crisisChoice: string;
-  timestamp: string;
-}
-
-export interface GeneratedEmojiReaction {
-  emoji: string;
-  playerID: string;
-  playerName: string;
-  timestamp: string;
-}
-
-export interface GeneratedDailySitrep {
-  day_number: number;
-  date: string;
-  sections: GeneratedSitrepSection[];
-  alert_level: string;
-  summary: string;
-  footer_note: string;
-}
-
-export interface GeneratedPersonalKPI {
-  type: string;
-  description: string;
-  progress: number;
-  target: number;
-  isCompleted: boolean;
-  reward: string;
-}
-
-export interface GeneratedChatMessage {
-  id: string;
-  clientMessageID?: string;
-  playerID: string;
-  playerName: string;
-  message: string;
-  timestamp: string;
-  isSystem: boolean;
-  type?: string;
-  channelID: string;
-  reactToID?: string;
-  reactions?: GeneratedEmojiReaction[];
-  metadata?: Record<string, any>;
-}
-
-export interface GeneratedNightAction {
-  type: string;
-  targetId?: string;
-  shadowTargetId?: string;
-}
-
-export interface GeneratedWinCondition {
-  winner: string;
-  condition: string;
-  description: string;
-}
-
-export interface GeneratedConversionAttempt {
-  ai_id: string;
-  target_id: string;
-  ai_equity_before: number;
-  ai_equity_after: number;
-  target_tokens: number;
-  success: boolean;
-  system_shock?: string;
-  was_blocked?: boolean;
-  blocked_by?: string;
-}
-
-export interface GeneratedRoleAbilityUsage {
-  player_id: string;
-  role_type: string;
-  ability_name: string;
-  target_id?: string;
-  success: boolean;
-  public_effect?: string;
-  was_blocked?: boolean;
-  blocked_by?: string;
-  effects?: Record<string, any>;
-}
-
-export interface GeneratedSitrepSection {
-  title: string;
-  content: string;
-  type: string;
-}
-
-export interface GeneratedPhase {
-  type: string;
-  startTime: string;
-  duration: number;
-}
-
-export interface GeneratedAbility {
-  name: string;
-  description: string;
-  isReady: boolean;
-}
-
 export interface GeneratedSubmittedNightAction {
   playerID: string;
   type: string;
@@ -364,30 +395,14 @@ export interface GeneratedMiningResults {
   priority_rules: Record<string, any>;
 }
 
-export interface GeneratedWhistleblowerVoting {
-  isActive: boolean;
-  crisisOptions: GeneratedCrisisEventOption[];
-  votes: Record<string, string>;
-  voteResults: Record<string, number>;
-  selectedCrisis: string;
-  isComplete: boolean;
-}
-
-export interface GeneratedSpectator {
-  id: string;
-  name: string;
-  joined_at: string;
-}
-
-export interface GeneratedPublicGameState {
-  game_id: string;
-  phase: string;
-  day_number: number;
-  players: GeneratedPublicPlayerInfo[];
-  token_counts: Record<string, number>;
-  phase_end_time: string;
-  crisis_event?: GeneratedCrisisEvent;
-  chat_history?: GeneratedChatMessage[];
+export interface GeneratedMiningAttempt {
+  player_id: string;
+  beneficiary_id: string;
+  tokens_awarded: number;
+  priority: number;
+  failure_reason?: string;
+  was_blocked?: boolean;
+  blocked_by?: string;
 }
 
 export interface GeneratedRole {
@@ -396,14 +411,6 @@ export interface GeneratedRole {
   description: string;
   isUnlocked: boolean;
   ability?: GeneratedAbility;
-}
-
-export interface GeneratedVoteState {
-  type: string;
-  votes: Record<string, string>;
-  tokenWeights: Record<string, number>;
-  results: Record<string, number>;
-  isComplete: boolean;
 }
 
 export interface GeneratedPublicPlayerInfo {
@@ -424,13 +431,13 @@ export interface GeneratedEvent {
   payload: Record<string, any>;
 }
 
-export interface GeneratedPrivateNotification {
+export interface GeneratedPersonalKPI {
   type: string;
-  title?: string;
-  message: string;
-  data?: Record<string, any>;
-  channel?: string;
-  urgent?: boolean;
+  description: string;
+  progress: number;
+  target: number;
+  isCompleted: boolean;
+  reward: string;
 }
 
 export interface GeneratedSystemShock {
@@ -440,58 +447,30 @@ export interface GeneratedSystemShock {
   isActive: boolean;
 }
 
-export interface GeneratedCorporateMandate {
-  type: string;
-  name: string;
-  description: string;
-  effects: Record<string, any>;
-  isActive: boolean;
+export interface GeneratedEmojiReaction {
+  emoji: string;
+  playerID: string;
+  playerName: string;
+  timestamp: string;
 }
 
-export interface GeneratedNightActionResolutionPayload {
-  summary: string;
-  player_state_changes: Record<string, GeneratedPlayerStateChanges>;
-  action_results: Record<string, GeneratedActionResult>;
-  blocked_players: string[];
-  conversion_attempts: GeneratedConversionAttempt[];
-  role_ability_usages: GeneratedRoleAbilityUsage[];
-  mining_results: GeneratedMiningResults;
-  public_announcements: string[];
-  private_notifications: Record<string, GeneratedPrivateNotification[]>;
-}
-
-export interface GeneratedPlayerStateChanges {
-  tokens_gained?: number;
-  tokens_lost?: number;
-  status_message?: string;
-  alignment?: string;
-  ai_equity?: number;
-  project_milestones?: number;
-  has_used_ability?: boolean;
-  role_unlocked?: boolean;
-  system_shocks?: GeneratedSystemShock[];
-  was_blocked?: boolean;
-  was_targeted?: boolean;
-  action_cancelled?: boolean;
-  custom_effects?: Record<string, any>;
-}
-
-export interface GeneratedMiningAttempt {
+export interface GeneratedRoleAbilityUsage {
   player_id: string;
-  beneficiary_id: string;
-  tokens_awarded: number;
-  priority: number;
-  failure_reason?: string;
+  role_type: string;
+  ability_name: string;
+  target_id?: string;
+  success: boolean;
+  public_effect?: string;
   was_blocked?: boolean;
   blocked_by?: string;
+  effects?: Record<string, any>;
 }
 
-export interface GeneratedAction {
-  type: string;
-  playerId: string;
-  gameId: string;
+export interface GeneratedWhistleblowerVote {
+  playerID: string;
+  playerName: string;
+  crisisChoice: string;
   timestamp: string;
-  payload: Record<string, any>;
 }
 
 export interface GeneratedPlayer {
@@ -522,6 +501,27 @@ export interface GeneratedPlayer {
   partingShot?: string;
   systemShocks?: GeneratedSystemShock[];
   isRolePubliclyRevealed: boolean;
+}
+
+export interface GeneratedChatMessage {
+  id: string;
+  clientMessageID?: string;
+  playerID: string;
+  playerName: string;
+  message: string;
+  timestamp: string;
+  isSystem: boolean;
+  type?: string;
+  channelID: string;
+  reactToID?: string;
+  reactions?: GeneratedEmojiReaction[];
+  metadata?: Record<string, any>;
+}
+
+export interface GeneratedSitrepSection {
+  title: string;
+  content: string;
+  type: string;
 }
 
 

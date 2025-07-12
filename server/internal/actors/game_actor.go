@@ -187,13 +187,18 @@ func (ga *GameActor) Stop() {
 		ga.scheduler.Stop()
 	}
 
-	// 2. Signal all goroutines to stop via context cancellation
+	// 2. Stop the AI manager and all AI actors
+	if ga.aiManager != nil {
+		ga.aiManager.Stop()
+	}
+
+	// 3. Signal all goroutines to stop via context cancellation
 	ga.cancel()
 
-	// 3. Wait for all goroutines to acknowledge shutdown and exit
+	// 4. Wait for all goroutines to acknowledge shutdown and exit
 	ga.wg.Wait()
 
-	// 4. Now that no goroutines are running, it is safe to close channels
+	// 5. Now that no goroutines are running, it is safe to close channels
 	defer func() {
 		if r := recover(); r != nil {
 			// Channel might already be closed, that's fine

@@ -33,6 +33,12 @@ The server implements a **Supervised Actor Model** with the following key compon
    - State snapshots for fast recovery
    - Event persistence and replay capability
 
+6. **AI Player System** (`internal/ai/`)
+   - **Strategic Brain**: Deterministic Go-based rules engine for game decisions
+   - **Social Brain**: LLM-powered communication via external APIs
+   - **Supervised Sidecar**: Non-blocking AI actors with panic recovery
+   - **MCP Integration**: Secure game state access via Model Context Protocol
+
 ## Game State & Events
 
 ### Enhanced Game State (`internal/game/state.go`)
@@ -136,11 +142,17 @@ go build -o alignment-server ./cmd/server
 - [x] Complete night resolution with 3-pass logic
 - [x] Comprehensive event system (30+ event types)
 
+### ✅ Recently Completed
+- [x] AI rules engine implementation (Strategic Brain)
+- [x] LLM integration via MCP protocol (Social Brain)  
+- [x] Supervised AI Actor system with panic recovery
+- [x] Comprehensive unit and integration tests for AI system
+- [x] Dual persona system (Shadow, Puppeteer) with strategic heuristics
+
 ### 🔄 In Progress / Planned
-- [ ] AI rules engine implementation
-- [ ] LLM integration via MCP protocol
-- [ ] Comprehensive test coverage
+- [ ] AI balance tuning via simulation testing
 - [ ] Load testing and optimization
+- [ ] Additional AI personas and prompt templates
 
 ## Design Adherence
 
