@@ -143,7 +143,7 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
         <div className="p-2">
           <div className="flex flex-col gap-1">
             <div
-              className={`flex items-center gap-1.5 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded-md cursor-pointer transition-all duration-150 hover:bg-gray-600 border-amber-500 ${selectedAction === "mine" ? "bg-amber-500/10 border-amber-500" : ""}`}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-all duration-150 ${selectedAction === "mine" ? "bg-blue-500/10 border-blue-500 ring-1 ring-blue-500/50" : "bg-gray-700 border-gray-600 hover:bg-gray-600"} border`}
               onClick={() => setIsMinimized(false)}
             >
               <span className="text-xs w-4 text-center">⛏️</span>
@@ -155,7 +155,7 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
               </span>
             </div>
             <div
-              className={`flex items-center gap-1.5 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded-md cursor-pointer transition-all duration-150 hover:bg-gray-600 ${selectedAction === "project" ? "bg-amber-500/10 border-amber-500" : ""}`}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-all duration-150 ${selectedAction === "project" ? "bg-blue-500/10 border-blue-500 ring-1 ring-blue-500/50" : "bg-gray-700 border-gray-600 hover:bg-gray-600"} border`}
               onClick={() => handleActionSelect("project")}
             >
               <span className="text-xs w-4 text-center">📈</span>
@@ -169,7 +169,7 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
             {isIntern ? (
               <>
                 <div
-                  className={`flex items-center gap-1.5 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded-md cursor-pointer transition-all duration-150 hover:bg-gray-600 ${selectedAction === "bootcamp" ? "bg-amber-500/10 border-amber-500" : ""}`}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-all duration-150 ${selectedAction === "bootcamp" ? "bg-blue-500/10 border-blue-500 ring-1 ring-blue-500/50" : "bg-gray-700 border-gray-600 hover:bg-gray-600"} border`}
                   onClick={() => handleActionSelect("bootcamp")}
                 >
                   <span className="text-xs w-4 text-center">📚</span>
@@ -181,7 +181,7 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
                   </span>
                 </div>
                 <div
-                  className={`flex items-center gap-1.5 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded-md transition-all duration-150 ${canUseShadow ? `cursor-pointer hover:bg-gray-600 ${selectedAction === "shadow" ? "bg-amber-500/10 border-amber-500" : ""}` : "opacity-60 cursor-not-allowed grayscale-30"}`}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all duration-150 border ${canUseShadow ? `cursor-pointer ${selectedAction === "shadow" ? "bg-blue-500/10 border-blue-500 ring-1 ring-blue-500/50" : "bg-gray-700 border-gray-600 hover:bg-gray-600"}` : "bg-gray-700 border-gray-600 opacity-60 cursor-not-allowed grayscale-30"}`}
                   onClick={() => canUseShadow && handleActionSelect("shadow")}
                 >
                   <span className="text-xs w-4 text-center">👤</span>
@@ -195,7 +195,7 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
               </>
             ) : (
               <div
-                className={`flex items-center gap-1.5 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded-md transition-all duration-150 ${hasUnlockedAbility && canPlayerAffordAbility(localPlayer.id) ? "cursor-pointer hover:bg-gray-600" : "opacity-60 cursor-not-allowed grayscale-30"}`}
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all duration-150 border ${hasUnlockedAbility && canPlayerAffordAbility(localPlayer.id) ? `cursor-pointer ${selectedAction === "ability" ? "bg-blue-500/10 border-blue-500 ring-1 ring-blue-500/50" : "bg-gray-700 border-gray-600 hover:bg-gray-600"}` : "bg-gray-700 border-gray-600 opacity-60 cursor-not-allowed grayscale-30"}`}
               >
                 <span className="text-xs w-4 text-center">🔒</span>
                 <span className="font-medium text-xs text-gray-100 flex-grow">
@@ -227,8 +227,13 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
 
         <div className="flex flex-col gap-2">
           <div
-            className={`px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 cursor-pointer transition-all duration-150 hover:bg-gray-700 hover:-translate-y-0.5 ${selectedAction === "mine" ? "border-amber-500 bg-amber-500/10" : ""}`}
+            className={`px-3 py-2 rounded-lg border cursor-pointer transition-all duration-150 hover:-translate-y-0.5 ${
+              selectedAction === "mine" 
+                ? "bg-blue-500/10 border-blue-500 ring-2 ring-blue-500/50 shadow-lg shadow-blue-500/20" 
+                : "bg-gray-800 border-gray-600 hover:bg-gray-700"
+            }`}
             onClick={() => handleActionSelect("mine")}
+            data-testid="mine-action"
           >
             <div className="flex items-center gap-2 mb-2">
               <span className="text-base w-5 text-center">⛏️</span>
@@ -258,8 +263,13 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
             </div>
           </div>
           <div
-            className={`px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 cursor-pointer transition-all duration-150 hover:bg-gray-700 hover:-translate-y-0.5 ${selectedAction === "project" ? "border-amber-500 bg-amber-500/10" : ""}`}
+            className={`px-3 py-2 rounded-lg border cursor-pointer transition-all duration-150 hover:-translate-y-0.5 ${
+              selectedAction === "project" 
+                ? "bg-blue-500/10 border-blue-500 ring-2 ring-blue-500/50 shadow-lg shadow-blue-500/20" 
+                : "bg-gray-800 border-gray-600 hover:bg-gray-700"
+            }`}
             onClick={() => handleActionSelect("project")}
+            data-testid="project-action"
           >
             <div className="flex items-center gap-2 mb-2">
               <span className="text-base w-5 text-center">📈</span>
@@ -289,7 +299,11 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
           {isIntern ? (
             <>
               <div
-                className={`px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 cursor-pointer transition-all duration-150 hover:bg-gray-700 hover:-translate-y-0.5 ${selectedAction === "bootcamp" ? "border-amber-500 bg-amber-500/10" : ""}`}
+                className={`px-3 py-2 rounded-lg border cursor-pointer transition-all duration-150 hover:-translate-y-0.5 ${
+                  selectedAction === "bootcamp" 
+                    ? "bg-blue-500/10 border-blue-500 ring-2 ring-blue-500/50 shadow-lg shadow-blue-500/20" 
+                    : "bg-gray-800 border-gray-600 hover:bg-gray-700"
+                }`}
                 onClick={() => handleActionSelect("bootcamp")}
               >
                 <div className="flex items-center gap-2 mb-2">
@@ -316,7 +330,15 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
                 </div>
               </div>
               <div
-                className={`px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 transition-all duration-150 ${canUseShadow ? `cursor-pointer hover:bg-gray-700 hover:-translate-y-0.5 ${selectedAction === "shadow" ? "border-amber-500 bg-amber-500/10" : ""}` : "opacity-60 cursor-not-allowed grayscale-30"}`}
+                className={`px-3 py-2 rounded-lg border transition-all duration-150 ${
+                  canUseShadow 
+                    ? `cursor-pointer hover:-translate-y-0.5 ${
+                        selectedAction === "shadow" 
+                          ? "bg-blue-500/10 border-blue-500 ring-2 ring-blue-500/50 shadow-lg shadow-blue-500/20" 
+                          : "bg-gray-800 border-gray-600 hover:bg-gray-700"
+                      }` 
+                    : "bg-gray-800 opacity-60 cursor-not-allowed grayscale-30 border-gray-600"
+                }`}
                 onClick={() => canUseShadow && handleActionSelect("shadow")}
               >
                 <div className="flex items-center gap-2 mb-2">
@@ -345,7 +367,15 @@ export const NightActionSelection: React.FC<NightActionSelectionProps> = () => {
             </>
           ) : (
             <div
-              className={`px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 transition-all duration-150 ${hasUnlockedAbility && canPlayerAffordAbility(localPlayer.id) ? `cursor-pointer hover:bg-gray-700 hover:-translate-y-0.5 ${selectedAction === "ability" ? "border-amber-500 bg-amber-500/10" : ""}` : "opacity-60 cursor-not-allowed grayscale-30"}`}
+              className={`px-3 py-2 rounded-lg border transition-all duration-150 ${
+                hasUnlockedAbility && canPlayerAffordAbility(localPlayer.id) 
+                  ? `cursor-pointer hover:-translate-y-0.5 ${
+                      selectedAction === "ability" 
+                        ? "bg-blue-500/10 border-blue-500 ring-2 ring-blue-500/50 shadow-lg shadow-blue-500/20" 
+                        : "bg-gray-800 border-gray-600 hover:bg-gray-700"
+                    }` 
+                  : "bg-gray-800 opacity-60 cursor-not-allowed grayscale-30 border-gray-600"
+              }`}
               onClick={() =>
                 hasUnlockedAbility &&
                 canPlayerAffordAbility(localPlayer.id) &&

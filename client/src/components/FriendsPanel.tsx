@@ -386,13 +386,13 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ isVisible, onClose }
             <div className="space-y-3">
               {isLoading ? (
                 <div className="text-center text-text-secondary">Loading...</div>
-              ) : friends.length === 0 ? (
+              ) : friends.filter(friend => friend.status !== 'offline').length === 0 ? (
                 <div className="text-center text-text-secondary">
-                  <p>No friends yet.</p>
-                  <p className="text-sm">Add some friends to get started!</p>
+                  <p>No friends are currently online.</p>
+                  <p className="text-sm">Friends will appear here when they are in-game or in a lobby.</p>
                 </div>
               ) : (
-                friends.map((friend) => (
+                friends.filter(friend => friend.status !== 'offline').map((friend) => (
                   <div
                     key={friend.id}
                     className="flex items-center justify-between p-3 bg-background-secondary rounded border"

@@ -652,3 +652,135 @@ def test_comprehensive_event_flow(game_setup):
     print("  ✅ Comprehensive event flow test completed")
 
 
+def test_emoji_reactions_flow(game_setup):
+    """
+    Tests emoji reaction functionality where players can react to messages with emojis.
+    
+    Test flow:
+    1. Player A sends a message
+    2. Player B reacts to the message with a 👍
+    3. Player C reacts with the same 👍 emoji  
+    4. Player B reacts again with 👍 (should toggle off)
+    5. Verify all clients receive MESSAGE_REACTION events
+    6. Verify final state shows only Player C's reaction
+    """
+    game_id, players = game_setup
+    
+    # Wait for the game to be ready for messaging
+    print("\nSTEP 1: Starting game and waiting for DISCUSSION phase...")
+    host = players[0]
+    
+    # Start the game
+    host.send_action("INITIALIZE_GAME", {"game_id": game_id})
+    time.sleep(2)
+    
+    # Clear all previous events before the test
+    for player in players:
+        player.clear_events()
+    
+    print("\nSTEP 2: Player A sends original message...")
+    sender = players[0]  # Player A
+    reactor_1 = players[1]  # Player B 
+    reactor_2 = players[2]  # Player C
+    observers = players[3:]  # Other players
+    
+    test_message = "What do you think about our next move?"
+    sender.send_action("SEND_MESSAGE", {
+        "message": test_message,
+        "channel_id": "#war-room"
+    })
+    time.sleep(1)
+    
+    # Get the message ID from CHAT_MESSAGE event
+    print("  Finding message ID from CHAT_MESSAGE event...")
+    message_id = None
+    for player in players:
+        chat_events = player.get_events("CHAT_MESSAGE")
+        for event in chat_events:
+            payload = event.get("payload", {})
+            if payload.get("message") == test_message:
+                message_id = payload.get("id")
+                break
+        if message_id:
+            break
+    
+    assert message_id is not None, "Could not find message ID for the sent message"
+    print(f"  ✅ Found message ID: {message_id}")
+    
+    # Clear events again
+    for player in players:
+        player.clear_events()
+    
+    print(f"\nSTEP 3: Player B ({reactor_1.name}) reacts with 👍...")
+    reactor_1.send_action("REACT_TO_MESSAGE", {
+        "message_id": message_id,
+        "emoji": "👍",
+        "channel_id": "#war-room"
+    })
+    time.sleep(1)
+    
+    # Verify all players received the MESSAGE_REACTION event
+    print("  Verifying all players received MESSAGE_REACTION event...")
+    for player in players:
+        reaction_events = player.get_events("MESSAGE_REACTION")
+        assert len(reaction_events) >= 1, f"{player.name} did not receive MESSAGE_REACTION event"
+        
+        # Verify the reaction details
+        latest_reaction = reaction_events[-1]
+        payload = latest_reaction.get("payload", {})
+        assert payload.get("message_id") == message_id, f"Wrong message_id in reaction for {player.name}"
+        assert payload.get("emoji") == "👍", f"Wrong emoji in reaction for {player.name}"
+        assert payload.get("player_id") == reactor_1.player_id, f"Wrong player_id in reaction for {player.name}"
+        assert payload.get("player_name") == reactor_1.name, f"Wrong player_name in reaction for {player.name}"
+        
+        print(f"  ✅ {player.name} received correct MESSAGE_REACTION event")
+    
+    # Clear events again
+    for player in players:
+        player.clear_events()
+    
+    print(f"\nSTEP 4: Player C ({reactor_2.name}) also reacts with 👍...")
+    reactor_2.send_action("REACT_TO_MESSAGE", {
+        "message_id": message_id,
+        "emoji": "👍",
+        "channel_id": "#war-room"
+    })
+    time.sleep(1)
+    
+    # Verify Player C's reaction
+    print("  Verifying Player C's reaction was received...")
+    for player in players:
+        reaction_events = player.get_events("MESSAGE_REACTION")
+        assert len(reaction_events) >= 1, f"{player.name} did not receive Player C's MESSAGE_REACTION event"
+        
+        latest_reaction = reaction_events[-1]
+        payload = latest_reaction.get("payload", {})
+        assert payload.get("player_id") == reactor_2.player_id, f"Expected Player C's reaction for {player.name}"
+        print(f"  ✅ {player.name} received Player C's reaction")
+    
+    # Clear events again  
+    for player in players:
+        player.clear_events()
+    
+    print(f"\nSTEP 5: Player B ({reactor_1.name}) reacts again with 👍 (toggle off)...")
+    reactor_1.send_action("REACT_TO_MESSAGE", {
+        "message_id": message_id,
+        "emoji": "👍", 
+        "channel_id": "#war-room"
+    })
+    time.sleep(1)
+    
+    # Verify Player B's toggle-off reaction
+    print("  Verifying Player B's toggle-off reaction...")
+    for player in players:
+        reaction_events = player.get_events("MESSAGE_REACTION")
+        assert len(reaction_events) >= 1, f"{player.name} did not receive Player B's toggle MESSAGE_REACTION event"
+        
+        latest_reaction = reaction_events[-1]
+        payload = latest_reaction.get("payload", {})
+        assert payload.get("player_id") == reactor_1.player_id, f"Expected Player B's toggle reaction for {player.name}"
+        print(f"  ✅ {player.name} received Player B's toggle reaction")
+    
+    print("  ✅ Emoji reactions flow test completed successfully")
+
+

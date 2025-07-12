@@ -37,6 +37,15 @@ export function GuardedAppRouter() {
     return <WasmTestScreen />;
   }
 
+  // FIX: Add a loading state guard until the initial session check is complete.
+  if (!appState.sessionChecked) {
+    return (
+      <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
+        <div className="animate-pulse text-lg font-mono tracking-widest">LOADING SESSION...</div>
+      </div>
+    );
+  }
+
   // --- Authentication Guardian ---
   // If the user has no name (is not logged in) and is not on the login page,
   // force them back to the login page. This is the highest priority rule.

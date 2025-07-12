@@ -135,11 +135,17 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
     }
     // Show spectator chat input
   } else {
-    // Regular player logic
+    // Regular player logic - determine what special UI to show
+    let specialUI = null;
+    
     switch (gameState?.phase?.type) {
       case "NOMINATION":
-      case "VERDICT":
         return <VoteUI />;
+
+      case "VERDICT":
+        // During VERDICT, show voting UI above the chat input
+        specialUI = <VoteUI />;
+        break;
 
       case "NIGHT":
         return <NightActionSelection />;
@@ -157,7 +163,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
             />
           );
         }
-      // After submission, fall through to the default case to show the chat input
+      // After submission, fall through to show chat input
       // Fallthrough is intentional here.
 
       case "SITREP":
@@ -165,6 +171,17 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
       case "TRIAL":
       default:
         break; // Continue to chat input below
+    }
+
+    // If we have special UI (like VERDICT voting), render it above the chat input
+    if (specialUI) {
+      return (
+        <div>
+          {specialUI}
+          {/* Chat input section below */}
+          {renderChatInput()}
+        </div>
+      );
     }
   }
 
@@ -216,7 +233,8 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
     }
   };
 
-      return (
+  // Extract chat input rendering into a separate function for reuse
+  const renderChatInput = () => (
         <div className="border-t border-border bg-background-primary p-3">
           {replyingTo && (
             <div className="bg-background-secondary border border-border rounded-md px-3 py-2 mb-3 text-sm">
@@ -405,4 +423,6 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
           </div>
         </div>
       );
+
+      return renderChatInput();
 };

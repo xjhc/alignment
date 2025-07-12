@@ -52,7 +52,7 @@ This section defines the behavior of the main `GameScreen` panels based on the c
 | **`DISCUSSION`** | `ChatInput` is enabled for all living players. `ContextualInputArea` is hidden. With 15s remaining, a banner with "Extend" / "Nominate" buttons appears. | `ChatInput`, `ContextualInputArea` |
 | **`NOMINATION`** | `ChatInput` is enabled. `ContextualInputArea` renders `VoteUI` for player nomination. | `ContextualInputArea`, `ChatInput` |
 | **`TRIAL`** | `ChatInput` is enabled for all living players. | `ChatInput` |
-| **`VERDICT`** | `ChatInput` is disabled. `ContextualInputArea` renders `VoteUI` with "GUILTY" and "INNOCENT" options. | `ContextualInputArea`, `ChatInput` |
+| **`VERDICT`** | `ChatInput` is **enabled**. `ContextualInputArea` renders `VoteUI` with "GUILTY" and "INNOCENT" options. | `ContextualInputArea`, `ChatInput` |
 | **`NIGHT`** | `ChatInput` is disabled. `ContextualInputArea` renders `NightActionSelection`. The screen has a "night mode" blue tint. | `GameScreen`, `ContextualInputArea`, `ChatInput`|
 
 ---

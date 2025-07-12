@@ -97,6 +97,7 @@ export type AppAction =
   | { type: "SET_MINING_TARGET"; payload: { target: string } }
   | { type: "SET_REPLYING_TO"; payload: { replyingTo: { messageId: string; playerName: string; message: string } | null } }
   | { type: "SET_SETTINGS_MODAL_OPEN"; payload: { isOpen: boolean } }
+  | { type: "SESSION_CHECK_COMPLETE" }
   | {
       type: "JOIN_LOBBY";
       payload: { gameId: string; playerId: string; sessionToken: string; lobbyName?: string; isNewJoin?: boolean };
@@ -166,6 +167,7 @@ export type AppAction =
       payload: { newHostId: string; previousHostId: string };
     }
   | { type: "LOAD_CHAT_HISTORY"; payload: { chatMessages: any[] } }
+  | { type: "MESSAGE_REACTION"; payload: { message_id: string; emoji: string; player_id: string; player_name: string } }
   | { type: "VOTE_TALLY_UPDATED"; payload: { voteState: VoteState } }
   | { type: "PULSE_CHECK_UPDATED"; payload: { player_id: string } }
   | { type: "LOBBY_LOADING_TIMEOUT" }
@@ -182,6 +184,7 @@ function createInitialAppState(): ConsolidatedAppState {
       userIdentity: existingIdentity || undefined,
       hasSyncedInitialState: false,
       isNewJoin: false,
+      sessionChecked: false, // Start as false
     },
     sessionState: "IDLE",
     lobbyState: {
@@ -552,6 +555,48 @@ export function appReducer(
         },
       };
 
+    case "MESSAGE_REACTION": {
+      const { message_id, emoji, player_id, player_name } = action.payload;
+      const updatedMessages = state.gameState.chatMessages.map(message => {
+        if (message.id === message_id) {
+          const existingReactions = message.reactions || [];
+          
+          // Check if this player already reacted with this emoji
+          const existingReactionIndex = existingReactions.findIndex(
+            reaction => reaction.playerID === player_id && reaction.emoji === emoji
+          );
+          
+          let newReactions;
+          if (existingReactionIndex >= 0) {
+            // Toggle off - remove the reaction
+            newReactions = existingReactions.filter((_, index) => index !== existingReactionIndex);
+          } else {
+            // Add new reaction
+            newReactions = [...existingReactions, {
+              emoji,
+              playerID: player_id,
+              playerName: player_name,
+              timestamp: new Date().toISOString()
+            }];
+          }
+          
+          return {
+            ...message,
+            reactions: newReactions
+          };
+        }
+        return message;
+      });
+      
+      return {
+        ...state,
+        gameState: {
+          ...state.gameState,
+          chatMessages: updatedMessages,
+        },
+      };
+    }
+
     case "VOTE_TALLY_UPDATED":
       return {
         ...state,
@@ -694,6 +739,15 @@ export function appReducer(
               alignment: action.payload.newAlignment,
             }
           : null,
+      };
+
+    case "SESSION_CHECK_COMPLETE":
+      return {
+        ...state,
+        appState: {
+          ...state.appState,
+          sessionChecked: true,
+        },
       };
 
     default:

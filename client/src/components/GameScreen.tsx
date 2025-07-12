@@ -25,6 +25,7 @@ export function GameScreen() {
   const [showConversionOverlay, setShowConversionOverlay] = useState(false);
   const [showExtensionVoting, setShowExtensionVoting] = useState(false);
   const [extensionRemainingSeconds, setExtensionRemainingSeconds] = useState(15);
+  const [isDossierMinimized, setIsDossierMinimized] = useState(false);
   const previousAlignment = useRef(localPlayer?.alignment);
   const previousPhase = useRef(gameState?.phase?.type);
   const previousMessageCount = useRef(0);
@@ -135,7 +136,7 @@ export function GameScreen() {
   }
 
   return (
-    <main className="w-screen h-screen grid grid-cols-[260px_1fr_320px] gap-px bg-border overflow-hidden">
+    <main className={`w-screen h-screen grid ${isDossierMinimized ? 'grid-cols-[260px_1fr_40px]' : 'grid-cols-[260px_1fr_320px]'} gap-px bg-border overflow-hidden transition-all duration-300`}>
       {/* Accessibility Announcements - ARIA live regions for screen readers */}
       <AccessibilityAnnouncements />
 
@@ -177,7 +178,7 @@ export function GameScreen() {
         <CommsPanel />
       </div>
       
-      {isSpectating ? <SpectatorHUD /> : <PlayerHUD />}
+      {isSpectating ? <SpectatorHUD /> : <PlayerHUD isDossierMinimized={isDossierMinimized} onToggleMinimize={() => setIsDossierMinimized(!isDossierMinimized)} />}
     </main>
   );
 }

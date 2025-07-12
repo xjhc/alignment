@@ -9,7 +9,7 @@ import {
   initialAppState,
   RoleAssignment,
 } from "../state/appReducer";
-import { ClientActionType } from "../types";
+import { ClientActionType, ServerEventType } from "../types";
 
 export function useSessionManager() {
   const location = useLocation();
@@ -53,7 +53,7 @@ export function useSessionManager() {
               type: "LOGIN",
               payload: {
                 playerName: userData.name,
-                playerAvatar: userData.avatar || "👤",
+                playerAvatar: userData.avatar || "üë§",
               },
             });
             const returnUrl = localStorage.getItem("discord_login_return_url");
@@ -140,13 +140,21 @@ export function useSessionManager() {
           localStorage.removeItem("alignmentGameSession");
         }
       }
+      
+      // Finally, dispatch that the check is complete
+      dispatch({ type: "SESSION_CHECK_COMPLETE" });
     };
     checkAuthAndSession();
   }, [navigateToLobbyList]);
 
   // Session persistence (runs whenever session state changes)
   useEffect(() => {
-    if (state.isInGameSession && state.appState.gameId && state.appState.playerId && state.appState.sessionToken) {
+    if (
+      state.isInGameSession &&
+      state.appState.gameId &&
+      state.appState.playerId &&
+      state.appState.sessionToken
+    ) {
       const sessionData = {
         gameId: state.appState.gameId,
         playerId: state.appState.playerId,
@@ -161,13 +169,13 @@ export function useSessionManager() {
       localStorage.removeItem("alignmentGameSession");
     }
   }, [
-    state.isInGameSession, 
-    state.sessionState, 
-    state.appState.gameId, 
-    state.appState.playerId, 
-    state.appState.sessionToken, 
+    state.isInGameSession,
+    state.sessionState,
+    state.appState.gameId,
+    state.appState.playerId,
+    state.appState.sessionToken,
     state.lobbyState.lobbyName,
-    state.appState.isSpectating
+    state.appState.isSpectating,
   ]);
 
   // Game state synchronization
@@ -508,7 +516,6 @@ export function useSessionManager() {
     handleHostTransferred,
   ]);
 
-
   // Skip vote event handler
   const handleSkipVoteUpdated = useCallback((event: any) => {
     console.log("[SessionManager] Skip vote updated:", event.payload);
@@ -524,13 +531,42 @@ export function useSessionManager() {
     });
   }, []);
 
+  const handlePhaseChanged = useCallback(() => {
+    // Reset skip vote state for new phase with empty state
+    dispatch({
+      type: "UPDATE_SKIP_VOTES",
+      payload: {
+        skipVoteState: {
+          currentVotes: 0,
+          requiredVotes: 0,
+          voters: [],
+        },
+      },
+    });
+  }, [dispatch]);
+
+  const handleMessageReaction = useCallback((event: any) => {
+    console.log("[SessionManager] MESSAGE_REACTION received:", event.payload);
+    dispatch({
+      type: "MESSAGE_REACTION",
+      payload: {
+        message_id: event.payload.message_id,
+        emoji: event.payload.emoji,
+        player_id: event.payload.player_id,
+        player_name: event.payload.player_name,
+      },
+    });
+  }, [dispatch]);
+
   // Game event subscriptions
   useEffect(() => {
     if (!isConnected || location.pathname === "/waiting") return;
     const unsubscribers = [
-      subscribe("PULSE_CHECK_UPDATED", handlePulseCheckUpdated),
-      subscribe("GAME_STATE_UPDATE", handleGameStateUpdate),
-      subscribe("SKIP_VOTE_UPDATED", handleSkipVoteUpdated),
+      subscribe(ServerEventType.PulseCheckUpdated, handlePulseCheckUpdated),
+      subscribe(ServerEventType.GameStateUpdate, handleGameStateUpdate),
+      subscribe(ServerEventType.SkipVoteUpdated, handleSkipVoteUpdated),
+      subscribe(ServerEventType.PhaseChanged, handlePhaseChanged),
+      subscribe("MESSAGE_REACTION", handleMessageReaction),
     ];
     return () => unsubscribers.forEach((unsub) => unsub());
   }, [
@@ -540,6 +576,8 @@ export function useSessionManager() {
     handlePulseCheckUpdated,
     handleGameStateUpdate,
     handleSkipVoteUpdated,
+    handlePhaseChanged,
+    handleMessageReaction,
   ]);
 
   // WebSocket connection

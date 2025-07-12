@@ -1703,7 +1703,7 @@ func (ga *GameActor) handleSkipVoteAction(action core.Action) ([]core.Event, err
 		ID:        fmt.Sprintf("skip_vote_%s_%d", action.PlayerID, now.UnixNano()),
 		Type:      core.EventSkipVoteUpdated,
 		GameID:    ga.gameID,
-		PlayerID:  action.PlayerID,
+		PlayerID:  "", // Empty PlayerID makes this a public event broadcast to all players
 		Timestamp: now,
 		Payload: map[string]interface{}{
 			"current_votes":  currentVotes,
@@ -1954,6 +1954,40 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 	}
 
 	var events []core.Event
+
+	// Special handling when transitioning FROM nomination phase
+	if ga.state.Phase.Type == core.PhaseNomination && core.PhaseType(nextPhase) == core.PhaseTrial {
+		// Check if anyone was actually nominated
+		hasNomination := false
+		if ga.state.VoteState != nil {
+			winner, _, hasTie := ga.votingManager.GetWinner()
+			hasNomination = !hasTie && winner != ""
+		}
+
+		// If no one was nominated, skip directly to Night phase
+		if !hasNomination {
+			// Generate a system message explaining the skip
+			skipMessage := core.Event{
+				ID:        fmt.Sprintf("nomination_skipped_%d_%d", ga.state.DayNumber, time.Now().UnixNano()),
+				Type:      core.EventChatMessage,
+				GameID:    ga.gameID,
+				PlayerID:  "",
+				Timestamp: time.Now(),
+				Payload: map[string]interface{}{
+					"message":     "No consensus was reached for a nomination. The day ends without a trial.",
+					"player_name": "System",
+					"is_system":   true,
+				},
+			}
+			events = append(events, skipMessage)
+
+			// Clear vote state since we're skipping trial/verdict
+			ga.votingManager.ClearVote()
+
+			// Override the next phase to go directly to Night
+			nextPhase = string(core.PhaseNight)
+		}
+	}
 
 	// Handle special logic based on phase we're entering
 	switch core.PhaseType(nextPhase) {
@@ -2377,11 +2411,12 @@ func (ga *GameActor) handlePostEventProcessing(event core.Event) []core.Event {
 
 	if isGameEndingEvent {
 		if ga.state.DayNumber > 0 && ga.state.Phase.Type != core.PhaseLobby {
-			// Check game-end KPIs before determining winner
-			gameEndKPIEvents := ga.kpiManager.CheckGameEndKPIs()
-			additionalEvents = append(additionalEvents, gameEndKPIEvents...)
-
+			// FIX: Check for win condition *before* evaluating game-end KPIs
 			if winCondition := core.CheckWinCondition(*ga.state); winCondition != nil {
+				// Now that we know the game is over, it's safe to check game-end KPIs.
+				gameEndKPIEvents := ga.kpiManager.CheckGameEndKPIs()
+				additionalEvents = append(additionalEvents, gameEndKPIEvents...)
+
 				endEvent := ga.endGame(*winCondition)
 				additionalEvents = append(additionalEvents, endEvent)
 			}

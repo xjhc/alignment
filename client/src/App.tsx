@@ -8,19 +8,41 @@ import { NotificationManager } from "./components/NotificationManager";
 import { NotificationBridge } from "./components/NotificationBridge";
 import { AppProviders } from "./contexts/AppProviders";
 import {
-  SessionProvider,
+  useSessionContext,
   GameProvider,
   GameContextType,
 } from "./contexts";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useChatBuffer } from "./hooks/useChatBuffer";
-import { useSessionManager } from "./hooks/useSessionManager";
 import { useGameActions } from "./hooks/useGameActions";
 import { useGameEngineContext } from "./contexts/GameEngineContext";
 import { useWebSocketContext } from "./contexts/WebSocketContext";
 
 function AppContent() {
-  const { state, dispatch, gameEngineLoading, gameEngineError, isConnected, sessionActions } = useSessionManager();
+  const { 
+    appState, 
+    sessionState, 
+    lobbyState, 
+    gameState, 
+    roleAssignment, 
+    gameAnalysis, 
+    gameUIState,
+    isConnected, 
+    dispatch, 
+    gameEngineLoading, 
+    gameEngineError 
+  } = useSessionContext();
+
+  // Reconstruct state object for compatibility with existing code
+  const state = {
+    appState,
+    sessionState,
+    lobbyState,
+    gameState,
+    roleAssignment,
+    gameAnalysis,
+    gameUIState,
+  };
 
   const { commandPaletteOpen, closeCommandPalette } = useKeyboardShortcuts();
   const { canPlayerAffordAbility, isValidNightActionTarget } = useGameEngineContext();
@@ -105,17 +127,6 @@ function AppContent() {
     );
   }
 
-  const sessionContextValue = {
-    appState: state.appState,
-    sessionState: state.sessionState,
-    lobbyState: state.lobbyState,
-    gameState: state.gameState,
-    roleAssignment: state.roleAssignment,
-    gameAnalysis: state.gameAnalysis,
-    isConnected,
-    ...sessionActions,
-  };
-
   const gameContextValue: GameContextType = {
     gameState: state.gameState,
     localPlayerId: state.appState.playerId || "",
@@ -150,24 +161,22 @@ function AppContent() {
   };
 
   return (
-    <SessionProvider value={sessionContextValue}>
-      <GameProvider value={gameContextValue}>
-        <NotificationBridge />
-        <AnimatePresence mode="wait">
-          <GuardedAppRouter />
-        </AnimatePresence>
-        <NotificationManager />
-        <AchievementNotificationManager />
-        <CommandPalette
-          isOpen={commandPaletteOpen}
-          onClose={closeCommandPalette}
-        />
-        <SettingsModal
-          isOpen={state.gameUIState.settingsModalOpen}
-          onClose={() => dispatch({ type: "SET_SETTINGS_MODAL_OPEN", payload: { isOpen: false } })}
-        />
-      </GameProvider>
-    </SessionProvider>
+    <GameProvider value={gameContextValue}>
+      <NotificationBridge />
+      <AnimatePresence mode="wait">
+        <GuardedAppRouter />
+      </AnimatePresence>
+      <NotificationManager />
+      <AchievementNotificationManager />
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={closeCommandPalette}
+      />
+      <SettingsModal
+        isOpen={state.gameUIState.settingsModalOpen}
+        onClose={() => dispatch({ type: "SET_SETTINGS_MODAL_OPEN", payload: { isOpen: false } })}
+      />
+    </GameProvider>
   );
 }
 

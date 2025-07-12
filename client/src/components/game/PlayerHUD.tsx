@@ -7,7 +7,12 @@ import { AbilityCard } from './AbilityCard';
 import { Modal } from '../ui/Modal';
 import { ClientActionType } from '../../types/generated';
 
-export const PlayerHUD: React.FC = () => {
+interface PlayerHUDProps {
+  isDossierMinimized?: boolean;
+  onToggleMinimize?: () => void;
+}
+
+export const PlayerHUD: React.FC<PlayerHUDProps> = ({ isDossierMinimized = false, onToggleMinimize }) => {
   const { gameState, viewedPlayer, localPlayer, sendAction } = useGameContext();
   const [showAbandonModal, setShowAbandonModal] = useState(false);
 
@@ -30,22 +35,56 @@ export const PlayerHUD: React.FC = () => {
   const headerTitle = isViewingSelf ? 'My Terminal' : `${viewedPlayer?.name || 'Unknown'}'s Dossier`;
 
   return (
-    <aside className="flex flex-col bg-background-secondary overflow-hidden">
+    <aside className="flex flex-col bg-background-secondary overflow-hidden h-full">
       {/* Header showing whether viewing self or other player */}
       <div className="px-4 py-2 border-b border-border bg-background-tertiary">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-text-primary">{headerTitle}</h2>
-          {!isViewingSelf && (
-            <span className="text-xs text-text-muted bg-background-secondary px-2 py-1 rounded-md border border-border">
-              🔍 PUBLIC VIEW
-            </span>
-          )}
+          {!isDossierMinimized && <h2 className="text-sm font-bold text-text-primary">{headerTitle}</h2>}
+          <div className="flex items-center gap-2">
+            {!isDossierMinimized && !isViewingSelf && (
+              <span className="text-xs text-text-muted bg-background-secondary px-2 py-1 rounded-md border border-border">
+                🔍 PUBLIC VIEW
+              </span>
+            )}
+            {onToggleMinimize && (
+              <button
+                onClick={onToggleMinimize}
+                className="p-1 hover:bg-background-secondary rounded transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-accent-primary focus-visible:outline-offset-1"
+                title={isDossierMinimized ? "Expand dossier panel" : "Minimize dossier panel"}
+                aria-label={isDossierMinimized ? "Expand dossier panel" : "Minimize dossier panel"}
+              >
+                {isDossierMinimized ? (
+                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
       
-      <IdentityCard localPlayer={viewedPlayer} isViewingSelf={isViewingSelf} />
+      {isDossierMinimized ? (
+        <div className="flex-grow flex items-center justify-center">
+          <button
+            onClick={onToggleMinimize}
+            className="writing-mode-vertical-rl text-orientation-mixed p-2 hover:bg-background-tertiary rounded transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-accent-primary focus-visible:outline-offset-1 text-xs text-text-muted"
+            title="Expand dossier panel"
+            aria-label="Expand dossier panel"
+            style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+          >
+            DOSSIER
+          </button>
+        </div>
+      ) : (
+        <>
+          <IdentityCard localPlayer={viewedPlayer} isViewingSelf={isViewingSelf} />
 
-      <div className="flex-grow p-4 overflow-y-auto flex flex-col gap-4">
+          <div className="flex-grow p-4 overflow-y-auto flex flex-col gap-4">
         {/* Only show threat meter if viewing self and player is Human */}
         {isViewingSelf && viewedPlayer.alignment === 'HUMAN' && (
           <ThreatMeter
@@ -127,7 +166,9 @@ export const PlayerHUD: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Abandon Game Confirmation Modal */}
       <Modal

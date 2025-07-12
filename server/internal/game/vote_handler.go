@@ -109,6 +109,31 @@ func (h *VoteHandler) handleSkipVoteAction(state *core.GameState, action core.Ac
 				},
 			}
 			events = append(events, transitionEvent)
+			
+			// Add skip vote reset event to clear frontend state for the new phase
+			// Calculate required votes for the new phase
+			livingHumans := 0
+			for _, player := range newState.Players {
+				if player.IsAlive && player.ControlType == "HUMAN" {
+					livingHumans++
+				}
+			}
+			
+			skipVoteResetEvent := core.Event{
+				ID:        fmt.Sprintf("skip_vote_reset_%s_%d", action.GameID, time.Now().UnixNano()),
+				Type:      core.EventSkipVoteUpdated,
+				GameID:    acker.GetGameID(),
+				PlayerID:  "",
+				Timestamp: time.Now(),
+				Payload: map[string]interface{}{
+					"current_votes":  0,
+					"required_votes": livingHumans,
+					"voters":         []string{},
+					"has_voted":      false,
+					"player_name":    "",
+				},
+			}
+			events = append(events, skipVoteResetEvent)
 		}
 	}
 

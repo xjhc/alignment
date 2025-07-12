@@ -537,68 +537,34 @@ func (gs *GameState) applyPlayerRoleRevealed(event Event) {
 }
 
 func (gs *GameState) applyChatMessage(event Event) {
+	// Simplified to always read from the flat payload
 	message := ChatMessage{
-		ID:         event.ID,
-		PlayerID:   event.PlayerID,
-		PlayerName: "",
-		Message:    "",
-		Timestamp:  event.Timestamp,
-		IsSystem:   false,
+		ID:        event.ID,
+		PlayerID:  event.PlayerID, // Top-level PlayerID is now authoritative
+		Timestamp: event.Timestamp,
 	}
-
-	// Handle both nested and flat payload structures
-	var msgData map[string]interface{}
 	
-	// Check for the new nested structure first
-	if nestedMsg, exists := event.Payload["message"].(map[string]interface{}); exists {
-		msgData = nestedMsg
-	} else {
-		// Fallback to the old flat structure for compatibility
-		msgData = event.Payload
-	}
-
-	// Extract fields from the resolved msgData map
-	if messageText, ok := msgData["message"].(string); ok {
-		message.Message = messageText
-	}
-
-	if playerName, ok := msgData["playerName"].(string); ok {
-		message.PlayerName = playerName
-	} else if senderName, ok := msgData["sender_name"].(string); ok {
-		message.PlayerName = senderName
-	} else if playerName, ok := msgData["player_name"].(string); ok {
-		// Fallback for legacy format
-		message.PlayerName = playerName
-	}
-
-	if playerID, ok := msgData["playerID"].(string); ok && playerID != "" {
-		// Use playerID from payload if available
-		message.PlayerID = playerID
-	} else if senderID, ok := msgData["sender_id"].(string); ok && senderID != "" {
-		// Use sender_id from payload if available
+	// Directly access payload fields
+	if senderID, ok := event.Payload["sender_id"].(string); ok {
 		message.PlayerID = senderID
 	}
-
-	if isSystem, ok := msgData["isSystem"].(bool); ok {
-		message.IsSystem = isSystem
-	} else if isSystem, ok := msgData["is_system"].(bool); ok {
+	if senderName, ok := event.Payload["sender_name"].(string); ok {
+		message.PlayerName = senderName
+	}
+	if msg, ok := event.Payload["message"].(string); ok {
+		message.Message = msg
+	}
+	if isSystem, ok := event.Payload["isSystem"].(bool); ok {
 		message.IsSystem = isSystem
 	}
 
-	// Handle channel information
-	if channelID, ok := msgData["channelID"].(string); ok {
-		message.ChannelID = channelID
-	} else if channelID, ok := msgData["channel_id"].(string); ok {
+	if channelID, ok := event.Payload["channel_id"].(string); ok {
 		message.ChannelID = channelID
 	}
-
-	// Handle message ID from nested structure
-	if msgID, ok := msgData["id"].(string); ok {
+	if msgID, ok := event.Payload["id"].(string); ok {
 		message.ID = msgID
 	}
-
-	// Handle timestamp from nested structure
-	if timestampStr, ok := msgData["timestamp"].(string); ok {
+	if timestampStr, ok := event.Payload["timestamp"].(string); ok {
 		if timestamp, err := time.Parse(time.RFC3339Nano, timestampStr); err == nil {
 			message.Timestamp = timestamp
 		}
@@ -1665,6 +1631,16 @@ func (gs *GameState) applyEquityThreshold(event Event) {
 
 // applySkipVoteUpdated handles skip vote events
 func (gs *GameState) applySkipVoteUpdated(event Event) {
+	// Check if this is a reset event (indicated by empty PlayerID and current_votes = 0)
+	if event.PlayerID == "" {
+		if currentVotes, ok := event.Payload["current_votes"].(int); ok && currentVotes == 0 {
+			// Reset all skip votes for new phase
+			gs.SkipVotes = make(map[string]bool)
+			return
+		}
+	}
+	
+	// Handle individual player vote
 	playerID := event.PlayerID
 	hasVoted, _ := event.Payload["has_voted"].(bool)
 
@@ -2169,7 +2145,7 @@ func processSkipVoteAction(gameState GameState, action Action, currentTime time.
 		{
 			ID:        fmt.Sprintf("skip_vote_%s_%d", action.PlayerID, currentTime.UnixNano()),
 			Type:      EventSkipVoteUpdated,
-			PlayerID:  action.PlayerID,
+			PlayerID:  action.PlayerID, // Include the voting player's ID for state application
 			GameID:    gameState.ID,
 			Timestamp: currentTime,
 			Payload: map[string]interface{}{

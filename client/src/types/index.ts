@@ -220,4 +220,5 @@ export interface AppState {
   isSpectating?: boolean;
   hasSyncedInitialState?: boolean; // Track if we've received initial state for this session
   isNewJoin?: boolean; // Track if this is a fresh join vs session restoration
+  sessionChecked: boolean; // Track if the initial session check is complete
 }

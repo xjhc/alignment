@@ -325,7 +325,7 @@ function HighlightsTab({ data }: { data: any }) {
               </div>
               <p className="text-text-primary italic mb-3">"{mostReacted.message}"</p>
               <div className="flex gap-2">
-                {mostReacted.reactions.map((reaction, index) => (
+                {(mostReacted.reactions || []).map((reaction, index) => (
                   <span key={index} className="bg-background-primary border border-border px-2 py-1 rounded-full text-xs">
                     {reaction.emoji} {reaction.count}
                   </span>
@@ -337,7 +337,7 @@ function HighlightsTab({ data }: { data: any }) {
           <div className="bg-background-secondary border border-border rounded-xl p-5">
             <h4 className="font-bold text-text-primary mb-3">💎 Notable Quotes</h4>
             <div className="space-y-4">
-              {notableQuotes.map((quote: any, index: number) => (
+              {(notableQuotes || []).map((quote: any, index: number) => (
                 <div key={index} className="border-l-4 border-l-success pl-4">
                   <p className="italic text-text-primary">"{quote.message}"</p>
                   <footer className="text-xs text-text-secondary mt-1">— {quote.playerName || quote.player} ({quote.timestamp})</footer>

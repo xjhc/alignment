@@ -35,3 +35,13 @@ client/storybook-static/
 
 # Local files
 .azure_vm_ip
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+venv/
+.pytest_cache/

@@ -1,93 +1,68 @@
+# Use the official multi-platform Node.js image
 FROM node:20
 
-ARG TZ
-ENV TZ="$TZ"
-
-# Install basic development tools and iptables/ipset
-RUN apt update && apt install -y less \
-  git \
-  procps \
-  sudo \
-  fzf \
-  zsh \
-  man-db \
-  unzip \
-  gnupg2 \
-  gh \
-  iptables \
-  ipset \
-  iproute2 \
-  dnsutils \
-  aggregate \
-  jq \
-  curl \
-  wget \
-  build-essential
-
-# Install Go 1.23.10
-RUN wget https://go.dev/dl/go1.23.10.linux-amd64.tar.gz && \
-  rm -rf /usr/local/go && \
-  tar -C /usr/local -xzf go1.23.10.linux-amd64.tar.gz && \
-  rm go1.23.10.linux-amd64.tar.gz
-
-# Add Go to PATH
-ENV PATH="/usr/local/go/bin:$PATH"
-
-# Install Redis server
-RUN apt install -y redis-server
-
-# Install golangci-lint
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v1.55.2
-
-# Ensure default node user has access to /usr/local/share
-RUN mkdir -p /usr/local/share/npm-global && \
-  chown -R node:node /usr/local/share
-
+# Arguments for versions and configuration, allowing overrides during build
+ARG TZ=Etc/UTC
+ARG TARGETARCH
 ARG USERNAME=node
+ARG GOLANG_VERSION=1.23.10
+ARG GOLANGCI_LINT_VERSION=v1.55.2
+ARG GIT_DELTA_VERSION=0.18.2
 
-# Persist bash history.
-RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
-  && mkdir /commandhistory \
-  && touch /commandhistory/.bash_history \
-  && chown -R $USERNAME /commandhistory
-
-# Set `DEVCONTAINER` environment variable to help with orientation
+# Set environment variables
+ENV TZ="$TZ"
+ENV SHELL=/bin/zsh
 ENV DEVCONTAINER=true
+# Go environment
+ENV GOLANG_VERSION=$GOLANG_VERSION
+ENV GOPATH=/home/node/go
+ENV PATH=$GOPATH/bin:/usr/local/go/bin:/usr/local/share/npm-global/bin:$PATH
+# NPM global environment
+ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 
-# Create workspace and config directories and set permissions
-RUN mkdir -p /workspace /home/node/.claude && \
-  chown -R node:node /workspace /home/node/.claude && \
-  chmod -R 755 /workspace
+# --- System-level installations as root ---
 
+# 1. Install all dependencies in a single layer to optimize image size.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  less git procps sudo fzf zsh man-db unzip gnupg2 curl wget \
+  build-essential gh iptables ipset iproute2 dnsutils aggregate jq redis-server \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# 2. Install Go for the correct architecture dynamically
+RUN wget "https://go.dev/dl/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" -O go.tar.gz \
+  && tar -C /usr/local -xzf go.tar.gz \
+  && rm go.tar.gz
+
+# 3. Install other architecture-aware tools (golangci-lint, git-delta)
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin ${GOLANGCI_LINT_VERSION}
+RUN wget "https://github.com/dandavison/delta/releases/download/${GIT_DELTA_VERSION}/git-delta_${GIT_DELTA_VERSION}_${TARGETARCH}.deb" \
+  && dpkg -i "git-delta_${GIT_DELTA_VERSION}_${TARGETARCH}.deb" \
+  && rm "git-delta_${GIT_DELTA_VERSION}_${TARGETARCH}.deb"
+
+# 4. Create directories and set up permissions
+RUN mkdir -p /workspace /commandhistory /home/$USERNAME/.claude $NPM_CONFIG_PREFIX $GOPATH/bin \
+  && chown -R $USERNAME:$USERNAME /workspace /commandhistory /home/$USERNAME $NPM_CONFIG_PREFIX $GOPATH
+
+# 5. Set up persisted command history
+RUN touch /commandhistory/.bash_history \
+  && chown $USERNAME:$USERNAME /commandhistory/.bash_history
+
+# 6. Copy scripts and set up sudo permissions for the node user
+COPY init-firewall.sh start-redis.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/start-redis.sh \
+  && echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall \
+  && echo "$USERNAME ALL=(root) NOPASSWD: /usr/sbin/service" >> /etc/sudoers.d/node-firewall \
+  && chmod 0440 /etc/sudoers.d/node-firewall
+
+# --- Switch to non-root user ---
+USER $USERNAME
 WORKDIR /workspace
 
-# Note: Go dependencies will be installed via postCreateCommand
-# This ensures we have the full workspace context available
-
-RUN ARCH=$(dpkg --print-architecture) && \
-  wget "https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_${ARCH}.deb" && \
-  sudo dpkg -i "git-delta_0.18.2_${ARCH}.deb" && \
-  rm "git-delta_0.18.2_${ARCH}.deb"
-
-
-# Set up non-root user
-USER node
-
-# Create Go workspace directory
-RUN mkdir -p /home/node/go/bin
-
-# Install global packages
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH=$PATH:/usr/local/share/npm-global/bin:/usr/local/go/bin:/home/node/go/bin
-ENV GOPATH=/home/node/go
-
-# Install Go tools as node user
+# 7. Install user-specific tools (Go, NPM)
 RUN go install github.com/swaggo/swag/cmd/swag@latest
+RUN npm install -g @anthropic-ai/claude-code
 
-# Set the default shell to zsh rather than sh
-ENV SHELL=/bin/zsh
-
-# Default powerline10k theme
+# 8. Set up Zsh with a default theme and plugins
 RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.2.0/zsh-in-docker.sh)" -- \
   -p git \
   -p fzf \
@@ -95,15 +70,3 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "source /usr/share/doc/fzf/examples/completion.zsh" \
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
   -x
-
-# Install Claude
-RUN npm install -g @anthropic-ai/claude-code
-
-# Copy and set up scripts
-COPY init-firewall.sh start-redis.sh /usr/local/bin/
-USER root
-RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/start-redis.sh && \
-  echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
-  echo "node ALL=(root) NOPASSWD: /usr/sbin/service" >> /etc/sudoers.d/node-firewall && \
-  chmod 0440 /etc/sudoers.d/node-firewall
-USER node

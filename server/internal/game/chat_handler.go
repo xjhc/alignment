@@ -395,26 +395,20 @@ func (h *ChatHandler) createChatMessageEvent(state *core.GameState, playerID, me
 		return core.Event{}, fmt.Errorf("cannot send message in channel %s during %s phase", channel, state.Phase.Type)
 	}
 
-	// Create chat message
-	chatMessage := core.ChatMessage{
-		ID:         fmt.Sprintf("msg-%d", time.Now().UnixNano()),
-		PlayerID:   player.ID,
-		PlayerName: player.Name,
-		Message:    message,
-		Timestamp:  time.Now(),
-		IsSystem:   false,
-		ChannelID:  channel,
-	}
-
-	// Create event payload
+	// Create event payload as a flat map, not a nested struct
 	eventPayload := map[string]interface{}{
-		"message":     chatMessage,
+		"id":          fmt.Sprintf("msg-%d", time.Now().UnixNano()),
+		"sender_id":   playerID,
+		"sender_name": player.Name,
+		"message":     message,
+		"timestamp":   time.Now().Format(time.RFC3339Nano),
+		"isSystem":    false,
 		"channel_id":  channel,
 		"phase":       string(state.Phase.Type),
 		"day_number":  state.DayNumber,
 	}
 
-	// Add client message ID if available
+	// Include client message ID if provided for confirmation
 	if clientMessageID != "" {
 		eventPayload["client_message_id"] = clientMessageID
 	}

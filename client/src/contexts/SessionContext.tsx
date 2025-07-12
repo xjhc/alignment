@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { AppState, GameState } from '../types';
-import { SessionState, LobbyState, RoleAssignment } from '../state/appReducer';
+import { SessionState, LobbyState, RoleAssignment, GameUIState } from '../state/appReducer';
 
 // Define the shape of the context data
 export interface SessionContextType {
@@ -10,7 +10,11 @@ export interface SessionContextType {
     gameState: GameState;
     roleAssignment: RoleAssignment | null;
     gameAnalysis: any | null;
+    gameUIState: GameUIState;
     isConnected: boolean;
+    dispatch: any;
+    gameEngineLoading: boolean;
+    gameEngineError: string | null;
     onLogin: (playerName: string, avatar: string) => void;
     onJoinLobby: (gameId: string, playerId: string, sessionToken: string, lobbyName?: string) => void;
     onCreateGame: (gameId: string, playerId: string, sessionToken: string, lobbyName?: string) => void;
