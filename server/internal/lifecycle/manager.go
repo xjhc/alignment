@@ -190,6 +190,17 @@ func (glm *GameLifecycleManager) handleLobbyDisconnection(event events.PlayerDis
 		lobby.DisconnectPlayer(event.PlayerID)
 		log.Printf("[Disconnect-%s] handleLobbyDisconnection: Player %s marked as disconnected in lobby, state broadcasted", correlationID, event.PlayerID)
 
+		// Check if countdown should be cancelled immediately due to insufficient players
+		// This happens before starting grace period to handle active leaves during countdown
+		glm.mutex.RLock()
+		cancelFunc, countdownRunning := glm.countdownCancel[event.LobbyID]
+		glm.mutex.RUnlock()
+
+		if countdownRunning && !lobby.CanStart() {
+			log.Printf("[Disconnect-%s] handleLobbyDisconnection: Cancelling countdown for lobby %s due to insufficient players after disconnect", correlationID, event.LobbyID)
+			cancelFunc()
+		}
+
 		// Publish player disconnected event (not left)
 		glm.eventBus.Publish(events.PlayerDisconnectedFromLobbyEvent{
 			PlayerID: event.PlayerID,
@@ -219,8 +230,14 @@ func (glm *GameLifecycleManager) handleLobbyDisconnection(event events.PlayerDis
 		}
 		log.Printf("[Disconnect-%s] handleLobbyDisconnection: Broadcasted PLAYER_CONNECTION_STATUS_CHANGED event to %d players", correlationID, len(playerActors))
 
-		// Start grace period timer
-		glm.startLobbyDisconnectionGracePeriod(event.LobbyID, event.PlayerID)
+		// Start grace period timer only if countdown wasn't already cancelled
+		if !countdownRunning || lobby.CanStart() {
+			glm.startLobbyDisconnectionGracePeriod(event.LobbyID, event.PlayerID)
+		} else {
+			// If countdown was cancelled, permanently remove the player immediately
+			log.Printf("[Disconnect-%s] handleLobbyDisconnection: Countdown cancelled, removing player %s permanently from lobby %s", correlationID, event.PlayerID, event.LobbyID)
+			glm.removePermanentlyFromLobby(event.LobbyID, event.PlayerID)
+		}
 
 		log.Printf("[Disconnect-%s] handleLobbyDisconnection: Player %s disconnected from lobby %s, starting grace period", correlationID, event.PlayerID, event.LobbyID)
 	} else {
@@ -497,6 +514,12 @@ func (glm *GameLifecycleManager) runGracePeriodTimer(ctx context.Context, gameID
 
 // abandonDisconnectedPlayer abandons a player whose grace period has expired
 func (glm *GameLifecycleManager) abandonDisconnectedPlayer(gameID, playerID string) {
+	// CRITICAL FIX: Remove from active user tracker when grace period expires
+	if glm.activeUserTracker != nil {
+		glm.activeUserTracker.RemoveUserSessionByGameAndPlayer(gameID, playerID)
+		log.Printf("GameLifecycleManager: Removed player %s from active user tracker after grace period expiry", playerID)
+	}
+
 	// Notify the GameActor to abandon the player
 	glm.mutex.RLock()
 	gameActor, exists := glm.gameActors[gameID]
@@ -760,7 +783,7 @@ func (glm *GameLifecycleManager) cleanupStaleGameSessions() {
 // CreateLobbyViaHTTP creates a lobby via HTTP and returns join credentials
 func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool) (string, string, string, error) {
 	lobbyID := uuid.New().String()
-	// Use the userID as the playerID to ensure consistency
+	// Use the userID directly as the hostPlayerID to maintain Progressive Identity Model
 	hostPlayerID := userID
 
 	glm.mutex.Lock()
@@ -1622,12 +1645,14 @@ func (glm *GameLifecycleManager) GetInitialStateForPlayer(gameID, playerID strin
 	return nil, fmt.Errorf("no lobby or game found with ID: %s", gameID)
 }
 
-// GetLobbyList returns a list of active lobbies for the HTTP API
+// GetLobbyList returns a list of active lobbies and in-progress games for the HTTP API
 func (glm *GameLifecycleManager) GetLobbyList() []interface{} {
 	glm.mutex.RLock()
 	defer glm.mutex.RUnlock()
 
-	lobbies := make([]interface{}, 0, len(glm.lobbies))
+	lobbies := make([]interface{}, 0, len(glm.lobbies)+len(glm.gameActors))
+	
+	// Add waiting lobbies
 	for _, lobby := range glm.lobbies {
 		// Use fine-grained locking to read lobby state safely
 		lobby.RLock()
@@ -1645,6 +1670,32 @@ func (glm *GameLifecycleManager) GetLobbyList() []interface{} {
 			})
 		}
 		lobby.RUnlock()
+	}
+
+	// Add in-progress games for spectating
+	for gameID, gameActor := range glm.gameActors {
+		// Get game state to check if it's in progress and get player count
+		gameState := gameActor.GetGameState()
+		if gameState != nil && gameState.Phase.Type != core.PhaseGameOver {
+			// Count active (non-AI) players
+			playerCount := 0
+			for _, player := range gameState.Players {
+				if player.ControlType == "HUMAN" {
+					playerCount++
+				}
+			}
+			
+			lobbies = append(lobbies, map[string]interface{}{
+				"id":            gameID,
+				"name":          fmt.Sprintf("Game in Progress (%d players)", playerCount),
+				"player_count":  playerCount,
+				"max_players":   8, // Default max players for spectating
+				"min_players":   2, // Not relevant for in-progress games
+				"can_join":      false, // Cannot join as player, only spectate
+				"status":        "IN_PROGRESS",
+				"game_settings": gameState.Settings,
+			})
+		}
 	}
 
 	return lobbies

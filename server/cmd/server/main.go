@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -33,56 +32,13 @@ import (
 	"github.com/xjhc/alignment/server/internal/logger"
 	"github.com/xjhc/alignment/server/internal/mcp"
 	"github.com/xjhc/alignment/server/internal/metrics"
+	"github.com/xjhc/alignment/server/internal/ratelimit"
 	"github.com/xjhc/alignment/server/internal/store"
 	"golang.org/x/time/rate"
 )
 
 // Global semaphore for limiting concurrent action processing
 var actionSemaphore = semaphore.NewWeighted(100)
-
-// IPRateLimiter manages per-IP rate limiting
-type IPRateLimiter struct {
-	limiters map[string]*rate.Limiter
-	mu       sync.RWMutex
-	rate     rate.Limit
-	burst    int
-}
-
-// NewIPRateLimiter creates a new per-IP rate limiter
-func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
-	return &IPRateLimiter{
-		limiters: make(map[string]*rate.Limiter),
-		rate:     r,
-		burst:    b,
-	}
-}
-
-// GetLimiter returns the rate limiter for a given IP
-func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	limiter, exists := i.limiters[ip]
-	if !exists {
-		limiter = rate.NewLimiter(i.rate, i.burst)
-		i.limiters[ip] = limiter
-	}
-
-	return limiter
-}
-
-// CleanupStale removes stale limiters (called periodically)
-func (i *IPRateLimiter) CleanupStale() {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	for ip, limiter := range i.limiters {
-		// Remove limiters that haven't been used recently
-		if limiter.Tokens() == float64(i.burst) {
-			delete(i.limiters, ip)
-		}
-	}
-}
 
 // getClientIP extracts the real client IP from the request
 func getClientIP(r *http.Request) string {
@@ -127,9 +83,10 @@ type Server struct {
 	activeUserTracker   *admission.ActiveUserTracker
 	authService         *auth.AuthService
 	authHandlers        *auth.AuthHandlers
-	rateLimiter         *rate.Limiter
-	lobbyListRateLimiter *rate.Limiter
-	joinLobbyRateLimiter *IPRateLimiter
+	// Per-IP rate limiters for different endpoint types
+	generalRateLimiter   *ratelimit.IPRateLimiter
+	lobbyListRateLimiter *ratelimit.IPRateLimiter
+	joinLobbyRateLimiter *ratelimit.IPRateLimiter
 }
 
 // NewServer creates a new server instance
@@ -259,9 +216,10 @@ func NewServer() (*Server, error) {
 		activeUserTracker:   activeUserTracker,
 		authService:         authService,
 		authHandlers:        authHandlers,
-		rateLimiter:         rate.NewLimiter(rate.Every(500*time.Millisecond), 20), // Allow 2 requests per second, burst of 20
-		lobbyListRateLimiter: rate.NewLimiter(rate.Every(1*time.Second), 30), // More generous: 1 request per second, burst of 30
-		joinLobbyRateLimiter: NewIPRateLimiter(rate.Every(1*time.Second), 10), // Per-IP: 1 join per second, burst of 10
+		// Per-IP rate limiters for different endpoint types
+		generalRateLimiter:   ratelimit.NewIPRateLimiter(rate.Every(500*time.Millisecond), 20), // 2 req/sec per IP, burst of 20
+		lobbyListRateLimiter: ratelimit.NewIPRateLimiter(rate.Every(1*time.Second), 30),        // 1 req/sec per IP, burst of 30
+		joinLobbyRateLimiter: ratelimit.NewIPRateLimiter(rate.Every(1*time.Second), 10),        // 1 req/sec per IP, burst of 10
 	}
 
 	return server, nil
@@ -288,9 +246,13 @@ func (s *Server) Start() {
 	s.wsManager.Start()
 	log.Info("WebSocket manager started")
 
-	// Start cleanup routine for per-IP rate limiters
+	// Start cleanup routine for all per-IP rate limiters
 	go s.startRateLimiterCleanup()
 	log.Info("Rate limiter cleanup started")
+
+	// Start WebSocket manager rate limiter cleanup
+	go s.wsManager.StartRateLimiterCleanup()
+	log.Info("WebSocket rate limiter cleanup started")
 
 	log.Info("All components started successfully")
 }
@@ -305,6 +267,9 @@ func (s *Server) startRateLimiterCleanup() {
 		case <-s.ctx.Done():
 			return
 		case <-ticker.C:
+			// Clean up all per-IP rate limiters
+			s.generalRateLimiter.CleanupStale()
+			s.lobbyListRateLimiter.CleanupStale()
 			s.joinLobbyRateLimiter.CleanupStale()
 		}
 	}
@@ -399,11 +364,14 @@ func (s *Server) setupRoutes() {
 	http.Handle("/", mux)
 }
 
-// rateLimitMiddleware applies rate limiting to HTTP endpoints
+// rateLimitMiddleware applies per-IP rate limiting to HTTP endpoints
 func (s *Server) rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.rateLimiter.Allow() {
-			logger.GetLogger().Warn("Rate limit exceeded", "ip", r.RemoteAddr, "endpoint", r.URL.Path)
+		clientIP := getClientIP(r)
+		limiter := s.generalRateLimiter.GetLimiter(clientIP)
+
+		if !limiter.Allow() {
+			logger.GetLogger().Warn("Rate limit exceeded", "ip", clientIP, "endpoint", r.URL.Path)
 			http.Error(w, "Too many requests. Please try again later.", http.StatusTooManyRequests)
 			return
 		}
@@ -411,11 +379,14 @@ func (s *Server) rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// lobbyListRateLimitMiddleware applies more generous rate limiting for lobby listing
+// lobbyListRateLimitMiddleware applies per-IP rate limiting for lobby listing
 func (s *Server) lobbyListRateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.lobbyListRateLimiter.Allow() {
-			logger.GetLogger().Warn("Lobby list rate limit exceeded", "ip", r.RemoteAddr, "endpoint", r.URL.Path)
+		clientIP := getClientIP(r)
+		limiter := s.lobbyListRateLimiter.GetLimiter(clientIP)
+
+		if !limiter.Allow() {
+			logger.GetLogger().Warn("Lobby list rate limit exceeded", "ip", clientIP, "endpoint", r.URL.Path)
 			http.Error(w, "Too many requests. Please try again later.", http.StatusTooManyRequests)
 			return
 		}

@@ -27,6 +27,37 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
     : [];
 
   if (gameState.phase.type === "NOMINATION") {
+    const renderNomineeVoteBlocks = (playerId: string) => {
+      if (!gameState.voteState?.votes || !gameState.voteState?.tokenWeights) return null;
+      
+      const votes = gameState.voteState.votes;
+      const tokenWeights = gameState.voteState.tokenWeights;
+      
+      return (
+        <AnimatePresence mode="popLayout">
+          {Object.entries(votes)
+            .filter(([, vote]) => vote === playerId)
+            .map(([voterId]) => {
+              const tokenWeight = tokenWeights[voterId] || 0;
+              const isMyVote = voterId === localPlayer.id;
+              const voter = gameState.players.find(p => p.id === voterId);
+              
+              if (!voter) return null;
+              
+              return (
+                <VoteBlock
+                  key={voterId}
+                  player={voter}
+                  tokenCount={tokenWeight}
+                  isSelf={isMyVote}
+                  isAnimating={true}
+                />
+              );
+            })}
+        </AnimatePresence>
+      );
+    };
+
     return (
       <div className="p-3 px-4 bg-gray-900 border-t border-gray-700 animate-[fadeIn_0.3s_ease]">
         <div className="mb-1.5">
@@ -34,61 +65,143 @@ export const VoteUI: React.FC<VoteUIProps> = () => {
             Who should we deactivate?
           </h3>
         </div>
-        <motion.div className="flex flex-wrap gap-1 justify-start" layout>
-          {alivePlayers.map((player) => {
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {alivePlayers.map((player, index) => {
             const isSelected = selectedNominee === player.id;
             const votes = gameState.voteState?.votes || {};
-            const playerVotes = Object.values(votes).filter(
+            const playerVoteCount = Object.values(votes).filter(
               (vote) => vote === player.id
             ).length;
+            const playerTokenTotal = gameState.voteState?.results?.[player.id] || 0;
+            
             return (
-              <Tooltip
+              <motion.div
                 key={player.id}
-                content={`${player.name} (${playerVotes} vote${playerVotes !== 1 ? "s" : ""})`}
+                style={{
+                  background: player.alignment === "ALIGNED" 
+                    ? "linear-gradient(135deg, #155e75 0%, #0891b2 100%)"
+                    : "linear-gradient(135deg, #374151 0%, #4b5563 100%)",
+                  border: isSelected 
+                    ? "2px solid #f59e0b" 
+                    : player.alignment === "ALIGNED"
+                    ? "1px solid #0891b2"
+                    : "1px solid #6b7280",
+                  borderRadius: "12px",
+                  padding: "16px",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ 
+                  opacity: 1, 
+                  y: 0,
+                  boxShadow: isSelected ? "0 0 20px rgba(245, 158, 11, 0.3)" : "none"
+                }}
+                transition={{ delay: index * 0.05 }}
               >
-                <motion.button
-                  layout
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-gray-600 bg-gray-800 cursor-pointer min-w-0 font-inherit ${isSelected ? "bg-amber-500/10 border-amber-500" : ""} ${player.alignment === "ALIGNED" ? "bg-cyan-500/5 border-cyan-600" : ""}`}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "18px" }}>
+                      {player.jobTitle === "CEO" ? "👑" :
+                       player.jobTitle === "CTO" ? "💻" :
+                       player.jobTitle === "CFO" ? "💰" :
+                       player.jobTitle === "COO" ? "⚙️" :
+                       player.jobTitle === "CISO" ? "🔒" :
+                       player.jobTitle === "Ethics Officer" ? "⚖️" :
+                       player.jobTitle === "Platform Lead" ? "🏗️" :
+                       player.jobTitle === "Intern" ? "🎓" : "👤"}
+                    </span>
+                    <span style={{ 
+                      fontWeight: "bold", 
+                      color: "#ffffff", 
+                      fontSize: "16px",
+                      textDecoration: player.alignment === "ALIGNED" ? "none" : "none",
+                      filter: player.alignment === "ALIGNED" ? "drop-shadow(0 0 8px #0891b2)" : "none"
+                    }}>
+                      {player.name}
+                      {player.alignment === "ALIGNED" && (
+                        <span style={{ 
+                          marginLeft: "8px", 
+                          fontSize: "12px", 
+                          color: "#22d3ee",
+                          animation: "pulse 2s infinite"
+                        }}>
+                          ⚡
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <motion.div
+                    style={{
+                      background: playerTokenTotal > 0
+                        ? "rgba(245, 158, 11, 0.2)"
+                        : "rgba(107, 114, 128, 0.2)",
+                      border: playerTokenTotal > 0
+                        ? "1px solid #f59e0b"
+                        : "1px solid #6b7280",
+                      borderRadius: "8px",
+                      padding: "6px 12px",
+                      fontFamily: "monospace",
+                      fontWeight: "bold",
+                      color: playerTokenTotal > 0 ? "#f59e0b" : "#9ca3af",
+                    }}
+                    key={playerTokenTotal}
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    🪙 {playerTokenTotal}
+                  </motion.div>
+                </div>
+                
+                {/* Blockchain Chain */}
+                <div style={{
+                  background: "rgba(0, 0, 0, 0.3)",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  marginBottom: "12px",
+                  minHeight: "60px",
+                  display: "flex",
+                  alignItems: "center",
+                  overflowX: "auto",
+                  scrollbarWidth: "thin",
+                }}>
+                  {renderNomineeVoteBlocks(player.id)}
+                  {playerVoteCount === 0 && (
+                    <div style={{
+                      color: "#6b7280",
+                      fontSize: "14px",
+                      fontStyle: "italic",
+                      width: "100%",
+                      textAlign: "center",
+                    }}>
+                      No nominations yet
+                    </div>
+                  )}
+                </div>
+                
+                <Button
+                  variant={isSelected ? "primary" : "secondary"}
+                  size="sm"
+                  hapticFeedback="vote"
                   onClick={() => {
                     playSound("vote");
                     setSelectedNominee(player.id);
                     handleNominate();
                   }}
-                  whileHover={{
-                    backgroundColor: "rgba(55, 65, 81, 1)",
-                    y: -2,
-                    scale: 1.02,
-                    transition: { duration: 0.15 },
+                  style={{
+                    width: "100%",
+                    background: isSelected ? "#f59e0b" : player.alignment === "ALIGNED" ? "#0891b2" : "#6b7280",
+                    borderColor: isSelected ? "#f59e0b" : player.alignment === "ALIGNED" ? "#0891b2" : "#6b7280",
+                    color: "#fff",
+                    fontWeight: "bold",
                   }}
-                  whileTap={{ scale: 0.95 }}
-                  animate={
-                    isSelected
-                      ? {
-                          borderColor: "rgba(245, 158, 11, 1)",
-                          backgroundColor: "rgba(245, 158, 11, 0.1)",
-                          boxShadow: "0 0 10px rgba(245, 158, 11, 0.3)",
-                        }
-                      : {}
-                  }
                 >
-                  <span className="text-sm leading-none flex-shrink-0">
-                    {/*...icon logic...*/}
-                  </span>
-                  <span
-                    className={`font-medium text-xs text-gray-100 flex-shrink-0 ${player.alignment === "ALIGNED" ? "text-cyan-600 animate-[glitch_1.5s_infinite]" : ""}`}
-                  >
-                    {player.name}
-                  </span>
-                  <span
-                    className={`font-mono font-bold text-gray-400 text-xs ml-auto ${isSelected ? "text-amber-500" : ""}`}
-                  >
-                    🪙 {playerVotes}
-                  </span>
-                </motion.button>
-              </Tooltip>
+                  {isSelected ? "✓ SELECTED" : "NOMINATE"}
+                </Button>
+              </motion.div>
             );
           })}
-        </motion.div>
+        </div>
       </div>
     );
   }

@@ -679,12 +679,13 @@ type SitrepSection struct {
 
 // DailySitrep represents the complete daily situation report
 type DailySitrep struct {
-	DayNumber  int             `json:"day_number"`
-	Date       time.Time       `json:"date"`
-	Sections   []SitrepSection `json:"sections"`
-	AlertLevel string          `json:"alert_level"`
-	Summary    string          `json:"summary"`
-	FooterNote string          `json:"footer_note"`
+	DayNumber       int             `json:"day_number"`
+	Date            time.Time       `json:"date"`
+	Sections        []SitrepSection `json:"sections"`
+	AlertLevel      string          `json:"alert_level"`
+	Summary         string          `json:"summary"`
+	FooterNote      string          `json:"footer_note"`
+	ThematicMessage string          `json:"thematic_message"`
 }
 
 // Spectator represents a spectator observing the game

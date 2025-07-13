@@ -3,9 +3,8 @@ import { Button } from "./ui";
 import { useState, useMemo, useEffect } from "react";
 import { InviteFriendsModal } from "./InviteFriendsModal";
 import { PlayerProfile } from "./PlayerProfile";
-import { GameRulesSummary } from "./GameRulesSummary";
+import { GameRulesSummaryEmbedded } from "./GameRulesSummaryEmbedded";
 import { RoleAssignmentPreview } from "./RoleAssignmentPreview";
-import { ConnectionQualityIndicator } from "./ConnectionQualityIndicator";
 
 export function WaitingScreen() {
   const {
@@ -33,7 +32,6 @@ export function WaitingScreen() {
   const [showInviteFriends, setShowInviteFriends] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [showGameRules, setShowGameRules] = useState(false);
   const [showRolePreview, setShowRolePreview] = useState(false);
   const [lobbySettings, setLobbySettings] = useState(() => ({
     name: lobbyName,
@@ -217,11 +215,6 @@ export function WaitingScreen() {
                   </span>
                 </div>
               </div>
-              <ConnectionQualityIndicator
-                isConnected={isConnected}
-                reconnectAttempts={0}
-                onReconnect={() => console.log("Reconnecting...")}
-              />
             </div>
           </div>
         </div>
@@ -322,14 +315,6 @@ export function WaitingScreen() {
             {/* Quick Actions */}
             <div className="flex flex-wrap gap-3 mb-6">
               <Button
-                onClick={() => setShowGameRules(true)}
-                variant="secondary"
-                size="sm"
-                className="text-xs"
-              >
-                📋 Game Rules
-              </Button>
-              <Button
                 onClick={() => setShowRolePreview(true)}
                 variant="secondary"
                 size="sm"
@@ -353,7 +338,11 @@ export function WaitingScreen() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Player List */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 space-y-6">
+              {/* Game Rules Summary */}
+              <GameRulesSummaryEmbedded />
+              
+              {/* Player List */}
               <div className="bg-background-secondary/90 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg">
                 <h3 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
                   <span className="text-base">👥</span>
@@ -770,11 +759,21 @@ export function WaitingScreen() {
               <div className="text-text-primary text-xl mb-4 font-semibold">
                 INITIATING CONTAINMENT PROTOCOL
               </div>
-              <div className="text-text-secondary">
+              <div className="text-text-secondary mb-6">
                 {countdown.remaining > 0
                   ? "Final preparations in progress..."
                   : "Protocol activated! Preparing game environment..."}
               </div>
+              {countdown.remaining > 0 && (
+                <Button
+                  onClick={onLeaveLobby}
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-danger hover:bg-danger/10"
+                >
+                  Leave Lobby
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -791,10 +790,6 @@ export function WaitingScreen() {
         isVisible={!!selectedPlayerId}
         onClose={() => setSelectedPlayerId(null)}
         currentPlayerId={appState.playerId}
-      />
-      <GameRulesSummary
-        isVisible={showGameRules}
-        onClose={() => setShowGameRules(false)}
       />
       <RoleAssignmentPreview
         isVisible={showRolePreview}

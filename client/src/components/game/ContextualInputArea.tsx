@@ -191,6 +191,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
     switch (gameState.phase.type) {
       case "SITREP":
       case "DISCUSSION":
+      case "EXTENSION":
       case "TRIAL":
       case "VERDICT":
         return true;
@@ -208,6 +209,7 @@ export const ContextualInputArea: React.FC<ContextualInputAreaProps> = () => {
     switch (gameState.phase.type) {
       case "SITREP":
       case "DISCUSSION":
+      case "EXTENSION":
         return "Message #war-room";
       case "PULSE_CHECK":
         if (!localPlayer?.hasSubmittedPulseCheck) {

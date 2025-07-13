@@ -4,19 +4,24 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/sync/semaphore"
+	"golang.org/x/time/rate"
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/actors"
 	"github.com/xjhc/alignment/server/internal/events"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/party"
+	"github.com/xjhc/alignment/server/internal/ratelimit"
 	"github.com/xjhc/alignment/server/internal/store"
 )
+
 
 // WebSocketManager handles WebSocket connections via PlayerActors
 type WebSocketManager struct {
@@ -31,12 +36,57 @@ type WebSocketManager struct {
 	postgresStore    *store.PostgresStore
 	partyManager     *party.PartyManager
 	actionSemaphore  *semaphore.Weighted
+
+	// Per-IP rate limiters for WebSocket actions
+	chatRateLimiter    *ratelimit.IPRateLimiter
+	generalRateLimiter *ratelimit.IPRateLimiter
 }
 
 // TokenValidator validates sessions and provides player information
 type TokenValidator interface {
 	ValidateSession(gameId, playerId, sessionToken string) bool
 	GetPlayerInfo(gameId, playerId string) (string, string, error) // Returns playerName, avatar, error
+}
+
+// getClientIP extracts the real client IP from the request
+func getClientIP(r *http.Request) string {
+	// Check X-Forwarded-For header first (for proxies)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// Take the first IP from comma-separated list
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+
+	// Check X-Real-IP header
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+
+	// Fall back to RemoteAddr
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
+}
+
+// StartRateLimiterCleanup periodically cleans up stale WebSocket rate limiters
+func (wsm *WebSocketManager) StartRateLimiterCleanup() {
+	ticker := time.NewTicker(10 * time.Minute) // Clean up every 10 minutes
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-wsm.ctx.Done():
+			return
+		case <-ticker.C:
+			// Clean up all WebSocket per-IP rate limiters
+			wsm.chatRateLimiter.CleanupStale()
+			wsm.generalRateLimiter.CleanupStale()
+		}
+	}
 }
 
 var upgrader = websocket.Upgrader{
@@ -53,6 +103,9 @@ func NewWebSocketManager(ctx context.Context, tokenValidator TokenValidator) *We
 		ctx:            ctx,
 		tokenValidator: tokenValidator,
 		partyManager:   party.NewPartyManager(),
+		// Per-IP rate limiters for WebSocket actions
+		chatRateLimiter:    ratelimit.NewIPRateLimiter(rate.Limit(2), 5),  // 2 chat messages per second per IP, burst of 5
+		generalRateLimiter: ratelimit.NewIPRateLimiter(10, 20),           // 10 actions per second per IP, burst of 20
 	}
 }
 
@@ -217,6 +270,9 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Extract client IP for rate limiting
+	clientIP := getClientIP(r)
+
 	// Check session validity
 	sessionValid := wsm.tokenValidator.ValidateSession(gameID, playerID, sessionToken)
 	
@@ -235,10 +291,14 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	
+	// Get per-IP rate limiters for this client
+	chatLimiter := wsm.chatRateLimiter.GetLimiter(clientIP)
+	generalLimiter := wsm.generalRateLimiter.GetLimiter(clientIP)
+	
 	// If session is invalid, send SESSION_EXPIRED and close
 	if !sessionValid {
 		// Create a temporary PlayerActor to send the session expired event
-		tempActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, conn)
+		tempActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, clientIP, conn, chatLimiter, generalLimiter)
 		tempActor.Start()
 		wsm.sendSessionExpiredAndClose(tempActor, gameID, "session_invalid", "Your session has expired. Please log in again.")
 		return
@@ -253,8 +313,8 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 		delete(wsm.playerActors, playerID)
 	}
 
-	// Create new PlayerActor
-	playerActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, conn)
+	// Create new PlayerActor with per-IP rate limiters
+	playerActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, clientIP, conn, chatLimiter, generalLimiter)
 	playerActor.SetDependencies(wsm.lifecycleManager, wsm.eventBus, wsm.partyManager)
 	
 	// Set the global action semaphore for admission control

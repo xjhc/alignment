@@ -32,6 +32,13 @@ export const SitrepMessage: React.FC<SitrepMessageProps> = ({ message, gameState
               </span>
             </div>
             
+            {dailySitrep.thematic_message && (
+              <div className="mb-4 p-3 bg-ai/10 border-l-4 border-ai rounded-r">
+                <div className="text-ai font-bold text-sm mb-1">Message from Loebmate:</div>
+                <div className="text-text-primary italic">"{dailySitrep.thematic_message}"</div>
+              </div>
+            )}
+            
             {dailySitrep.sections.map((section, index) => (
               <div key={index} className="mb-4">
                 <strong>{section.title}</strong><br/>

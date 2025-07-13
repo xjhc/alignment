@@ -76,9 +76,10 @@ type PlayerActor struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// Rate limiting for chat messages
-	chatLimiter *rate.Limiter
-	// Rate limiting for general actions
+	// Client IP for rate limiting
+	clientIP string
+	// Rate limiting for chat messages and general actions (per-IP)
+	chatLimiter    *rate.Limiter
 	generalLimiter *rate.Limiter
 
 	// Dependencies (will be injected)
@@ -89,7 +90,7 @@ type PlayerActor struct {
 }
 
 // NewPlayerActor creates a new PlayerActor for a WebSocket connection
-func NewPlayerActor(ctx context.Context, playerID, playerName, playerAvatar, sessionToken string, conn *websocket.Conn) *PlayerActor {
+func NewPlayerActor(ctx context.Context, playerID, playerName, playerAvatar, sessionToken, clientIP string, conn *websocket.Conn, chatLimiter, generalLimiter *rate.Limiter) *PlayerActor {
 	actorCtx, cancel := context.WithCancel(ctx)
 
 	// Sanitize and validate player name
@@ -99,24 +100,17 @@ func NewPlayerActor(ctx context.Context, playerID, playerName, playerAvatar, ses
 		sanitizedPlayerName = fmt.Sprintf("Player_%s", playerID[:8]) // Fallback to safe name
 	}
 
-	// Allow an average of 2 messages per second,
-	// with a burst capacity of 5 messages.
-	chatLimiter := rate.NewLimiter(rate.Limit(2), 5)
-
-	// Allow 10 actions per second, with a burst of 20.
-	// This is generous for a human but stops a simple script.
-	generalLimiter := rate.NewLimiter(10, 20)
-
 	return &PlayerActor{
-		playerID:      playerID,
-		playerName:    sanitizedPlayerName,
-		playerAvatar:  playerAvatar,
-		sessionToken:  sessionToken,
-		conn:          conn,
-		send:          make(chan []byte, 256),
-		state:         StateIdle,
-		mailbox:       make(chan interface{}, 100),
-		serverMailbox: make(chan interface{}, 100),
+		playerID:       playerID,
+		playerName:     sanitizedPlayerName,
+		playerAvatar:   playerAvatar,
+		sessionToken:   sessionToken,
+		clientIP:       clientIP,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		state:          StateIdle,
+		mailbox:        make(chan interface{}, 100),
+		serverMailbox:  make(chan interface{}, 100),
 		shutdown:       make(chan struct{}),
 		recentBatchIDs: make(map[string]time.Time),
 		ctx:            actorCtx,
@@ -463,7 +457,7 @@ func (pa *PlayerActor) handleClientAction(action core.Action) {
 
 	// Apply general rate limiting before any other processing
 	if !pa.generalLimiter.Allow() {
-		log.Printf("Player %s exceeded general rate limit. Disconnecting.", pa.playerID)
+		log.Printf("Player %s from IP %s exceeded general rate limit. Disconnecting.", pa.playerID, pa.clientIP)
 		pa.Stop() // Aggressive but effective response
 		return
 	}

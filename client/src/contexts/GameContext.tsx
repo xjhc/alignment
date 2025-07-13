@@ -68,6 +68,7 @@ export interface GameContextType {
   // Chat Buffering State
   pendingMessages: Record<string, PendingMessage[]>;
   getPendingMessagesForChannel: (channelId?: string) => PendingMessage[];
+  retryMessage: (clientMessageId: string, channelId: string) => void;
   rateLimitError: string | null;
   getBufferStatus: () => {
     bufferLength: number;

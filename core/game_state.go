@@ -1310,7 +1310,7 @@ func (gs *GameState) applyPulseCheckUpdated(event Event) {
 		message := ChatMessage{
 			ID:         messageID,
 			PlayerID:   "",
-			PlayerName: "NEXUS",
+			PlayerName: "Loebmate",
 			Message:    question,
 			Timestamp:  event.Timestamp,
 			IsSystem:   true,
@@ -2321,7 +2321,7 @@ func processWhisperAction(gameState GameState, action Action, currentTime time.T
 		GameID:    gameState.ID,
 		Timestamp: currentTime,
 		Payload: map[string]interface{}{
-			"sender_name": "NEXUS",
+			"sender_name": "Loebmate",
 			"message":     fmt.Sprintf("%s whispers to %s.", player.Name, target.Name),
 			"is_system":   true,
 			"channel_id":  "#war-room",

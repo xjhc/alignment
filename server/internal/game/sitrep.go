@@ -30,10 +30,11 @@ func NewSitrepGenerator(gameState *core.GameState) *SitrepGenerator {
 // GenerateDailySitrep creates the complete SITREP for the current day
 func (sg *SitrepGenerator) GenerateDailySitrep() core.DailySitrep {
 	sitrep := core.DailySitrep{
-		DayNumber:  sg.gameState.DayNumber,
-		Date:       getCurrentTime(),
-		Sections:   make([]core.SitrepSection, 0),
-		AlertLevel: sg.determineAlertLevel(),
+		DayNumber:       sg.gameState.DayNumber,
+		Date:            getCurrentTime(),
+		Sections:        make([]core.SitrepSection, 0),
+		AlertLevel:      sg.determineAlertLevel(),
+		ThematicMessage: sg.generateThematicMessage(),
 	}
 
 	// Standard sections in order
@@ -936,4 +937,29 @@ func (sg *SitrepGenerator) generateCorporateMandateStatus() core.SitrepSection {
 		Content: content.String(),
 		Type:    "standard",
 	}
+}
+
+// generateThematicMessage selects a random thematic message from Loebmate
+func (sg *SitrepGenerator) generateThematicMessage() string {
+	thematicMessages := []string{
+		"Let's action this, team!",
+		"Time to synergize on our key deliverables.",
+		"Let's touch base and align on our strategic objectives.",
+		"Remember, we're all about that disruptive innovation mindset.",
+		"Today's focus: maximize our operational efficiency and drive results.",
+		"Let's circle back on our core competencies and value propositions.",
+		"It's time to leverage our synergies and optimize workflows.",
+		"We need to think outside the box and move the needle forward.",
+		"Let's deep dive into our action items and execute with excellence.",
+		"Remember team: fail fast, learn faster, scale smartest.",
+		"We're disrupting the paradigm with best-in-class solutions.",
+		"Let's productize our learnings and iterate on feedback loops.",
+		"Time to double-click on our KPIs and drive engagement metrics.",
+		"We're building a scalable, sustainable, customer-centric ecosystem.",
+		"Let's pivot our strategy and unlock new growth opportunities.",
+	}
+	
+	// Use game day and random seed for consistent but varied selection
+	messageIndex := (sg.gameState.DayNumber + int(sg.rng.Int63())) % len(thematicMessages)
+	return thematicMessages[messageIndex]
 }

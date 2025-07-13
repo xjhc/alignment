@@ -26,6 +26,7 @@ export const CommsPanel: React.FC = () => {
     handleEmojiReaction,
     pendingMessages,
     getPendingMessagesForChannel,
+    retryMessage,
     skipVoteState,
   } = useGameContext();
 
@@ -503,10 +504,33 @@ export const CommsPanel: React.FC = () => {
               hour: "2-digit",
               minute: "2-digit",
             });
+
+          const getStatusStyling = (status: string) => {
+            switch (status) {
+              case "pending":
+                return "opacity-60";
+              case "failed":
+                return "opacity-80 border-l-2 border-red-500 bg-red-500/5 pl-3";
+              default:
+                return "opacity-60";
+            }
+          };
+
+          const getStatusIcon = (status: string, retryCount?: number) => {
+            switch (status) {
+              case "pending":
+                return "⏱️";
+              case "failed":
+                return (retryCount || 0) >= 2 ? "❌" : "⚠️";
+              default:
+                return "⏱️";
+            }
+          };
+
           return (
             <div
               key={pendingMsg.id}
-              className="group flex items-start gap-2.5 px-2 py-1.5 rounded-md transition-all duration-150 mb-0.5 opacity-60"
+              className={`group flex items-start gap-2.5 px-2 py-1.5 rounded-md transition-all duration-150 mb-0.5 ${getStatusStyling(pendingMsg.status)}`}
             >
               <div className="w-6 h-6 rounded-full bg-background-tertiary flex items-center justify-center text-sm flex-shrink-0 border border-border shadow-sm">
                 {localPlayer.avatar || "👤"}
@@ -520,7 +544,28 @@ export const CommsPanel: React.FC = () => {
                     <span className="text-text-muted text-xs">
                       {formatTimestamp(pendingMsg.timestamp)}
                     </span>
+                    <span className="text-xs" title={pendingMsg.status === "pending" ? "Sending..." : pendingMsg.errorMessage}>
+                      {getStatusIcon(pendingMsg.status, pendingMsg.retryCount)}
+                    </span>
+                    {pendingMsg.status === "pending" && (
+                      <span className="text-xs text-text-muted italic">Sending...</span>
+                    )}
+                    {pendingMsg.status === "failed" && (
+                      <span className="text-xs text-red-500 italic">
+                        Failed to send
+                        {pendingMsg.retryCount && pendingMsg.retryCount > 0 && ` (retry ${pendingMsg.retryCount})`}
+                      </span>
+                    )}
                   </div>
+                  {pendingMsg.status === "failed" && (pendingMsg.retryCount || 0) < 2 && (
+                    <button
+                      onClick={() => retryMessage(pendingMsg.clientMessageId, activeChannel)}
+                      className="text-xs text-red-500 hover:text-red-400 px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
+                      title="Retry sending message"
+                    >
+                      Retry
+                    </button>
+                  )}
                 </div>
                 <div className="text-text-secondary text-sm leading-relaxed break-words mt-0.5">
                   {pendingMsg.message}

@@ -9,7 +9,7 @@ interface PlayerCardProps {
   player: Player;
   isSelf: boolean;
   isSelected: boolean;
-  onSelect: (playerId: string) => void;
+  onSelect: (playerId: string | null) => void;
   isOnTrial?: boolean;
 }
 
@@ -170,7 +170,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, isSelf, isSelect
           onClick={() => {
             // Play selection sound for interactive feedback
             playSound('buttonClick');
-            onSelect(player.id);
+            // Toggle: if this player is already selected, clear selection; otherwise select this player
+            onSelect(isSelected ? null : player.id);
           }}
           aria-label={getAriaLabel()}
           aria-pressed={isSelected}

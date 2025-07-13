@@ -10,6 +10,8 @@ export interface PendingMessage {
   status: "pending" | "sent" | "failed";
   batchId?: string; // Add batchId for tracking
   channelId: string;
+  retryCount?: number;
+  errorMessage?: string;
 }
 
 export function useChatBuffer(
@@ -27,15 +29,41 @@ export function useChatBuffer(
   const isFlushing = useRef(false); // Add a lock to prevent re-entrant calls
   const bufferTimer = useRef<NodeJS.Timeout | null>(null);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const FLUSH_INTERVAL = 500; // Send batch every 0.5 seconds
   const MAX_BUFFER_SIZE = 5;
+  const MESSAGE_TIMEOUT = 3000; // 3 seconds timeout for message confirmation
+  const MAX_RETRY_COUNT = 2;
 
   // Use a ref to hold the latest props to avoid stale closures in callbacks
   const latestProps = useRef({ localPlayer, gameId, sendAction });
   useEffect(() => {
     latestProps.current = { localPlayer, gameId, sendAction };
   });
+
+  // Function to set message timeout
+  const setMessageTimeout = useCallback((clientMessageId: string, channelId: string) => {
+    const timeoutId = setTimeout(() => {
+      setPendingMessages((prev) => {
+        const channelPending = prev[channelId] || [];
+        const updatedPending = channelPending.map((msg) => {
+          if (msg.clientMessageId === clientMessageId && msg.status === "pending") {
+            return {
+              ...msg,
+              status: "failed" as const,
+              errorMessage: "Message failed to send (timeout)",
+            };
+          }
+          return msg;
+        });
+        return { ...prev, [channelId]: updatedPending };
+      });
+      pendingTimeouts.current.delete(clientMessageId);
+    }, MESSAGE_TIMEOUT);
+
+    pendingTimeouts.current.set(clientMessageId, timeoutId);
+  }, []);
 
   // Listen for rate limit exceeded events from server
   useWebSocketEvent("RATE_LIMIT_EXCEEDED", (payload: { message: string }) => {
@@ -67,9 +95,18 @@ export function useChatBuffer(
       setPendingMessages((prev) => {
         const channelPending = prev[channelId] || [];
         const updatedPending = clientMessageId
-          ? channelPending.filter(
-              (msg) => msg.clientMessageId !== clientMessageId
-            )
+          ? channelPending.filter((msg) => {
+              if (msg.clientMessageId === clientMessageId) {
+                // Clear timeout for confirmed message
+                const timeoutId = pendingTimeouts.current.get(clientMessageId);
+                if (timeoutId) {
+                  clearTimeout(timeoutId);
+                  pendingTimeouts.current.delete(clientMessageId);
+                }
+                return false; // Remove the message from pending
+              }
+              return true;
+            })
           : channelPending.filter((msg) => msg.message !== payload.message); // Fallback
 
         return { ...prev, [channelId]: updatedPending };
@@ -119,6 +156,11 @@ export function useChatBuffer(
 
       Object.entries(messagesByChannel).forEach(
         ([channelId, channelMessages]) => {
+          // Set timeouts for each message in the batch
+          channelMessages.forEach((msg) => {
+            setMessageTimeout(msg.client_message_id, channelId);
+          });
+
           sendAction({
             type: ClientActionType.SendMessage,
             payload: {
@@ -135,7 +177,7 @@ export function useChatBuffer(
       isFlushing.current = false;
       return [];
     });
-  }, []);
+  }, [setMessageTimeout]);
 
   useEffect(() => {
     if (messageBuffer.length >= MAX_BUFFER_SIZE) {
@@ -184,9 +226,55 @@ export function useChatBuffer(
     []
   );
 
+  const retryMessage = useCallback((clientMessageId: string, channelId: string) => {
+    setPendingMessages((prev) => {
+      const channelPending = prev[channelId] || [];
+      const messageToRetry = channelPending.find(
+        (msg) => msg.clientMessageId === clientMessageId && msg.status === "failed"
+      );
+
+      if (!messageToRetry || (messageToRetry.retryCount || 0) >= MAX_RETRY_COUNT) {
+        return prev;
+      }
+
+      // Generate new client message ID for retry
+      const newClientMessageId = `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      
+      // Update pending message with new ID and status
+      const updatedPending = channelPending.map((msg) => {
+        if (msg.clientMessageId === clientMessageId) {
+          return {
+            ...msg,
+            clientMessageId: newClientMessageId,
+            status: "pending" as const,
+            retryCount: (msg.retryCount || 0) + 1,
+            errorMessage: undefined,
+            timestamp: Date.now(),
+          };
+        }
+        return msg;
+      });
+
+      // Add to buffer for sending
+      setMessageBuffer((buffer) => [
+        ...buffer,
+        {
+          message: messageToRetry.message,
+          clientMessageId: newClientMessageId,
+          channelId,
+        },
+      ]);
+
+      return { ...prev, [channelId]: updatedPending };
+    });
+  }, []);
+
   const clearBuffer = useCallback(() => {
     setMessageBuffer([]);
     setPendingMessages({});
+    // Clear all pending timeouts
+    pendingTimeouts.current.forEach((timeoutId) => clearTimeout(timeoutId));
+    pendingTimeouts.current.clear();
     if (bufferTimer.current) {
       clearTimeout(bufferTimer.current);
       bufferTimer.current = null;
@@ -211,9 +299,24 @@ export function useChatBuffer(
     [pendingMessages]
   );
 
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      pendingTimeouts.current.forEach((timeoutId) => clearTimeout(timeoutId));
+      pendingTimeouts.current.clear();
+      if (bufferTimer.current) {
+        clearTimeout(bufferTimer.current);
+      }
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return {
     addMessageToBuffer,
     clearBuffer,
+    retryMessage,
     pendingMessages,
     getPendingMessagesForChannel,
     rateLimitError,

@@ -184,6 +184,7 @@ export function LobbyListScreen({
   const [pollingInterval, setPollingInterval] = useState(10000); // Increased to 10 seconds to reduce server load
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showSessionConflict, setShowSessionConflict] = useState(false);
+  const [conflictDetails, setConflictDetails] = useState<{gameId?: string, sessionState?: string} | null>(null);
   const [joinCooldowns, setJoinCooldowns] = useState<Record<string, number>>(
     {}
   );
@@ -192,13 +193,46 @@ export function LobbyListScreen({
   const clearSession = async () => {
     try {
       console.log("Clearing existing session...");
+      
+      // First, try to abandon the session via WebSocket if we have connection details
+      const savedSession = localStorage.getItem("alignmentGameSession");
+      if (savedSession) {
+        try {
+          const sessionData = JSON.parse(savedSession);
+          if (sessionData.gameId && sessionData.playerId && sessionData.sessionToken) {
+            // Attempt to send abandon action via WebSocket to cleanly leave
+            websocketClient.connect(sessionData.gameId, sessionData.playerId, sessionData.sessionToken)
+              .then(() => {
+                websocketClient.sendAction({
+                  type: "ABANDON_GAME",
+                  payload: {
+                    game_id: sessionData.gameId,
+                    player_id: sessionData.playerId,
+                  },
+                });
+                // Give it a moment to process, then disconnect
+                setTimeout(() => websocketClient.disconnect(), 1000);
+              })
+              .catch((err) => {
+                console.log("Could not connect to send abandon action:", err);
+                websocketClient.disconnect();
+              });
+          }
+        } catch (parseError) {
+          console.log("Could not parse session data for clean abandon:", parseError);
+        }
+      }
+      
+      // Clear local storage regardless
       localStorage.removeItem("alignmentGameSession");
       websocketClient.disconnect();
       setShowSessionConflict(false);
+      setConflictDetails(null);
       setError(null);
       await fetchLobbies();
     } catch (error) {
       console.error("Error clearing session:", error);
+      setError("Failed to clear session. Please try refreshing the page.");
     }
   };
 
@@ -296,6 +330,10 @@ export function LobbyListScreen({
           sessionData.sessionState
         ) {
           console.log("Found existing session, showing conflict modal:", sessionData);
+          setConflictDetails({ 
+            gameId: sessionData.gameId, 
+            sessionState: sessionData.sessionState || "unknown" 
+          });
           setShowSessionConflict(true);
         }
       } catch (error) {
@@ -341,6 +379,10 @@ export function LobbyListScreen({
           response.status === 409 &&
           errorText.includes("already in an active game session")
         ) {
+          // Extract game ID from error message if possible
+          const gameIdMatch = errorText.match(/game: ([a-f0-9-]+)/);
+          const conflictGameId = gameIdMatch ? gameIdMatch[1] : undefined;
+          setConflictDetails({ gameId: conflictGameId, sessionState: "join_conflict" });
           setShowSessionConflict(true);
         } else if (response.status === 429) {
           setJoinCooldowns((prev) => ({ ...prev, [gameId]: now + 5000 }));
@@ -399,6 +441,10 @@ export function LobbyListScreen({
           response.status === 409 &&
           errorText.includes("already in an active game session")
         ) {
+          // Extract game ID from error message if possible
+          const gameIdMatch = errorText.match(/game: ([a-f0-9-]+)/);
+          const conflictGameId = gameIdMatch ? gameIdMatch[1] : undefined;
+          setConflictDetails({ gameId: conflictGameId, sessionState: "spectate_conflict" });
           setShowSessionConflict(true);
         } else if (response.status === 429) {
           setJoinCooldowns((prev) => ({ ...prev, [gameId]: now + 5000 }));
@@ -453,6 +499,10 @@ export function LobbyListScreen({
           response.status === 409 &&
           errorText.includes("already in an active game session")
         ) {
+          // Extract game ID from error message if possible
+          const gameIdMatch = errorText.match(/game: ([a-f0-9-]+)/);
+          const conflictGameId = gameIdMatch ? gameIdMatch[1] : undefined;
+          setConflictDetails({ gameId: conflictGameId, sessionState: "create_conflict" });
           setShowSessionConflict(true);
         }
         
@@ -548,25 +598,42 @@ export function LobbyListScreen({
               <h3 className="text-warning font-semibold mb-2">
                 🚨 Active Session Detected
               </h3>
-              <p className="text-text-secondary text-sm mb-4">
-                You're already in an active game session. You can rejoin or
-                clear it to start a new game.
-              </p>
-              <div className="flex gap-2">
+              <div className="text-text-secondary text-sm mb-4">
+                <p className="mb-2">
+                  You're already in an active game session. This might be due to:
+                </p>
+                <ul className="list-disc ml-4 space-y-1">
+                  <li>A previous session that didn't close properly</li>
+                  <li>Another browser tab or device connected to the same account</li>
+                  <li>Network issues that prevented clean disconnection</li>
+                </ul>
+                {conflictDetails?.gameId && (
+                  <p className="mt-2 text-xs font-mono bg-background-secondary p-2 rounded">
+                    Conflicting Game ID: {conflictDetails.gameId.substring(0, 12)}...
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="primary" size="sm" onClick={rejoinSession}>
-                  Rejoin Game
+                  🔗 Rejoin Previous Game
                 </Button>
                 <Button variant="danger" size="sm" onClick={clearSession}>
-                  Clear Session
+                  🧹 Force Clear & Start Fresh
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowSessionConflict(false)}
+                  onClick={() => {
+                    setShowSessionConflict(false);
+                    setConflictDetails(null);
+                  }}
                 >
                   Cancel
                 </Button>
               </div>
+              <p className="text-xs text-text-muted mt-3">
+                💡 "Force Clear" will attempt to properly abandon your previous session
+              </p>
             </div>
           )}
 

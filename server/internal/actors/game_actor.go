@@ -1156,13 +1156,8 @@ func (ga *GameActor) validateAndGenerateAbandonGame(action core.Action) ([]core.
 		return nil, fmt.Errorf("cannot abandon game in phase %s", ga.state.Phase.Type)
 	}
 
-	// Extract the player's role for revelation
-	var revealedRole string
-	if player.Role != nil {
-		revealedRole = string(player.Role.Type)
-	} else {
-		revealedRole = "UNKNOWN"
-	}
+	// Extract the player's alignment for revelation (not role)
+	revealedAlignment := player.Alignment
 
 	// Create abandonment event
 	event := core.Event{
@@ -1172,8 +1167,8 @@ func (ga *GameActor) validateAndGenerateAbandonGame(action core.Action) ([]core.
 		PlayerID:  action.PlayerID,
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"revealed_role": revealedRole,
-			"player_name":   player.Name,
+			"revealed_alignment": revealedAlignment,
+			"player_name":        player.Name,
 		},
 	}
 
@@ -1185,8 +1180,8 @@ func (ga *GameActor) validateAndGenerateAbandonGame(action core.Action) ([]core.
 		PlayerID:  "",
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"sender_name": "NEXUS",
-			"message":     fmt.Sprintf("%s has abandoned their post. Their role was %s.", player.Name, revealedRole),
+			"sender_name": "Loebmate",
+			"message":     fmt.Sprintf("%s has abandoned their post. Their final alignment was %s.", player.Name, revealedAlignment),
 			"is_system":   true,
 			"channel_id":  "#war-room",
 		},
@@ -1253,13 +1248,8 @@ func (ga *GameActor) handleAbandonPlayer(action core.Action) ([]core.Event, erro
 		return nil, fmt.Errorf("cannot abandon player in phase %s", ga.state.Phase.Type)
 	}
 
-	// Extract the player's role for revelation
-	var revealedRole string
-	if player.Role != nil {
-		revealedRole = string(player.Role.Type)
-	} else {
-		revealedRole = "UNKNOWN"
-	}
+	// Extract the player's alignment for revelation (not role)
+	revealedAlignment := player.Alignment
 
 	// Get the reason from payload
 	reason, ok := action.Payload["reason"].(string)
@@ -1275,9 +1265,9 @@ func (ga *GameActor) handleAbandonPlayer(action core.Action) ([]core.Event, erro
 		PlayerID:  action.PlayerID,
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"revealed_role": revealedRole,
-			"player_name":   player.Name,
-			"reason":        reason,
+			"revealed_alignment": revealedAlignment,
+			"player_name":        player.Name,
+			"reason":             reason,
 		},
 	}
 
@@ -1289,8 +1279,8 @@ func (ga *GameActor) handleAbandonPlayer(action core.Action) ([]core.Event, erro
 		PlayerID:  "",
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
-			"sender_name": "NEXUS",
-			"message":     fmt.Sprintf("%s has been disconnected too long and has been removed from the game. Their role was %s.", player.Name, revealedRole),
+			"sender_name": "Loebmate",
+			"message":     fmt.Sprintf("%s has been disconnected too long and has been removed from the game. Their final alignment was %s.", player.Name, revealedAlignment),
 			"is_system":   true,
 			"channel_id":  "#war-room",
 		},
@@ -1988,7 +1978,7 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 				Timestamp: time.Now(),
 				Payload: map[string]interface{}{
 					"message":     "No consensus was reached for a nomination. The day ends without a trial.",
-					"player_name": "System",
+					"player_name": "Loebmate",
 					"is_system":   true,
 				},
 			}

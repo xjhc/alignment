@@ -42,7 +42,7 @@ func TestHandlePhaseTransition_SkipTrialWhenNoNominations(t *testing.T) {
 	systemMessage := events[0]
 	assert.Equal(t, core.EventChatMessage, systemMessage.Type)
 	assert.Contains(t, systemMessage.Payload["message"], "No consensus was reached")
-	assert.Equal(t, "System", systemMessage.Payload["player_name"])
+	assert.Equal(t, "Loebmate", systemMessage.Payload["player_name"])
 	assert.Equal(t, true, systemMessage.Payload["is_system"])
 
 	// Check that the phase changed to NIGHT, not TRIAL

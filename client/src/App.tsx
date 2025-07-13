@@ -64,6 +64,7 @@ function AppContent() {
     addMessageToBuffer,
     pendingMessages,
     getPendingMessagesForChannel,
+    retryMessage,
     rateLimitError,
     getBufferStatus,
   } = useChatBuffer(localPlayer, state.gameState?.id, sendAction);
@@ -73,12 +74,12 @@ function AppContent() {
       ? state.gameState.players.find((p) => p.id === state.gameUIState.viewedPlayerId) || localPlayer
       : localPlayer;
 
-  // Update viewed player when local player changes
+  // Update viewed player when local player changes (but only if no player is currently being viewed)
   useEffect(() => {
-    if (state.appState?.playerId && state.gameUIState.viewedPlayerId !== state.appState.playerId) {
+    if (state.appState?.playerId && !state.gameUIState.viewedPlayerId) {
       dispatch({ type: "SET_VIEWED_PLAYER", payload: { playerId: state.appState.playerId } });
     }
-  }, [state.appState?.playerId, state.gameUIState.viewedPlayerId, dispatch]);
+  }, [state.appState?.playerId, dispatch]);
 
   const gameActions = useGameActions({
     gameId: state.gameState?.id || null,
@@ -156,6 +157,7 @@ function AppContent() {
       isValidNightActionTarget(actorId, targetId, actionType),
     pendingMessages,
     getPendingMessagesForChannel,
+    retryMessage,
     rateLimitError,
     getBufferStatus,
   };
