@@ -84,6 +84,27 @@ func (s *Supervisor) CreateGameWithPlayers(gameID string, players map[string]*co
 	actorCtx, actorCancel := context.WithCancel(s.ctx)
 	actor := NewGameActor(actorCtx, actorCancel, gameID, players, s.postgresStore)
 	
+	return s.setupGameActor(gameID, actor)
+}
+
+func (s *Supervisor) CreateGameWithPlayersAndSettings(gameID string, players map[string]*core.Player, settings core.GameSettings) (interfaces.GameActorInterface, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if _, exists := s.actors[gameID]; exists {
+		log.Printf("[Supervisor] Game %s already exists", gameID)
+		// Return the existing actor instead of an error
+		return s.actors[gameID], nil
+	}
+
+	actorCtx, actorCancel := context.WithCancel(s.ctx)
+	actor := NewGameActorWithSettings(actorCtx, actorCancel, gameID, players, settings, s.postgresStore)
+	
+	return s.setupGameActor(gameID, actor)
+}
+
+// setupGameActor configures a newly created game actor
+func (s *Supervisor) setupGameActor(gameID string, actor *GameActor) (interfaces.GameActorInterface, error) {
 	// Inject EventBus dependency for system event publishing
 	if s.eventBus != nil {
 		actor.SetEventBus(s.eventBus)

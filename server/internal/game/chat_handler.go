@@ -151,28 +151,22 @@ func (h *ChatHandler) handleSpectatorMessage(state *core.GameState, action core.
 		return nil, fmt.Errorf("message too long: %d characters (max 500)", len(content))
 	}
 
-	// Create chat message
-	chatMessage := core.ChatMessage{
-		ID:         fmt.Sprintf("spectator-msg-%d", time.Now().UnixNano()),
-		PlayerID:   spectator.ID,
-		PlayerName: spectator.Name,
+	// Create event with typed payload
+	payload := core.ChatMessagePayload{
+		SenderID:   spectator.ID,
+		SenderName: spectator.Name,
 		Message:    content,
-		Timestamp:  time.Now(),
 		IsSystem:   false,
 		ChannelID:  "#spectators",
 	}
-
-	// Create event
-	event := core.Event{
-		ID:        fmt.Sprintf("spectator-chat-%d", time.Now().UnixNano()),
-		Type:      core.EventSpectatorChatMessage,
-		GameID:    acker.GetGameID(),
-		PlayerID:  "", // Broadcast to spectators only
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"message": chatMessage,
-		},
-	}
+	event := core.NewEventWithTypedPayload(
+		fmt.Sprintf("spectator-chat-%d", time.Now().UnixNano()),
+		core.EventSpectatorChatMessage,
+		acker.GetGameID(),
+		"", // Broadcast to spectators only
+		time.Now(),
+		payload,
+	)
 
 	// Broadcast only to spectators
 	h.spectatorBroadcaster.BroadcastToSpectators([]core.Event{event})
@@ -222,29 +216,25 @@ func (h *ChatHandler) handleReaction(state *core.GameState, action core.Action, 
 		return nil, fmt.Errorf("cannot react in channel %s during %s phase", channelID, state.Phase.Type)
 	}
 
-	// Create reaction event
-	payload := map[string]interface{}{
-		"player_id":   action.PlayerID,
-		"player_name": player.Name,
-		"message_id":  messageID,
-		"emoji":       emoji,
-		"channel_id":  channelID,
-		"phase":       string(state.Phase.Type),
-		"day_number":  state.DayNumber,
+	payloadStruct := core.MessageReactionPayload{
+		MessageID:  messageID,
+		Emoji:      emoji,
+		PlayerID:   action.PlayerID,
+		PlayerName: player.Name,
 	}
+	
+	event := core.NewEventWithTypedPayload(
+		fmt.Sprintf("reaction_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		core.EventMessageReaction,
+		acker.GetGameID(),
+		"", // Public event by default. The broadcaster will filter based on payload.
+		time.Now(),
+		payloadStruct,
+	)
 
 	// For #aligned channel, restrict visibility to AI faction members
 	if channelID == "#aligned" {
-		payload["restricted_to_alignment"] = "ALIGNED"
-	}
-
-	event := core.Event{
-		ID:        fmt.Sprintf("reaction_%s_%d", action.PlayerID, time.Now().UnixNano()),
-		Type:      core.EventMessageReaction,
-		GameID:    acker.GetGameID(),
-		PlayerID:  "", // Public event by default
-		Timestamp: time.Now(),
-		Payload:   payload,
+		event.Payload["restricted_to_alignment"] = "ALIGNED"
 	}
 
 	return []core.Event{event}, nil
@@ -309,20 +299,21 @@ func (h *ChatHandler) handleHelpCommand(state *core.GameState, playerID string, 
 	helpMessage := h.generateHelpMessage(state, player)
 
 	// Create private help response event
-	event := core.Event{
-		ID:        fmt.Sprintf("help_response_%s_%d", playerID, time.Now().UnixNano()),
-		Type:      core.EventChatMessage,
-		GameID:    acker.GetGameID(),
-		PlayerID:  playerID, // Private message to the requesting player
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"message":      helpMessage,
-			"sender_name":  "System",
-			"sender_id":    "system",
-			"channel":      "#help",
-			"message_type": "help_response",
-		},
+	payload := core.ChatMessagePayload{
+		SenderID:   "system",
+		SenderName: "System",
+		Message:    helpMessage,
+		IsSystem:   true,
+		ChannelID:  "#help",
 	}
+	event := core.NewEventWithTypedPayload(
+		fmt.Sprintf("help_response_%s_%d", playerID, time.Now().UnixNano()),
+		core.EventChatMessage,
+		acker.GetGameID(),
+		playerID, // Private message to the requesting player
+		time.Now(),
+		payload,
+	)
 
 	return []core.Event{event}, nil
 }
@@ -360,16 +351,18 @@ func (h *ChatHandler) handleStatusCommand(state *core.GameState, playerID string
 	}
 
 	// Generate status changed event
-	event := core.Event{
-		ID:        fmt.Sprintf("status_changed_%s_%d", playerID, time.Now().UnixNano()),
-		Type:      core.EventSlackStatusChanged,
-		GameID:    acker.GetGameID(),
-		PlayerID:  playerID,
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"status": statusMessage,
-		},
+	payload := core.SlackStatusChangedPayload{
+		Status:     statusMessage,
+		PlayerName: state.Players[playerID].Name,
 	}
+	event := core.NewEventWithTypedPayload(
+		fmt.Sprintf("status_changed_%s_%d", playerID, time.Now().UnixNano()),
+		core.EventSlackStatusChanged,
+		acker.GetGameID(),
+		playerID,
+		time.Now(),
+		payload,
+	)
 
 	return []core.Event{event}, nil
 }
@@ -395,9 +388,16 @@ func (h *ChatHandler) createChatMessageEvent(state *core.GameState, playerID, me
 		return core.Event{}, fmt.Errorf("cannot send message in channel %s during %s phase", channel, state.Phase.Type)
 	}
 
+	// Basic message validation
+	if len(message) > 280 { // Corrected length
+		return core.Event{}, fmt.Errorf("message too long (max 280 characters)")
+	}
+
+	canonicalMessageID := fmt.Sprintf("msg-%d", time.Now().UnixNano())
+
 	// Create event payload as a flat map, not a nested struct
 	eventPayload := map[string]interface{}{
-		"id":          fmt.Sprintf("msg-%d", time.Now().UnixNano()),
+		"id":          canonicalMessageID,
 		"sender_id":   playerID,
 		"sender_name": player.Name,
 		"message":     message,
@@ -418,14 +418,23 @@ func (h *ChatHandler) createChatMessageEvent(state *core.GameState, playerID, me
 		eventPayload["restricted_to_alignment"] = "ALIGNED"
 	}
 
-	event := core.Event{
-		ID:        fmt.Sprintf("chat_%s_%d", playerID, time.Now().UnixNano()),
-		Type:      core.EventChatMessage,
-		GameID:    acker.GetGameID(),
-		PlayerID:  "", // Public event by default
-		Timestamp: time.Now(),
-		Payload:   eventPayload,
+	payload := core.ChatMessagePayload{
+		SenderID:   playerID,
+		SenderName: player.Name,
+		Message:    message,
+		IsSystem:   false,
+		ChannelID:  channel,
+		ID:         eventPayload["id"].(string),
+		Timestamp:  eventPayload["timestamp"].(string),
 	}
+	event := core.NewEventWithTypedPayload(
+		canonicalMessageID,
+		core.EventChatMessage,
+		acker.GetGameID(),
+		"", // Public event by default
+		time.Now(),
+		payload,
+	)
 
 	return event, nil
 }

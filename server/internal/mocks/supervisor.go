@@ -7,13 +7,15 @@ import (
 
 // MockSupervisor is a mock implementation of the SupervisorInterface
 type MockSupervisor struct {
-	CreateGameWithPlayersCalls []CreateGameWithPlayersCall
-	GetActorCalls              []GetActorCall
-	RemoveGameCalls            []RemoveGameCall
+	CreateGameWithPlayersCalls           []CreateGameWithPlayersCall
+	CreateGameWithPlayersAndSettingsCalls []CreateGameWithPlayersAndSettingsCall
+	GetActorCalls                        []GetActorCall
+	RemoveGameCalls                      []RemoveGameCall
 
-	CreateGameWithPlayersResults []CreateGameWithPlayersResult
-	GetActorResults              []GetActorResult
-	RemoveGameResults            []interface{} // No return value, but keep for consistency
+	CreateGameWithPlayersResults           []CreateGameWithPlayersResult
+	CreateGameWithPlayersAndSettingsResults []CreateGameWithPlayersAndSettingsResult
+	GetActorResults                        []GetActorResult
+	RemoveGameResults                      []interface{} // No return value, but keep for consistency
 }
 
 type CreateGameWithPlayersCall struct {
@@ -22,6 +24,17 @@ type CreateGameWithPlayersCall struct {
 }
 
 type CreateGameWithPlayersResult struct {
+	Actor interfaces.GameActorInterface
+	Error error
+}
+
+type CreateGameWithPlayersAndSettingsCall struct {
+	GameID   string
+	Players  map[string]*core.Player
+	Settings core.GameSettings
+}
+
+type CreateGameWithPlayersAndSettingsResult struct {
 	Actor interfaces.GameActorInterface
 	Error error
 }
@@ -52,6 +65,24 @@ func (m *MockSupervisor) CreateGameWithPlayers(gameID string, players map[string
 		result := m.CreateGameWithPlayersResults[0]
 		if len(m.CreateGameWithPlayersResults) > 1 {
 			m.CreateGameWithPlayersResults = m.CreateGameWithPlayersResults[1:]
+		}
+		return result.Actor, result.Error
+	}
+
+	return nil, nil
+}
+
+func (m *MockSupervisor) CreateGameWithPlayersAndSettings(gameID string, players map[string]*core.Player, settings core.GameSettings) (interfaces.GameActorInterface, error) {
+	m.CreateGameWithPlayersAndSettingsCalls = append(m.CreateGameWithPlayersAndSettingsCalls, CreateGameWithPlayersAndSettingsCall{
+		GameID:   gameID,
+		Players:  players,
+		Settings: settings,
+	})
+
+	if len(m.CreateGameWithPlayersAndSettingsResults) > 0 {
+		result := m.CreateGameWithPlayersAndSettingsResults[0]
+		if len(m.CreateGameWithPlayersAndSettingsResults) > 1 {
+			m.CreateGameWithPlayersAndSettingsResults = m.CreateGameWithPlayersAndSettingsResults[1:]
 		}
 		return result.Actor, result.Error
 	}

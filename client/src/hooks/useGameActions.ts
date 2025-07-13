@@ -1,4 +1,4 @@
-import { useCallback, KeyboardEvent } from "react";
+import { useRef, useCallback, KeyboardEvent } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useGameEngineContext } from "../contexts/GameEngineContext";
 import { useSessionContext } from "../contexts/SessionContext";
@@ -48,7 +48,15 @@ export function useGameActions({
   const { playSound } = useSound();
   const isSpectating = appState.isSpectating;
 
+  const lastSubmissionTime = useRef(0); // Add this ref
+
   const handleSendMessage = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastSubmissionTime.current < 50) { // 10ms debounce window
+      return; // Ignore rapid-fire submissions
+    }
+    lastSubmissionTime.current = now;
+
     // For spectators, we don't need a localPlayer. For regular players, we do.
     if (!chatInput.trim() || (!isSpectating && !localPlayer) || !isConnected || !gameId) return;
     try {
@@ -303,6 +311,12 @@ export function useGameActions({
       channelId: string = "#war-room"
     ) => {
       if (!localPlayer || !isConnected || !gameId) return;
+      console.log("[handleEmojiReaction] Sending reaction:", {
+        messageId,
+        emoji,
+        channelId,
+        playerId: localPlayer.id,
+      });
       sendAction({
         type: ClientActionType.ReactToMessage,
         payload: {

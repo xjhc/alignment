@@ -106,6 +106,11 @@ export class GameEngine {
         const result = this.core.applyEvent(eventJson);
 
         if (result.success) {
+          // After successfully applying the event, get the updated state and notify listeners
+          const updatedState = this.getCurrentState();
+          if (updatedState) {
+            this.notifyStateChange(updatedState);
+          }
           resolve();
         } else {
           reject(new Error(result.error || 'Failed to apply event'));

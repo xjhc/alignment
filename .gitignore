@@ -35,6 +35,7 @@ client/storybook-static/
 
 # Local files
 .azure_vm_ip
+*.rdb
 
 # Python
 __pycache__/

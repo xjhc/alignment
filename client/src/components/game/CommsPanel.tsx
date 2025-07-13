@@ -6,13 +6,13 @@ import { ContextualInputArea } from "./ContextualInputArea";
 import { SitrepMessage } from "./SitrepMessage";
 import { VoteResultMessage } from "./VoteResultMessage";
 import { PulseCheckMessage } from "./PulseCheckMessage";
-import { PulseCheckResults } from "./PulseCheckResults";
 import { IncitingIncidentMessage } from "./IncitingIncidentMessage";
 import { LoebmateMessage } from "./LoebmateMessage";
 import { EmojiPicker } from "./EmojiPicker";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { WhistleblowerVoting } from "./WhistleblowerVoting";
 import { TypingIndicator } from "./TypingIndicator";
+import { ReactionPill } from "./ReactionPill";
 import { useTypingIndicator } from "../../hooks/useTypingIndicator";
 import { EmojiReaction } from "../../types";
 
@@ -99,8 +99,10 @@ export const CommsPanel: React.FC = () => {
     localPlayer?.isAlive;
 
   const filteredMessages = useMemo(() => {
-    const messages =
-      gameState?.chatMessages || (gameState as any)?.chat_messages || [];
+    // Safely access either chatMessages or chat_messages, defaulting to an empty array
+    const messages = gameState?.chatMessages || (gameState as any)?.chat_messages || [];
+    
+    // Ensure we are always working with an array
     if (!Array.isArray(messages)) return [];
 
     return messages.filter(
@@ -193,19 +195,21 @@ export const CommsPanel: React.FC = () => {
     closeEmojiPicker();
   };
 
-  const aggregateReactions = (reactions: EmojiReaction[] = []) => {
-    const aggregated: Record<string, { count: number; players: string[] }> = {};
+  const aggregateReactions = (reactions: EmojiReaction[] = [], localPlayerId: string = "") => {
+    const aggregated: Record<string, { count: number; players: string[]; playerIds: string[] }> = {};
     reactions.forEach((reaction) => {
       if (!aggregated[reaction.emoji]) {
-        aggregated[reaction.emoji] = { count: 0, players: [] };
+        aggregated[reaction.emoji] = { count: 0, players: [], playerIds: [] };
       }
       aggregated[reaction.emoji].count++;
       aggregated[reaction.emoji].players.push(reaction.playerName);
+      aggregated[reaction.emoji].playerIds.push(reaction.playerID);
     });
     return Object.entries(aggregated).map(([emoji, data]) => ({
       emoji,
       count: data.count,
       players: data.players,
+      isReactedBySelf: data.playerIds.includes(localPlayerId),
     }));
   };
 
@@ -340,16 +344,10 @@ export const CommsPanel: React.FC = () => {
                 />
               </div>
             );
-          if (msg.isSystem && msg.type === "PULSE_CHECK")
+          if (msg.isSystem && (msg.type === "PULSE_CHECK" || msg.type === "PULSE_CHECK_RESULTS" || msg.type === "PULSE_CHECK_REVEALED"))
             return (
               <div key={msg.id || index}>
                 <PulseCheckMessage message={msg} gameState={gameState} />
-              </div>
-            );
-          if (msg.isSystem && msg.type === "PULSE_CHECK_RESULTS")
-            return (
-              <div key={msg.id || index}>
-                <PulseCheckResults message={msg} gameState={gameState} />
               </div>
             );
           if (msg.isSystem && msg.type === "INCITING_INCIDENT")
@@ -434,12 +432,12 @@ export const CommsPanel: React.FC = () => {
                           ↩️ Reply
                         </button>
                         <button
-                          onClick={(e) =>
+                          onClick={(e) => {
                             openEmojiPicker(
                               msg.id || `${index}`,
                               e.currentTarget
-                            )
-                          }
+                            );
+                          }}
                           className="text-xs text-text-muted hover:text-text-primary px-2 py-1 rounded hover:bg-background-tertiary"
                           aria-label={`React to message from ${msg.playerName} with emoji`}
                         >
@@ -476,24 +474,20 @@ export const CommsPanel: React.FC = () => {
                     );
                   })()}
                 </div>
-                {msg.reactions && msg.reactions.length > 0 && (
+                {msg.reactions?.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {aggregateReactions(msg.reactions).map(
-                      ({ emoji, count, players }) => (
-                        <button
+                    {aggregateReactions(msg.reactions || [], localPlayer?.id || "").map(
+                      ({ emoji, count, players, isReactedBySelf }) => (
+                        <ReactionPill
                           key={emoji}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-background-secondary hover:bg-background-tertiary text-xs border border-border transition-colors"
-                          title={`${players.join(", ")} reacted with ${emoji}`}
-                          onClick={(e) =>
-                            openEmojiPicker(
-                              msg.id || `${index}`,
-                              e.currentTarget
-                            )
-                          }
-                        >
-                          <span>{emoji}</span>
-                          <span className="font-medium">{count}</span>
-                        </button>
+                          emoji={emoji}
+                          count={count}
+                          players={players}
+                          isReactedBySelf={isReactedBySelf}
+                          onClick={() => {
+                            handleEmojiReaction(msg.id || `${index}`, emoji, activeChannel);
+                          }}
+                        />
                       )
                     )}
                   </div>

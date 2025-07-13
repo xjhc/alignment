@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test-backend:
@@ -21,148 +21,148 @@ jobs:
           --health-retries 5
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
 
-    - name: Cache Go modules
-      uses: actions/cache@v3
-      with:
-        path: ~/go/pkg/mod
-        # FIX: Replaced matrix variable with the actual Go version.
-        key: ${{ runner.os }}-go-1.21-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-1.21-
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          # FIX: Replaced matrix variable with the actual Go version.
+          key: ${{ runner.os }}-go-1.21-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-1.21-
 
-    - name: Download dependencies
-      working-directory: ./server
-      run: go mod download
-
-    - name: Format, Vet, and Lint
-      working-directory: ./server
-      run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-          echo "Go code is not formatted. Please run 'go fmt ./...'"
-          gofmt -s -l .
-          exit 1
-        fi
-        go vet ./...
-    - uses: golangci/golangci-lint-action@v3
-      with:
-        version: latest
+      - name: Download dependencies
         working-directory: ./server
+        run: go mod download
 
-    - name: Test with race detection and coverage
-      working-directory: ./server
-      run: go test -race -coverprofile=coverage.out ./...
-      env:
-        # Use the same env var name as the application for consistency
-        REDIS_ADDR: localhost:6379
+      - name: Format, Vet, and Lint
+        working-directory: ./server
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Go code is not formatted. Please run 'go fmt ./...'"
+            gofmt -s -l .
+            exit 1
+          fi
+          go vet ./...
+      - uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: ./server
 
-    - name: Check test coverage
-      working-directory: ./server
-      run: |
-        go tool cover -func=coverage.out
-        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-        echo "Total coverage: ${COVERAGE}%"
-        # Temporarily lowered threshold to match current achievable coverage
-        # TODO: Gradually increase this back to 80% as more tests are added
-        if (( $(echo "$COVERAGE < 25" | bc -l) )); then
-          echo "Coverage ${COVERAGE}% is below minimum 25%"
-          exit 1
-        fi
+      - name: Test with race detection and coverage
+        working-directory: ./server
+        run: go test -race -coverprofile=coverage.out ./...
+        env:
+          # Use the same env var name as the application for consistency
+          REDIS_ADDR: localhost:6379
 
-    - name: Build backend binary
-      working-directory: ./server
-      run: go build -o ../alignment-server ./cmd/server
+      - name: Check test coverage
+        working-directory: ./server
+        run: |
+          go tool cover -func=coverage.out
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%"
+          # Temporarily lowered threshold to match current achievable coverage
+          # TODO: Gradually increase this back to 80% as more tests are added
+          if (( $(echo "$COVERAGE < 25" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below minimum 25%"
+            exit 1
+          fi
 
-    - name: Upload backend artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: backend-binary
-        path: alignment-server
+      - name: Build backend binary
+        working-directory: ./server
+        run: go build -o ../alignment-server ./cmd/server
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-binary
+          path: alignment-server
 
   test-frontend:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: './client/package-lock.json'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: "./client/package-lock.json"
 
-    - name: Install dependencies
-      working-directory: ./client
-      run: npm ci
+      - name: Install dependencies
+        working-directory: ./client
+        run: npm ci
 
-    - name: Generate TypeScript types from Go core package
-      working-directory: ./client
-      run: npm run generate:types
+      - name: Generate TypeScript types from Go core package
+        working-directory: ./client
+        run: npm run generate:types
 
-    - name: Verify generated types are in sync
-      run: |
-        git diff --exit-code client/src/types/generated.ts || {
-          echo "❌ Generated TypeScript types are out of sync with Go core package"
-          echo "The generated.ts file has uncommitted changes."
-          echo "This means the Go core types were modified but TypeScript types weren't regenerated."
-          echo "Please run 'npm run generate:types' and commit the changes."
-          exit 1
-        }
+      - name: Verify generated types are in sync
+        run: |
+          git diff --exit-code client/src/types/generated.ts || {
+            echo "❌ Generated TypeScript types are out of sync with Go core package"
+            echo "The generated.ts file has uncommitted changes."
+            echo "This means the Go core types were modified but TypeScript types weren't regenerated."
+            echo "Please run 'npm run generate:types' and commit the changes."
+            exit 1
+          }
 
-    - name: Architectural Linting
-      run: go run tools/arch-lint/main.go
+      - name: Architectural Linting
+        run: go run tools/arch-lint/main.go
 
-    - name: Type check, Lint, and Test
-      working-directory: ./client
-      run: |
-        npx tsc --noEmit
-        npm run lint
-        npm test
+      - name: Type check, Lint, and Test
+        working-directory: ./client
+        run: |
+          npx tsc --noEmit
+          npm run lint
+          npm test
 
-    - name: Build frontend
-      working-directory: ./client
-      run: npm run build
+      - name: Build frontend
+        working-directory: ./client
+        run: npm run build
 
-    - name: Upload frontend artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: frontend-dist
-        path: client/dist
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: client/dist
 
   visual-tests:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: './client/package-lock.json'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: "./client/package-lock.json"
 
-    - name: Install dependencies
-      working-directory: ./client
-      run: npm ci
+      - name: Install dependencies
+        working-directory: ./client
+        run: npm ci
 
-    - name: Publish to Chromatic
-      uses: chromaui/action@latest
-      with:
-        projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-        workingDir: ./client
+      - name: Publish to Chromatic
+        uses: chromaui/action@latest
+        with:
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          workingDir: ./client
 
   # This job now verifies the artifacts from the previous jobs
   verify-integration:
@@ -179,100 +179,100 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-    - name: Download backend artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: backend-binary
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
 
-    - name: Download frontend artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: frontend-dist
-        path: client/dist
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: client/dist
 
-    - name: Set up Node.js for file server
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
+      - name: Set up Node.js for file server
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
 
-    - name: Make backend executable and start it
-      run: |
-        chmod +x alignment-server
-        echo "Starting alignment-server in background..."
-        ./alignment-server &
-        BACKEND_PID=$!
-        echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
-        sleep 5  # Give server time to start
-      env:
-        REDIS_ADDR: localhost:6379
+      - name: Make backend executable and start it
+        run: |
+          chmod +x alignment-server
+          echo "Starting alignment-server in background..."
+          ./alignment-server &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+          sleep 5  # Give server time to start
+        env:
+          REDIS_ADDR: localhost:6379
 
-    - name: Start simple file server for frontend
-      run: |
-        echo "Starting simple HTTP server for frontend..."
-        cd client/dist && python3 -m http.server 3000 &
-        FRONTEND_PID=$!
-        echo "FRONTEND_PID=$FRONTEND_PID" >> $GITHUB_ENV
-        sleep 3  # Give server time to start
+      - name: Start simple file server for frontend
+        run: |
+          echo "Starting simple HTTP server for frontend..."
+          cd client/dist && python3 -m http.server 3000 &
+          FRONTEND_PID=$!
+          echo "FRONTEND_PID=$FRONTEND_PID" >> $GITHUB_ENV
+          sleep 3  # Give server time to start
 
-    - name: Verify backend health endpoint
-      run: |
-        echo "Testing backend health endpoint..."
-        max_attempts=10
-        attempt=0
-        while [ $attempt -lt $max_attempts ]; do
-          if curl -f http://localhost:8080/health; then
-            echo "✅ Backend health check successful"
-            break
-          else
-            echo "⏳ Attempt $((attempt + 1))/$max_attempts failed, retrying..."
-            sleep 2
-            attempt=$((attempt + 1))
+      - name: Verify backend health endpoint
+        run: |
+          echo "Testing backend health endpoint..."
+          max_attempts=10
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -f http://localhost:8080/health; then
+              echo "✅ Backend health check successful"
+              break
+            else
+              echo "⏳ Attempt $((attempt + 1))/$max_attempts failed, retrying..."
+              sleep 2
+              attempt=$((attempt + 1))
+            fi
+          done
+          if [ $attempt -eq $max_attempts ]; then
+            echo "❌ Backend health check failed after $max_attempts attempts"
+            exit 1
           fi
-        done
-        if [ $attempt -eq $max_attempts ]; then
-          echo "❌ Backend health check failed after $max_attempts attempts"
-          exit 1
-        fi
 
-    - name: Verify frontend is served correctly
-      run: |
-        echo "Testing frontend file serving..."
-        max_attempts=5
-        attempt=0
-        while [ $attempt -lt $max_attempts ]; do
-          if curl -f http://localhost:3000/index.html | grep -q "<title>"; then
-            echo "✅ Frontend serving successful"
-            break
-          else
-            echo "⏳ Attempt $((attempt + 1))/$max_attempts failed, retrying..."
-            sleep 2
-            attempt=$((attempt + 1))
+      - name: Verify frontend is served correctly
+        run: |
+          echo "Testing frontend file serving..."
+          max_attempts=5
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -f http://localhost:3000/index.html | grep -q "<title>"; then
+              echo "✅ Frontend serving successful"
+              break
+            else
+              echo "⏳ Attempt $((attempt + 1))/$max_attempts failed, retrying..."
+              sleep 2
+              attempt=$((attempt + 1))
+            fi
+          done
+          if [ $attempt -eq $max_attempts ]; then
+            echo "❌ Frontend serving check failed after $max_attempts attempts"
+            exit 1
           fi
-        done
-        if [ $attempt -eq $max_attempts ]; then
-          echo "❌ Frontend serving check failed after $max_attempts attempts"
-          exit 1
-        fi
 
-    - name: Verify WebSocket endpoint responds
-      run: |
-        echo "Testing WebSocket endpoint availability..."
-        # Test that the WebSocket upgrade endpoint is available (should return 400 for GET requests)
-        if curl -f http://localhost:8080/ws || curl -s http://localhost:8080/ws | grep -q "websocket"; then
-          echo "✅ WebSocket endpoint is available"
-        else
-          echo "❌ WebSocket endpoint test failed"
-          exit 1
-        fi
+      - name: Verify WebSocket endpoint responds
+        run: |
+          echo "Testing WebSocket endpoint availability..."
+          # Test that the WebSocket upgrade endpoint is available (should return 400 for GET requests)
+          if curl -f http://localhost:8080/ws || curl -s http://localhost:8080/ws | grep -q "websocket"; then
+            echo "✅ WebSocket endpoint is available"
+          else
+            echo "❌ WebSocket endpoint test failed"
+            exit 1
+          fi
 
-    - name: Cleanup background processes
-      if: always()
-      run: |
-        echo "Cleaning up background processes..."
-        if [ ! -z "$BACKEND_PID" ]; then
-          kill $BACKEND_PID || echo "Backend process already stopped"
-        fi
-        if [ ! -z "$FRONTEND_PID" ]; then
-          kill $FRONTEND_PID || echo "Frontend process already stopped"
-        fi
-        echo "✅ Integration smoke tests completed."
+      - name: Cleanup background processes
+        if: always()
+        run: |
+          echo "Cleaning up background processes..."
+          if [ ! -z "$BACKEND_PID" ]; then
+            kill $BACKEND_PID || echo "Backend process already stopped"
+          fi
+          if [ ! -z "$FRONTEND_PID" ]; then
+            kill $FRONTEND_PID || echo "Frontend process already stopped"
+          fi
+          echo "✅ Integration smoke tests completed."

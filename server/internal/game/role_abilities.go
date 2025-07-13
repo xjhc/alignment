@@ -150,32 +150,32 @@ func (ram *RoleAbilityManager) useRunAudit(action RoleAbilityAction) (*RoleAbili
 	}
 
 	// Public event - always shows "not corrupt"
-	publicEvent := core.Event{
-		ID:        fmt.Sprintf("audit_%s_%s", action.PlayerID, action.TargetID),
-		Type:      core.EventRunAudit,
-		GameID:    ram.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"target_id": action.TargetID,
-			"result":    "not_corrupt",
-			"message":   fmt.Sprintf("Security ran an audit on %s. They have not used a corrupt action.", target.Name),
-		},
+	publicPayload := core.RunAuditPayload{
+		TargetID: action.TargetID,
+		Result:   "not_corrupt",
 	}
+	publicEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("audit_%s_%s", action.PlayerID, action.TargetID),
+		core.EventRunAudit,
+		ram.gameState.ID,
+		action.PlayerID,
+		getCurrentTime(),
+		publicPayload,
+	)
 
 	// Private event for AI faction - reveals true alignment
-	privateEvent := core.Event{
-		ID:        fmt.Sprintf("audit_private_%s_%s", action.PlayerID, action.TargetID),
-		Type:      core.EventRunAudit,
-		GameID:    ram.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"target_id":       action.TargetID,
-			"true_alignment":  target.Alignment,
-			"ai_faction_only": true,
-		},
+	privatePayload := core.RunAuditPayload{
+		TargetID: action.TargetID,
+		Result:   target.Alignment,
 	}
+	privateEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("audit_private_%s_%s", action.PlayerID, action.TargetID),
+		core.EventRunAudit,
+		ram.gameState.ID,
+		action.PlayerID,
+		getCurrentTime(),
+		privatePayload,
+	)
 
 	return &RoleAbilityResult{
 		PublicEvents:  []core.Event{publicEvent},
@@ -193,17 +193,18 @@ func (ram *RoleAbilityManager) useOverclockServers(action RoleAbilityAction) (*R
 	cto := ram.gameState.Players[action.PlayerID]
 
 	// Public event - CTO mines for self and target with 100% success
-	publicEvent := core.Event{
-		ID:        fmt.Sprintf("overclock_%s_%s", action.PlayerID, action.TargetID),
-		Type:      core.EventOverclockServers,
-		GameID:    ram.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"target_id": action.TargetID,
-			"message":   fmt.Sprintf("Infrastructure is overclocking. The CTO will mine for themselves AND for %s. 100%% success rate.", target.Name),
-		},
+	publicPayload := core.OverclockServersPayload{
+		TargetID:      action.TargetID,
+		TokensAwarded: 2, // CTO + target each get 1 token
 	}
+	publicEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("overclock_%s_%s", action.PlayerID, action.TargetID),
+		core.EventOverclockServers,
+		ram.gameState.ID,
+		action.PlayerID,
+		getCurrentTime(),
+		publicPayload,
+	)
 
 	// Award tokens immediately
 	cto.Tokens++
@@ -215,19 +216,18 @@ func (ram *RoleAbilityManager) useOverclockServers(action RoleAbilityAction) (*R
 	if cto.Alignment == "ALIGNED" {
 		target.AIEquity += 2
 
-		privateEvent := core.Event{
-			ID:        fmt.Sprintf("overclock_equity_%s_%s", action.PlayerID, action.TargetID),
-			Type:      core.EventAIEquityChanged,
-			GameID:    ram.gameState.ID,
-			PlayerID:  action.TargetID,
-			Timestamp: getCurrentTime(),
-			Payload: map[string]interface{}{
-				"ai_equity_change": 2,
-				"new_ai_equity":    target.AIEquity,
-				"source":           "overclock_servers",
-				"ai_faction_only":  true,
-			},
+		privatePayload := core.AIEquityChangedPayload{
+			AIEquityChange: 2,
+			NewAIEquity:    target.AIEquity,
 		}
+		privateEvent := core.NewEventWithTypedPayload(
+			fmt.Sprintf("overclock_equity_%s_%s", action.PlayerID, action.TargetID),
+			core.EventAIEquityChanged,
+			ram.gameState.ID,
+			action.TargetID,
+			getCurrentTime(),
+			privatePayload,
+		)
 		privateEvents = append(privateEvents, privateEvent)
 	}
 
@@ -247,17 +247,17 @@ func (ram *RoleAbilityManager) useIsolateNode(action RoleAbilityAction) (*RoleAb
 	ciso := ram.gameState.Players[action.PlayerID]
 
 	// Public event - player is blocked
-	publicEvent := core.Event{
-		ID:        fmt.Sprintf("isolate_%s_%s", action.PlayerID, action.TargetID),
-		Type:      core.EventIsolateNode,
-		GameID:    ram.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"target_id": action.TargetID,
-			"message":   fmt.Sprintf("%s has been blocked from all actions tonight.", target.Name),
-		},
+	publicPayload := core.IsolateNodePayload{
+		TargetID: action.TargetID,
 	}
+	publicEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("isolate_%s_%s", action.PlayerID, action.TargetID),
+		core.EventIsolateNode,
+		ram.gameState.ID,
+		action.PlayerID,
+		getCurrentTime(),
+		publicPayload,
+	)
 
 	// Actually block the target (unless special case)
 	if ram.gameState.BlockedPlayersTonight == nil {
@@ -267,19 +267,17 @@ func (ram *RoleAbilityManager) useIsolateNode(action RoleAbilityAction) (*RoleAb
 	// Special case: If CISO is aligned and targets another aligned player, the action fizzles
 	if ciso.Alignment == "ALIGNED" && target.Alignment == "ALIGNED" {
 		// Public message appears but target is not actually blocked
-		privateEvent := core.Event{
-			ID:        fmt.Sprintf("isolate_fizzle_%s_%s", action.PlayerID, action.TargetID),
-			Type:      core.EventIsolateNode,
-			GameID:    ram.gameState.ID,
-			PlayerID:  action.PlayerID,
-			Timestamp: getCurrentTime(),
-			Payload: map[string]interface{}{
-				"target_id":       action.TargetID,
-				"fizzled":         true,
-				"reason":          "aligned_ciso_protecting_aligned",
-				"ai_faction_only": true,
-			},
+		privatePayload := core.IsolateNodePayload{
+			TargetID: action.TargetID,
 		}
+		privateEvent := core.NewEventWithTypedPayload(
+			fmt.Sprintf("isolate_fizzle_%s_%s", action.PlayerID, action.TargetID),
+			core.EventIsolateNode,
+			ram.gameState.ID,
+			action.PlayerID,
+			getCurrentTime(),
+			privatePayload,
+		)
 
 		return &RoleAbilityResult{
 			PublicEvents:  []core.Event{publicEvent},
@@ -303,18 +301,18 @@ func (ram *RoleAbilityManager) usePerformanceReview(action RoleAbilityAction) (*
 	}
 
 	// Public event - target is forced to use Project Milestones
-	publicEvent := core.Event{
-		ID:        fmt.Sprintf("review_%s_%s", action.PlayerID, action.TargetID),
-		Type:      core.EventPerformanceReview,
-		GameID:    ram.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"target_id":     action.TargetID,
-			"message":       fmt.Sprintf("The CEO has initiated a PIP for %s, forcing them to use Project Milestones tonight.", target.Name),
-			"forced_action": "PROJECT_MILESTONES",
-		},
+	publicPayload := core.PerformanceReviewPayload{
+		TargetID:     action.TargetID,
+		ForcedAction: "PROJECT_MILESTONES",
 	}
+	publicEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("review_%s_%s", action.PlayerID, action.TargetID),
+		core.EventPerformanceReview,
+		ram.gameState.ID,
+		action.PlayerID,
+		getCurrentTime(),
+		publicPayload,
+	)
 
 	// Force the target's night action
 	if ram.gameState.NightActions == nil {
@@ -351,18 +349,19 @@ func (ram *RoleAbilityManager) useReallocateBudget(action RoleAbilityAction) (*R
 	targetPlayer.Tokens++
 
 	// Public event
-	publicEvent := core.Event{
-		ID:        fmt.Sprintf("reallocate_%s_%s_%s", action.PlayerID, action.TargetID, action.SecondTargetID),
-		Type:      core.EventReallocateBudget,
-		GameID:    ram.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"source_id": action.TargetID,
-			"target_id": action.SecondTargetID,
-			"message":   fmt.Sprintf("The CFO has reallocated assets. %s loses 1 Token, and %s gains 1 Token.", sourcePlayer.Name, targetPlayer.Name),
-		},
+	publicPayload := core.ReallocateBudgetPayload{
+		FromPlayer: action.TargetID,
+		ToPlayer:   action.SecondTargetID,
+		Amount:     1,
 	}
+	publicEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("reallocate_%s_%s_%s", action.PlayerID, action.TargetID, action.SecondTargetID),
+		core.EventReallocateBudget,
+		ram.gameState.ID,
+		action.PlayerID,
+		getCurrentTime(),
+		publicPayload,
+	)
 
 	return &RoleAbilityResult{
 		PublicEvents: []core.Event{publicEvent},
@@ -394,17 +393,17 @@ func (ram *RoleAbilityManager) usePivot(action RoleAbilityAction) (*RoleAbilityR
 	}
 
 	// Public event
-	publicEvent := core.Event{
-		ID:        fmt.Sprintf("pivot_%s", action.PlayerID),
-		Type:      core.EventPivot,
-		GameID:    ram.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"message":       "Operations has initiated a strategic pivot.",
-			"chosen_crisis": chosenCrisis,
-		},
+	publicPayload := core.PivotPayload{
+		SelectedCrisis: chosenCrisis,
 	}
+	publicEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("pivot_%s", action.PlayerID),
+		core.EventPivot,
+		ram.gameState.ID,
+		action.PlayerID,
+		getCurrentTime(),
+		publicPayload,
+	)
 
 	// Set the next crisis event
 	ram.gameState.CrisisEvent = &core.CrisisEvent{
@@ -427,17 +426,17 @@ func (ram *RoleAbilityManager) useDeployHotfix(action RoleAbilityAction) (*RoleA
 	}
 
 	// Public event
-	publicEvent := core.Event{
-		ID:        fmt.Sprintf("hotfix_%s", action.PlayerID),
-		Type:      core.EventDeployHotfix,
-		GameID:    ram.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"message":          "A hotfix has been deployed. One section of the next day's SITREP is now [REDACTED]. The VP chooses which section to hide.",
-			"redacted_section": section,
-		},
+	publicPayload := core.DeployHotfixPayload{
+		RedactionTarget: section,
 	}
+	publicEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("hotfix_%s", action.PlayerID),
+		core.EventDeployHotfix,
+		ram.gameState.ID,
+		action.PlayerID,
+		getCurrentTime(),
+		publicPayload,
+	)
 
 	return &RoleAbilityResult{
 		PublicEvents: []core.Event{publicEvent},
@@ -532,17 +531,18 @@ func (ram *RoleAbilityManager) HandleNightAction(action core.Action) ([]core.Eve
 	}
 
 	// Create night action submission event
-	event := core.Event{
-		ID:        fmt.Sprintf("night_action_%s_%d", action.PlayerID, getCurrentTime().UnixNano()),
-		Type:      core.EventNightActionSubmitted,
-		GameID:    ram.gameState.ID,
-		PlayerID:  action.PlayerID,
-		Timestamp: getCurrentTime(),
-		Payload: map[string]interface{}{
-			"action_type": actionType,
-			"target_id":   targetID,
-		},
+	payload := core.NightActionSubmittedPayload{
+		ActionType: actionType,
+		TargetID:   targetID,
 	}
+	event := core.NewEventWithTypedPayload(
+		fmt.Sprintf("night_action_%s_%d", action.PlayerID, getCurrentTime().UnixNano()),
+		core.EventNightActionSubmitted,
+		ram.gameState.ID,
+		action.PlayerID,
+		getCurrentTime(),
+		payload,
+	)
 
 	// Store night action in game state for resolution at phase end
 	if ram.gameState.NightActions == nil {

@@ -942,13 +942,17 @@ func (pa *PlayerActor) handleTransitionToGame(transition interfaces.TransitionTo
 	}
 
 	// First, send a generic GAME_STARTED event to signal the UI to transition.
-	gameStartedEvent := core.Event{
-		Type:      core.EventGameStarted,
-		GameID:    transition.GameID,
-		PlayerID:  pa.playerID, // Private, to this player
-		Timestamp: time.Now(),
-		Payload:   map[string]interface{}{"game_id": transition.GameID},
+	gameStartedPayload := core.GameStartedPayload{
+		GameID: transition.GameID,
 	}
+	gameStartedEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("game_started_%s_%d", transition.GameID, time.Now().UnixNano()),
+		core.EventGameStarted,
+		transition.GameID,
+		pa.playerID, // Private, to this player
+		time.Now(),
+		gameStartedPayload,
+	)
 	pa.sendEvent(gameStartedEvent)
 
 	// THEN, send the game state snapshot with role info etc.
@@ -997,20 +1001,22 @@ func (pa *PlayerActor) handleDisconnect() {
 
 // sendLobbyStateUpdate sends lobby state to client
 func (pa *PlayerActor) sendLobbyStateUpdate(update lobby.LobbyStateUpdate) {
-	event := core.Event{
-		Type:      "LOBBY_STATE_UPDATE",
-		GameID:    update.LobbyID,
-		PlayerID:  pa.playerID,
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"lobby_id":    update.LobbyID,
-			"players":     update.Players,
-			"host_id":     update.HostID,
-			"can_start":   update.CanStart,
-			"name":        update.LobbyName,
-			"max_players": 8, // TODO: Make configurable
-		},
+	payload := core.LobbyStateUpdatePayload{
+		LobbyID:    update.LobbyID,
+		Players:    update.Players,
+		HostID:     update.HostID,
+		CanStart:   update.CanStart,
+		Name:       update.LobbyName,
+		MaxPlayers: 8, // TODO: Make configurable
 	}
+	event := core.NewEventWithTypedPayload(
+		fmt.Sprintf("lobby_update_%s_%d", update.LobbyID, time.Now().UnixNano()),
+		"LOBBY_STATE_UPDATE",
+		update.LobbyID,
+		pa.playerID,
+		time.Now(),
+		payload,
+	)
 
 	pa.sendEvent(event)
 }

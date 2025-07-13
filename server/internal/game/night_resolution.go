@@ -701,17 +701,17 @@ func (nrm *NightResolutionManager) resolveBlockActions() []core.Event {
 			if nrm.canPlayerUseAbility(playerID, "BLOCK") && targetID != "" {
 				blockedPlayers[targetID] = true
 
-				event := core.Event{
-					ID:        fmt.Sprintf("night_block_%s_%s", playerID, targetID),
-					Type:      core.EventPlayerBlocked,
-					GameID:    nrm.gameState.ID,
-					PlayerID:  targetID, // The blocked player
-					Timestamp: getCurrentTime(),
-					Payload: map[string]interface{}{
-						"blocker_id": playerID,
-						"target_id":  targetID,
-					},
+				payload := core.PlayerBlockedPayload{
+					BlockedBy: playerID,
 				}
+				event := core.NewEventWithTypedPayload(
+					fmt.Sprintf("night_block_%s_%s", playerID, targetID),
+					core.EventPlayerBlocked,
+					nrm.gameState.ID,
+					targetID, // The blocked player
+					getCurrentTime(),
+					payload,
+				)
 				events = append(events, event)
 			}
 		} else if action.Type == "ISOLATE_NODE" {
@@ -732,17 +732,17 @@ func (nrm *NightResolutionManager) resolveBlockActions() []core.Event {
 				if nrm.gameState.BlockedPlayersTonight != nil && nrm.gameState.BlockedPlayersTonight[targetID] {
 					blockedPlayers[targetID] = true
 
-					event := core.Event{
-						ID:        fmt.Sprintf("isolate_node_%s_%s", playerID, targetID),
-						Type:      "ISOLATE_NODE",
-						GameID:    nrm.gameState.ID,
-						PlayerID:  playerID, // The CISO who performed the isolation
-						Timestamp: getCurrentTime(),
-						Payload: map[string]interface{}{
-							"ciso_id":   playerID,
-							"target_id": targetID,
-						},
+					payload := core.IsolateNodePayload{
+						TargetID: targetID,
 					}
+					event := core.NewEventWithTypedPayload(
+						fmt.Sprintf("isolate_node_%s_%s", playerID, targetID),
+						core.EventIsolateNode,
+						nrm.gameState.ID,
+						playerID, // The CISO who performed the isolation
+						getCurrentTime(),
+						payload,
+					)
 					events = append(events, event)
 				}
 			}
@@ -800,20 +800,17 @@ func (nrm *NightResolutionManager) resolveMiningActions() []core.Event {
 			target.Tokens++
 
 			// Create success event
-			event := core.Event{
-				ID:        fmt.Sprintf("mining_success_%s_%s", minerID, targetID),
-				Type:      core.EventMiningSuccessful,
-				GameID:    nrm.gameState.ID,
-				PlayerID:  targetID, // Token goes to target
-				Timestamp: getCurrentTime(),
-				Payload: map[string]interface{}{
-					"miner_id":    minerID,
-					"miner_name":  miner.Name,
-					"target_id":   targetID,
-					"target_name": target.Name,
-					"amount":      1,
-				},
+			payload := core.MiningSuccessfulPayload{
+				Amount: 1,
 			}
+			event := core.NewEventWithTypedPayload(
+				fmt.Sprintf("mining_success_%s_%s", minerID, targetID),
+				core.EventMiningSuccessful,
+				nrm.gameState.ID,
+				targetID, // Token goes to target
+				getCurrentTime(),
+				payload,
+			)
 			events = append(events, event)
 		}
 	}

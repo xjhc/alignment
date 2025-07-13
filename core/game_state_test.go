@@ -1,10 +1,10 @@
 package core
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestApplyEvent_PlayerJoined(t *testing.T) {
@@ -189,6 +189,11 @@ func TestApplyEvent_RoleAssigned(t *testing.T) {
 			"kpi_type":         "GUARDIAN",
 			"kpi_description":  "Keep the CISO alive until Day 4",
 			"alignment":        "HUMAN",
+			"ability": map[string]interface{}{
+				"name":        "Isolate Node",
+				"description": "Block a player from taking any actions tonight. If you are aligned and target another aligned player, the action appears to work but doesn't actually block them.",
+				"isReady":     false,
+			},
 		},
 	}
 
@@ -213,6 +218,20 @@ func TestApplyEvent_RoleAssigned(t *testing.T) {
 	}
 	if player.Alignment != "HUMAN" {
 		t.Errorf("Expected alignment 'HUMAN', got '%s'", player.Alignment)
+	}
+	
+	// Test that ability data is properly extracted and assigned
+	if player.Role.Ability == nil {
+		t.Fatal("Role ability should not be nil")
+	}
+	if player.Role.Ability.Name != "Isolate Node" {
+		t.Errorf("Expected ability name 'Isolate Node', got '%s'", player.Role.Ability.Name)
+	}
+	if player.Role.Ability.Description != "Block a player from taking any actions tonight. If you are aligned and target another aligned player, the action appears to work but doesn't actually block them." {
+		t.Errorf("Expected specific ability description, got '%s'", player.Role.Ability.Description)
+	}
+	if player.Role.Ability.IsReady != false {
+		t.Errorf("Expected ability IsReady to be false, got %v", player.Role.Ability.IsReady)
 	}
 }
 
@@ -635,19 +654,13 @@ func TestApplyEvent_ChatMessage_NestedPayload(t *testing.T) {
 		PlayerID:  "player-1",
 		Timestamp: now,
 		Payload: map[string]interface{}{
-			"channel_id":         "#war-room",
-			"client_message_id":  "1752251515357_q50ckoe8m",
-			"day_number":         1,
-			"phase":              "SITREP",
-			"message": map[string]interface{}{
-				"channelID":  "#war-room",
-				"id":         "msg-1752251515631258344",
-				"isSystem":   false,
-				"message":    "Hello, this is a test message",
-				"playerID":   "player-1",
-				"playerName": "Kelly",
-				"timestamp":  "2025-07-11T09:31:55.631258598-07:00",
-			},
+			"sender_id":   "player-1",
+			"sender_name": "Kelly",
+			"message":     "Hello, this is a test message",
+			"isSystem":    false,
+			"channel_id":  "#war-room",
+			"id":          "msg-1752251515631258344",
+			"timestamp":   "2025-07-11T09:31:55.631258598-07:00",
 		},
 	}
 
@@ -679,9 +692,9 @@ func TestApplyEvent_ChatMessage_NestedPayload(t *testing.T) {
 	}
 }
 
-func TestApplyEvent_ChatMessage_NestedPayload_BugFix(t *testing.T) {
-	// Setup: Create an initial state and a CHAT_MESSAGE event with a nested payload,
-	// mirroring the structure from the bug report.
+func TestApplyEvent_ChatMessage_InvalidPayload_HandledGracefully(t *testing.T) {
+	// Setup: Create an initial state and a CHAT_MESSAGE event with an invalid (nested) payload
+	// This tests that our new strict typing gracefully handles malformed events
 	gameState := NewGameState("test-game", time.Now())
 	gameState.Players["player-1"] = &Player{ID: "player-1", Name: "Kelly", IsAlive: true}
 
@@ -690,16 +703,17 @@ func TestApplyEvent_ChatMessage_NestedPayload_BugFix(t *testing.T) {
 		ID:        "event-1",
 		Type:      EventChatMessage,
 		GameID:    "test-game",
-		PlayerID:  "player-1", // This top-level ID might be from the session.
+		PlayerID:  "player-1",
 		Timestamp: now,
 		Payload: map[string]interface{}{
+			// This is the old nested structure that should no longer work
 			"channel_id":         "#war-room",
 			"client_message_id":  "1752251515357_q50ckoe8m",
-			"day_number":         float64(1), // JSON unmarshals numbers to float64
+			"day_number":         float64(1),
 			"phase":              "SITREP",
 			"message": map[string]interface{}{
 				"id":         "msg-1752251515631258344",
-				"playerID":   "guest:924472f5-652f-4cb0-bb18-881e79dc503c", // The authoritative ID
+				"playerID":   "guest:924472f5-652f-4cb0-bb18-881e79dc503c",
 				"playerName": "Kelly",
 				"message":    "4",
 				"isSystem":   false,
@@ -709,17 +723,320 @@ func TestApplyEvent_ChatMessage_NestedPayload_BugFix(t *testing.T) {
 		},
 	}
 
-	// Act: Apply the event using the refactored function.
+	// Act: Apply the event - this should fail gracefully with our new strict typing
 	newState := ApplyEvent(*gameState, event)
 
-	// Assert: Verify that the chat message was added to the state correctly.
-	require.Len(t, newState.ChatMessages, 1, "A chat message should have been added")
+	// Assert: Invalid payload should be rejected, no chat message added
+	assert.Len(t, newState.ChatMessages, 0, "Invalid payload should be rejected - no defensive parsing")
+}
 
-	chatMsg := newState.ChatMessages[0]
-	assert.Equal(t, "msg-1752251515631258344", chatMsg.ID, "Message ID should be populated from the nested object")
-	assert.Equal(t, "guest:924472f5-652f-4cb0-bb18-881e79dc503c", chatMsg.PlayerID, "PlayerID should be populated from the nested object")
-	assert.Equal(t, "Kelly", chatMsg.PlayerName, "PlayerName should be populated")
-	assert.Equal(t, "4", chatMsg.Message, "Message content should be populated")
-	assert.Equal(t, "#war-room", chatMsg.ChannelID, "ChannelID should be populated")
-	assert.False(t, chatMsg.IsSystem, "IsSystem flag should be populated")
+func TestApplyMessageReaction_Immutability(t *testing.T) {
+	// Arrange: Create a game state with a chat message
+	gameState := NewGameState("test-game", time.Now())
+	now := time.Now()
+
+	// First add a chat message
+	chatEvent := Event{
+		ID:        "msg-event-1",
+		Type:      EventChatMessage,
+		GameID:    "test-game",
+		PlayerID:  "player-1",
+		Timestamp: now,
+		Payload: map[string]interface{}{
+			"sender_id":   "player-1",
+			"sender_name": "Alice",
+			"message":     "Hello world!",
+			"channel_id":  "#war-room",
+			"id":          "msg-1",
+		},
+	}
+	gameStateWithMessage := ApplyEvent(*gameState, chatEvent)
+
+	// Store reference to original ChatMessages slice
+	originalSlice := gameStateWithMessage.ChatMessages
+	originalSlicePtr := &gameStateWithMessage.ChatMessages[0]
+
+	// Create a reaction event
+	reactionEvent := Event{
+		ID:        "reaction-event-1",
+		Type:      EventMessageReaction,
+		GameID:    "test-game",
+		PlayerID:  "player-2",
+		Timestamp: now.Add(time.Second),
+		Payload: map[string]interface{}{
+			"message_id":   "msg-1",
+			"emoji":        "👍",
+			"player_id":    "player-2",
+			"player_name":  "Bob",
+		},
+	}
+
+	// Act: Apply the reaction event
+	newState := ApplyEvent(gameStateWithMessage, reactionEvent)
+
+	// Assert: The ChatMessages slice should have a different memory address (immutability)
+	newSlice := newState.ChatMessages
+	newSlicePtr := &newState.ChatMessages[0]
+
+	// Verify immutability: different slice references
+	assert.True(t, &originalSlice[0] != &newSlice[0], "ChatMessages slice should have different underlying array")
+	assert.NotSame(t, originalSlicePtr, newSlicePtr, "ChatMessage objects should be new instances")
+
+	// Verify content correctness: the reaction was added
+	assert.Len(t, newState.ChatMessages, 1, "Should still have 1 message")
+	assert.Equal(t, "msg-1", newState.ChatMessages[0].ID, "Message ID should be preserved")
+	assert.Len(t, newState.ChatMessages[0].Reactions, 1, "Should have 1 reaction")
+	
+	reaction := newState.ChatMessages[0].Reactions[0]
+	assert.Equal(t, "👍", reaction.Emoji, "Reaction emoji should be correct")
+	assert.Equal(t, "player-2", reaction.PlayerID, "Reaction player ID should be correct")
+	assert.Equal(t, "Bob", reaction.PlayerName, "Reaction player name should be correct")
+
+	// Verify original state is unchanged (true immutability)
+	assert.Len(t, gameStateWithMessage.ChatMessages[0].Reactions, 0, "Original state should be unchanged")
+}
+
+func TestApplyMessageReaction_ToggleReaction(t *testing.T) {
+	// Arrange: Create a game state with a chat message that already has a reaction
+	gameState := NewGameState("test-game", time.Now())
+	now := time.Now()
+
+	// First add a chat message
+	chatEvent := Event{
+		ID:        "msg-event-1",
+		Type:      EventChatMessage,
+		GameID:    "test-game",
+		PlayerID:  "player-1",
+		Timestamp: now,
+		Payload: map[string]interface{}{
+			"sender_id":   "player-1",
+			"sender_name": "Alice",
+			"message":     "Hello world!",
+			"channel_id":  "#war-room",
+			"id":          "msg-1",
+		},
+	}
+	gameStateWithMessage := ApplyEvent(*gameState, chatEvent)
+
+	// Add first reaction
+	reactionEvent1 := Event{
+		ID:        "reaction-event-1",
+		Type:      EventMessageReaction,
+		GameID:    "test-game",
+		PlayerID:  "player-2",
+		Timestamp: now.Add(time.Second),
+		Payload: map[string]interface{}{
+			"message_id":   "msg-1",
+			"emoji":        "👍",
+			"player_id":    "player-2",
+			"player_name":  "Bob",
+		},
+	}
+	gameStateWithReaction := ApplyEvent(gameStateWithMessage, reactionEvent1)
+
+	// Act: Toggle the same reaction (should remove it)
+	reactionEvent2 := Event{
+		ID:        "reaction-event-2",
+		Type:      EventMessageReaction,
+		GameID:    "test-game",
+		PlayerID:  "player-2",  // Same player
+		Timestamp: now.Add(2 * time.Second),
+		Payload: map[string]interface{}{
+			"message_id":   "msg-1",
+			"emoji":        "👍",  // Same emoji
+			"player_id":    "player-2",
+			"player_name":  "Bob",
+		},
+	}
+	finalState := ApplyEvent(gameStateWithReaction, reactionEvent2)
+
+	// Assert: Reaction should be removed (toggled off)
+	assert.Len(t, finalState.ChatMessages, 1, "Should still have 1 message")
+	assert.Len(t, finalState.ChatMessages[0].Reactions, 0, "Reaction should be removed when toggled")
+
+	// Verify immutability: different slice references
+	assert.True(t, &gameStateWithReaction.ChatMessages[0] != &finalState.ChatMessages[0], "ChatMessages slice should have different underlying array")
+}
+
+func TestApplyMessageReaction_CorrectPlayerAttribution(t *testing.T) {
+	// Arrange: Create a game state with two players and a chat message from player A
+	gameState := NewGameState("test-game", time.Now())
+	now := time.Now()
+
+	// Add two players
+	gameState.Players["player-a"] = &Player{ID: "player-a", Name: "Alice", IsAlive: true}
+	gameState.Players["player-b"] = &Player{ID: "player-b", Name: "Bob", IsAlive: true}
+
+	// Add a chat message from Alice
+	chatEvent := Event{
+		ID:        "msg-event-1",
+		Type:      EventChatMessage,
+		GameID:    "test-game",
+		PlayerID:  "player-a",
+		Timestamp: now,
+		Payload: map[string]interface{}{
+			"sender_id":   "player-a",
+			"sender_name": "Alice",
+			"message":     "Hello world!",
+			"channel_id":  "#war-room",
+			"id":          "msg-1",
+		},
+	}
+	gameStateWithMessage := ApplyEvent(*gameState, chatEvent)
+
+	// Act: Bob reacts to Alice's message using new typed payload structure
+	reactionEvent := Event{
+		ID:        "reaction-event-1",
+		Type:      EventMessageReaction,
+		GameID:    "test-game",
+		PlayerID:  "player-b", // Bob is reacting
+		Timestamp: now.Add(1 * time.Second),
+		Payload: map[string]interface{}{
+			"message_id":  "msg-1",
+			"emoji":       "👍",
+			"player_id":   "player-b", // Explicit player ID in payload
+			"player_name": "Bob",      // Bob's name in payload
+		},
+	}
+	finalState := ApplyEvent(gameStateWithMessage, reactionEvent)
+
+	// Assert: Reaction should be attributed to Bob, not Alice
+	assert.Len(t, finalState.ChatMessages, 1, "Should have 1 message")
+	assert.Len(t, finalState.ChatMessages[0].Reactions, 1, "Should have 1 reaction")
+
+	reaction := finalState.ChatMessages[0].Reactions[0]
+	assert.Equal(t, "👍", reaction.Emoji, "Should have correct emoji")
+	assert.Equal(t, "player-b", reaction.PlayerID, "Should be attributed to Bob (player-b), not Alice")
+	assert.Equal(t, "Bob", reaction.PlayerName, "Should have Bob's name, not Alice's")
+}
+
+func TestApplyMessageReaction_FullStateIntegrityCheck(t *testing.T) {
+	// Simulate the exact scenario from the bug report
+	// This test verifies that reactions persist correctly in the game state
+	gameState := NewGameState("test-game", time.Now())
+	now := time.Now()
+
+	// Step 1: Add a chat message
+	chatEvent := Event{
+		ID:        "chat-msg-12345",
+		Type:      EventChatMessage,
+		GameID:    "test-game",
+		PlayerID:  "player-a",
+		Timestamp: now,
+		Payload: map[string]interface{}{
+			"sender_id":   "player-a",
+			"sender_name": "Alice",
+			"message":     "Hello everyone!",
+			"channel_id":  "#war-room",
+			"id":          "chat-msg-12345",
+		},
+	}
+	stateWithMessage := ApplyEvent(*gameState, chatEvent)
+
+	// Verify message was added correctly
+	assert.Len(t, stateWithMessage.ChatMessages, 1, "Should have 1 message")
+	assert.Equal(t, "chat-msg-12345", stateWithMessage.ChatMessages[0].ID, "Message ID should be correct")
+	assert.Len(t, stateWithMessage.ChatMessages[0].Reactions, 0, "Should start with no reactions")
+
+	// Step 2: Add a reaction using the exact payload structure from the bug report
+	reactionEvent := Event{
+		ID:        "reaction-event-67890",
+		Type:      EventMessageReaction,
+		GameID:    "test-game",
+		PlayerID:  "player-b",
+		Timestamp: now.Add(time.Second),
+		Payload: map[string]interface{}{
+			"message_id":  "chat-msg-12345",
+			"emoji":       "👍",
+			"player_id":   "player-b",
+			"player_name": "Bob",
+		},
+	}
+
+	// Step 3: Apply the reaction event
+	finalState := ApplyEvent(stateWithMessage, reactionEvent)
+
+	// Step 4: Comprehensive assertions
+	assert.Len(t, finalState.ChatMessages, 1, "Should still have 1 message")
+	
+	message := finalState.ChatMessages[0]
+	assert.Equal(t, "chat-msg-12345", message.ID, "Message ID should be preserved")
+	
+	// THE CRITICAL ASSERTION: Reactions should be present in the state
+	assert.NotNil(t, message.Reactions, "Reactions array should not be nil")
+	assert.Len(t, message.Reactions, 1, "Should have exactly 1 reaction")
+	
+	reaction := message.Reactions[0]
+	assert.Equal(t, "👍", reaction.Emoji, "Reaction emoji should be correct")
+	assert.Equal(t, "player-b", reaction.PlayerID, "Reaction player ID should be correct")
+	assert.Equal(t, "Bob", reaction.PlayerName, "Reaction player name should be correct")
+	assert.False(t, reaction.Timestamp.IsZero(), "Reaction timestamp should be set")
+
+	// Step 5: Verify immutability - original state should be unchanged
+	assert.Len(t, stateWithMessage.ChatMessages[0].Reactions, 0, "Original state should remain unchanged")
+
+	// Step 6: Serialize to JSON to verify the data structure would be correctly transmitted
+	jsonData, err := json.Marshal(finalState)
+	assert.NoError(t, err, "Should be able to marshal final state to JSON")
+	
+	// Verify the JSON contains the reaction data
+	assert.Contains(t, string(jsonData), `"reactions":[{"emoji":"👍"`, "JSON should contain the reaction")
+}
+
+func TestApplyChatMessage_ReactionsInitializedAsEmptySlice(t *testing.T) {
+	// This test verifies the fix for the omitempty JSON issue
+	// The Reactions field must be initialized as an empty slice, not nil
+	gameState := NewGameState("test-game", time.Now())
+	now := time.Now()
+
+	// Create a chat message event
+	chatEvent := Event{
+		ID:        "chat-msg-test",
+		Type:      EventChatMessage,
+		GameID:    "test-game",
+		PlayerID:  "player-1",
+		Timestamp: now,
+		Payload: map[string]interface{}{
+			"sender_id":   "player-1",
+			"sender_name": "Alice",
+			"message":     "Hello world!",
+			"channel_id":  "#war-room",
+			"id":          "chat-msg-test",
+		},
+	}
+
+	// Apply the chat message event
+	newState := ApplyEvent(*gameState, chatEvent)
+
+	// Critical assertions for the omitempty fix
+	assert.Len(t, newState.ChatMessages, 1, "Should have 1 chat message")
+	
+	message := newState.ChatMessages[0]
+	assert.NotNil(t, message.Reactions, "Reactions should not be nil")
+	assert.Equal(t, 0, len(message.Reactions), "Reactions should be an empty slice")
+	
+	// The most important test: JSON serialization should include the reactions field
+	jsonData, err := json.Marshal(newState)
+	assert.NoError(t, err, "Should be able to marshal state to JSON")
+	
+	// Parse the JSON to verify the reactions field exists
+	var parsedState map[string]interface{}
+	err = json.Unmarshal(jsonData, &parsedState)
+	assert.NoError(t, err, "Should be able to unmarshal JSON")
+	
+	chatMessages, exists := parsedState["chat_messages"].([]interface{})
+	assert.True(t, exists, "chat_messages should exist in JSON")
+	assert.Len(t, chatMessages, 1, "Should have 1 message in JSON")
+	
+	messageObj, ok := chatMessages[0].(map[string]interface{})
+	assert.True(t, ok, "Message should be a JSON object")
+	
+	// THE KEY ASSERTION: reactions field should exist in JSON (not omitted due to omitempty)
+	reactions, reactionsExists := messageObj["reactions"]
+	assert.True(t, reactionsExists, "reactions field should exist in JSON (not omitted due to omitempty)")
+	assert.NotNil(t, reactions, "reactions should not be null in JSON")
+	
+	reactionsArray, ok := reactions.([]interface{})
+	assert.True(t, ok, "reactions should be an array in JSON")
+	assert.Len(t, reactionsArray, 0, "reactions array should be empty but present")
 }

@@ -116,6 +116,19 @@ func NewGameActor(ctx context.Context, cancel context.CancelFunc, gameID string,
 	state := core.NewGameState(gameID, time.Now())
 	// Pre-populate with players from the lobby. This is safe as it happens before the actor starts.
 	state.Players = players
+	return newGameActorWithState(ctx, cancel, gameID, state, postgresStore)
+}
+
+// NewGameActorWithSettings creates a GameActor with custom settings
+func NewGameActorWithSettings(ctx context.Context, cancel context.CancelFunc, gameID string, players map[string]*core.Player, settings core.GameSettings, postgresStore *store.PostgresStore) *GameActor {
+	state := core.NewGameStateWithSettings(gameID, time.Now(), settings)
+	// Pre-populate with players from the lobby. This is safe as it happens before the actor starts.
+	state.Players = players
+	return newGameActorWithState(ctx, cancel, gameID, state, postgresStore)
+}
+
+// newGameActorWithState creates a GameActor with a provided state
+func newGameActorWithState(ctx context.Context, cancel context.CancelFunc, gameID string, state *core.GameState, postgresStore *store.PostgresStore) *GameActor {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// Create scheduler and phase manager

@@ -313,6 +313,15 @@ export class WebSocketClient {
         // Granular events - apply to game engine if available
         if (gameEngine.isReady()) {
           console.log(`Applying granular event ${event.type} to game engine`);
+          if (event.type === ServerEventType.MessageReaction) {
+            console.log("[WebSocket] MESSAGE_REACTION details:", {
+              messageId: event.payload?.message_id,
+              emoji: event.payload?.emoji,
+              playerName: event.payload?.player_name,
+              eventPlayerId: event.playerId,
+              fullEvent: event
+            });
+          }
 
           // Convert ServerEvent to CoreEvent format
           let coreEvent = {

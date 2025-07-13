@@ -99,7 +99,7 @@ func TestFTUE_CompleteUserJourney(t *testing.T) {
 		// Veteran has seen NOMINATION and DISCUSSION, but not VERDICT
 		hints := hm.CheckForHints(core.PhaseVerdict)
 		
-		// Should get hint for verdict since they haven't seen it
+		// Should get hint for veteran_user since they haven't seen it
 		if len(hints) != 2 { // new_user + veteran_user for VERDICT
 			t.Errorf("Expected 2 hints for VERDICT phase, got %d", len(hints))
 		}

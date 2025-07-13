@@ -1,4 +1,3 @@
-
 package core
 
 import (
@@ -71,6 +70,23 @@ func NewGameState(id string, currentTime time.Time) *GameState {
 			VotingThreshold:          0.5,
 			InitialAlignedHumanCount: 0,
 		},
+	}
+}
+
+// NewGameStateWithSettings creates a new game state with custom settings
+func NewGameStateWithSettings(id string, currentTime time.Time, settings GameSettings) *GameState {
+	return &GameState{
+		Version:      1,
+		ID:           id,
+		Phase:        Phase{Type: PhaseLobby, StartTime: currentTime, Duration: 0},
+		DayNumber:    0,
+		Players:      make(map[string]*Player),
+		Spectators:   make(map[string]*Spectator),
+		CreatedAt:    currentTime,
+		UpdatedAt:    currentTime,
+		ChatMessages: make([]ChatMessage, 0),
+		NightActions: make(map[string]*SubmittedNightAction),
+		Settings:     settings,
 	}
 }
 
@@ -537,35 +553,32 @@ func (gs *GameState) applyPlayerRoleRevealed(event Event) {
 }
 
 func (gs *GameState) applyChatMessage(event Event) {
-	// Simplified to always read from the flat payload
-	message := ChatMessage{
-		ID:        event.ID,
-		PlayerID:  event.PlayerID, // Top-level PlayerID is now authoritative
-		Timestamp: event.Timestamp,
-	}
-	
-	// Directly access payload fields
-	if senderID, ok := event.Payload["sender_id"].(string); ok {
-		message.PlayerID = senderID
-	}
-	if senderName, ok := event.Payload["sender_name"].(string); ok {
-		message.PlayerName = senderName
-	}
-	if msg, ok := event.Payload["message"].(string); ok {
-		message.Message = msg
-	}
-	if isSystem, ok := event.Payload["isSystem"].(bool); ok {
-		message.IsSystem = isSystem
+	// Convert payload to strongly-typed struct
+	payloadBytes, err := json.Marshal(event.Payload)
+	if err != nil {
+		return // Invalid payload - fail gracefully
 	}
 
-	if channelID, ok := event.Payload["channel_id"].(string); ok {
-		message.ChannelID = channelID
+	var payload ChatMessagePayload
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		return // Invalid payload structure - fail gracefully
 	}
-	if msgID, ok := event.Payload["id"].(string); ok {
-		message.ID = msgID
+
+	// Create message with typed payload - no defensive parsing needed
+	message := ChatMessage{
+		ID:         event.ID,
+		PlayerID:   payload.SenderID,
+		PlayerName: payload.SenderName,
+		Message:    payload.Message,
+		Timestamp:  event.Timestamp,
+		IsSystem:   payload.IsSystem,
+		ChannelID:  payload.ChannelID,
+		Reactions:  []EmojiReaction{}, // Initialize as empty slice to prevent omitempty JSON issues
 	}
-	if timestampStr, ok := event.Payload["timestamp"].(string); ok {
-		if timestamp, err := time.Parse(time.RFC3339Nano, timestampStr); err == nil {
+
+	// Override timestamp if provided in payload
+	if payload.Timestamp != "" {
+		if timestamp, err := time.Parse(time.RFC3339Nano, payload.Timestamp); err == nil {
 			message.Timestamp = timestamp
 		}
 	}
@@ -574,54 +587,56 @@ func (gs *GameState) applyChatMessage(event Event) {
 }
 
 func (gs *GameState) applyMessageReaction(event Event) {
-	messageID, ok := event.Payload["message_id"].(string)
-	if !ok {
+	// Convert payload to strongly-typed struct for robustness
+	payloadBytes, err := json.Marshal(event.Payload)
+	if err != nil {
 		return // Invalid payload
 	}
-	
-	emoji, ok := event.Payload["emoji"].(string)
-	if !ok {
-		return // Invalid payload
+	var payload MessageReactionPayload
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		return // Invalid payload structure
 	}
-	
-	playerID := event.PlayerID
-	playerName := ""
-	
-	if name, ok := event.Payload["player_name"].(string); ok {
-		playerName = name
-	}
-	
-	// Find the chat message to add the reaction to
+
+	// Find the index of the target message
+	targetIndex := -1
 	for i := range gs.ChatMessages {
-		if gs.ChatMessages[i].ID == messageID {
-			// Initialize reactions if nil
-			if gs.ChatMessages[i].Reactions == nil {
-				gs.ChatMessages[i].Reactions = []EmojiReaction{}
-			}
-			
-			// Check if this player already reacted with this emoji
-			found := false
-			for j := range gs.ChatMessages[i].Reactions {
-				if gs.ChatMessages[i].Reactions[j].PlayerID == playerID && gs.ChatMessages[i].Reactions[j].Emoji == emoji {
-					// Remove the reaction (toggle off)
-					gs.ChatMessages[i].Reactions = append(gs.ChatMessages[i].Reactions[:j], gs.ChatMessages[i].Reactions[j+1:]...)
-					found = true
-					break
-				}
-			}
-			
-			// If not found, add the reaction
-			if !found {
-				reaction := EmojiReaction{
-					Emoji:      emoji,
-					PlayerID:   playerID,
-					PlayerName: playerName,
-					Timestamp:  event.Timestamp,
-				}
-				gs.ChatMessages[i].Reactions = append(gs.ChatMessages[i].Reactions, reaction)
-			}
+		if gs.ChatMessages[i].ID == payload.MessageID {
+			targetIndex = i
 			break
 		}
+	}
+	if targetIndex == -1 {
+		return // Message not found
+	}
+
+	targetMessage := &gs.ChatMessages[targetIndex]
+
+	// Initialize reactions slice if it's nil
+	if targetMessage.Reactions == nil {
+		targetMessage.Reactions = []EmojiReaction{}
+	}
+
+	// Check if the player is toggling an existing reaction
+	reactionExistsIndex := -1
+	for j, reaction := range targetMessage.Reactions {
+		if reaction.PlayerID == payload.PlayerID && reaction.Emoji == payload.Emoji {
+			reactionExistsIndex = j
+			break
+		}
+	}
+
+	if reactionExistsIndex != -1 {
+		// Toggle OFF: Remove the reaction by creating a new slice without it
+		targetMessage.Reactions = append(targetMessage.Reactions[:reactionExistsIndex], targetMessage.Reactions[reactionExistsIndex+1:]...)
+	} else {
+		// Toggle ON: Add a new reaction
+		newReaction := EmojiReaction{
+			Emoji:      payload.Emoji,
+			PlayerID:   payload.PlayerID,
+			PlayerName: payload.PlayerName,
+			Timestamp:  event.Timestamp,
+		}
+		targetMessage.Reactions = append(targetMessage.Reactions, newReaction)
 	}
 }
 
@@ -742,12 +757,31 @@ func (gs *GameState) applyRoleAssigned(event Event) {
 	jobTitle, _ := event.Payload["job_title"].(string)
 	lobbyHandle, _ := event.Payload["lobby_handle"].(string)
 
+	// Extract ability data from the payload
+	var ability *Ability
+	if abilityData, exists := event.Payload["ability"]; exists {
+		if abilityMap, ok := abilityData.(map[string]interface{}); ok {
+			name, _ := abilityMap["name"].(string)
+			description, _ := abilityMap["description"].(string)
+			isReady, _ := abilityMap["isReady"].(bool)
+			
+			if name != "" && description != "" {
+				ability = &Ability{
+					Name:        name,
+					Description: description,
+					IsReady:     isReady,
+				}
+			}
+		}
+	}
+
 	if player, exists := gs.Players[playerID]; exists {
 		player.Role = &Role{
 			Type:        RoleType(roleType),
 			Name:        roleName,
 			Description: roleDescription,
 			IsUnlocked:  false,
+			Ability:     ability,
 		}
 
 		if kpiType != "" {
@@ -1638,9 +1672,25 @@ func (gs *GameState) applySkipVoteUpdated(event Event) {
 			gs.SkipVotes = make(map[string]bool)
 			return
 		}
+		
+		// Handle broadcast vote event - get voting player ID from payload
+		if votingPlayerID, ok := event.Payload["voting_player_id"].(string); ok {
+			hasVoted, _ := event.Payload["has_voted"].(bool)
+
+			if gs.SkipVotes == nil {
+				gs.SkipVotes = make(map[string]bool)
+			}
+
+			if hasVoted {
+				gs.SkipVotes[votingPlayerID] = true
+			} else {
+				delete(gs.SkipVotes, votingPlayerID)
+			}
+		}
+		return
 	}
 	
-	// Handle individual player vote
+	// Handle individual player vote (legacy support)
 	playerID := event.PlayerID
 	hasVoted, _ := event.Payload["has_voted"].(bool)
 
@@ -1653,9 +1703,6 @@ func (gs *GameState) applySkipVoteUpdated(event Event) {
 	} else {
 		delete(gs.SkipVotes, playerID)
 	}
-	
-	// The authoritative skip vote state is contained in the event payload
-	// and will be used by the frontend to update the UI directly
 }
 
 // Whistleblower Protocol event handlers
@@ -1689,7 +1736,7 @@ func (gs *GameState) applyWhistleblowerVotingStarted(event Event) {
 // applyWhistleblowerVoteCast records a whistleblower vote
 func (gs *GameState) applyWhistleblowerVoteCast(event Event) {
 	playerID := event.PlayerID
-	crisisType, _ := event.Payload["crisis_type"].(string)
+	crisisType, _ := event.Payload["crisis_choice"].(string)
 
 	// Initialize whistleblower voting if it doesn't exist
 	if gs.WhistleblowerVoting == nil {
@@ -2145,7 +2192,7 @@ func processSkipVoteAction(gameState GameState, action Action, currentTime time.
 		{
 			ID:        fmt.Sprintf("skip_vote_%s_%d", action.PlayerID, currentTime.UnixNano()),
 			Type:      EventSkipVoteUpdated,
-			PlayerID:  action.PlayerID, // Include the voting player's ID for state application
+			PlayerID:  "", // Empty PlayerID makes this a public event broadcast to all players
 			GameID:    gameState.ID,
 			Timestamp: currentTime,
 			Payload: map[string]interface{}{
@@ -2154,6 +2201,7 @@ func processSkipVoteAction(gameState GameState, action Action, currentTime time.
 				"voters":         voters,
 				"has_voted":      true,
 				"player_name":    playerName,
+				"voting_player_id": action.PlayerID, // Include the voting player ID in payload
 			},
 		},
 	}
@@ -2258,7 +2306,14 @@ func processWhisperAction(gameState GameState, action Action, currentTime time.T
 		return nil, fmt.Errorf("cannot whisper to eliminated players")
 	}
 
-	// Generate public whisper notification
+	// Can't whisper to yourself
+	if targetID == action.PlayerID {
+		return nil, fmt.Errorf("cannot whisper to yourself")
+	}
+
+	var events []Event
+
+	// Create public announcement about the whisper
 	publicEvent := Event{
 		ID:        fmt.Sprintf("whisper_public_%s_%s_%d", action.PlayerID, targetID, currentTime.UnixNano()),
 		Type:      EventChatMessage,
@@ -2272,8 +2327,9 @@ func processWhisperAction(gameState GameState, action Action, currentTime time.T
 			"channel_id":  "#war-room",
 		},
 	}
+	events = append(events, publicEvent)
 
-	// Generate private message for target
+	// Create private message for target
 	privateEvent := Event{
 		ID:        fmt.Sprintf("whisper_private_%s_%s_%d", action.PlayerID, targetID, currentTime.UnixNano()),
 		Type:      EventPrivateNotification,
@@ -2287,6 +2343,7 @@ func processWhisperAction(gameState GameState, action Action, currentTime time.T
 			"whisper_type":  "private_message",
 		},
 	}
+	events = append(events, privateEvent)
 
 	// Track whisper usage
 	usageEvent := Event{
@@ -2301,7 +2358,7 @@ func processWhisperAction(gameState GameState, action Action, currentTime time.T
 		},
 	}
 
-	return []Event{publicEvent, privateEvent, usageEvent}, nil
+	return []Event{usageEvent}, nil
 }
 
 // processExitInterviewAction handles parting shots from eliminated players

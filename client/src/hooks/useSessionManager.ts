@@ -328,6 +328,24 @@ export function useSessionManager() {
     }
   }, [coreGameState, state.appState.playerId, state.roleAssignment]);
 
+  // Debug: Log when coreGameState changes
+  useEffect(() => {
+    if (coreGameState) {
+      console.log("[useSessionManager] coreGameState updated:", coreGameState);
+      if (coreGameState.chatMessages) {
+        console.log("[useSessionManager] coreGameState.chatMessages:", coreGameState.chatMessages.length, "messages");
+        coreGameState.chatMessages.forEach((msg: any, index: number) => {
+          console.log(`[useSessionManager] Message ${index}: id="${msg.id}", playerName="${msg.playerName}", reactions:`, msg.reactions?.length || 0, msg.reactions);
+          if (msg.reactions && msg.reactions.length > 0) {
+            console.log(`[useSessionManager] ✅ Message ${msg.id} has ${msg.reactions.length} reactions:`, msg.reactions);
+          } else {
+            console.log(`[useSessionManager] ❌ Message ${msg.id} has NO reactions`);
+          }
+        });
+      }
+    }
+  }, [coreGameState]);
+
   // Music management
   useEffect(() => {
     if (
@@ -545,18 +563,6 @@ export function useSessionManager() {
     });
   }, [dispatch]);
 
-  const handleMessageReaction = useCallback((event: any) => {
-    console.log("[SessionManager] MESSAGE_REACTION received:", event.payload);
-    dispatch({
-      type: "MESSAGE_REACTION",
-      payload: {
-        message_id: event.payload.message_id,
-        emoji: event.payload.emoji,
-        player_id: event.payload.player_id,
-        player_name: event.payload.player_name,
-      },
-    });
-  }, [dispatch]);
 
   // Game event subscriptions
   useEffect(() => {
@@ -566,7 +572,6 @@ export function useSessionManager() {
       subscribe(ServerEventType.GameStateUpdate, handleGameStateUpdate),
       subscribe(ServerEventType.SkipVoteUpdated, handleSkipVoteUpdated),
       subscribe(ServerEventType.PhaseChanged, handlePhaseChanged),
-      subscribe("MESSAGE_REACTION", handleMessageReaction),
     ];
     return () => unsubscribers.forEach((unsub) => unsub());
   }, [
@@ -577,7 +582,6 @@ export function useSessionManager() {
     handleGameStateUpdate,
     handleSkipVoteUpdated,
     handlePhaseChanged,
-    handleMessageReaction,
   ]);
 
   // WebSocket connection

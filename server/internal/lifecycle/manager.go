@@ -196,6 +196,29 @@ func (glm *GameLifecycleManager) handleLobbyDisconnection(event events.PlayerDis
 			LobbyID:  event.LobbyID,
 		})
 
+		// Broadcast semantic connection status change event to all players in lobby
+		// This ensures clients receive a clear, authoritative event about the disconnection
+		// as per ADR-006 (Single Authoritative Event principle)
+		connectionStatusEvent := core.Event{
+			ID:        uuid.New().String(),
+			Type:      core.EventPlayerConnectionStatusChanged,
+			GameID:    event.LobbyID,
+			PlayerID:  "", // Public event for all players in lobby
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"player_id":         event.PlayerID,
+				"connection_status": "DISCONNECTED",
+				"lobby_id":          event.LobbyID,
+			},
+		}
+
+		// Send to all connected players in the lobby
+		playerActors := lobby.GetPlayerActors()
+		for _, actor := range playerActors {
+			actor.SendServerMessage(connectionStatusEvent)
+		}
+		log.Printf("[Disconnect-%s] handleLobbyDisconnection: Broadcasted PLAYER_CONNECTION_STATUS_CHANGED event to %d players", correlationID, len(playerActors))
+
 		// Start grace period timer
 		glm.startLobbyDisconnectionGracePeriod(event.LobbyID, event.PlayerID)
 
@@ -852,6 +875,28 @@ func (glm *GameLifecycleManager) JoinLobbyWithActor(lobbyID string, playerActor 
 		targetLobby.ReconnectPlayer(playerID, playerActor)
 		log.Printf("[Connection-%s] JoinLobbyWithActor: Player %s reconnected to lobby, state broadcasted", correlationID, playerID)
 
+		// Broadcast semantic connection status change event to all players in lobby
+		// This ensures clients receive a clear, authoritative event about the reconnection
+		reconnectionStatusEvent := core.Event{
+			ID:        uuid.New().String(),
+			Type:      core.EventPlayerConnectionStatusChanged,
+			GameID:    lobbyID,
+			PlayerID:  "", // Public event for all players in lobby
+			Timestamp: time.Now(),
+			Payload: map[string]interface{}{
+				"player_id":         playerID,
+				"connection_status": "CONNECTED",
+				"lobby_id":          lobbyID,
+			},
+		}
+
+		// Send to all connected players in the lobby
+		playerActors := targetLobby.GetPlayerActors()
+		for _, actor := range playerActors {
+			actor.SendServerMessage(reconnectionStatusEvent)
+		}
+		log.Printf("[Connection-%s] JoinLobbyWithActor: Broadcasted PLAYER_CONNECTION_STATUS_CHANGED (CONNECTED) event to %d players", correlationID, len(playerActors))
+
 		// Transition player actor to lobby state
 		err := playerActor.TransitionToLobby(lobbyID)
 		if err != nil {
@@ -895,15 +940,19 @@ func (glm *GameLifecycleManager) StartGame(lobbyID string, hostPlayerID string) 
 		glm.mutex.RUnlock()
 		return fmt.Errorf("lobby not found")
 	}
+
+	// Copy necessary data under lock to prevent race condition
+	hostID := lobby.HostPlayerID
+	canStart := lobby.CanStart()
 	glm.mutex.RUnlock()
 
 	// Verify host first
-	if lobby.HostPlayerID != hostPlayerID {
+	if hostID != hostPlayerID {
 		return fmt.Errorf("only the host can start the game")
 	}
 
 	// Check if lobby can start
-	if !lobby.CanStart() {
+	if !canStart {
 		return fmt.Errorf("lobby cannot start: not enough players or invalid state")
 	}
 
@@ -1081,7 +1130,7 @@ func (glm *GameLifecycleManager) finalizeGameStart(lobbyID string) {
 	playerActors := lobby.GetPlayerActors()
 
 	// Create the game
-	err := glm.createGameFromLobby(lobbyID, playerActors)
+	err := glm.createGameFromLobby(lobbyID, playerActors, lobby.GameSettings)
 	if err != nil {
 		// Revert lobby state on failure
 		lobby.SetStatus("WAITING")
@@ -1098,12 +1147,11 @@ func (glm *GameLifecycleManager) finalizeGameStart(lobbyID string) {
 }
 
 // createGameFromLobby handles the atomic transition from lobby to game
-func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActors map[string]interfaces.PlayerActorInterface) error {
+func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActors map[string]interfaces.PlayerActorInterface, gameSettings core.GameSettings) error {
 	log.Printf("GameLifecycleManager: Creating game from lobby %s with %d players", lobbyID, len(playerActors))
 
-	// Create temporary game state to get default starting tokens
-	tempGameState := core.NewGameState(lobbyID, time.Now())
-	startingTokens := tempGameState.Settings.StartingTokens
+	// Use starting tokens from the provided game settings
+	startingTokens := gameSettings.StartingTokens
 
 	// Convert PlayerActors to core.Players map
 	players := make(map[string]*core.Player)
@@ -1145,8 +1193,8 @@ func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActor
 
 	gameID := lobbyID // The lobby ID becomes the game ID
 
-	// Create GameActor via Supervisor
-	gameActor, err := glm.supervisor.CreateGameWithPlayers(gameID, players)
+	// Create GameActor via Supervisor with custom settings
+	gameActor, err := glm.supervisor.CreateGameWithPlayersAndSettings(gameID, players, gameSettings)
 	if err != nil {
 		return fmt.Errorf("failed to create game actor: %w", err)
 	}

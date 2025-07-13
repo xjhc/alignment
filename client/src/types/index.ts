@@ -10,6 +10,7 @@ import {
   GeneratedSystemShock,
   GeneratedNightAction,
   GeneratedChatMessage,
+  GeneratedEmojiReaction,
   GeneratedPhase,
   GeneratedVoteState,
   GeneratedCrisisEvent,
@@ -52,13 +53,8 @@ export type NightAction = GeneratedNightAction;
 export type DailySitrep = GeneratedDailySitrep;
 export type SitrepSection = GeneratedSitrepSection;
 
-// EmojiReaction type - define it here since not yet in core types
-export interface EmojiReaction {
-  emoji: string;
-  playerID: string;
-  playerName: string;
-  timestamp: string;
-}
+// Use the generated EmojiReaction type from core
+export type EmojiReaction = GeneratedEmojiReaction;
 
 // Enhanced ChatMessage with specialized message types
 export interface ChatMessage extends GeneratedChatMessage {
@@ -70,7 +66,6 @@ export interface ChatMessage extends GeneratedChatMessage {
     | "INCITING_INCIDENT"
     | "LOEBMATE_MESSAGE"
     | "REGULAR";
-  reactions?: EmojiReaction[];
   metadata?: {
     nightActions?: any[];
     playerHeadcount?: {

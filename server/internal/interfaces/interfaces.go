@@ -110,6 +110,7 @@ type GameLifecycleManagerInterface interface {
 // SupervisorInterface manages GameActors
 type SupervisorInterface interface {
 	CreateGameWithPlayers(gameID string, players map[string]*core.Player) (GameActorInterface, error)
+	CreateGameWithPlayersAndSettings(gameID string, players map[string]*core.Player, settings core.GameSettings) (GameActorInterface, error)
 	GetActor(gameID string) (GameActorInterface, bool)
 	RemoveGame(gameID string)
 }

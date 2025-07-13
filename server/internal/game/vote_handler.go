@@ -96,18 +96,18 @@ func (h *VoteHandler) handleSkipVoteAction(state *core.GameState, action core.Ac
 		nextPhase := GetNextPhase(newState.Phase.Type)
 		if nextPhase != core.PhaseGameOver {
 			phaseDuration := GetPhaseDuration(nextPhase, state.Settings)
-			transitionEvent := core.Event{
-				ID:        fmt.Sprintf("phase_transition_%s_%d", action.GameID, time.Now().UnixNano()),
-				Type:      core.EventPhaseChanged,
-				GameID:    acker.GetGameID(),
-				PlayerID:  "",
-				Timestamp: time.Now(),
-				Payload: map[string]interface{}{
-					"phase_type": string(nextPhase),
-					"duration":   phaseDuration.Seconds(),
-					"reason":     "skip_vote_unanimous",
-				},
+			transitionPayload := core.PhaseChangedPayload{
+				PhaseType: string(nextPhase),
+				Duration:  phaseDuration.Seconds(),
 			}
+			transitionEvent := core.NewEventWithTypedPayload(
+				fmt.Sprintf("phase_transition_%s_%d", action.GameID, time.Now().UnixNano()),
+				core.EventPhaseChanged,
+				acker.GetGameID(),
+				"",
+				time.Now(),
+				transitionPayload,
+			)
 			events = append(events, transitionEvent)
 			
 			// Add skip vote reset event to clear frontend state for the new phase
@@ -119,20 +119,21 @@ func (h *VoteHandler) handleSkipVoteAction(state *core.GameState, action core.Ac
 				}
 			}
 			
-			skipVoteResetEvent := core.Event{
-				ID:        fmt.Sprintf("skip_vote_reset_%s_%d", action.GameID, time.Now().UnixNano()),
-				Type:      core.EventSkipVoteUpdated,
-				GameID:    acker.GetGameID(),
-				PlayerID:  "",
-				Timestamp: time.Now(),
-				Payload: map[string]interface{}{
-					"current_votes":  0,
-					"required_votes": livingHumans,
-					"voters":         []string{},
-					"has_voted":      false,
-					"player_name":    "",
-				},
+			skipVotePayload := core.SkipVoteUpdatedPayload{
+				CurrentVotes:  0,
+				RequiredVotes: livingHumans,
+				Voters:        []string{},
+				HasVoted:      false,
+				PlayerName:    "",
 			}
+			skipVoteResetEvent := core.NewEventWithTypedPayload(
+				fmt.Sprintf("skip_vote_reset_%s_%d", action.GameID, time.Now().UnixNano()),
+				core.EventSkipVoteUpdated,
+				acker.GetGameID(),
+				"",
+				time.Now(),
+				skipVotePayload,
+			)
 			events = append(events, skipVoteResetEvent)
 		}
 	}
@@ -154,21 +155,17 @@ func (h *VoteHandler) processVoteCompletion(state *core.GameState, acker ActionA
 		h.votingManager.CompleteVote()
 
 		// Create detailed vote completion payload for UI components
-		voteCompleteEvent := core.Event{
-			ID:        fmt.Sprintf("vote_completed_%s_%d", state.VoteState.Type, time.Now().UnixNano()),
-			Type:      core.EventVoteCompleted,
-			GameID:    acker.GetGameID(),
-			PlayerID:  "",
-			Timestamp: time.Now(),
-			Payload: map[string]interface{}{
-				"vote_type":          string(state.VoteState.Type),
-				"results":            state.VoteState.Results,
-				"vote_breakdown":     h.createVoteBreakdown(state),
-				"winner_info":        h.createWinnerInfo(state),
-				"total_votes":        len(state.VoteState.Votes),
-				"total_token_weight": h.calculateTotalTokenWeight(state),
-			},
+		voteCompletePayload := core.VoteCompletedPayload{
+			VoteType: string(state.VoteState.Type),
 		}
+		voteCompleteEvent := core.NewEventWithTypedPayload(
+			fmt.Sprintf("vote_completed_%s_%d", state.VoteState.Type, time.Now().UnixNano()),
+			core.EventVoteCompleted,
+			acker.GetGameID(),
+			"",
+			time.Now(),
+			voteCompletePayload,
+		)
 		events = append(events, voteCompleteEvent)
 
 		// Create chat message for vote results display
@@ -241,6 +238,29 @@ func (h *VoteHandler) calculateTotalTokenWeight(state *core.GameState) int {
 	return totalWeight
 }
 
+// getWinnerID gets the winner ID from voting manager
+func (h *VoteHandler) getWinnerID(state *core.GameState) string {
+	winner, _, _ := h.votingManager.GetWinner()
+	return winner
+}
+
+// getWinnerName gets the winner name from game state
+func (h *VoteHandler) getWinnerName(state *core.GameState) string {
+	winner, _, _ := h.votingManager.GetWinner()
+	if winner != "" {
+		if player := state.Players[winner]; player != nil {
+			return player.Name
+		}
+	}
+	return ""
+}
+
+// getWinnerVoteCount gets the winner vote count
+func (h *VoteHandler) getWinnerVoteCount(state *core.GameState) int {
+	_, votes, _ := h.votingManager.GetWinner()
+	return votes
+}
+
 // createVoteResultChatMessage creates a chat message for vote results
 func (h *VoteHandler) createVoteResultChatMessage(state *core.GameState, acker ActionAcker) core.Event {
 	winner, votes, hasTie := h.votingManager.GetWinner()
@@ -258,20 +278,21 @@ func (h *VoteHandler) createVoteResultChatMessage(state *core.GameState, acker A
 		message = "Vote completed with no clear winner."
 	}
 
-	return core.Event{
-		ID:        fmt.Sprintf("vote_result_chat_%d", time.Now().UnixNano()),
-		Type:      core.EventChatMessage,
-		GameID:    acker.GetGameID(),
-		PlayerID:  "",
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"message":     message,
-			"sender_name": "System",
-			"sender_id":   "system",
-			"channel":     "general",
-			"message_type": "vote_result",
-		},
+	chatPayload := core.ChatMessagePayload{
+		SenderID:   "system",
+		SenderName: "System",
+		Message:    message,
+		IsSystem:   true,
+		ChannelID:  "#war-room",
 	}
+	return core.NewEventWithTypedPayload(
+		fmt.Sprintf("vote_result_chat_%d", time.Now().UnixNano()),
+		core.EventChatMessage,
+		acker.GetGameID(),
+		"",
+		time.Now(),
+		chatPayload,
+	)
 }
 
 // handleExtensionVoteResults handles extension vote results
@@ -301,54 +322,54 @@ func (h *VoteHandler) handleExtensionVoteResults(state *core.GameState, acker Ac
 	}
 	
 	// Create chat message about the extension vote result
-	chatEvent := core.Event{
-		ID:        fmt.Sprintf("extension_vote_result_%d", time.Now().UnixNano()),
-		Type:      core.EventChatMessage,
-		GameID:    acker.GetGameID(),
-		PlayerID:  "",
-		Timestamp: time.Now(),
-		Payload: map[string]interface{}{
-			"message":      resultMessage,
-			"sender_name":  "System",
-			"sender_id":    "system",
-			"channel":      "general",
-			"message_type": "extension_vote_result",
-		},
+	chatPayload := core.ChatMessagePayload{
+		SenderID:   "system",
+		SenderName: "System",
+		Message:    resultMessage,
+		IsSystem:   true,
+		ChannelID:  "#war-room",
 	}
+	chatEvent := core.NewEventWithTypedPayload(
+		fmt.Sprintf("extension_vote_result_%d", time.Now().UnixNano()),
+		core.EventChatMessage,
+		acker.GetGameID(),
+		"",
+		time.Now(),
+		chatPayload,
+	)
 	events = append(events, chatEvent)
 	
 	// Handle phase transition based on vote result
 	if nextAction == "EXTEND" {
 		// Extend the discussion phase by 1 minute
 		// This will be handled by the phase manager via a scheduled timer extension
-		extensionEvent := core.Event{
-			ID:        fmt.Sprintf("discussion_extended_%d", time.Now().UnixNano()),
-			Type:      core.EventPhaseChanged,
-			GameID:    acker.GetGameID(),
-			PlayerID:  "",
-			Timestamp: time.Now(),
-			Payload: map[string]interface{}{
-				"phase_type": string(core.PhaseDiscussion),
-				"duration":   state.Settings.ExtensionDuration.Seconds(),
-				"reason":     "extension_vote_passed",
-				"extended":   true,
-			},
+		extensionPayload := core.PhaseChangedPayload{
+			PhaseType: string(core.PhaseDiscussion),
+			Duration:  state.Settings.ExtensionDuration.Seconds(),
 		}
+		extensionEvent := core.NewEventWithTypedPayload(
+			fmt.Sprintf("discussion_extended_%d", time.Now().UnixNano()),
+			core.EventPhaseChanged,
+			acker.GetGameID(),
+			"",
+			time.Now(),
+			extensionPayload,
+		)
 		events = append(events, extensionEvent)
 	} else {
 		// Move to nomination phase
-		nominationEvent := core.Event{
-			ID:        fmt.Sprintf("phase_transition_nomination_%d", time.Now().UnixNano()),
-			Type:      core.EventPhaseChanged,
-			GameID:    acker.GetGameID(),
-			PlayerID:  "",
-			Timestamp: time.Now(),
-			Payload: map[string]interface{}{
-				"phase_type": string(core.PhaseNomination),
-				"duration":   state.Settings.NominationDuration.Seconds(),
-				"reason":     "extension_vote_failed",
-			},
+		nominationPayload := core.PhaseChangedPayload{
+			PhaseType: string(core.PhaseNomination),
+			Duration:  state.Settings.NominationDuration.Seconds(),
 		}
+		nominationEvent := core.NewEventWithTypedPayload(
+			fmt.Sprintf("phase_transition_nomination_%d", time.Now().UnixNano()),
+			core.EventPhaseChanged,
+			acker.GetGameID(),
+			"",
+			time.Now(),
+			nominationPayload,
+		)
 		events = append(events, nominationEvent)
 	}
 	

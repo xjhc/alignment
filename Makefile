@@ -1,5 +1,4 @@
-
-.PHONY: help dev build clean test test-ci build-backend build-frontend build-simulator test-backend test-frontend test-simulation generate-types vendor
+.PHONY: help dev build clean test test-ci build-backend build-frontend build-wasm build-simulator test-backend test-frontend test-simulation generate-types vendor
 
 # ==============================================================================
 # HELP
@@ -16,6 +15,7 @@ help:
 	@echo "  test-ci             Run all tests in CI mode"
 	@echo "  build-backend       Build the backend server binary"
 	@echo "  build-frontend      Build the frontend production assets"
+	@echo "  build-wasm          Build the Go/Wasm binary for the client"
 	@echo "  build-simulator     Build the game balance simulator"
 	@echo "  test-backend        Run backend tests with race detection and coverage"
 	@echo "  test-frontend       Run frontend tests"
@@ -27,7 +27,7 @@ help:
 # DEVELOPMENT
 # ==============================================================================
 
-dev: generate-types
+dev: generate-types build-wasm
 	@echo ">>> Starting development servers..."
 	@npm run dev
 
@@ -42,9 +42,13 @@ build-backend:
 	@echo ">>> Building backend server..."
 	@cd server && go build -o ../alignment-server ./cmd/server/
 
-build-frontend:
+build-frontend: build-wasm
 	@echo ">>> Building frontend assets..."
 	@cd client && npm install && npm run build
+
+build-wasm:
+	@echo ">>> Building Go/Wasm core..."
+	@GOOS=js GOARCH=wasm go build -o client/public/core.wasm ./client/wasm/
 
 build-simulator:
 	@echo ">>> Building game simulator..."
@@ -58,6 +62,7 @@ clean:
 	@echo ">>> Cleaning build artifacts..."
 	@rm -f alignment-server simulator-bin
 	@rm -rf client/dist
+	@rm -f client/public/core.wasm
 	@rm -f server/coverage.out client/coverage.json
 	@echo ">>> Clean complete."
 

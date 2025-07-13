@@ -7,8 +7,9 @@ interface PulseCheckMessageProps {
 }
 
 export const PulseCheckMessage: React.FC<PulseCheckMessageProps> = ({ message, gameState }) => {
-  // Handle both old and new formats
+  // Handle all pulse check formats - unified component for PULSE_CHECK_REVEALED events
   const pulseCheckResponses = message.metadata?.pulseCheckResponses || message.metadata?.player_responses || {};
+  const responseDetails = message.metadata?.response_details || [];
   
   // Get question from crisis event if available, otherwise use message metadata
   const question = gameState?.crisisEvent?.pulseCheckPrompt || message.metadata?.question || message.message;

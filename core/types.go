@@ -2,6 +2,7 @@
 package core
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -13,6 +14,40 @@ type Event struct {
 	PlayerID  string                 `json:"playerId,omitempty"`
 	Timestamp time.Time              `json:"timestamp"`
 	Payload   map[string]interface{} `json:"payload"`
+}
+
+// NewEventWithTypedPayload creates a new event with a strongly-typed payload
+// This helper ensures consistent event creation and eliminates defensive parsing
+func NewEventWithTypedPayload(id string, eventType EventType, gameID, playerID string, timestamp time.Time, payload interface{}) Event {
+	// Convert the typed payload to a map[string]interface{} for backwards compatibility
+	// During the transition period, this allows both old and new code to work together
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		// Fallback to empty payload if marshaling fails
+		return Event{
+			ID:        id,
+			Type:      eventType,
+			GameID:    gameID,
+			PlayerID:  playerID,
+			Timestamp: timestamp,
+			Payload:   make(map[string]interface{}),
+		}
+	}
+
+	var payloadMap map[string]interface{}
+	if err := json.Unmarshal(payloadBytes, &payloadMap); err != nil {
+		// Fallback to empty payload if unmarshaling fails
+		payloadMap = make(map[string]interface{})
+	}
+
+	return Event{
+		ID:        id,
+		Type:      eventType,
+		GameID:    gameID,
+		PlayerID:  playerID,
+		Timestamp: timestamp,
+		Payload:   payloadMap,
+	}
 }
 
 // EventType represents different types of game events
@@ -434,16 +469,16 @@ type ChatMessage struct {
 	Type            string                 `json:"type,omitempty"`       // Message type for system messages (e.g., "PULSE_CHECK", "SITREP")
 	ChannelID       string                 `json:"channelID"`            // "#war-room" or "#aligned"
 	ReactToID       string                 `json:"reactToID,omitempty"`  // ID of message being reacted to
-	Reactions       []EmojiReaction        `json:"reactions,omitempty"`  // Emoji reactions on this message
+	Reactions       []EmojiReaction        `json:"reactions"`            // Emoji reactions on this message
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`   // Additional data for system messages
 }
 
 // EmojiReaction represents an emoji reaction to a message
 type EmojiReaction struct {
-	Emoji      string    `json:"emoji"`    // The emoji unicode or name
-	PlayerID   string    `json:"playerID"` // Player who reacted
-	PlayerName string    `json:"playerName"` // Player name for quick display
-	Timestamp  time.Time `json:"timestamp"` // When the reaction was added
+	Emoji      string    `json:"emoji"`       // The emoji unicode or name
+	PlayerID   string    `json:"player_id"`   // Player who reacted
+	PlayerName string    `json:"player_name"` // Player name for quick display
+	Timestamp  time.Time `json:"timestamp"`   // When the reaction was added
 }
 
 // VoteState represents the current voting state
@@ -680,4 +715,396 @@ type PublicPlayerInfo struct {
 	StatusMessage string `json:"status_message"`
 	TokenCount    int    `json:"token_count"`
 	// Note: No role, alignment, or KPI information for spectators
+}
+
+// Event Payload Types - Strongly typed payloads for all events
+// This ensures consistent event structures and eliminates defensive parsing
+
+// Game Lifecycle Event Payloads
+type GameCreatedPayload struct {
+	GameID   string    `json:"game_id"`
+	HostID   string    `json:"host_id"`
+	Settings GameSettings `json:"settings"`
+}
+
+type GameStartedPayload struct {
+	GameID string `json:"game_id"`
+}
+
+type GameEndedPayload struct {
+	GameID      string       `json:"game_id"`
+	Winner      string       `json:"winner"`
+	Condition   string       `json:"condition"`
+	Description string       `json:"description"`
+}
+
+type PhaseChangedPayload struct {
+	PhaseType string  `json:"phase_type"`
+	Duration  float64 `json:"duration"`
+}
+
+type DayStartedPayload struct {
+	DayNumber int `json:"day_number"`
+}
+
+type NightStartedPayload struct {
+	DayNumber int `json:"day_number"`
+}
+
+// Player Event Payloads
+type PlayerJoinedPayload struct {
+	Name     string `json:"name"`
+	JobTitle string `json:"job_title"`
+}
+
+type PlayerLeftPayload struct {
+	PlayerName string `json:"player_name"`
+}
+
+type PlayerEliminatedPayload struct {
+	RoleType  string `json:"role_type"`
+	Alignment string `json:"alignment"`
+}
+
+type PlayerAbandonedPayload struct {
+	RevealedRole string `json:"revealed_role"`
+	PlayerName   string `json:"player_name"`
+}
+
+type PlayerConnectionStatusChangedPayload struct {
+	PlayerID         string `json:"player_id"`
+	ConnectionStatus string `json:"connection_status"`
+}
+
+type PlayerRoleRevealedPayload struct {
+	PlayerID string `json:"player_id"`
+}
+
+type PlayerAlignedPayload struct {
+	Alignment string `json:"alignment"`
+}
+
+type PlayerShockedPayload struct {
+	ShockMessage string `json:"shock_message"`
+}
+
+type PlayerStatusChangedPayload struct {
+	Status string `json:"status"`
+}
+
+// Voting Event Payloads
+type VoteStartedPayload struct {
+	VoteType string `json:"vote_type"`
+}
+
+type VoteCastPayload struct {
+	TargetID    string `json:"target_id"`
+	VoteType    string `json:"vote_type"`
+	TokenWeight int    `json:"token_weight"`
+}
+
+type VoteTallyUpdatedPayload struct {
+	VoteType      string                 `json:"vote_type"`
+	Results       map[string]interface{} `json:"results"`
+	TokenWeights  map[string]interface{} `json:"token_weights"`
+	IsComplete    bool                   `json:"is_complete"`
+	VoterID       string                 `json:"voter_id"`
+	TargetID      string                 `json:"target_id"`
+	PublicVoting  bool                   `json:"public_voting,omitempty"`
+	VoterChoices  map[string]interface{} `json:"voter_choices,omitempty"`
+}
+
+type VoteCompletedPayload struct {
+	VoteType string `json:"vote_type"`
+}
+
+type PlayerNominatedPayload struct {
+	NominatedPlayer string `json:"nominated_player"`
+}
+
+// Token and Mining Event Payloads
+type TokensAwardedPayload struct {
+	Amount float64 `json:"amount"`
+}
+
+type TokensLostPayload struct {
+	Amount float64 `json:"amount"`
+}
+
+type MiningSuccessfulPayload struct {
+	Amount int `json:"amount"`
+}
+
+type MiningFailedPayload struct {
+	Reason string `json:"reason"`
+}
+
+type MiningPoolUpdatedPayload struct {
+	Difficulty  float64 `json:"difficulty,omitempty"`
+	BaseReward  float64 `json:"base_reward,omitempty"`
+}
+
+type TokensDistributedPayload struct {
+	Distribution map[string]interface{} `json:"distribution"`
+}
+
+// Night Action Event Payloads
+type NightActionSubmittedPayload struct {
+	ActionType string `json:"action_type"`
+	TargetID   string `json:"target_id"`
+}
+
+// AI Conversion Event Payloads
+type AIConversionAttemptPayload struct {
+	TargetID  string  `json:"target_id"`
+	AIEquity  float64 `json:"ai_equity"`
+}
+
+type AIConversionSuccessPayload struct {
+	TargetID string `json:"target_id"`
+}
+
+type AIConversionFailedPayload struct {
+	ShockMessage string `json:"shock_message"`
+}
+
+// Communication Event Payloads
+type ChatMessagePayload struct {
+	SenderID    string `json:"sender_id"`
+	SenderName  string `json:"sender_name"`
+	Message     string `json:"message"`
+	IsSystem    bool   `json:"isSystem,omitempty"`
+	ChannelID   string `json:"channel_id,omitempty"`
+	ID          string `json:"id,omitempty"`
+	Timestamp   string `json:"timestamp,omitempty"`
+}
+
+type MessageReactionPayload struct {
+	MessageID  string `json:"message_id"`
+	Emoji      string `json:"emoji"`
+	PlayerID   string `json:"player_id"`
+	PlayerName string `json:"player_name,omitempty"`
+}
+
+type SystemMessagePayload struct {
+	Message string `json:"message"`
+}
+
+// Crisis and Pulse Check Event Payloads
+type CrisisTriggeredPayload struct {
+	CrisisType       string                 `json:"crisis_type"`
+	Title            string                 `json:"title"`
+	Description      string                 `json:"description"`
+	PulseCheckPrompt string                 `json:"pulse_check_prompt"`
+	Effects          map[string]interface{} `json:"effects"`
+}
+
+type PulseCheckStartedPayload struct {
+	Question string `json:"question"`
+}
+
+type PulseCheckUpdatedPayload struct {
+	MessageID  string `json:"message_id"`
+	Question   string `json:"question"`
+	PlayerID   string `json:"player_id"`
+	Response   string `json:"response"`
+	PlayerName string `json:"player_name"`
+}
+
+type PulseCheckRevealedPayload struct {
+	PlayerResponses map[string]interface{} `json:"player_responses"`
+	TotalResponses  float64                `json:"total_responses"`
+	Summary         string                 `json:"summary"`
+}
+
+// Role and Ability Event Payloads
+type RoleAssignedPayload struct {
+	RoleType        string `json:"role_type"`
+	RoleName        string `json:"role_name"`
+	RoleDescription string `json:"role_description"`
+	KPIType         string `json:"kpi_type"`
+	KPIDescription  string `json:"kpi_description"`
+	Alignment       string `json:"alignment"`
+	PersonaName     string `json:"persona_name"`
+	JobTitle        string `json:"job_title"`
+	LobbyHandle     string `json:"lobby_handle"`
+}
+
+type RoleAbilityUnlockedPayload struct {
+	AbilityName        string `json:"ability_name"`
+	AbilityDescription string `json:"ability_description"`
+}
+
+type ProjectMilestonePayload struct {
+	Milestone float64 `json:"milestone"`
+}
+
+// Specific Role Ability Event Payloads
+type RunAuditPayload struct {
+	TargetID string `json:"target_id"`
+	Result   string `json:"result"`
+}
+
+type OverclockServersPayload struct {
+	TargetID       string  `json:"target_id"`
+	TokensAwarded  float64 `json:"tokens_awarded"`
+}
+
+type IsolateNodePayload struct {
+	TargetID string `json:"target_id"`
+}
+
+type PerformanceReviewPayload struct {
+	TargetID     string `json:"target_id"`
+	ForcedAction string `json:"forced_action"`
+}
+
+type ReallocateBudgetPayload struct {
+	FromPlayer string  `json:"from_player"`
+	ToPlayer   string  `json:"to_player"`
+	Amount     float64 `json:"amount"`
+}
+
+type PivotPayload struct {
+	SelectedCrisis string `json:"selected_crisis"`
+}
+
+type DeployHotfixPayload struct {
+	RedactionTarget string `json:"redaction_target"`
+}
+
+// Player Blocking and Protection Event Payloads
+type PlayerBlockedPayload struct {
+	BlockedBy string `json:"blocked_by,omitempty"`
+}
+
+type PlayerProtectedPayload struct {
+	ProtectedBy string `json:"protected_by,omitempty"`
+}
+
+type PlayerInvestigatedPayload struct {
+	TargetID string `json:"target_id"`
+	Result   string `json:"result"`
+}
+
+// Status Event Payloads
+type SlackStatusChangedPayload struct {
+	Status     string `json:"status"`
+	PlayerName string `json:"player_name"`
+}
+
+type PartingShotSetPayload struct {
+	PartingShot string `json:"parting_shot"`
+	PlayerName  string `json:"player_name"`
+}
+
+type WhisperSentPayload struct {
+	TargetID   string `json:"target_id"`
+	DayNumber  int    `json:"day_number"`
+}
+
+// KPI Event Payloads
+type KPIAssignedPayload struct {
+	KPIType     string  `json:"kpi_type"`
+	Description string  `json:"description"`
+	Target      float64 `json:"target"`
+	Reward      string  `json:"reward"`
+}
+
+type KPIProgressPayload struct {
+	Progress float64 `json:"progress"`
+}
+
+// System Shock Event Payloads
+type SystemShockAppliedPayload struct {
+	ShockType     string  `json:"shock_type"`
+	Description   string  `json:"description"`
+	DurationHours float64 `json:"duration_hours"`
+}
+
+type ShockEffectTriggeredPayload struct {
+	EffectType  string `json:"effect_type"`
+	Description string `json:"description"`
+}
+
+// AI Equity Event Payloads
+type AIEquityChangedPayload struct {
+	AIEquityChange int `json:"ai_equity_change,omitempty"`
+	NewAIEquity    int `json:"new_ai_equity,omitempty"`
+}
+
+type EquityThresholdPayload struct {
+	Threshold int    `json:"threshold"`
+	Action    string `json:"action"`
+}
+
+// Corporate Mandate Event Payloads
+type MandateActivatedPayload struct {
+	MandateType string                 `json:"mandate_type"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Effects     map[string]interface{} `json:"effects"`
+}
+
+type MandateEffectPayload struct {
+	Effects map[string]interface{} `json:"effects"`
+}
+
+// Phase Skipping Event Payloads
+type SkipVoteUpdatedPayload struct {
+	CurrentVotes    int      `json:"current_votes"`
+	RequiredVotes   int      `json:"required_votes"`
+	Voters          []string `json:"voters"`
+	HasVoted        bool     `json:"has_voted"`
+	PlayerName      string   `json:"player_name"`
+	VotingPlayerID  string   `json:"voting_player_id"`
+}
+
+// Whistleblower Protocol Event Payloads
+type WhistleblowerVotingStartedPayload struct {
+	CrisisOptions []interface{} `json:"crisis_options"`
+}
+
+type WhistleblowerVoteCastPayload struct {
+	CrisisType string `json:"crisis_type"`
+}
+
+type WhistleblowerVotingCompletedPayload struct {
+	SelectedCrisis string `json:"selected_crisis"`
+}
+
+// Semantic Event Payloads
+type SitrepPublishedPayload struct {
+	DailySitrep map[string]interface{} `json:"daily_sitrep"`
+}
+
+type LiaisonProtocolActivatedPayload struct {
+	AIPercentage      float64 `json:"ai_percentage"`
+	MiningBonusSlots  float64 `json:"mining_bonus_slots"`
+}
+
+type GameRuleModifiedPayload struct {
+	RuleCategory     string `json:"rule_category"`
+	ModificationType string `json:"modification_type"`
+	Source           string `json:"source"`
+}
+
+// Game State Event Payloads
+type GameStateUpdatePayload struct {
+	GameState interface{} `json:"game_state"`
+}
+
+type LobbyStateUpdatePayload struct {
+	LobbyID    string      `json:"lobby_id"`
+	Players    interface{} `json:"players"`
+	HostID     string      `json:"host_id"`
+	CanStart   bool        `json:"can_start"`
+	Name       string      `json:"name"`
+	MaxPlayers int         `json:"max_players"`
+}
+
+type VictoryConditionPayload struct {
+	Winner      string `json:"winner"`
+	Condition   string `json:"condition"`
+	Description string `json:"description"`
 }
