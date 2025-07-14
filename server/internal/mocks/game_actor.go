@@ -46,6 +46,10 @@ func (m *MockGameActor) CreatePlayerStateUpdateEvent(playerID string) core.Event
 	}
 }
 
+func (m *MockGameActor) AddSpectator(spectator interfaces.PlayerActorInterface) {
+	// Mock implementation - no-op
+}
+
 func (m *MockGameActor) Stop() {
 	// Mock implementation - no-op
 }

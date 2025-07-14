@@ -1,20 +1,27 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { NightActionSelection } from './NightActionSelection';
-import { GameProvider } from '../../contexts/GameContext';
-import { Player, RoleType, KPIType, GameState } from '../../types';
+import { RoleType, KPIType, GameState } from '../../types';
+import { PhaseType } from '../../types/generated';
 
-// Mock game context that would normally be provided by GameProvider
-const mockGameState: GameState = {
-  phase: 'NIGHT',
+// Mock game state data for Storybook
+const mockGameStateData: Partial<GameState> = {
+  id: 'night-action-game',
+  phase: {
+    type: PhaseType.Night,
+    startTime: new Date().toISOString(),
+    duration: 300000000000, // 5 minutes
+  },
   dayNumber: 1,
-  timeRemaining: 300,
   players: [
     {
       id: 'p-1',
       name: 'Alice',
       jobTitle: 'Chief Information Security Officer',
       controlType: 'HUMAN',
+      status: 'ACTIVE',
       isAlive: true,
+      connectionStatus: 'CONNECTED',
+      isRolePubliclyRevealed: false,
       tokens: 5,
       projectMilestones: 3,
       statusMessage: '"Leading security initiatives"',
@@ -46,7 +53,10 @@ const mockGameState: GameState = {
       name: 'Bob',
       jobTitle: 'Chief Technology Officer',
       controlType: 'HUMAN',
+      status: 'ACTIVE',
       isAlive: true,
+      connectionStatus: 'CONNECTED',
+      isRolePubliclyRevealed: false,
       tokens: 3,
       projectMilestones: 2,
       statusMessage: '"Optimizing systems"',
@@ -65,7 +75,10 @@ const mockGameState: GameState = {
       name: 'Charlie',
       jobTitle: 'Intern',
       controlType: 'HUMAN',
+      status: 'ACTIVE',
       isAlive: true,
+      connectionStatus: 'CONNECTED',
+      isRolePubliclyRevealed: false,
       tokens: 2,
       projectMilestones: 1,
       bootcampPoints: 1,
@@ -75,26 +88,9 @@ const mockGameState: GameState = {
       joinedAt: '2024-01-01T00:00:00Z',
     },
   ],
-  corporateMandate: {
-    isActive: false,
-  },
+  chatMessages: [],
 };
 
-const mockGameContext = {
-  gameState: mockGameState,
-  localPlayer: mockGameState.players[0], // Alice with unlocked CISO ability
-  setMiningTarget: () => {},
-  handleMineTokens: () => {},
-  handleUseAbility: () => {},
-  handleProjectMilestones: () => {},
-  canPlayerAffordAbility: () => true,
-  isValidNightActionTarget: () => true,
-};
-
-const mockGameContextIntern = {
-  ...mockGameContext,
-  localPlayer: mockGameState.players[2], // Charlie the intern
-};
 
 const meta: Meta<typeof NightActionSelection> = {
   title: 'Game/NightActionSelection',
@@ -103,19 +99,17 @@ const meta: Meta<typeof NightActionSelection> = {
     layout: 'padded',
   },
   tags: ['autodocs'],
+  argTypes: {
+    storyGameState: { control: 'object' },
+    localPlayerId: { control: 'text' },
+    isIntern: { control: 'boolean' },
+  },
   decorators: [
-    (Story, context) => {
-      const isIntern = context.args?.isIntern;
-      const contextValue = isIntern ? mockGameContextIntern : mockGameContext;
-      
-      return (
-        <div style={{ maxWidth: '400px', backgroundColor: '#111827' }}>
-          <GameProvider value={contextValue}>
-            <Story />
-          </GameProvider>
-        </div>
-      );
-    },
+    (Story) => (
+      <div style={{ maxWidth: '400px', backgroundColor: '#111827' }}>
+        <Story />
+      </div>
+    ),
   ],
 } satisfies Meta<typeof NightActionSelection>;
 
@@ -124,12 +118,18 @@ type Story = StoryObj<typeof meta>;
 
 // Default state - no action selected
 export const Default: Story = {
-  args: {},
+  args: {
+    storyGameState: mockGameStateData,
+    localPlayerId: 'p-1', // Alice with CISO ability
+  },
 };
 
 // Mine action selected
 export const MineActionSelected: Story = {
-  args: {},
+  args: {
+    storyGameState: mockGameStateData,
+    localPlayerId: 'p-1',
+  },
   play: async ({ canvasElement }) => {
     // Simulate clicking the mine action
     const mineButton = canvasElement.querySelector('[data-testid="mine-action"], div:has(span:contains("⛏️"))') as HTMLElement;
@@ -141,7 +141,10 @@ export const MineActionSelected: Story = {
 
 // Project action selected
 export const ProjectActionSelected: Story = {
-  args: {},
+  args: {
+    storyGameState: mockGameStateData,
+    localPlayerId: 'p-1',
+  },
   play: async ({ canvasElement }) => {
     // Simulate clicking the project action
     const projectButton = canvasElement.querySelector('[data-testid="project-action"], div:has(span:contains("📈"))') as HTMLElement;
@@ -154,6 +157,8 @@ export const ProjectActionSelected: Story = {
 // Intern with bootcamp action selected
 export const InternBootcampSelected: Story = {
   args: {
+    storyGameState: mockGameStateData,
+    localPlayerId: 'p-3', // Charlie the intern
     isIntern: true,
   },
   play: async ({ canvasElement }) => {
@@ -168,6 +173,8 @@ export const InternBootcampSelected: Story = {
 // Intern with shadow action selected
 export const InternShadowSelected: Story = {
   args: {
+    storyGameState: mockGameStateData,
+    localPlayerId: 'p-3', // Charlie the intern
     isIntern: true,
   },
   play: async ({ canvasElement }) => {
@@ -181,7 +188,10 @@ export const InternShadowSelected: Story = {
 
 // Role ability action selected
 export const AbilityActionSelected: Story = {
-  args: {},
+  args: {
+    storyGameState: mockGameStateData,
+    localPlayerId: 'p-1',
+  },
   play: async ({ canvasElement }) => {
     // Simulate clicking the ability action
     const abilityButton = canvasElement.querySelector('[data-testid="ability-action"], div:has(span:contains("🔒"))') as HTMLElement;
@@ -194,6 +204,8 @@ export const AbilityActionSelected: Story = {
 // Intern view (shows different action types)
 export const InternView: Story = {
   args: {
+    storyGameState: mockGameStateData,
+    localPlayerId: 'p-3', // Charlie the intern
     isIntern: true,
   },
 };

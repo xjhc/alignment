@@ -113,6 +113,7 @@ export type AppAction =
   | { type: "LEAVE_LOBBY" }
   | { type: "BACK_TO_LOGIN" }
   | { type: "ENTER_GAME" }
+  | { type: "ROLE_ASSIGNED"; payload: { roleAssignment: any } }
   | { type: "PLAY_AGAIN" }
   | {
       type: "RESTORE_SESSION";
@@ -357,11 +358,15 @@ export function appReducer(
         appState: {
           playerName: "",
           userIdentity: undefined,
+          sessionChecked: true,
+          hasSyncedInitialState: false,
+          isNewJoin: false,
         },
         sessionState: "IDLE",
         isInGameSession: false,
       };
 
+    case "ROLE_ASSIGNED":
     case "ENTER_GAME":
       return {
         ...state,
@@ -587,6 +592,7 @@ export function appReducer(
           sessionToken: action.payload.sessionToken,
           hasSyncedInitialState: false, // Reset sync flag to wait for initial state
           isNewJoin: false, // Mark as session restoration
+          sessionChecked: true, // Atomically mark session as checked
         },
         lobbyState: {
           ...state.lobbyState,

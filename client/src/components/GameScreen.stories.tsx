@@ -1,29 +1,21 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import React from 'react';
 import { GameScreen } from './GameScreen';
-import { GameProvider } from '../contexts/GameContext';
 import { GameState, Player, Phase, ChatMessage } from '../types';
 import { RoleType, KPIType, PhaseType, VoteType } from '../types/generated';
 
-// Create a wrapper component that provides contexts
-const GameScreenWrapper: React.FC<{ gameState: GameState; playerID: string }> = ({ gameState, playerID }) => (
-  <GameProvider gameState={gameState} localPlayerId={playerID}>
-    <GameScreen />
-  </GameProvider>
-);
-
-const meta: Meta<typeof GameScreenWrapper> = {
+const meta: Meta<typeof GameScreen> = {
   title: 'Core/GameScreen',
-  component: GameScreenWrapper,
+  component: GameScreen,
   parameters: {
     layout: 'fullscreen',
   },
   tags: ['autodocs'],
   argTypes: {
-    gameState: { control: 'object' },
-    playerID: { control: 'text' },
+    // We pass our state through args now, which the decorator will pick up
+    storyGameState: { control: 'object' },
+    localPlayerId: { control: 'text' },
   },
-} satisfies Meta<typeof GameScreenWrapper>;
+} satisfies Meta<typeof GameScreen>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -35,13 +27,16 @@ const basePlayers: Player[] = [
     name: 'Alice',
     jobTitle: 'Chief Security Officer',
     controlType: 'HUMAN',
+    status: 'ACTIVE',
     isAlive: true,
+    connectionStatus: 'CONNECTED',
     tokens: 8,
     projectMilestones: 3,
     statusMessage: '"Trust the CISO"',
     alignment: 'HUMAN',
     avatar: '👤',
     joinedAt: '2024-01-01T00:00:00Z',
+    isRolePubliclyRevealed: false,
     role: {
       type: RoleType.Ciso,
       name: 'Security Analyst',
@@ -67,7 +62,10 @@ const basePlayers: Player[] = [
     name: 'Bob',
     jobTitle: 'Senior Developer',
     controlType: 'HUMAN',
+    status: 'ACTIVE',
     isAlive: true,
+    connectionStatus: 'CONNECTED',
+    isRolePubliclyRevealed: false,
     tokens: 5,
     projectMilestones: 2,
     statusMessage: '"Coffee first, code second"',
@@ -99,7 +97,10 @@ const basePlayers: Player[] = [
     name: 'Eve',
     jobTitle: 'Chief Operating Officer',
     controlType: 'HUMAN',
+    status: 'ACTIVE',
     isAlive: true,
+    connectionStatus: 'CONNECTED',
+    isRolePubliclyRevealed: false,
     tokens: 12,
     projectMilestones: 4,
     statusMessage: '"Efficiency is key."',
@@ -131,7 +132,10 @@ const basePlayers: Player[] = [
     name: 'Charlie',
     jobTitle: 'Former Employee',
     controlType: 'HUMAN',
+    status: 'ELIMINATED',
     isAlive: false,
+    connectionStatus: 'CONNECTED',
+    isRolePubliclyRevealed: true,
     tokens: 0,
     projectMilestones: 1,
     statusMessage: 'Eve is the AI!',
@@ -170,6 +174,8 @@ const baseChatMessages: ChatMessage[] = [
     timestamp: '2024-01-01T09:00:00Z',
     type: 'REGULAR',
     isSystem: false,
+    channelID: '#war-room',
+    reactions: [],
   },
   {
     id: 'c-2',
@@ -179,6 +185,8 @@ const baseChatMessages: ChatMessage[] = [
     timestamp: '2024-01-01T09:01:00Z',
     type: 'REGULAR',
     isSystem: false,
+    channelID: '#war-room',
+    reactions: [],
   },
   {
     id: 'c-3',
@@ -188,6 +196,8 @@ const baseChatMessages: ChatMessage[] = [
     timestamp: '2024-01-01T09:02:00Z',
     type: 'SITREP',
     isSystem: true,
+    channelID: '#war-room',
+    reactions: [],
     metadata: {
       playerHeadcount: {
         humans: 3,
@@ -218,14 +228,14 @@ const baseGameState: GameState = {
 
 export const Discussion: Story = {
   args: {
-    gameState: baseGameState,
-    playerID: 'p-1',
+    storyGameState: baseGameState,
+    localPlayerId: 'p-1',
   },
 };
 
 export const NightPhase: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       phase: {
         type: PhaseType.Night,
@@ -233,13 +243,13 @@ export const NightPhase: Story = {
         duration: 120000000000, // 2 minutes in nanoseconds
       },
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };
 
 export const NominationPhase: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       phase: {
         type: PhaseType.Nomination,
@@ -254,13 +264,13 @@ export const NominationPhase: Story = {
         isComplete: false,
       },
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };
 
 export const TrialPhase: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       phase: {
         type: PhaseType.Trial,
@@ -276,13 +286,13 @@ export const TrialPhase: Story = {
         isComplete: false,
       },
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };
 
 export const VerdictPhase: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       phase: {
         type: PhaseType.Verdict,
@@ -307,13 +317,13 @@ export const VerdictPhase: Story = {
         isComplete: false,
       },
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };
 
 export const VerdictComplete: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       players: basePlayers.map(p => p.id === 'p-3' ? { ...p, isAlive: false } : p),
       phase: {
@@ -325,7 +335,7 @@ export const VerdictComplete: Story = {
         ...baseChatMessages,
         {
           id: 'c-4',
-          playerID: 'system',
+          localPlayerId: 'system',
           playerName: 'NEXUS',
           message: 'Vote result for deactivating Eve',
           timestamp: '2024-01-01T12:11:00Z',
@@ -358,13 +368,13 @@ export const VerdictComplete: Story = {
         },
       ],
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };
 
 export const PulseCheckPhase: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       phase: {
         type: PhaseType.PulseCheck,
@@ -388,7 +398,7 @@ export const PulseCheckPhase: Story = {
         ...baseChatMessages,
         {
           id: 'pulse_check_announcement_1',
-          playerID: '',
+          localPlayerId: '',
           playerName: 'NEXUS',
           message: 'A critical role has been exposed. How does this change your immediate priority?',
           timestamp: '2024-01-01T11:00:30Z',
@@ -406,13 +416,13 @@ export const PulseCheckPhase: Story = {
         },
       ],
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };
 
 export const PulseCheckEarly: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       phase: {
         type: PhaseType.PulseCheck,
@@ -434,7 +444,7 @@ export const PulseCheckEarly: Story = {
         ...baseChatMessages,
         {
           id: 'pulse_check_announcement_1',
-          playerID: '',
+          localPlayerId: '',
           playerName: 'NEXUS',
           message: 'With limited bandwidth, what is the one piece of information everyone needs to hear from you?',
           timestamp: '2024-01-01T11:00:30Z',
@@ -450,27 +460,27 @@ export const PulseCheckEarly: Story = {
         },
       ],
     },
-    playerID: 'p-2',
+    localPlayerId: 'p-2',
   },
 };
 
 export const AsAIPlayer: Story = {
   args: {
-    gameState: baseGameState,
-    playerID: 'p-3', // Eve (AI-aligned player)
+    storyGameState: baseGameState,
+    localPlayerId: 'p-3', // Eve (AI-aligned player)
   },
 };
 
 export const AsDeadPlayer: Story = {
   args: {
-    gameState: baseGameState,
-    playerID: 'p-4', // Charlie (dead player)
+    storyGameState: baseGameState,
+    localPlayerId: 'p-4', // Charlie (dead player)
   },
 };
 
 export const WithCrisisEvent: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       crisisEvent: {
         type: 'SYSTEM_BREACH',
@@ -482,13 +492,13 @@ export const WithCrisisEvent: Story = {
         },
       },
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };
 
 export const WithPrivateNotifications: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       privateNotifications: [
         {
@@ -511,23 +521,23 @@ export const WithPrivateNotifications: Story = {
         },
       ],
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };
 
 export const ChatHistoryLoading: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       chatMessages: [],
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };
 
 export const GameOver: Story = {
   args: {
-    gameState: {
+    storyGameState: {
       ...baseGameState,
       phase: {
         type: PhaseType.GameOver,
@@ -540,6 +550,6 @@ export const GameOver: Story = {
         description: 'The AI has successfully converted enough humans to take control.',
       },
     },
-    playerID: 'p-1',
+    localPlayerId: 'p-1',
   },
 };

@@ -102,6 +102,7 @@ func NewGameLifecycleManager(
 	// Subscribe to relevant events
 	eventBus.Subscribe("player_disconnected", glm.eventChannel)
 	eventBus.Subscribe("game_ended", glm.eventChannel)
+	eventBus.Subscribe("player_abandoned_game", glm.eventChannel)
 
 	// Start event processing goroutine with panic protection
 	helpers.GoSafe(ctx, func(_ context.Context) { glm.processEvents() })
@@ -520,6 +521,10 @@ func (glm *GameLifecycleManager) abandonDisconnectedPlayer(gameID, playerID stri
 		log.Printf("GameLifecycleManager: Removed player %s from active user tracker after grace period expiry", playerID)
 	}
 
+	// CRITICAL FIX: Invalidate the player's session token to prevent reconnection with stale token
+	glm.invalidatePlayerToken(playerID)
+	log.Printf("GameLifecycleManager: Invalidated session token for abandoned player %s", playerID)
+
 	// Notify the GameActor to abandon the player
 	glm.mutex.RLock()
 	gameActor, exists := glm.gameActors[gameID]
@@ -590,6 +595,10 @@ func (glm *GameLifecycleManager) handlePlayerAbandoned(event events.PlayerAbando
 	if glm.activeUserTracker != nil {
 		glm.activeUserTracker.RemoveUserSessionByGameAndPlayer(event.GameID, event.PlayerID)
 	}
+
+	// CRITICAL FIX: Invalidate the player's session token to prevent reconnection with stale token
+	glm.invalidatePlayerToken(event.PlayerID)
+	log.Printf("GameLifecycleManager: Invalidated session token for abandoned player %s", event.PlayerID)
 
 	// Remove from game session tracking
 	glm.mutex.Lock()
@@ -781,7 +790,7 @@ func (glm *GameLifecycleManager) cleanupStaleGameSessions() {
 }
 
 // CreateLobbyViaHTTP creates a lobby via HTTP and returns join credentials
-func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool) (string, string, string, error) {
+func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool, settings core.GameSettings) (string, string, string, error) {
 	lobbyID := uuid.New().String()
 	// Use the userID directly as the hostPlayerID to maintain Progressive Identity Model
 	hostPlayerID := userID
@@ -789,8 +798,31 @@ func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobb
 	glm.mutex.Lock()
 	defer glm.mutex.Unlock()
 
-	// Generate session token
-	sessionToken, err := glm.generateSessionTokenWithLobbyInfo_unsafe(lobbyID, hostPlayerID, hostPlayerName, playerAvatar, lobbyName, true, isPrivate)
+	// Define default game settings to be associated with the new lobby.
+	// This ensures that when the game starts, it uses correct timer durations.
+	defaultSettings := core.GameSettings{
+		MaxPlayers:               8,
+		MinPlayers:               2,
+		SitrepDuration:           15 * time.Second,
+		PulseCheckDuration:       30 * time.Second,
+		DiscussionDuration:       2 * time.Minute,
+		ExtensionDuration:        15 * time.Second,
+		NominationDuration:       30 * time.Second,
+		TrialDuration:            30 * time.Second,
+		VerdictDuration:          30 * time.Second,
+		NightDuration:            30 * time.Second,
+		StartingTokens:           1,
+		VotingThreshold:          0.5,
+		InitialAlignedHumanCount: 0, // This will be overridden by request if provided
+	}
+
+	// Use provided settings if they have non-zero durations, otherwise use defaults
+	finalSettings := defaultSettings
+	if settings.SitrepDuration > 0 {
+		finalSettings = settings
+	}
+
+	sessionToken, err := glm.generateSessionTokenWithLobbyInfo_unsafe(lobbyID, hostPlayerID, hostPlayerName, playerAvatar, lobbyName, true, isPrivate, finalSettings)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}
@@ -813,6 +845,7 @@ func (glm *GameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobb
 		CreatedAt:    time.Now(),
 		Status:       "WAITING_FOR_HOST",
 		IsPrivate:    isPrivate,
+		GameSettings: finalSettings, // <-- THE FIX: Apply default settings
 	}
 
 	glm.lobbies[lobbyID] = newLobby
@@ -1333,7 +1366,7 @@ func (glm *GameLifecycleManager) createGameFromLobby(lobbyID string, playerActor
 
 
 // generateSessionTokenWithLobbyInfo creates a session token for a player in a lobby
-func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost, isPrivate bool) (string, error) {
+func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost, isPrivate bool, settings core.GameSettings) (string, error) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return "", err
@@ -1349,6 +1382,7 @@ func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo(lobbyID, play
 		LobbyName:    lobbyName,
 		IsHost:       isHost,
 		IsPrivate:    isPrivate,
+		Settings:     settings,
 		ExpiresAt:    time.Now().Add(30 * time.Minute),
 	}
 
@@ -1359,7 +1393,7 @@ func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo(lobbyID, play
 }
 
 // generateSessionTokenWithLobbyInfo_unsafe is a private helper that assumes the caller holds the lock.
-func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo_unsafe(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost, isPrivate bool) (string, error) {
+func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo_unsafe(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost, isPrivate bool, settings core.GameSettings) (string, error) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return "", err
@@ -1375,6 +1409,7 @@ func (glm *GameLifecycleManager) generateSessionTokenWithLobbyInfo_unsafe(lobbyI
 		LobbyName:    lobbyName,
 		IsHost:       isHost,
 		IsPrivate:    isPrivate,
+		Settings:     settings,
 		ExpiresAt:    time.Now().Add(30 * time.Minute),
 	}
 
@@ -1433,6 +1468,29 @@ func (glm *GameLifecycleManager) cleanupExpiredTokens() {
 	}
 }
 
+// invalidatePlayerToken removes all session tokens for a given player ID
+func (glm *GameLifecycleManager) invalidatePlayerToken(playerID string) {
+	glm.mutex.Lock()
+	defer glm.mutex.Unlock()
+
+	// Find and remove all tokens for this player
+	var tokensToRemove []string
+	for tokenStr, token := range glm.tokens {
+		if token.PlayerID == playerID {
+			tokensToRemove = append(tokensToRemove, tokenStr)
+		}
+	}
+
+	// Remove the tokens
+	for _, tokenStr := range tokensToRemove {
+		delete(glm.tokens, tokenStr)
+	}
+
+	if len(tokensToRemove) > 0 {
+		log.Printf("GameLifecycleManager: Invalidated %d session tokens for player %s", len(tokensToRemove), playerID)
+	}
+}
+
 // Stop gracefully shuts down the manager
 func (glm *GameLifecycleManager) Stop() {
 	log.Println("GameLifecycleManager: Shutting down")
@@ -1455,6 +1513,7 @@ func (glm *GameLifecycleManager) JoinLobby(lobbyID, userID, playerName, playerAv
 	playerCount := len(lobby.Players)
 	maxPlayers := lobby.MaxPlayers
 	isPrivate := lobby.IsPrivate
+	gameSettings := lobby.GameSettings
 	lobby.RUnlock()
 
 	// Now do checks without holding a lock
@@ -1467,7 +1526,7 @@ func (glm *GameLifecycleManager) JoinLobby(lobbyID, userID, playerName, playerAv
 	}
 
 	playerID := userID
-	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, "", false, isPrivate)
+	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, "", false, isPrivate, gameSettings)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}
@@ -1492,8 +1551,8 @@ func (glm *GameLifecycleManager) JoinAsSpectator(gameID, userID, spectatorName s
 	// Generate a unique spectator ID
 	spectatorID := fmt.Sprintf("spectator-%s", userID)
 
-	// Generate session token for spectator
-	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(gameID, spectatorID, spectatorName, "", "", false, false)
+	// Generate session token for spectator (use default settings for spectators)
+	sessionToken, err := glm.generateSessionTokenWithLobbyInfo(gameID, spectatorID, spectatorName, "", "", false, false, core.GameSettings{})
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}

@@ -872,7 +872,7 @@ func (ga *GameActor) handleExtensionVoteResults() []core.Event {
 			Timestamp: time.Now(),
 			Payload: map[string]interface{}{
 				"phase_type": string(core.PhaseNomination),
-				"duration":   ga.state.Settings.NominationDuration.Seconds(),
+				"duration":   ga.state.Settings.NominationDuration,
 				"message": fmt.Sprintf("Moving to nomination phase (EXTEND: %d, NOMINATE: %d)",
 					extendVotes, nominateVotes),
 			},
@@ -1733,7 +1733,7 @@ func (ga *GameActor) handleSkipVoteAction(action core.Action) ([]core.Event, err
 				Timestamp: now,
 				Payload: map[string]interface{}{
 					"phase_type": string(nextPhase),
-					"duration":   phaseDuration.Seconds(),
+					"duration":   phaseDuration,
 					"reason":     "skip_vote_unanimous",
 				},
 			}
@@ -2164,12 +2164,32 @@ func (ga *GameActor) handlePhaseTransition(action core.Action) ([]core.Event, er
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
 			"phase_type":     nextPhase,
-			"duration":       getPhaseDuration(core.PhaseType(nextPhase), ga.state.Settings).Seconds(),
+			"duration":       game.GetPhaseDuration(core.PhaseType(nextPhase), ga.state.Settings),
 			"previous_phase": string(ga.state.Phase.Type),
 			"day_number":     ga.state.DayNumber,
 		},
 	}
 	events = append(events, phaseEvent)
+
+	// CRITICAL FIX: Schedule the next phase transition *after* the EventPhaseChanged is generated.
+	// This ensures the timer for the *next* phase is scheduled correctly based on the new current phase.
+	// Also, cancel any existing timers for the current game first.
+	ga.phaseManager.CancelPhaseTransitions()
+	if core.PhaseType(nextPhase) != core.PhaseGameOver { // Don't schedule if game is over
+		// Pass the timestamp of the phaseEvent as the start time for the next phase
+		ga.phaseManager.SchedulePhaseTransition(core.PhaseType(nextPhase), phaseEvent.Timestamp)
+
+		// Process AI actions for the newly entered phase
+		ga.processAIActionsForPhase(core.PhaseType(nextPhase))
+		// Check for Loebmate hints for the new phase
+		hintEvents := ga.hintManager.CheckForHints(core.PhaseType(nextPhase))
+		if len(hintEvents) > 0 {
+			// Send hint events through the event callback
+			if ga.eventCallback != nil {
+				ga.eventCallback(ga.gameID, hintEvents)
+			}
+		}
+	}
 
 	return events, nil
 }
@@ -2562,29 +2582,6 @@ func (ga *GameActor) processAIActionsForPhase(phase core.PhaseType) {
 	}
 }
 
-func getPhaseDuration(phase core.PhaseType, settings core.GameSettings) time.Duration {
-	switch phase {
-	case core.PhaseSitrep:
-		return settings.SitrepDuration
-	case core.PhasePulseCheck:
-		return settings.PulseCheckDuration
-	case core.PhaseDiscussion:
-		return settings.DiscussionDuration
-	case core.PhaseExtension:
-		return settings.ExtensionDuration
-	case core.PhaseNomination:
-		return settings.NominationDuration
-	case core.PhaseTrial:
-		return settings.TrialDuration
-	case core.PhaseVerdict:
-		return settings.VerdictDuration
-	case core.PhaseNight:
-		return settings.NightDuration
-	default:
-		return 0
-	}
-}
-
 // createPlayerSpecificGameView creates a game state view for a living player
 func (ga *GameActor) createPlayerSpecificGameView(playerID string) *core.GameState {
 	// Create a filtered players map with private data only for the requesting player
@@ -2974,9 +2971,13 @@ func (ga *GameActor) processActionRequest(req actorRequest, eventsToPersist []co
 	for _, event := range eventsToPersist {
 		newState := core.ApplyEvent(*ga.state, event)
 		ga.state = &newState
+		
+		if event.Type == core.EventGameStarted {
+			ga.phaseManager.SchedulePhaseTransition(core.PhaseSitrep, event.Timestamp)
+		}
 
 		// Check for win conditions after certain events
-		additionalEvents := ga.handlePostEventProcessing(event)
+		additionalEvents := ga.handlePostEventProcessing(event) // This will now include phase scheduling
 		allEvents = append(allEvents, additionalEvents...)
 	}
 
@@ -2986,33 +2987,6 @@ func (ga *GameActor) processActionRequest(req actorRequest, eventsToPersist []co
 		ga.state = &newState
 	}
 	eventsToPersist = allEvents
-
-	// Check for EventGameStarted or EventPhaseChanged and schedule next phase transition
-	for _, event := range eventsToPersist {
-		switch event.Type {
-		case core.EventGameStarted:
-			log.Printf("[GameActor/%s] Game started, scheduling first phase transition", ga.gameID)
-			ga.phaseManager.SchedulePhaseTransition(ga.state.Phase.Type, time.Now())
-		case core.EventPhaseChanged:
-			// Extract next phase from the event payload
-			if nextPhase, ok := event.Payload["phase_type"].(string); ok {
-				log.Printf("[GameActor/%s] Phase changed to %s, scheduling next transition", ga.gameID, nextPhase)
-				ga.phaseManager.SchedulePhaseTransition(core.PhaseType(nextPhase), time.Now())
-
-				// Check for Loebmate hints for the new phase
-				hintEvents := ga.hintManager.CheckForHints(core.PhaseType(nextPhase))
-				if len(hintEvents) > 0 {
-					// Send hint events through the event callback
-					if ga.eventCallback != nil {
-						ga.eventCallback(ga.gameID, hintEvents)
-					}
-				}
-
-				// Process AI actions for the new phase
-				ga.processAIActionsForPhase(core.PhaseType(nextPhase))
-			}
-		}
-	}
 
 	// Return the granular events instead of state snapshots
 	req.responseChan <- interfaces.ProcessActionResult{Events: eventsToPersist, Error: nil}

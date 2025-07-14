@@ -297,6 +297,12 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 	
 	// If session is invalid, send SESSION_EXPIRED and close
 	if !sessionValid {
+		// CRITICAL FIX: Invalidate the session token on the server side to prevent reuse
+		if glm, ok := wsm.tokenValidator.(interface{ invalidatePlayerToken(string) }); ok {
+			glm.invalidatePlayerToken(playerID)
+			log.Printf("WebSocketManager: Invalidated session token for player %s due to invalid session", playerID)
+		}
+
 		// Create a temporary PlayerActor to send the session expired event
 		tempActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, clientIP, conn, chatLimiter, generalLimiter)
 		tempActor.Start()

@@ -39,6 +39,7 @@ type GLMCreateLobbyViaHTTPCall struct {
 	LobbyName      string
 	PlayerAvatar   string
 	IsPrivate      bool
+	Settings       core.GameSettings
 }
 
 type GLMCreateLobbyViaHTTPResult struct {
@@ -111,7 +112,7 @@ type GLMStopCall struct{}
 // Ensure MockGameLifecycleManager implements the interface at compile time
 var _ interfaces.GameLifecycleManagerInterface = (*MockGameLifecycleManager)(nil)
 
-func (m *MockGameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool) (string, string, string, error) {
+func (m *MockGameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool, settings core.GameSettings) (string, string, string, error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -121,6 +122,7 @@ func (m *MockGameLifecycleManager) CreateLobbyViaHTTP(userID, hostPlayerName, lo
 		LobbyName:      lobbyName,
 		PlayerAvatar:   playerAvatar,
 		IsPrivate:      isPrivate,
+		Settings:       settings,
 	})
 
 	if len(m.CreateLobbyViaHTTPResults) > 0 {
@@ -196,6 +198,13 @@ func (m *MockGameLifecycleManager) StartGame(lobbyID string, hostPlayerID string
 	}
 
 	return nil
+}
+
+func (m *MockGameLifecycleManager) JoinAsSpectator(gameID, userID, spectatorName string) (string, string, error) {
+	m.Lock()
+	defer m.Unlock()
+	// For mocking, just return empty values
+	return "", "", nil
 }
 
 func (m *MockGameLifecycleManager) ValidateSessionToken(token string) (interface{}, error) {

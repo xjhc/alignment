@@ -116,25 +116,22 @@ func AssignPersonas(players map[string]*core.Player, settings core.GameSettings,
 
 	// Determine how many additional players should be Aligned humans
 	alignedHumanCount := settings.InitialAlignedHumanCount
-	// Ensure we don't exceed available players (minus the one Original AI)
-	if alignedHumanCount > len(participantIDs)-1 {
-		alignedHumanCount = len(participantIDs) - 1
-	}
 
 	// Assign aligned humans (next N players in shuffled list after the Original AI)
 	alignedHumanIDs := make(map[string]bool)
-	aiPlayerIndex := -1
-	for i, id := range participantIDs {
-		if id == originalAIPlayerID {
-			aiPlayerIndex = i
-			break
+	if alignedHumanCount > 0 {
+		aiPlayerIndex := -1
+		for i, id := range participantIDs {
+			if id == originalAIPlayerID {
+				aiPlayerIndex = i
+				break
+			}
 		}
-	}
 
-	for i := 1; i <= alignedHumanCount; i++ {
-		// Wrap around the list to select players if we reach the end
-		alignedIndex := (aiPlayerIndex + i) % len(participantIDs)
-		alignedHumanIDs[participantIDs[alignedIndex]] = true
+		for i := 1; i <= alignedHumanCount; i++ {
+			alignedIndex := (aiPlayerIndex + i) % len(participantIDs)
+			alignedHumanIDs[participantIDs[alignedIndex]] = true
+		}
 	}
 
 

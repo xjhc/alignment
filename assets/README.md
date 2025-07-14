@@ -28,7 +28,7 @@ Style keywords: clean, futuristic, skeuomorphic, polished
 
 Format the output like this:
 
-"Stylized 2.5D [pose] of [character description]. [Key props and colors]. [Expression/mood]. Clean graphic shading, matte textures, soft shadows. Deep navy background (#0f172a), polished anime-meets-Spiderverse aesthetic. --ar 4:5 --style raw --v 6.0"
+"Stylized 2.5D [pose] of [character description]. [Key props and colors]. [Expression/mood]. Clean graphic shading, matte textures, soft shadows. Deep navy background, polished post-digital graphic novel aesthetic.
 
 Character description:
 A hyper-energetic man in a colorful agile-themed shirt, dual-wielding a whiteboard marker and a kanban tablet. Sticky notes are plastered to his arms and forehead.

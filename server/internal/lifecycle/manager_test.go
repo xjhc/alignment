@@ -102,7 +102,7 @@ func TestGameLifecycleManager_CreateLobbyViaHTTP(t *testing.T) {
 	lobbyName := "Test Lobby"
 	avatar := "test-avatar"
 
-	lobbyID, hostPlayerID, sessionToken, err := manager.CreateLobbyViaHTTP("user1", hostName, lobbyName, avatar, false)
+	lobbyID, hostPlayerID, sessionToken, err := manager.CreateLobbyViaHTTP("user1", hostName, lobbyName, avatar, false, core.GameSettings{})
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, lobbyID)
@@ -166,7 +166,7 @@ func TestGameLifecycleManager_StartGame_NotHost(t *testing.T) {
 	manager, _, _, _ := setupTestManager(t)
 
 	// Create lobby with host
-	lobbyID, hostPlayerID, _, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false)
+	lobbyID, hostPlayerID, _, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false, core.GameSettings{})
 	require.NoError(t, err)
 
 	hostActor := createTestPlayerActor(hostPlayerID, "Host")
@@ -188,7 +188,7 @@ func TestGameLifecycleManager_StartGame_NotEnoughPlayers(t *testing.T) {
 	manager, _, _, _ := setupTestManager(t)
 
 	// Create lobby with only host
-	lobbyID, hostPlayerID, _, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false)
+	lobbyID, hostPlayerID, _, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false, core.GameSettings{})
 	require.NoError(t, err)
 
 	hostActor := createTestPlayerActor(hostPlayerID, "Host")
@@ -210,7 +210,7 @@ func TestGameLifecycleManager_ValidateSessionToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid token")
 
 	// Create a valid token
-	_, _, sessionToken, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false)
+	_, _, sessionToken, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false, core.GameSettings{})
 	require.NoError(t, err)
 
 	// Test with valid token
@@ -223,7 +223,7 @@ func TestGameLifecycleManager_ValidateSession(t *testing.T) {
 	manager, _, _, _ := setupTestManager(t)
 
 	// Create lobby and get token
-	lobbyID, hostPlayerID, sessionToken, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false)
+	lobbyID, hostPlayerID, sessionToken, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false, core.GameSettings{})
 	require.NoError(t, err)
 
 	// Test valid session
@@ -243,7 +243,7 @@ func TestGameLifecycleManager_GetPlayerInfo(t *testing.T) {
 	manager, _, _, _ := setupTestManager(t)
 
 	// Create lobby
-	lobbyID, hostPlayerID, _, err := manager.CreateLobbyViaHTTP("user1", "TestHost", "Test Lobby", "test-avatar", false)
+	lobbyID, hostPlayerID, _, err := manager.CreateLobbyViaHTTP("user1", "TestHost", "Test Lobby", "test-avatar", false, core.GameSettings{})
 	require.NoError(t, err)
 
 	// Get player info
@@ -266,9 +266,9 @@ func TestGameLifecycleManager_GetLobbyList(t *testing.T) {
 	assert.Len(t, lobbies, 0)
 
 	// Create some lobbies
-	_, _, _, err := manager.CreateLobbyViaHTTP("user1", "Host1", "Lobby1", "avatar1", false)
+	_, _, _, err := manager.CreateLobbyViaHTTP("user1", "Host1", "Lobby1", "avatar1", false, core.GameSettings{})
 	require.NoError(t, err)
-	_, _, _, err = manager.CreateLobbyViaHTTP("user2", "Host2", "Lobby2", "avatar2", false)
+	_, _, _, err = manager.CreateLobbyViaHTTP("user2", "Host2", "Lobby2", "avatar2", false, core.GameSettings{})
 	require.NoError(t, err)
 
 	// Check lobby list
@@ -292,7 +292,7 @@ func TestGameLifecycleManager_JoinLobby(t *testing.T) {
 	manager, _, _, _ := setupTestManager(t)
 
 	// Create a lobby
-	lobbyID, _, _, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false)
+	lobbyID, _, _, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false, core.GameSettings{})
 	require.NoError(t, err)
 
 	// Join the lobby
@@ -315,7 +315,7 @@ func TestGameLifecycleManager_EventHandling(t *testing.T) {
 	manager, _, _, eventBus := setupTestManager(t)
 
 	// Create a lobby with players
-	lobbyID, hostPlayerID, _, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false)
+	lobbyID, hostPlayerID, _, err := manager.CreateLobbyViaHTTP("user1", "Host", "Test Lobby", "avatar", false, core.GameSettings{})
 	require.NoError(t, err)
 
 	hostActor := createTestPlayerActor(hostPlayerID, "Host")

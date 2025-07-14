@@ -56,7 +56,7 @@ func TestGameLifecycleManager_CreateGameFromLobby(t *testing.T) {
 	}
 
 	// Create lobby via HTTP first (this is the new flow)
-	lobbyID, _, _, err := lifecycleManager.CreateLobbyViaHTTP("player1", "Host Player", "Test Game", "👤", false)
+	lobbyID, _, _, err := lifecycleManager.CreateLobbyViaHTTP("player1", "Host Player", "Test Game", "👤", false, core.GameSettings{})
 	if err != nil {
 		t.Fatalf("CreateLobbyViaHTTP failed: %v", err)
 	}

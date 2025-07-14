@@ -4,12 +4,13 @@ import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { useGameEngineContext } from "../contexts/GameEngineContext";
 import { useAppNavigation } from "./useAppNavigation";
 import { soundManager } from "../services/soundManager";
+import { gameEngine } from "../services/gameEngine";
 import {
   appReducer,
   initialAppState,
   RoleAssignment,
 } from "../state/appReducer";
-import { ClientActionType, ServerEventType } from "../types";
+import { ClientActionType, ServerEventType, ServerEvent } from "../types";
 
 export function useSessionManager() {
   const location = useLocation();
@@ -32,7 +33,7 @@ export function useSessionManager() {
     gameState: coreGameState,
     isLoading: gameEngineLoading,
     error: gameEngineError,
-    loadGameState,
+    resetAndLoadState,
   } = useGameEngineContext();
 
   // Authentication and session restoration (run-once)
@@ -238,64 +239,6 @@ export function useSessionManager() {
     return unsubscribe;
   }, [isConnected, subscribe, navigateToGameOver]);
 
-  // Game phase navigation
-  useEffect(() => {
-    if (!coreGameState) return;
-    if (coreGameState.phase && location.pathname === "/waiting") {
-      const phaseType = coreGameState.phase.type;
-
-      console.log(
-        `[SessionManager] Game phase navigation: phase=${phaseType}, location=${location.pathname}`
-      );
-
-      // Navigate to appropriate screen based on game phase
-      if (phaseType === "LOBBY") {
-        // Stay on waiting screen - this is correct
-        return;
-      } else if (phaseType === "SITREP" || phaseType === "PULSE_CHECK") {
-        // These are the initial game phases - go to role reveal first
-        console.log(
-          "[SessionManager] Navigating to role reveal for phase:",
-          phaseType
-        );
-        navigateToRoleReveal();
-      } else if (
-        phaseType === "DISCUSSION" ||
-        phaseType === "EXTENSION" ||
-        phaseType === "NOMINATION" ||
-        phaseType === "TRIAL" ||
-        phaseType === "VERDICT" ||
-        phaseType === "NIGHT"
-      ) {
-        // These are active game phases - go directly to game screen
-        console.log(
-          "[SessionManager] Navigating to game screen for phase:",
-          phaseType
-        );
-        navigateToGame();
-      } else if (phaseType === "GAME_OVER") {
-        // Game is over
-        console.log(
-          "[SessionManager] Navigating to game over for phase:",
-          phaseType
-        );
-        navigateToGameOver();
-      } else {
-        // Unknown phase - default to role reveal
-        console.log(
-          "[SessionManager] Unknown phase, defaulting to role reveal:",
-          phaseType
-        );
-        navigateToRoleReveal();
-      }
-    }
-  }, [
-    coreGameState,
-    location.pathname,
-    navigateToRoleReveal,
-    navigateToGame,
-    navigateToGameOver,
-  ]);
 
   // Theme setup
   useEffect(() => {
@@ -457,6 +400,20 @@ export function useSessionManager() {
       }),
     []
   );
+
+  const handleRoleAssigned = useCallback(
+    (event: any) => {
+      console.log(
+        "[SessionManager] ROLE_ASSIGNED received, transitioning to game:",
+        event.payload
+      );
+      dispatch({
+        type: "ROLE_ASSIGNED",
+        payload: { roleAssignment: event.payload },
+      });
+    },
+    []
+  );
   const handleChatHistorySnapshot = useCallback(
     (event: any) =>
       dispatch({
@@ -473,11 +430,22 @@ export function useSessionManager() {
       );
       if (event.payload?.game_state) {
         try {
-          // Use loadGameState (which calls resetAndLoadState) to update the core with the reconnection snapshot
-          await loadGameState(event.payload.game_state);
+          // Use resetAndLoadState to update the core with the reconnection snapshot
+          await resetAndLoadState(event.payload.game_state);
           console.log(
             "[SessionManager] Successfully loaded game state from reconnection snapshot"
           );
+
+          // Check if the game has started based on the phase
+          const gamePhase = event.payload.game_state.phase?.type;
+          if (gamePhase && gamePhase !== "LOBBY" && state.sessionState === "IN_LOBBY") {
+            console.log(
+              "[SessionManager] Game has started (phase:",
+              gamePhase,
+              "), transitioning to IN_GAME state"
+            );
+            dispatch({ type: "ENTER_GAME" });
+          }
         } catch (error) {
           console.error(
             "[SessionManager] Failed to load game state from reconnection snapshot:",
@@ -486,7 +454,7 @@ export function useSessionManager() {
         }
       }
     },
-    [loadGameState]
+    [resetAndLoadState, state.sessionState]
   );
   const handlePulseCheckUpdated = useCallback(
     (event: any) =>
@@ -549,6 +517,80 @@ export function useSessionManager() {
     });
   }, []);
 
+  // NEW: Unified handler for all granular game events
+  const handleGameEvent = useCallback(async (event: ServerEvent) => {
+    if (!gameEngine.isReady()) {
+      console.warn(`Game engine not ready, skipping event ${event.type}`);
+      return;
+    }
+    
+    try {
+      console.log(`[SessionManager] Applying granular event ${event.type} to game engine`);
+      
+      // Convert ServerEvent to CoreEvent format
+      const coreEvent = {
+        id: event.id || `event_${Date.now()}`,
+        type: event.type,
+        gameId: event.gameId || event.game_id || '',
+        playerId: event.playerId || '',
+        timestamp: event.timestamp || new Date().toISOString(),
+        payload: event.payload || {}
+      };
+
+      // Special handling for chat messages to ensure proper format
+      if (event.type === ServerEventType.ChatMessage) {
+        // Backend sends chat messages with this payload structure:
+        // payload: { sender_id, sender_name, message, phase, day_number, channel_id }
+        // We need to make sure the playerId is set from sender_id
+        if (event.payload?.sender_id) {
+          coreEvent.playerId = event.payload.sender_id;
+        }
+      }
+
+      // The applyEvent now returns the new state directly
+      const newGameState = await gameEngine.applyEvent(coreEvent as any);
+      
+      // Find the local player's role for the roleAssignment piece of state
+      const playersArray: any[] = Array.isArray(newGameState.players)
+        ? newGameState.players
+        : Object.values(newGameState.players || {});
+      const localPlayerInState = playersArray.find((p: any) => p.id === state.appState.playerId);
+      
+      let roleAssignment: RoleAssignment | undefined;
+      if (localPlayerInState && localPlayerInState.role && localPlayerInState.alignment) {
+        roleAssignment = {
+          role: localPlayerInState.role,
+          alignment: localPlayerInState.alignment,
+          personalKPI: localPlayerInState.personalKPI || null,
+        };
+      }
+
+      // Add avatars to the new game state
+      const playersWithAvatars = playersArray.map((player: any) => ({
+        ...player,
+        avatar: state.lobbyState.playerInfos.find((info) => info.id === player.id)?.avatar,
+      }));
+      const gameStateWithAvatars = {
+        ...newGameState,
+        players: playersWithAvatars,
+      };
+
+      // Dispatch the updated state to the reducer
+      dispatch({ 
+        type: "UPDATE_GAME_STATE", 
+        payload: { gameState: gameStateWithAvatars, roleAssignment }
+      });
+
+      // Check for game over condition
+      if (gameStateWithAvatars.winCondition) {
+        dispatch({ type: "GAME_OVER", payload: { sessionState: "POST_GAME" } });
+        navigateToGameOver();
+      }
+    } catch (error) {
+      console.error(`Failed to apply event ${event.type}:`, error);
+    }
+  }, [gameEngine.isReady, state.appState.playerId, state.lobbyState.playerInfos, navigateToGameOver]);
+
   const handlePhaseChanged = useCallback(() => {
     // Reset skip vote state for new phase with empty state
     dispatch({
@@ -567,21 +609,47 @@ export function useSessionManager() {
   // Game event subscriptions
   useEffect(() => {
     if (!isConnected || location.pathname === "/waiting") return;
-    const unsubscribers = [
-      subscribe(ServerEventType.PulseCheckUpdated, handlePulseCheckUpdated),
-      subscribe(ServerEventType.GameStateUpdate, handleGameStateUpdate),
-      subscribe(ServerEventType.SkipVoteUpdated, handleSkipVoteUpdated),
-      subscribe(ServerEventType.PhaseChanged, handlePhaseChanged),
+
+    // List of all events that should trigger a state update
+    const stateChangingEvents: string[] = [
+      ServerEventType.PhaseChanged,
+      ServerEventType.ChatMessage,
+      ServerEventType.MessageReaction,
+      ServerEventType.VoteCast,
+      ServerEventType.ExtensionVotingTriggered,
+      ServerEventType.NightActionSubmitted,
+      ServerEventType.NightActionsResolved,
+      ServerEventType.PlayerLeft,
+      ServerEventType.PlayerEliminated,
+      ServerEventType.MandateActivated,
+      ServerEventType.RoleAssigned,
+      ServerEventType.IncitingIncident,
+      ServerEventType.LoebmateMessage,
+      // Add any other event that modifies core.GameState
     ];
+    
+    const unsubscribers = stateChangingEvents.map(eventType => 
+      subscribe(eventType, handleGameEvent)
+    );
+    
+    // Continue to handle full state snapshots and non-state events separately
+    unsubscribers.push(subscribe(ServerEventType.GameStateUpdate, handleGameStateUpdate));
+    unsubscribers.push(subscribe(ServerEventType.PulseCheckUpdated, handlePulseCheckUpdated));
+    unsubscribers.push(subscribe(ServerEventType.SkipVoteUpdated, handleSkipVoteUpdated));
+    unsubscribers.push(subscribe(ServerEventType.PhaseChanged, handlePhaseChanged));
+    unsubscribers.push(subscribe(ServerEventType.RoleAssigned, handleRoleAssigned));
+
     return () => unsubscribers.forEach((unsub) => unsub());
   }, [
     isConnected,
     location.pathname,
     subscribe,
-    handlePulseCheckUpdated,
+    handleGameEvent,
     handleGameStateUpdate,
+    handlePulseCheckUpdated,
     handleSkipVoteUpdated,
     handlePhaseChanged,
+    handleRoleAssigned,
   ]);
 
   // WebSocket connection
@@ -678,7 +746,8 @@ export function useSessionManager() {
   };
 
   const handleEnterGame = () => {
-    dispatch({ type: "ENTER_GAME" });
+    // This is called from RoleRevealScreen to navigate to the main game view.
+    // No state change is needed as we are already IN_GAME.
     navigateToGame();
   };
 
@@ -766,7 +835,9 @@ export function useSessionManager() {
     if (!isConnected) return;
     const unsubscribe = subscribe("PLAYER_ABANDONED", (event: any) => {
       // Check if the abandoned player is the local player
-      if (event.playerId === state.appState.playerId) {
+      // CRITICAL FIX: Check the correct event property for player ID
+      const abandonedPlayerId = event.playerId || event.payload?.player_id || event.payload?.playerId;
+      if (abandonedPlayerId === state.appState.playerId) {
         console.log(
           "Player abandoned game, clearing session and returning to lobby list"
         );

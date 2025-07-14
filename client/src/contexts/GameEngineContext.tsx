@@ -15,6 +15,7 @@ interface GameEngineContextType {
   getVoteWinner: (threshold?: number) => { winner: string; hasWinner: boolean };
   isGamePhaseOver: () => boolean;
   clearError: () => void;
+  resetAndLoadState: (gameState: any) => Promise<void>;
 }
 
 const GameEngineContext = createContext<GameEngineContextType | undefined>(undefined);
@@ -40,6 +41,7 @@ export function GameEngineProvider({ children }: GameEngineProviderProps) {
     getVoteWinner: gameEngineHook.getVoteWinner,
     isGamePhaseOver: gameEngineHook.isGamePhaseOver,
     clearError: gameEngineHook.clearError,
+    resetAndLoadState: gameEngineHook.resetAndLoadState,
   };
 
   return (

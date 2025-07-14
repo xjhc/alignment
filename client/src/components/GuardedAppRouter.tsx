@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useSessionContext } from '../contexts/SessionContext';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
+import { Button } from './ui/Button';
 
 // Import all screen components
 import { LoginScreen } from './LoginScreen';
@@ -27,6 +28,7 @@ export function GuardedAppRouter() {
     onJoinLobby,
     onCreateGame,
     onSpectateGame,
+    onLeaveLobby,
     onEnterGame
   } = useSessionContext();
   const { isReconnecting, lastError, isConnected } = useWebSocketContext();
@@ -37,31 +39,42 @@ export function GuardedAppRouter() {
     return <WasmTestScreen />;
   }
 
-  // FIX: Add a loading state guard until the initial session check is complete.
+  // Show a loading screen until the initial session check from localStorage is complete.
   if (!appState.sessionChecked) {
     return (
       <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
-        <div className="animate-pulse text-lg font-mono tracking-widest">LOADING SESSION...</div>
+        <div className="animate-pulse text-lg font-mono tracking-widest">INITIALIZING...</div>
       </div>
     );
   }
 
-  // --- Authentication Guardian ---
-  // If the user has no name (is not logged in) and is not on the login page,
-  // force them back to the login page. This is the highest priority rule.
+  // If the user has an invalid session (e.g., from an old game), show an error with a recovery option.
+  if (lastError?.includes('Session expired') || lastError?.includes('invalid session')) {
+    return (
+      <div className="w-screen h-screen flex flex-col items-center justify-center gap-6 bg-background-primary text-text-primary">
+        <div className="bg-background-secondary border border-border p-8 rounded-lg text-center">
+          <h2 className="text-xl font-bold text-danger mb-4">Session Expired</h2>
+          <p className="text-text-secondary mb-6">Your session has expired or is invalid. Please return to the lobby list.</p>
+          <Button variant="primary" onClick={onLeaveLobby}>
+            Return to Lobbies
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Force unauthenticated users back to the login screen.
   if (!appState.playerName && location.pathname !== '/login') {
     return <Navigate to="/login" replace />;
   }
 
-  // --- DEFINITIVE: Reconnection Guardian ---
-  // Show syncing screen ONLY for session restoration, not for fresh joins
+  // For session restores, show a "Syncing..." overlay while waiting for the first state update.
   const showSyncingScreen = 
-    !appState.isNewJoin && // Not a fresh join (i.e., this is a restore)
-    !appState.hasSyncedInitialState && // We haven't received the first update yet
-    (sessionState === 'IN_LOBBY' || sessionState === 'IN_GAME'); // And we're in a session
+    !appState.isNewJoin && // This is a restore, not a fresh join.
+    !appState.hasSyncedInitialState && // We haven't received state yet.
+    (sessionState === 'IN_LOBBY' || sessionState === 'IN_GAME'); // And we expect to be in a session.
 
   if (showSyncingScreen) {
-    // This now correctly shows ONLY on session restoration, not on new lobby creation
     return (
       <div className="screen-transition animation-fade-in">
         <ReconnectionOverlay show={true} />
@@ -69,48 +82,35 @@ export function GuardedAppRouter() {
     );
   }
 
-  // --- The "State Guardian" Logic ---
-  // Once state is loaded, prevent navigating to incorrect pages.
-  if (sessionState !== 'IDLE') {
-    if (location.pathname.startsWith('/login') || location.pathname.startsWith('/lobby-list')) {
-      if (sessionState === 'IN_GAME') {
-        return <Navigate to="/game" replace />;
-      } else if (sessionState === 'IN_LOBBY') {
+  // The "State Guardian": Once state is synced, this logic ensures the user is on the correct screen
+  // for their current session state, preventing manual navigation to invalid pages.
+  switch (sessionState) {
+    case 'IN_LOBBY':
+      if (location.pathname !== '/waiting') {
         return <Navigate to="/waiting" replace />;
-      } else if (sessionState === 'POST_GAME') {
-        return <Navigate to="/game-over" replace />;
-      } else {
-        // Fallback for any other state
-        return <Navigate to="/login" replace />;
       }
-    }
+      break;
+    case 'IN_GAME':
+      // Allow access to game-related routes, but redirect from lobby/login.
+      if (location.pathname !== '/game' && location.pathname !== '/role-reveal') {
+        // If we have a role, we've started. Go to role reveal.
+        // The RoleRevealScreen will handle navigating to /game.
+        return <Navigate to="/role-reveal" replace />;
+      }
+      break;
+    case 'POST_GAME':
+      if (location.pathname !== '/game-over' && location.pathname !== '/analysis') {
+        return <Navigate to="/game-over" replace />;
+      }
+      break;
+    case 'IDLE':
+      if (appState.playerName && location.pathname !== '/lobby-list' && !location.pathname.startsWith('/join')) {
+        return <Navigate to="/lobby-list" replace />;
+      }
+      break;
   }
 
-  // If the user is in post-game state, they should not be able to navigate to active game URLs
-  if (sessionState === 'POST_GAME') {
-    if (location.pathname.startsWith('/login') ||
-      location.pathname.startsWith('/lobby-list') ||
-      location.pathname.startsWith('/waiting') ||
-      location.pathname.startsWith('/role-reveal') ||
-      location.pathname === '/game') {
-      // The state says we're in post-game, redirect to game over
-      return <Navigate to="/game-over" replace />;
-    }
-  }
-
-  // If the user is NOT in a session, they should not be able to access game URLs.
-  if (sessionState === 'IDLE') {
-    if (location.pathname.startsWith('/waiting') ||
-      location.pathname.startsWith('/role-reveal') ||
-      location.pathname.startsWith('/game') ||
-      location.pathname.startsWith('/analysis')) {
-      // The URL is for a game, but our state says we're not in one.
-      // The state wins. Force redirect back to the lobby list.
-      return <Navigate to="/lobby-list" replace />;
-    }
-  }
-
-  // If state and URL are consistent, render the routes normally.
+  // If all checks pass, render the router and handle reconnection overlays.
   return (
     <div className="screen-transition animation-fade-in">
       <Routes>

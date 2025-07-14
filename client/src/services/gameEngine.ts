@@ -94,7 +94,7 @@ export class GameEngine {
     });
   }
 
-  applyEvent(event: GeneratedEvent): Promise<void> {
+  applyEvent(event: GeneratedEvent): Promise<GameState> {
     return new Promise((resolve, reject) => {
       if (!this.core) {
         reject(new Error('Game engine not initialized'));
@@ -106,14 +106,18 @@ export class GameEngine {
         const result = this.core.applyEvent(eventJson);
 
         if (result.success) {
-          // After successfully applying the event, get the updated state and notify listeners
+          // After successfully applying the event, get the updated state
           const updatedState = this.getCurrentState();
           if (updatedState) {
+            // Still notify listeners for any remaining direct subscriptions
             this.notifyStateChange(updatedState);
+            // Return the new state directly
+            resolve(updatedState);
+          } else {
+            reject(new Error("Failed to get updated state from WASM core"));
           }
-          resolve();
         } else {
-          reject(new Error(result.error || 'Failed to apply event'));
+          reject(new Error(result.error || 'Failed to apply event in WASM core'));
         }
       } catch (error) {
         reject(error);

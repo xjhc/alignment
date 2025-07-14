@@ -229,7 +229,7 @@ func (pm *PhaseManager) SchedulePhaseTransition(currentPhase core.PhaseType, pha
 			Type: core.ActionType("PHASE_TRANSITION"),
 			Payload: map[string]interface{}{
 				"next_phase": string(nextPhase),
-				"duration":   GetPhaseDuration(nextPhase, pm.settings).Seconds(),
+				"duration":   GetPhaseDuration(nextPhase, pm.settings),
 			},
 		},
 	}

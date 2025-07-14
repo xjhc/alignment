@@ -1,23 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { PostGameAnalysis } from './PostGameAnalysis';
-import { SessionProvider } from '../contexts/SessionContext';
 import { SessionContextType } from '../contexts/SessionContext';
 
-// Mock session context for Storybook
-const mockSessionContext: SessionContextType = {
+// Mock session context data for Storybook
+const mockSessionContextData: Partial<SessionContextType> = {
   appState: {
-    screen: 'POST_GAME_ANALYSIS',
-    isSpectating: false,
-  },
-  sessionState: {
     playerId: 'player-123',
     playerName: 'Test Player',
-    playerAvatar: '👤',
-    sessionToken: 'mock-token',
-  },
-  lobbyState: {
-    gameId: 'game-123',
-    lobbyName: 'Test Game',
+    isSpectating: false,
+    sessionChecked: true,
   },
   gameState: {} as any,
   roleAssignment: null,
@@ -113,17 +104,6 @@ const mockSessionContext: SessionContextType = {
     }
   },
   isConnected: true,
-  onLogin: () => {},
-  onJoinLobby: () => {},
-  onCreateGame: () => {},
-  onSpectateGame: () => {},
-  onBackToLogin: () => {},
-  onStartGame: () => {},
-  onLeaveLobby: () => {},
-  onEnterGame: () => {},
-  onViewAnalysis: () => {},
-  onPlayAgain: () => {},
-  onBackToResults: () => {},
 };
 
 const meta: Meta<typeof PostGameAnalysis> = {
@@ -136,20 +116,15 @@ const meta: Meta<typeof PostGameAnalysis> = {
     },
   },
   tags: ['autodocs'],
-  decorators: [
-    (Story) => (
-      <SessionProvider value={mockSessionContext}>
-        <Story />
-      </SessionProvider>
-    ),
-  ],
 } satisfies Meta<typeof PostGameAnalysis>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const WithLiveData: Story = {
-  args: {},
+  args: {
+    storySessionContext: mockSessionContextData,
+  },
   parameters: {
     docs: {
       description: {
@@ -232,16 +207,12 @@ export const WithCustomAnalysisData: Story = {
 };
 
 export const LoadingState: Story = {
-  decorators: [
-    (Story) => (
-      <SessionProvider value={{
-        ...mockSessionContext,
-        gameAnalysis: null, // No analysis data to show loading fallback
-      }}>
-        <Story />
-      </SessionProvider>
-    ),
-  ],
+  args: {
+    storySessionContext: {
+      ...mockSessionContextData,
+      gameAnalysis: null, // No analysis data to show loading fallback
+    },
+  },
   parameters: {
     docs: {
       description: {

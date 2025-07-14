@@ -444,6 +444,11 @@ func (s *Server) validateCreateLobbyRequest(req CreateLobbyRequest) error {
 		return fmt.Errorf("player_avatar too long (max 50 characters)")
 	}
 
+	// Validate game settings
+	if req.InitialAlignedHumanCount < 0 || req.InitialAlignedHumanCount > 1 {
+		return fmt.Errorf("initial_aligned_human_count must be 0 or 1")
+	}
+
 	return nil
 }
 
@@ -639,6 +644,14 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create GameSettings from request
+	gameSettings := core.GameSettings{
+		PlayAsAI:                 req.PlayAsAI,
+		InitialAlignedHumanCount: req.InitialAlignedHumanCount,
+		// TODO: Add other settings here if they are configurable in the future
+		// For now, let the defaults be set in the NewLobby function
+	}
+
 	// Check admission control (using player name as user ID for simplicity)
 	requestBody, _ := json.Marshal(req)
 	if err := s.admissionController.CheckAdmission(req.PlayerName, requestBody); err != nil {
@@ -688,7 +701,7 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 
 	// Call the new, centralized method in the GameLifecycleManager
 	// This ensures only one hostPlayerID is generated and used consistently
-	lobbyID, hostPlayerID, sessionToken, err := s.lifecycleManager.CreateLobbyViaHTTP(actualUserID, req.PlayerName, req.LobbyName, req.PlayerAvatar, req.IsPrivate)
+	lobbyID, hostPlayerID, sessionToken, err := s.lifecycleManager.CreateLobbyViaHTTP(actualUserID, req.PlayerName, req.LobbyName, req.PlayerAvatar, req.IsPrivate, gameSettings)
 	if err != nil {
 		log.Error("Failed to create lobby", "error", err, "player_name", req.PlayerName)
 		http.Error(w, fmt.Sprintf("Failed to create lobby: %v", err), http.StatusInternalServerError)

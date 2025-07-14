@@ -337,12 +337,35 @@ func (gs *GameState) applyPlayerLeft(event Event) {
 
 func (gs *GameState) applyPhaseChanged(event Event) {
 	newPhaseType, _ := event.Payload["phase_type"].(string)
-	duration, _ := event.Payload["duration"].(float64)
+
+	var duration time.Duration
+	if durVal, ok := event.Payload["duration"]; ok {
+		// Use a type switch to handle different numeric types gracefully.
+		switch v := durVal.(type) {
+		case time.Duration:
+			// Handle the case where the event is processed in-memory (type is time.Duration).
+			duration = v
+		case float64:
+			// Handle the case where the event is unmarshaled from JSON.
+			duration = time.Duration(v)
+		case int:
+			duration = time.Duration(v)
+		case int64:
+			duration = time.Duration(v)
+		case json.Number:
+			// Handle cases where JSON numbers are not automatically converted to float64.
+			if i, err := v.Int64(); err == nil {
+				duration = time.Duration(i)
+			}
+		default:
+			duration = 0
+		}
+	}
 
 	gs.Phase = Phase{
 		Type:      PhaseType(newPhaseType),
 		StartTime: event.Timestamp,
-		Duration:  time.Duration(duration) * time.Second,
+		Duration:  duration,
 	}
 
 	// Clear skip votes at the start of each new phase

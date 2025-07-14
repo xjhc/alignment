@@ -87,7 +87,7 @@ type SessionManagerInterface interface {
 // GameLifecycleManagerInterface unifies lobby and session management
 type GameLifecycleManagerInterface interface {
 	// Lobby management
-	CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool) (string, string, string, error)
+	CreateLobbyViaHTTP(userID, hostPlayerName, lobbyName, playerAvatar string, isPrivate bool, settings core.GameSettings) (string, string, string, error)
 	JoinLobby(lobbyID, userID, playerName, playerAvatar string) (string, string, error)
 	JoinLobbyWithActor(lobbyID string, playerActor PlayerActorInterface) error
 	StartGame(lobbyID string, hostPlayerID string) error

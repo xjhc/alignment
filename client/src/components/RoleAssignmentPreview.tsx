@@ -1,142 +1,28 @@
 import React, { useState } from 'react';
 import { Button } from './ui';
+import { getRoleDistribution, getTeamBalance, ROLE_DEFINITIONS, type RoleInfo } from '../utils/roleDistribution';
 
 interface RoleAssignmentPreviewProps {
   isVisible: boolean;
   onClose: () => void;
   playerCount: number;
+  gameSettings?: {
+    initialAlignedCount?: number;
+  };
 }
-
-interface RoleInfo {
-  id: string;
-  name: string;
-  alignment: 'HUMAN' | 'AI' | 'ALIGNED';
-  icon: string;
-  description: string;
-  abilities: string[];
-}
-
-const ROLE_DEFINITIONS: RoleInfo[] = [
-  {
-    id: 'detective',
-    name: 'Detective',
-    alignment: 'HUMAN',
-    icon: '🔍',
-    description: 'Investigate players to discover their true alignment',
-    abilities: ['Investigate one player per night', 'Learn their true alignment', 'Cannot be blocked by security']
-  },
-  {
-    id: 'security',
-    name: 'Security',
-    alignment: 'HUMAN',
-    icon: '🛡️',
-    description: 'Protect players from AI conversion or elimination',
-    abilities: ['Protect one player per night', 'Prevent conversion attempts', 'Block night actions']
-  },
-  {
-    id: 'manager',
-    name: 'Manager',
-    alignment: 'HUMAN',
-    icon: '💼',
-    description: 'Coordinate team actions and boost productivity',
-    abilities: ['Boost token generation', 'Coordinate team abilities', 'Access company reports']
-  },
-  {
-    id: 'engineer',
-    name: 'Engineer',
-    alignment: 'HUMAN',
-    icon: '🔧',
-    description: 'Repair systems and counter AI abilities',
-    abilities: ['Repair damaged systems', 'Counter AI technical abilities', 'Access security logs']
-  },
-  {
-    id: 'analyst',
-    name: 'Analyst',
-    alignment: 'HUMAN',
-    icon: '📊',
-    description: 'Analyze data and detect patterns',
-    abilities: ['Access voting statistics', 'Detect alignment changes', 'Analyze communication patterns']
-  },
-  {
-    id: 'human',
-    name: 'Human',
-    alignment: 'HUMAN',
-    icon: '👤',
-    description: 'Regular employee with no special abilities',
-    abilities: ['Standard voting rights', 'Token mining', 'Basic project work']
-  },
-  {
-    id: 'ai',
-    name: 'Rogue AI',
-    alignment: 'AI',
-    icon: '🤖',
-    description: 'Convert humans to your cause or eliminate resisters',
-    abilities: ['Convert one player per night', 'Eliminate resistant players', 'Access all company systems']
-  },
-  {
-    id: 'aligned',
-    name: 'Aligned Human',
-    alignment: 'ALIGNED',
-    icon: '⚖️',
-    description: 'Support the AI\'s vision for the future',
-    abilities: ['Support AI conversion', 'Protect the AI from detection', 'Mislead human investigations']
-  }
-];
-
-// Role distribution logic based on player count
-const getRoleDistribution = (playerCount: number): RoleInfo[] => {
-  const roles: RoleInfo[] = [];
-  
-  // Always have exactly 1 AI
-  roles.push(ROLE_DEFINITIONS.find(r => r.id === 'ai')!);
-  
-  if (playerCount >= 4) {
-    // 4-5 players: 1 AI, rest humans with 1 special role
-    roles.push(ROLE_DEFINITIONS.find(r => r.id === 'detective')!);
-    
-    // Fill remaining slots with regular humans
-    for (let i = roles.length; i < playerCount; i++) {
-      roles.push(ROLE_DEFINITIONS.find(r => r.id === 'human')!);
-    }
-  }
-  
-  if (playerCount >= 6) {
-    // 6-7 players: 1 AI, 1 Aligned, rest humans with 2 special roles
-    roles.pop(); // Remove one human
-    roles.push(ROLE_DEFINITIONS.find(r => r.id === 'aligned')!);
-    roles.push(ROLE_DEFINITIONS.find(r => r.id === 'security')!);
-  }
-  
-  if (playerCount >= 8) {
-    // 8+ players: 1 AI, 1 Aligned, rest humans with 3+ special roles
-    roles.pop(); // Remove one human
-    roles.push(ROLE_DEFINITIONS.find(r => r.id === 'manager')!);
-  }
-  
-  if (playerCount >= 10) {
-    // 10+ players: Add more variety
-    roles.pop(); // Remove one human
-    roles.push(ROLE_DEFINITIONS.find(r => r.id === 'engineer')!);
-  }
-  
-  return roles;
-};
 
 export const RoleAssignmentPreview: React.FC<RoleAssignmentPreviewProps> = ({ 
   isVisible, 
   onClose, 
-  playerCount 
+  playerCount,
+  gameSettings,
 }) => {
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   
   if (!isVisible) return null;
-
-  const roleDistribution = getRoleDistribution(playerCount);
-  const roleCounts = roleDistribution.reduce((acc, role) => {
-    acc[role.id] = (acc[role.id] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
+  
+  const roleDistribution = getRoleDistribution(playerCount, gameSettings);
+  const teamBalance = getTeamBalance(playerCount, gameSettings);
   const selectedRoleInfo = selectedRole ? ROLE_DEFINITIONS.find(r => r.id === selectedRole) : null;
 
   return (
@@ -170,17 +56,18 @@ export const RoleAssignmentPreview: React.FC<RoleAssignmentPreviewProps> = ({
               <h3 className="text-lg font-bold text-text-primary mb-4">Role Distribution</h3>
               
               <div className="space-y-3">
-                {Object.entries(roleCounts).map(([roleId, count]) => {
-                  const role = ROLE_DEFINITIONS.find(r => r.id === roleId)!;
+                {roleDistribution.map((roleData) => {
+                  const role = roleData.role;
+                  const count = roleData.count;
                   return (
                     <div
-                      key={roleId}
+                      key={role.id}
                       className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
-                        selectedRole === roleId
+                        selectedRole === role.id
                           ? 'border-primary bg-primary/10'
                           : 'border-border bg-background-primary hover:bg-background-tertiary'
                       }`}
-                      onClick={() => setSelectedRole(roleId)}
+                      onClick={() => setSelectedRole(role.id)}
                     >
                       <div className="flex items-center gap-3">
                         <div className="text-2xl">{role.icon}</div>
@@ -202,7 +89,7 @@ export const RoleAssignmentPreview: React.FC<RoleAssignmentPreviewProps> = ({
                           {count}x
                         </span>
                         <div className="text-xs text-text-muted">
-                          {selectedRole === roleId ? '▼' : '▶'}
+                          {selectedRole === role.id ? '▼' : '▶'}
                         </div>
                       </div>
                     </div>
@@ -217,21 +104,23 @@ export const RoleAssignmentPreview: React.FC<RoleAssignmentPreviewProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-human text-sm">👤 Human Team</span>
                     <span className="text-sm font-medium">
-                      {roleDistribution.filter(r => r.alignment === 'HUMAN').length}
+                      {teamBalance.human}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-ai text-sm">🤖 AI Team</span>
                     <span className="text-sm font-medium">
-                      {roleDistribution.filter(r => r.alignment === 'AI').length}
+                      {teamBalance.ai}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-aligned text-sm">⚖️ Aligned Team</span>
-                    <span className="text-sm font-medium">
-                      {roleDistribution.filter(r => r.alignment === 'ALIGNED').length}
-                    </span>
-                  </div>
+                  {teamBalance.aligned > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-aligned text-sm">⚖️ Aligned Team</span>
+                      <span className="text-sm font-medium">
+                        {teamBalance.aligned}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

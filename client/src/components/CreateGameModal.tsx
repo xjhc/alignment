@@ -17,14 +17,14 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
 }) => {
   const [lobbyName, setLobbyName] = useState(`${playerName} Game`);
   const [playAsAI, setPlayAsAI] = useState(false);
-  const [initialAlignedCount, setInitialAlignedCount] = useState(0);
+  const [hasInitialAligned, setHasInitialAligned] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onCreate({
       lobbyName,
       playAsAI,
-      initialAlignedHumanCount: initialAlignedCount,
+      initialAlignedHumanCount: hasInitialAligned ? 1 : 0,
     });
     onClose();
   };
@@ -76,33 +76,21 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
                   />
                 </div>
 
-                <div className="p-3 bg-background-secondary rounded-lg hover:bg-background-tertiary transition-colors duration-200">
-                  <label
-                    htmlFor="aligned-count"
-                    className="font-medium text-text-primary text-sm"
-                  >
-                    Initial Aligned Humans
-                  </label>
-                  <p className="text-xs text-text-secondary mb-3">
-                    Start with a number of humans already aligned with the AI.
-                  </p>
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="range"
-                      id="aligned-count"
-                      min="0"
-                      max="3"
-                      step="1"
-                      value={initialAlignedCount}
-                      onChange={(e) =>
-                        setInitialAlignedCount(Number(e.target.value))
-                      }
-                      className="w-full h-2 bg-background-tertiary rounded-lg appearance-none cursor-pointer hover:bg-background-primary transition-colors duration-200"
-                    />
-                    <span className="font-mono text-lg font-bold text-primary">
-                      {initialAlignedCount}
-                    </span>
+                <div className="flex items-center justify-between p-3 bg-background-secondary rounded-lg hover:bg-background-tertiary transition-colors duration-200">
+                  <div>
+                    <label className="font-medium text-text-primary text-sm">
+                      Start with 1 Aligned Human
+                    </label>
+                    <p className="text-xs text-text-secondary">
+                      One human player will secretly start on the AI's team.
+                    </p>
                   </div>
+                  <input
+                    type="checkbox"
+                    checked={hasInitialAligned}
+                    onChange={(e) => setHasInitialAligned(e.target.checked)}
+                    className="h-5 w-5 rounded-md border-border text-primary focus:ring-primary"
+                  />
                 </div>
               </div>
             </div>

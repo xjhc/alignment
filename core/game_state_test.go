@@ -444,7 +444,7 @@ func TestApplyEvent_PhaseTransition(t *testing.T) {
 		Timestamp: time.Now(),
 		Payload: map[string]interface{}{
 			"phase_type": "SITREP",
-			"duration":   float64(30), // 30 seconds
+			"duration":   float64(30 * time.Second), // 30 seconds as nanoseconds
 		},
 	}
 

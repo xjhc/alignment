@@ -172,6 +172,32 @@ export function useGameEngine() {
     [state.isLoaded]
   );
 
+  const resetAndLoadState = useCallback(
+    async (gameState: GameState) => {
+      if (!state.isLoaded) {
+        throw new Error("Game engine not loaded");
+      }
+
+      try {
+        await gameEngine.resetAndLoadState(gameState);
+        setState((prev) => ({
+          ...prev,
+          gameState: gameEngine.getCurrentState(),
+        }));
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to reset and load game state",
+        }));
+        throw error;
+      }
+    },
+    [state.isLoaded]
+  );
+
   // Game rule methods
   const canPlayerVote = useCallback(
     (playerId: string, phaseType: string): boolean => {
@@ -253,6 +279,7 @@ export function useGameEngine() {
     applyEvent,
     submitAction,
     loadGameState,
+    resetAndLoadState,
     clearError,
 
     // Game rules

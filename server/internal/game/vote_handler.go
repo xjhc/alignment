@@ -96,9 +96,9 @@ func (h *VoteHandler) handleSkipVoteAction(state *core.GameState, action core.Ac
 		nextPhase := GetNextPhase(newState.Phase.Type)
 		if nextPhase != core.PhaseGameOver {
 			phaseDuration := GetPhaseDuration(nextPhase, state.Settings)
-			transitionPayload := core.PhaseChangedPayload{
-				PhaseType: string(nextPhase),
-				Duration:  phaseDuration.Seconds(),
+			transitionPayload := map[string]interface{}{
+				"phase_type": string(nextPhase),
+				"duration":   phaseDuration,
 			}
 			transitionEvent := core.NewEventWithTypedPayload(
 				fmt.Sprintf("phase_transition_%s_%d", action.GameID, time.Now().UnixNano()),
@@ -343,9 +343,9 @@ func (h *VoteHandler) handleExtensionVoteResults(state *core.GameState, acker Ac
 	if nextAction == "EXTEND" {
 		// Extend the discussion phase by 1 minute
 		// This will be handled by the phase manager via a scheduled timer extension
-		extensionPayload := core.PhaseChangedPayload{
-			PhaseType: string(core.PhaseDiscussion),
-			Duration:  state.Settings.ExtensionDuration.Seconds(),
+		extensionPayload := map[string]interface{}{
+			"phase_type": string(core.PhaseDiscussion),
+			"duration":   state.Settings.ExtensionDuration,
 		}
 		extensionEvent := core.NewEventWithTypedPayload(
 			fmt.Sprintf("discussion_extended_%d", time.Now().UnixNano()),
@@ -358,9 +358,9 @@ func (h *VoteHandler) handleExtensionVoteResults(state *core.GameState, acker Ac
 		events = append(events, extensionEvent)
 	} else {
 		// Move to nomination phase
-		nominationPayload := core.PhaseChangedPayload{
-			PhaseType: string(core.PhaseNomination),
-			Duration:  state.Settings.NominationDuration.Seconds(),
+		nominationPayload := map[string]interface{}{
+			"phase_type": string(core.PhaseNomination),
+			"duration":   state.Settings.NominationDuration,
 		}
 		nominationEvent := core.NewEventWithTypedPayload(
 			fmt.Sprintf("phase_transition_nomination_%d", time.Now().UnixNano()),

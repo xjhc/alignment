@@ -1,5 +1,4 @@
 import { ClientAction, ServerEvent, ConnectionState, ServerEventType } from '../types';
-import { gameEngine } from './gameEngine';
 
 export class WebSocketClient {
   private socket: WebSocket | null = null;
@@ -279,95 +278,8 @@ export class WebSocketClient {
   private handleServerEvent(event: ServerEvent): void {
     console.log('Received server event:', event.type, event.payload);
 
-    // Handle events using a switch statement with generated enum
+    // Handle only connection-related events that affect the websocket state itself
     switch (event.type) {
-      case ServerEventType.GameStateUpdate:
-        // Full state sync - only used for initial game transition
-        if (gameEngine.isReady()) {
-          const gameState = event.payload?.game_state;
-          if (gameState) {
-            console.log('Loading core state from GAME_STATE_UPDATE...');
-            gameEngine.resetAndLoadState(gameState)
-              .catch(err => console.error('Failed to load game state:', err));
-          }
-        } else {
-          console.warn('Game engine not ready for GAME_STATE_UPDATE, will retry when ready');
-        }
-        break;
-
-      case ServerEventType.RoleAssigned:
-      case ServerEventType.PhaseChanged:
-      case ServerEventType.ChatMessage:
-      case ServerEventType.MessageReaction:
-      case ServerEventType.IncitingIncident:
-      case ServerEventType.LoebmateMessage:
-      case ServerEventType.VoteCast:
-      case ServerEventType.ExtensionVotingTriggered:
-      case ServerEventType.NightActionSubmitted:
-      case ServerEventType.NightActionsResolved:
-      case ServerEventType.PlayerLeft:
-      case ServerEventType.PlayerEliminated:
-      case ServerEventType.PulseCheckStarted:
-      case ServerEventType.PulseCheckUpdated:
-      case ServerEventType.MandateActivated:
-        // Granular events - apply to game engine if available
-        if (gameEngine.isReady()) {
-          console.log(`Applying granular event ${event.type} to game engine`);
-          if (event.type === ServerEventType.MessageReaction) {
-            console.log("[WebSocket] MESSAGE_REACTION details:", {
-              messageId: event.payload?.message_id,
-              emoji: event.payload?.emoji,
-              playerName: event.payload?.player_name,
-              eventPlayerId: event.playerId,
-              fullEvent: event
-            });
-          }
-
-          // Convert ServerEvent to CoreEvent format
-          let coreEvent = {
-            id: event.id || `event_${Date.now()}`,
-            type: event.type,
-            gameId: event.gameId || event.game_id || '',
-            playerId: event.playerId || '',
-            timestamp: event.timestamp || new Date().toISOString(),
-            payload: event.payload || {}
-          };
-
-          // Special handling for chat messages to ensure proper format
-          if (event.type === ServerEventType.ChatMessage) {
-            // Backend sends chat messages with this payload structure:
-            // payload: { sender_id, sender_name, message, phase, day_number, channel_id }
-            // We need to make sure the playerId is set from sender_id
-            if (event.payload?.sender_id) {
-              coreEvent.playerId = event.payload.sender_id;
-            }
-          }
-
-          gameEngine.applyEvent(coreEvent)
-            .catch(err => console.error(`Failed to apply event ${event.type}:`, err));
-        } else {
-          console.warn(`Game engine not ready for event ${event.type}, will buffer for later`);
-          // Could implement event buffering here if needed
-        }
-        break;
-
-      case ServerEventType.GameStarted:
-        // GAME_STARTED events don't need to be applied to the game engine
-        // since they're just notifications. The actual game state will come
-        // via GAME_STATE_UPDATE event which loads the full initial state.
-        console.log('Game started event received - awaiting state update');
-        break;
-        
-      // Events handled directly by UI subscribers
-      case ServerEventType.SystemMessage:
-      case ServerEventType.LobbyStateUpdate:
-      case ServerEventType.ClientIdentified:
-      case ServerEventType.ChatHistorySnapshot:
-      case ServerEventType.SkipVoteUpdated:
-        // These events are handled directly by UI subscribers in App.tsx.
-        // The game engine doesn't need to process them.
-        break;
-
       case ServerEventType.SessionExpired:
         // Handle session expiry by clearing credentials and stopping reconnection
         console.log('Session expired:', event.payload?.message || 'Session has expired');
@@ -406,20 +318,12 @@ export class WebSocketClient {
         });
         break;
 
-      case ServerEventType.ClientError:
-        // Handle client-side error notifications from server
-        console.warn(`[WebSocketClient] Received client error from server: ${event.payload?.message || 'Unknown error'}`);
-        // Don't apply to game engine - this is a client-side error notification
-        // Will be handled by UI subscribers (e.g., useSessionManager)
-        break;
-
       default:
-        // Unknown event types - just log and pass to subscribers
-        console.log(`Unknown event type: ${event.type}, passing to subscribers only`);
+        // All other events are just passed to subscribers for centralized handling
         break;
     }
 
-    // Always emit to UI subscribers for additional handling
+    // Always emit to subscribers for centralized handling
     this.emitToSubscribers(event);
   }
 

@@ -42,15 +42,16 @@ type LobbyManager struct {
 
 // JoinToken represents a session token for a player in a lobby
 type JoinToken struct {
-	Token        string    `json:"token"`
-	LobbyID      string    `json:"lobby_id"`
-	PlayerID     string    `json:"player_id"`
-	PlayerName   string    `json:"player_name"`
-	PlayerAvatar string    `json:"player_avatar"`
-	LobbyName    string    `json:"lobby_name"`
-	IsHost       bool      `json:"is_host"`
-	IsPrivate    bool      `json:"is_private"`
-	ExpiresAt    time.Time `json:"expires_at"`
+	Token        string            `json:"token"`
+	LobbyID      string            `json:"lobby_id"`
+	PlayerID     string            `json:"player_id"`
+	PlayerName   string            `json:"player_name"`
+	PlayerAvatar string            `json:"player_avatar"`
+	LobbyName    string            `json:"lobby_name"`
+	IsHost       bool              `json:"is_host"`
+	IsPrivate    bool              `json:"is_private"`
+	Settings     core.GameSettings `json:"settings"`
+	ExpiresAt    time.Time         `json:"expires_at"`
 }
 
 // NewLobbyManager creates a new lobby manager
@@ -185,7 +186,7 @@ func (lm *LobbyManager) CreateLobbyViaHTTP(hostPlayerName, lobbyName, playerAvat
 	// while the WebSocket handler tries to acquire a read lock.
 
 	// Generate the session token for the host with lobby creation info
-	sessionToken, err := lm.generateSessionTokenWithLobbyInfo(lobbyID, hostPlayerID, hostPlayerName, playerAvatar, lobbyName, true, isPrivate)
+	sessionToken, err := lm.generateSessionTokenWithLobbyInfo(lobbyID, hostPlayerID, hostPlayerName, playerAvatar, lobbyName, true, isPrivate, core.GameSettings{})
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}
@@ -231,7 +232,7 @@ func (lm *LobbyManager) CreateLobby(hostActor interfaces.PlayerActorInterface, l
 	}
 
 	// Generate session token for host
-	sessionToken, err := lm.generateSessionTokenWithLobbyInfo(lobbyID, hostPlayerID, hostActor.GetPlayerName(), "", lobbyName, false, isPrivate)
+	sessionToken, err := lm.generateSessionTokenWithLobbyInfo(lobbyID, hostPlayerID, hostActor.GetPlayerName(), "", lobbyName, false, isPrivate, core.GameSettings{})
 	if err != nil {
 		delete(lm.lobbies, lobbyID)
 		return "", fmt.Errorf("failed to generate host session token: %w", err)
@@ -267,7 +268,7 @@ func (lm *LobbyManager) JoinLobby(gameID, playerName, playerAvatar string) (stri
 
 	// Generate a unique player ID and session token
 	playerID := fmt.Sprintf("player_%s_%d", playerName, time.Now().UnixNano())
-	sessionToken, err := lm.generateSessionTokenWithLobbyInfo(gameID, playerID, playerName, playerAvatar, "", false, lobby.IsPrivate)
+	sessionToken, err := lm.generateSessionTokenWithLobbyInfo(gameID, playerID, playerName, playerAvatar, "", false, lobby.IsPrivate, core.GameSettings{})
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate session token: %w", err)
 	}
@@ -302,23 +303,7 @@ func (lm *LobbyManager) JoinLobbyWithActor(lobbyID string, playerActor interface
 		if lobbyName == "" {
 			lobbyName = hostToken.PlayerName + "'s Game"
 		}
-		defaultSettings := core.GameSettings{
-			MaxPlayers:               8,
-			MinPlayers:               4,
-			SitrepDuration:           time.Minute * 2,
-			PulseCheckDuration:       time.Minute * 1,
-			DiscussionDuration:       time.Minute * 5,
-			ExtensionDuration:        time.Minute * 2,
-			NominationDuration:       time.Minute * 2,
-			TrialDuration:            time.Minute * 3,
-			VerdictDuration:          time.Minute * 2,
-			NightDuration:            time.Minute * 2,
-			StartingTokens:           10,
-			VotingThreshold:          0.5,
-			InitialAlignedHumanCount: 0,
-			PlayAsAI:                 false,
-		}
-		lobby = NewLobby(lobbyID, lobbyName, hostToken.PlayerID, playerActor, hostToken.IsPrivate, defaultSettings)
+		lobby = NewLobby(lobbyID, lobbyName, hostToken.PlayerID, playerActor, hostToken.IsPrivate, hostToken.Settings)
 		lobby.Status = "WAITING" // Host is connected, so it's waiting for players
 		lm.lobbies[lobbyID] = lobby
 		log.Printf("[LobbyManager] Created lobby %s for player %s", lobbyID, playerID)
@@ -489,11 +474,11 @@ func (lm *LobbyManager) GenerateJoinToken(lobbyID, playerID string) (string, err
 
 // generateSessionToken creates a session token for a player in a lobby (legacy method)
 func (lm *LobbyManager) generateSessionToken(lobbyID, playerID string) (string, error) {
-	return lm.generateSessionTokenWithLobbyInfo(lobbyID, playerID, "Unknown", "", "", false, false)
+	return lm.generateSessionTokenWithLobbyInfo(lobbyID, playerID, "Unknown", "", "", false, false, core.GameSettings{})
 }
 
 // generateSessionTokenWithLobbyInfo creates a session token with full lobby info
-func (lm *LobbyManager) generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost, isPrivate bool) (string, error) {
+func (lm *LobbyManager) generateSessionTokenWithLobbyInfo(lobbyID, playerID, playerName, playerAvatar, lobbyName string, isHost, isPrivate bool, settings core.GameSettings) (string, error) {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
@@ -509,6 +494,7 @@ func (lm *LobbyManager) generateSessionTokenWithLobbyInfo(lobbyID, playerID, pla
 		LobbyName:    lobbyName,
 		IsHost:       isHost,
 		IsPrivate:    isPrivate,
+		Settings:     settings,
 		ExpiresAt:    time.Now().Add(24 * time.Hour),
 	}
 
