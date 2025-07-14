@@ -430,39 +430,42 @@ func (glm *GameLifecycleManager) handleGameDisconnection(event events.PlayerDisc
 	}
 	glm.mutex.Unlock()
 
-	// Notify the GameActor about the disconnection (set connection status to DISCONNECTED)
-	glm.mutex.RLock()
-	gameActor, exists := glm.gameActors[event.GameID]
-	glm.mutex.RUnlock()
+	// Start grace period timer immediately without waiting for GameActor operations
+	glm.startGracePeriodTimer(event.GameID, event.PlayerID)
 
-	if exists {
-		log.Printf("[Disconnect-%s] handleGameDisconnection: Found GameActor, dispatching connection status change", correlationID)
-		
-		// Send SET_PLAYER_CONNECTION_STATUS action to GameActor
-		disconnectAction := core.Action{
-			Type:     core.ActionSetPlayerConnectionStatus,
-			PlayerID: event.PlayerID,
-			GameID:   event.GameID,
-			Payload: map[string]interface{}{
-				"connection_status": "DISCONNECTED",
-			},
-		}
+	// Asynchronously notify the GameActor about the disconnection to avoid blocking
+	// This prevents deadlocks when the player tries to reconnect immediately
+	helpers.GoSafe(glm.ctx, func(ctx context.Context) {
+		glm.mutex.RLock()
+		gameActor, exists := glm.gameActors[event.GameID]
+		glm.mutex.RUnlock()
 
-		// Post action synchronously to ensure the status is updated and broadcasted
-		log.Printf("[Disconnect-%s] handleGameDisconnection: Posting SET_PLAYER_CONNECTION_STATUS action", correlationID)
-		resultChan := gameActor.PostAction(disconnectAction)
-		result := <-resultChan
-		if result.Error != nil {
-			log.Printf("[Disconnect-%s] handleGameDisconnection: ERROR - Failed to set player connection status: %v", correlationID, result.Error)
+		if exists {
+			log.Printf("[Disconnect-%s] handleGameDisconnection: Found GameActor, dispatching connection status change", correlationID)
+			
+			// Send SET_PLAYER_CONNECTION_STATUS action to GameActor
+			disconnectAction := core.Action{
+				Type:     core.ActionSetPlayerConnectionStatus,
+				PlayerID: event.PlayerID,
+				GameID:   event.GameID,
+				Payload: map[string]interface{}{
+					"connection_status": "DISCONNECTED",
+				},
+			}
+
+			// Post action and wait for response (but now in a separate goroutine)
+			log.Printf("[Disconnect-%s] handleGameDisconnection: Posting SET_PLAYER_CONNECTION_STATUS action", correlationID)
+			resultChan := gameActor.PostAction(disconnectAction)
+			result := <-resultChan
+			if result.Error != nil {
+				log.Printf("[Disconnect-%s] handleGameDisconnection: ERROR - Failed to set player connection status: %v", correlationID, result.Error)
+			} else {
+				log.Printf("[Disconnect-%s] handleGameDisconnection: Successfully set connection status to DISCONNECTED and broadcasted to other players", correlationID)
+			}
 		} else {
-			log.Printf("[Disconnect-%s] handleGameDisconnection: Successfully set connection status to DISCONNECTED and broadcasted to other players", correlationID)
+			log.Printf("[Disconnect-%s] handleGameDisconnection: GameActor not found for game %s", correlationID, event.GameID)
 		}
-
-		// Start grace period timer
-		glm.startGracePeriodTimer(event.GameID, event.PlayerID)
-	} else {
-		log.Printf("[Disconnect-%s] handleGameDisconnection: GameActor not found for game %s", correlationID, event.GameID)
-	}
+	})
 }
 
 // startGracePeriodTimer starts a grace period timer for a disconnected player
@@ -1767,68 +1770,79 @@ func (glm *GameLifecycleManager) GetGameActor(gameID string) (interfaces.GameAct
 
 // ReconnectPlayerToGame re-adds a reconnecting player to an active game session
 func (glm *GameLifecycleManager) ReconnectPlayerToGame(gameID string, playerActor interfaces.PlayerActorInterface) error {
-	// Generate correlation ID for tracking this reconnection flow
-	correlationID := uuid.New().String()[:8]
 	playerID := playerActor.GetPlayerID()
-	
-	log.Printf("[Connection-%s] ReconnectPlayerToGame: Starting reconnection for player %s to game %s", correlationID, playerID, gameID)
-	
-	glm.mutex.Lock()
-	defer glm.mutex.Unlock()
+	correlationID := uuid.New().String()[:8]
+	log.Printf("[Connection-%s] ReconnectPlayerToGame: Starting synchronous reconnection for player %s to game %s", correlationID, playerID, gameID)
 
+	glm.mutex.Lock()
 	// Check if the game session exists
 	session, exists := glm.gameSessions[gameID]
 	if !exists {
-		log.Printf("[Connection-%s] ReconnectPlayerToGame: FAILED - game session not found: %s", correlationID, gameID)
-		return fmt.Errorf("game session not found: %s", gameID)
+		// If the session map doesn't exist, this might be the first reconnect after a server restart.
+		// Create the session map.
+		glm.gameSessions[gameID] = make(map[string]interfaces.PlayerActorInterface)
+		session = glm.gameSessions[gameID]
+		log.Printf("[Connection-%s] ReconnectPlayerToGame: Created new game session map for game %s", correlationID, gameID)
 	}
-	
-	log.Printf("[Connection-%s] ReconnectPlayerToGame: Found existing game session %s", correlationID, gameID)
 
-	// Cancel the grace period timer if it exists
+	// Cancel any pending abandonment timer for this player.
 	glm.cancelGracePeriod(gameID, playerID)
 	log.Printf("[Connection-%s] ReconnectPlayerToGame: Cancelled grace period for player %s", correlationID, playerID)
 
-	// Add the player back to the game session
+	// Add the player's new actor back to the game session map.
 	session[playerID] = playerActor
-	log.Printf("[Connection-%s] ReconnectPlayerToGame: Player %s added back to game session", correlationID, playerID)
+	log.Printf("[Connection-%s] ReconnectPlayerToGame: Player %s added back to game session. Session size: %d", correlationID, playerID, len(session))
+	glm.mutex.Unlock()
 
-	// Notify the GameActor about the reconnection (set connection status to CONNECTED)
+	// Find the GameActor - critical for sending immediate state snapshot
 	glm.mutex.RLock()
 	gameActor, exists := glm.gameActors[gameID]
 	glm.mutex.RUnlock()
 
-	if exists {
-		log.Printf("[Connection-%s] ReconnectPlayerToGame: Found GameActor, sending connection status update and state snapshot", correlationID)
-		
-		// Send SET_PLAYER_CONNECTION_STATUS action to GameActor
-		reconnectAction := core.Action{
-			Type:     core.ActionSetPlayerConnectionStatus,
-			PlayerID: playerID,
-			GameID:   gameID,
-			Payload: map[string]interface{}{
-				"connection_status": "CONNECTED",
-			},
-		}
-
-		// Post action synchronously to ensure connection status is updated first
-		log.Printf("[Connection-%s] ReconnectPlayerToGame: Posting connection status action to GameActor", correlationID)
-		resultChan := gameActor.PostAction(reconnectAction)
-		result := <-resultChan
-		if result.Error != nil {
-			log.Printf("[Connection-%s] ReconnectPlayerToGame: ERROR - Failed to set player connection status: %v", correlationID, result.Error)
-		} else {
-			log.Printf("[Connection-%s] ReconnectPlayerToGame: Successfully updated connection status in GameActor", correlationID)
-		}
-
-		// Now send the player a complete state snapshot to ensure they have current game state
-		log.Printf("[Connection-%s] ReconnectPlayerToGame: Sending game state snapshot to reconnected player", correlationID)
-		stateSnapshot := gameActor.CreatePlayerStateUpdateEvent(playerID)
-		playerActor.SendServerMessage(stateSnapshot)
-		log.Printf("[Connection-%s] ReconnectPlayerToGame: Game state snapshot sent to player %s", correlationID, playerID)
-	} else {
+	if !exists {
 		log.Printf("[Connection-%s] ReconnectPlayerToGame: WARNING - GameActor not found for game %s", correlationID, gameID)
+		return fmt.Errorf("game actor not found for game %s", gameID)
 	}
+
+	// --- OPTIMIZED RECONNECTION FLOW ---
+	// 1. Transition the player actor to the game state immediately
+	if err := playerActor.TransitionToGame(gameID); err != nil {
+		log.Printf("[Connection-%s] ReconnectPlayerToGame: FAILED - transition to game failed: %v", correlationID, err)
+		return err
+	}
+
+	// 2. IMMEDIATELY send the state snapshot to get the player back in the game as fast as possible
+	log.Printf("[Connection-%s] ReconnectPlayerToGame: Sending game state snapshot to reconnected player", correlationID)
+	stateSnapshot := gameActor.CreatePlayerStateUpdateEvent(playerID)
+	playerActor.SendServerMessage(stateSnapshot)
+	log.Printf("[Connection-%s] ReconnectPlayerToGame: Game state snapshot sent to player %s", correlationID, playerID)
+
+	// 3. Asynchronously handle the GameActor state updates and broadcasts
+	// This prevents any blocking and prioritizes the user experience
+	helpers.GoSafe(glm.ctx, func(ctx context.Context) {
+		log.Printf("[Connection-%s] ReconnectPlayerToGame: Processing reconnect action asynchronously", correlationID)
+		
+		// Send a "reconnect" action to the game actor to update connection status and notify other players
+		reconnectAction := core.Action{Type: core.ActionReconnect, PlayerID: playerID, GameID: gameID}
+		resultChan := gameActor.PostAction(reconnectAction)
+
+		// Wait for the action to be processed with a timeout to prevent hanging
+		select {
+		case result := <-resultChan:
+			if result.Error != nil {
+				log.Printf("[Connection-%s] ReconnectPlayerToGame: ERROR - Failed to process reconnect action: %v", correlationID, result.Error)
+			} else {
+				// Broadcast the resulting events to sync all clients
+				if err := glm.BroadcastEventsToGame(gameID, result.Events); err != nil {
+					log.Printf("[Connection-%s] Warning: failed to broadcast reconnection events for player %s: %v", correlationID, playerID, err)
+				} else {
+					log.Printf("[Connection-%s] ReconnectPlayerToGame: Successfully broadcasted reconnection events to other players", correlationID)
+				}
+			}
+		case <-time.After(5 * time.Second):
+			log.Printf("[Connection-%s] Warning: reconnect action timed out for player %s", correlationID, playerID)
+		}
+	})
 
 	log.Printf("[Connection-%s] ReconnectPlayerToGame: SUCCESS - Player %s reconnected to game session %s", correlationID, playerID, gameID)
 	return nil

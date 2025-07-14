@@ -757,8 +757,18 @@ func (gs *GameState) applyPlayerStatusChanged(event Event) {
 }
 
 func (gs *GameState) applyPlayerReconnected(event Event) {
-	// Player reconnection doesn't change game state directly
-	// but could be used for analytics or notifications
+	// This event is handled here to update the player's connection status.
+	// The payload might be empty if it's just a reconnect signal,
+	// so we use the event's PlayerID.
+	playerID := event.PlayerID
+	if pid, ok := event.Payload["player_id"].(string); ok && pid != "" {
+		playerID = pid
+	}
+
+	if player, exists := gs.Players[playerID]; exists {
+		player.ConnectionStatus = "CONNECTED"
+		player.StatusMessage = "" // Clear any "DISCONNECTED" status message
+	}
 }
 
 func (gs *GameState) applyPlayerDisconnected(event Event) {

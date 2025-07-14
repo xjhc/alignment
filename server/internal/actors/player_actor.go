@@ -279,9 +279,12 @@ func (pa *PlayerActor) TransitionToGame(gameID string) error {
 	pa.stateMutex.Lock()
 	defer pa.stateMutex.Unlock()
 
-	if pa.state != StateInLobby {
+	if pa.state != StateInLobby && pa.state != StateIdle {
 		return fmt.Errorf("invalid state transition from %s to InGame", pa.state)
 	}
+	if pa.state == StateIdle {
+		log.Printf("[PlayerActor/%s] Reconnecting directly to InGame state (game: %s)", pa.playerID, gameID)
+ 	}
 
 	pa.state = StateInGame
 	pa.gameID = gameID

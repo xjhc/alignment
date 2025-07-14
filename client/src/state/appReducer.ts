@@ -113,7 +113,9 @@ export type AppAction =
   | { type: "LEAVE_LOBBY" }
   | { type: "BACK_TO_LOGIN" }
   | { type: "ENTER_GAME" }
+  | { type: "GAME_STARTED"; payload: { gameId: string } }
   | { type: "ROLE_ASSIGNED"; payload: { roleAssignment: any } }
+  | { type: "ACKNOWLEDGE_ROLE" }
   | { type: "PLAY_AGAIN" }
   | {
       type: "RESTORE_SESSION";
@@ -123,6 +125,7 @@ export type AppAction =
         sessionToken: string;
         sessionState: SessionState;
         lobbyName?: string;
+        hasSeenRoleReveal?: boolean;
       };
     }
   | {
@@ -185,6 +188,7 @@ function createInitialAppState(): ConsolidatedAppState {
       hasSyncedInitialState: false,
       isNewJoin: false,
       sessionChecked: false, // Start as false
+      hasSeenRoleReveal: false,
     },
     sessionState: "IDLE",
     lobbyState: {
@@ -273,6 +277,7 @@ export function appReducer(
           sessionToken: action.payload.sessionToken,
           hasSyncedInitialState: false, // Reset sync flag to wait for initial state
           isNewJoin: true, // Mark as fresh join
+          hasSeenRoleReveal: false, // Reset for new lobby
         },
         lobbyState: {
           ...state.lobbyState,
@@ -294,6 +299,7 @@ export function appReducer(
           sessionToken: action.payload.sessionToken,
           hasSyncedInitialState: false, // Reset sync flag to wait for initial state
           isNewJoin: true, // Mark as fresh join
+          hasSeenRoleReveal: false, // Reset for new game
         },
         lobbyState: {
           ...state.lobbyState,
@@ -336,6 +342,7 @@ export function appReducer(
           sessionToken: undefined,
           hasSyncedInitialState: false, // Reset sync flag
           isNewJoin: false, // Reset new join flag
+          hasSeenRoleReveal: false, // Reset role reveal flag
         },
         lobbyState: {
           playerId: undefined,
@@ -361,16 +368,43 @@ export function appReducer(
           sessionChecked: true,
           hasSyncedInitialState: false,
           isNewJoin: false,
+          hasSeenRoleReveal: false,
         },
         sessionState: "IDLE",
         isInGameSession: false,
       };
 
+    case "GAME_STARTED":
+      return {
+        ...state,
+        sessionState: "IN_GAME",
+        appState: {
+          ...state.appState,
+          gameId: action.payload.gameId,
+        },
+      };
+
     case "ROLE_ASSIGNED":
+      // ROLE_ASSIGNED no longer needs to change the sessionState,
+      // as GAME_STARTED already handled it. It just populates role data.
+      return {
+        ...state,
+        roleAssignment: action.payload.roleAssignment,
+      };
+
     case "ENTER_GAME":
       return {
         ...state,
         sessionState: "IN_GAME",
+      };
+
+    case "ACKNOWLEDGE_ROLE":
+      return {
+        ...state,
+        appState: {
+          ...state.appState,
+          hasSeenRoleReveal: true,
+        },
       };
 
     case "PLAY_AGAIN":
@@ -593,6 +627,7 @@ export function appReducer(
           hasSyncedInitialState: false, // Reset sync flag to wait for initial state
           isNewJoin: false, // Mark as session restoration
           sessionChecked: true, // Atomically mark session as checked
+          hasSeenRoleReveal: action.payload.hasSeenRoleReveal || false, // Restore from localStorage
         },
         lobbyState: {
           ...state.lobbyState,

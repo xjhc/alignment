@@ -599,6 +599,7 @@ func (ga *GameActor) initializeActionHandlers() {
 		core.ActionLeaveGame:                      gameManagementHandler,
 		core.ActionAbandonGame:                    gameManagementHandler,
 		core.ActionSetPlayerConnectionStatus:     gameManagementHandler,
+		core.ActionReconnect:                     gameManagementHandler,
 		core.ActionAbandonPlayer:                 gameManagementHandler,
 		core.ActionType("PHASE_TRANSITION"):     gameManagementHandler,
 		core.ActionSyncLobbyState:                gameManagementHandler,

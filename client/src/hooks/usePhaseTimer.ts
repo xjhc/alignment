@@ -35,7 +35,7 @@ export function usePhaseTimer(phase: Phase) {
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [phase]);
+  }, [phase?.type, phase?.startTime, phase?.duration]);
 
   return timeRemaining;
 }

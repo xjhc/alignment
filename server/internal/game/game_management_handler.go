@@ -41,6 +41,8 @@ func (h *GameManagementHandler) Handle(state *core.GameState, action core.Action
 		return h.gameLifecycleManager.HandleAbandonGame(action)
 	case core.ActionSetPlayerConnectionStatus:
 		return h.gameLifecycleManager.HandleSetPlayerConnectionStatus(action)
+	case core.ActionReconnect:
+		return h.handleReconnect(action)
 	case core.ActionAbandonPlayer:
 		return h.gameLifecycleManager.HandleAbandonPlayer(action)
 	case core.ActionType("PHASE_TRANSITION"):
@@ -83,6 +85,23 @@ func (h *GameManagementHandler) handleAssignCorporateMandate(state *core.GameSta
 			"mandate_description": mandate.Description,
 			"mandate_effects":     mandate.Effects,
 			"day_number":          state.DayNumber,
+		},
+	}
+
+	return []core.Event{event}, nil
+}
+
+// handleReconnect generates a player reconnected event
+func (h *GameManagementHandler) handleReconnect(action core.Action) ([]core.Event, error) {
+	// Generate a reconnection event to update the player's connection status
+	event := core.Event{
+		ID:        fmt.Sprintf("player_reconnected_%s_%d", action.PlayerID, time.Now().UnixNano()),
+		Type:      core.EventPlayerReconnected,
+		GameID:    action.GameID,
+		PlayerID:  action.PlayerID,
+		Timestamp: time.Now(),
+		Payload: map[string]interface{}{
+			"player_id": action.PlayerID,
 		},
 	}
 

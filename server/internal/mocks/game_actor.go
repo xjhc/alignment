@@ -50,6 +50,10 @@ func (m *MockGameActor) AddSpectator(spectator interfaces.PlayerActorInterface) 
 	// Mock implementation - no-op
 }
 
+func (m *MockGameActor) RemoveSpectator(spectatorID string) {
+	// Mock implementation - no-op
+}
+
 func (m *MockGameActor) Stop() {
 	// Mock implementation - no-op
 }

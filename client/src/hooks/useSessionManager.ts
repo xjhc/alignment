@@ -44,6 +44,49 @@ export function useSessionManager() {
     didRestoreSession.current = true;
 
     const checkAuthAndSession = async () => {
+      // PRIORITY 1: Check for an existing game session first.
+      const savedSession = localStorage.getItem("alignmentGameSession");
+      if (savedSession) {
+        try {
+          const sessionData = JSON.parse(savedSession);
+          if (
+            sessionData.gameId &&
+            sessionData.playerId &&
+            sessionData.sessionToken &&
+            sessionData.sessionState
+          ) {
+            console.log(
+              "[App] Found existing session, restoring:",
+              sessionData
+            );
+            dispatch({ 
+              type: "RESTORE_SESSION", 
+              payload: {
+                ...sessionData,
+                hasSeenRoleReveal: sessionData.hasSeenRoleReveal || false,
+              }
+            });
+            
+            // Immediately attempt to reconnect to the WebSocket
+            console.log("[App] Attempting to reconnect to WebSocket with restored session");
+            try {
+              await connect(sessionData.gameId, sessionData.playerId, sessionData.sessionToken);
+              console.log("[App] WebSocket reconnection successful");
+            } catch (error) {
+              console.error("[App] WebSocket reconnection failed:", error);
+              // Don't clear the session here - let the WebSocket handler deal with it
+            }
+            
+            // Session restored, we can exit. The router will handle navigation.
+            return;
+          }
+        } catch (error) {
+          console.error("[App] Failed to parse saved session data:", error);
+          localStorage.removeItem("alignmentGameSession");
+        }
+      }
+
+      // PRIORITY 2: If no session, check for an authenticated user (e.g., from Discord login).
       try {
         const response = await fetch("/api/me");
         if (response.ok) {
@@ -54,7 +97,7 @@ export function useSessionManager() {
               type: "LOGIN",
               payload: {
                 playerName: userData.name,
-                playerAvatar: userData.avatar || "üë§",
+                playerAvatar: userData.avatar || "👤",
               },
             });
             const returnUrl = localStorage.getItem("discord_login_return_url");
@@ -68,41 +111,6 @@ export function useSessionManager() {
               }, 100);
               return;
             }
-            // Check for existing session before navigating to lobby list
-            const savedSession = localStorage.getItem("alignmentGameSession");
-            if (savedSession) {
-              try {
-                const sessionData = JSON.parse(savedSession);
-                if (
-                  sessionData.gameId &&
-                  sessionData.playerId &&
-                  sessionData.sessionToken &&
-                  sessionData.sessionState
-                ) {
-                  console.log(
-                    "[App] Authenticated user has existing session, restoring:",
-                    sessionData
-                  );
-                  dispatch({
-                    type: "RESTORE_SESSION",
-                    payload: {
-                      gameId: sessionData.gameId,
-                      playerId: sessionData.playerId,
-                      sessionToken: sessionData.sessionToken,
-                      sessionState: sessionData.sessionState,
-                      lobbyName: sessionData.lobbyName,
-                    },
-                  });
-                  return;
-                }
-              } catch (error) {
-                console.error(
-                  "[App] Failed to parse authenticated user's session data:",
-                  error
-                );
-                localStorage.removeItem("alignmentGameSession");
-              }
-            }
             navigateToLobbyList();
             return;
           }
@@ -111,42 +119,12 @@ export function useSessionManager() {
         console.log("[App] No authenticated user:", error);
       }
 
-      const savedSession = localStorage.getItem("alignmentGameSession");
-      if (savedSession) {
-        try {
-          const sessionData = JSON.parse(savedSession);
-          if (
-            sessionData.gameId &&
-            sessionData.playerId &&
-            sessionData.sessionToken &&
-            sessionData.sessionState
-          ) {
-            console.log(
-              "[App] Restoring session from localStorage:",
-              sessionData
-            );
-            dispatch({
-              type: "RESTORE_SESSION",
-              payload: {
-                gameId: sessionData.gameId,
-                playerId: sessionData.playerId,
-                sessionToken: sessionData.sessionToken,
-                sessionState: sessionData.sessionState,
-                lobbyName: sessionData.lobbyName,
-              },
-            });
-          }
-        } catch (error) {
-          console.error("[App] Failed to parse saved session data:", error);
-          localStorage.removeItem("alignmentGameSession");
-        }
-      }
-      
+      // PRIORITY 3: If no session and no auth, we're a new guest. Mark check as complete.
       // Finally, dispatch that the check is complete
       dispatch({ type: "SESSION_CHECK_COMPLETE" });
     };
     checkAuthAndSession();
-  }, [navigateToLobbyList]);
+  }, [navigateToLobbyList, connect]);
 
   // Session persistence (runs whenever session state changes)
   useEffect(() => {
@@ -162,6 +140,7 @@ export function useSessionManager() {
         sessionToken: state.appState.sessionToken,
         sessionState: state.sessionState,
         lobbyName: state.lobbyState.lobbyName || "",
+        hasSeenRoleReveal: state.appState.hasSeenRoleReveal || false,
         ...(state.appState.isSpectating && { isSpectating: true }),
       };
       localStorage.setItem("alignmentGameSession", JSON.stringify(sessionData));
@@ -176,6 +155,7 @@ export function useSessionManager() {
     state.appState.playerId,
     state.appState.sessionToken,
     state.lobbyState.lobbyName,
+    state.appState.hasSeenRoleReveal,
     state.appState.isSpectating,
   ]);
 
@@ -239,7 +219,6 @@ export function useSessionManager() {
     return unsubscribe;
   }, [isConnected, subscribe, navigateToGameOver]);
 
-
   // Theme setup
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "dark");
@@ -276,13 +255,26 @@ export function useSessionManager() {
     if (coreGameState) {
       console.log("[useSessionManager] coreGameState updated:", coreGameState);
       if (coreGameState.chatMessages) {
-        console.log("[useSessionManager] coreGameState.chatMessages:", coreGameState.chatMessages.length, "messages");
+        console.log(
+          "[useSessionManager] coreGameState.chatMessages:",
+          coreGameState.chatMessages.length,
+          "messages"
+        );
         coreGameState.chatMessages.forEach((msg: any, index: number) => {
-          console.log(`[useSessionManager] Message ${index}: id="${msg.id}", playerName="${msg.playerName}", reactions:`, msg.reactions?.length || 0, msg.reactions);
+          console.log(
+            `[useSessionManager] Message ${index}: id="${msg.id}", playerName="${msg.playerName}", reactions:`,
+            msg.reactions?.length || 0,
+            msg.reactions
+          );
           if (msg.reactions && msg.reactions.length > 0) {
-            console.log(`[useSessionManager] ✅ Message ${msg.id} has ${msg.reactions.length} reactions:`, msg.reactions);
+            console.log(
+              `[useSessionManager] ✅ Message ${msg.id} has ${msg.reactions.length} reactions:`,
+              msg.reactions
+            );
           } else {
-            console.log(`[useSessionManager] ❌ Message ${msg.id} has NO reactions`);
+            console.log(
+              `[useSessionManager] ❌ Message ${msg.id} has NO reactions`
+            );
           }
         });
       }
@@ -401,19 +393,26 @@ export function useSessionManager() {
     []
   );
 
-  const handleRoleAssigned = useCallback(
-    (event: any) => {
-      console.log(
-        "[SessionManager] ROLE_ASSIGNED received, transitioning to game:",
-        event.payload
-      );
-      dispatch({
-        type: "ROLE_ASSIGNED",
-        payload: { roleAssignment: event.payload },
-      });
-    },
-    []
-  );
+  const handleGameStarted = useCallback((event: any) => {
+    const gameId = event.payload?.game_id;
+    if (gameId) {
+      console.log("[SessionManager] Game started, transitioning state to IN_GAME");
+      dispatch({ type: "GAME_STARTED", payload: { gameId } });
+      navigateToRoleReveal();
+    } else {
+      console.error("[SessionManager] GAME_STARTED event missing game_id");
+    }
+  }, [navigateToRoleReveal]);
+  const handleRoleAssigned = useCallback((event: any) => {
+    console.log(
+      "[SessionManager] ROLE_ASSIGNED received:",
+      event.payload
+    );
+    dispatch({
+      type: "ROLE_ASSIGNED",
+      payload: { roleAssignment: event.payload },
+    });
+  }, []);
   const handleChatHistorySnapshot = useCallback(
     (event: any) =>
       dispatch({
@@ -435,17 +434,6 @@ export function useSessionManager() {
           console.log(
             "[SessionManager] Successfully loaded game state from reconnection snapshot"
           );
-
-          // Check if the game has started based on the phase
-          const gamePhase = event.payload.game_state.phase?.type;
-          if (gamePhase && gamePhase !== "LOBBY" && state.sessionState === "IN_LOBBY") {
-            console.log(
-              "[SessionManager] Game has started (phase:",
-              gamePhase,
-              "), transitioning to IN_GAME state"
-            );
-            dispatch({ type: "ENTER_GAME" });
-          }
         } catch (error) {
           console.error(
             "[SessionManager] Failed to load game state from reconnection snapshot:",
@@ -454,7 +442,7 @@ export function useSessionManager() {
         }
       }
     },
-    [resetAndLoadState, state.sessionState]
+    [resetAndLoadState]
   );
   const handlePulseCheckUpdated = useCallback(
     (event: any) =>
@@ -480,6 +468,7 @@ export function useSessionManager() {
         subscribe("CLIENT_ERROR", handleClientError),
         subscribe("GAME_START_COUNTDOWN_INITIATED", handleCountdownStart),
         subscribe("GAME_START_COUNTDOWN_UPDATE", handleCountdownUpdate),
+        subscribe("GAME_STARTED", handleGameStarted),
         subscribe("GAME_START_COUNTDOWN_CANCELLED", handleCountdownCancel),
         subscribe("HOST_TRANSFERRED", handleHostTransferred),
       ];
@@ -498,6 +487,7 @@ export function useSessionManager() {
     handleClientError,
     handleCountdownStart,
     handleCountdownUpdate,
+    handleGameStarted,
     handleCountdownCancel,
     handleHostTransferred,
   ]);
@@ -518,93 +508,117 @@ export function useSessionManager() {
   }, []);
 
   // NEW: Unified handler for all granular game events
-  const handleGameEvent = useCallback(async (event: ServerEvent) => {
-    if (!gameEngine.isReady()) {
-      console.warn(`Game engine not ready, skipping event ${event.type}`);
-      return;
-    }
-    
-    try {
-      console.log(`[SessionManager] Applying granular event ${event.type} to game engine`);
-      
-      // Convert ServerEvent to CoreEvent format
-      const coreEvent = {
-        id: event.id || `event_${Date.now()}`,
-        type: event.type,
-        gameId: event.gameId || event.game_id || '',
-        playerId: event.playerId || '',
-        timestamp: event.timestamp || new Date().toISOString(),
-        payload: event.payload || {}
-      };
-
-      // Special handling for chat messages to ensure proper format
-      if (event.type === ServerEventType.ChatMessage) {
-        // Backend sends chat messages with this payload structure:
-        // payload: { sender_id, sender_name, message, phase, day_number, channel_id }
-        // We need to make sure the playerId is set from sender_id
-        if (event.payload?.sender_id) {
-          coreEvent.playerId = event.payload.sender_id;
-        }
+  const handleGameEvent = useCallback(
+    async (event: ServerEvent) => {
+      if (!gameEngine.isReady()) {
+        console.warn(`Game engine not ready, skipping event ${event.type}`);
+        return;
       }
 
-      // The applyEvent now returns the new state directly
-      const newGameState = await gameEngine.applyEvent(coreEvent as any);
-      
-      // Find the local player's role for the roleAssignment piece of state
-      const playersArray: any[] = Array.isArray(newGameState.players)
-        ? newGameState.players
-        : Object.values(newGameState.players || {});
-      const localPlayerInState = playersArray.find((p: any) => p.id === state.appState.playerId);
-      
-      let roleAssignment: RoleAssignment | undefined;
-      if (localPlayerInState && localPlayerInState.role && localPlayerInState.alignment) {
-        roleAssignment = {
-          role: localPlayerInState.role,
-          alignment: localPlayerInState.alignment,
-          personalKPI: localPlayerInState.personalKPI || null,
+      try {
+        console.log(
+          `[SessionManager] Applying granular event ${event.type} to game engine`
+        );
+
+        // Convert ServerEvent to CoreEvent format
+        const coreEvent = {
+          id: event.id || `event_${Date.now()}`,
+          type: event.type,
+          gameId: event.gameId || event.game_id || "",
+          playerId: event.playerId || "",
+          timestamp: event.timestamp || new Date().toISOString(),
+          payload: event.payload || {},
         };
+
+        // Special handling for chat messages to ensure proper format
+        if (event.type === ServerEventType.ChatMessage) {
+          // Backend sends chat messages with this payload structure:
+          // payload: { sender_id, sender_name, message, phase, day_number, channel_id }
+          // We need to make sure the playerId is set from sender_id
+          if (event.payload?.sender_id) {
+            coreEvent.playerId = event.payload.sender_id;
+          }
+        }
+
+        // The applyEvent now returns the new state directly
+        const newGameState = await gameEngine.applyEvent(coreEvent as any);
+
+        // Find the local player's role for the roleAssignment piece of state
+        const playersArray: any[] = Array.isArray(newGameState.players)
+          ? newGameState.players
+          : Object.values(newGameState.players || {});
+        const localPlayerInState = playersArray.find(
+          (p: any) => p.id === state.appState.playerId
+        );
+
+        let roleAssignment: RoleAssignment | undefined;
+        if (
+          localPlayerInState &&
+          localPlayerInState.role &&
+          localPlayerInState.alignment
+        ) {
+          roleAssignment = {
+            role: localPlayerInState.role,
+            alignment: localPlayerInState.alignment,
+            personalKPI: localPlayerInState.personalKPI || null,
+          };
+        }
+
+        // Add avatars to the new game state
+        const playersWithAvatars = playersArray.map((player: any) => ({
+          ...player,
+          avatar: state.lobbyState.playerInfos.find(
+            (info) => info.id === player.id
+          )?.avatar,
+        }));
+        const gameStateWithAvatars = {
+          ...newGameState,
+          players: playersWithAvatars,
+        };
+
+        // Dispatch the updated state to the reducer
+        dispatch({
+          type: "UPDATE_GAME_STATE",
+          payload: { gameState: gameStateWithAvatars, roleAssignment },
+        });
+
+        // If this event was a phase change, also reset the skip vote UI state.
+        // This consolidates all logic for a PHASE_CHANGED event into one handler.
+        if (event.type === ServerEventType.PhaseChanged) {
+          dispatch({
+            type: "UPDATE_SKIP_VOTES",
+            payload: {
+              skipVoteState: {
+                currentVotes: 0,
+                requiredVotes: 0,
+                voters: [],
+              },
+            },
+          });
+          console.log(
+            "[SessionManager] Skip vote state reset due to phase change."
+          );
+        }
+
+        // Check for game over condition
+        if (gameStateWithAvatars.winCondition) {
+          dispatch({
+            type: "GAME_OVER",
+            payload: { sessionState: "POST_GAME" },
+          });
+          navigateToGameOver();
+        }
+      } catch (error) {
+        console.error(`Failed to apply event ${event.type}:`, error);
       }
-
-      // Add avatars to the new game state
-      const playersWithAvatars = playersArray.map((player: any) => ({
-        ...player,
-        avatar: state.lobbyState.playerInfos.find((info) => info.id === player.id)?.avatar,
-      }));
-      const gameStateWithAvatars = {
-        ...newGameState,
-        players: playersWithAvatars,
-      };
-
-      // Dispatch the updated state to the reducer
-      dispatch({ 
-        type: "UPDATE_GAME_STATE", 
-        payload: { gameState: gameStateWithAvatars, roleAssignment }
-      });
-
-      // Check for game over condition
-      if (gameStateWithAvatars.winCondition) {
-        dispatch({ type: "GAME_OVER", payload: { sessionState: "POST_GAME" } });
-        navigateToGameOver();
-      }
-    } catch (error) {
-      console.error(`Failed to apply event ${event.type}:`, error);
-    }
-  }, [gameEngine.isReady, state.appState.playerId, state.lobbyState.playerInfos, navigateToGameOver]);
-
-  const handlePhaseChanged = useCallback(() => {
-    // Reset skip vote state for new phase with empty state
-    dispatch({
-      type: "UPDATE_SKIP_VOTES",
-      payload: {
-        skipVoteState: {
-          currentVotes: 0,
-          requiredVotes: 0,
-          voters: [],
-        },
-      },
-    });
-  }, [dispatch]);
-
+    },
+    [
+      gameEngine.isReady,
+      state.appState.playerId,
+      state.lobbyState.playerInfos,
+      navigateToGameOver,
+    ]
+  );
 
   // Game event subscriptions
   useEffect(() => {
@@ -627,17 +641,24 @@ export function useSessionManager() {
       ServerEventType.LoebmateMessage,
       // Add any other event that modifies core.GameState
     ];
-    
-    const unsubscribers = stateChangingEvents.map(eventType => 
+
+    const unsubscribers = stateChangingEvents.map((eventType) =>
       subscribe(eventType, handleGameEvent)
     );
-    
+
     // Continue to handle full state snapshots and non-state events separately
-    unsubscribers.push(subscribe(ServerEventType.GameStateUpdate, handleGameStateUpdate));
-    unsubscribers.push(subscribe(ServerEventType.PulseCheckUpdated, handlePulseCheckUpdated));
-    unsubscribers.push(subscribe(ServerEventType.SkipVoteUpdated, handleSkipVoteUpdated));
-    unsubscribers.push(subscribe(ServerEventType.PhaseChanged, handlePhaseChanged));
-    unsubscribers.push(subscribe(ServerEventType.RoleAssigned, handleRoleAssigned));
+    unsubscribers.push(
+      subscribe(ServerEventType.GameStateUpdate, handleGameStateUpdate)
+    );
+    unsubscribers.push(
+      subscribe(ServerEventType.PulseCheckUpdated, handlePulseCheckUpdated)
+    );
+    unsubscribers.push(
+      subscribe(ServerEventType.SkipVoteUpdated, handleSkipVoteUpdated)
+    );
+    unsubscribers.push(
+      subscribe(ServerEventType.RoleAssigned, handleRoleAssigned)
+    );
 
     return () => unsubscribers.forEach((unsub) => unsub());
   }, [
@@ -648,7 +669,6 @@ export function useSessionManager() {
     handleGameStateUpdate,
     handlePulseCheckUpdated,
     handleSkipVoteUpdated,
-    handlePhaseChanged,
     handleRoleAssigned,
   ]);
 
@@ -747,7 +767,8 @@ export function useSessionManager() {
 
   const handleEnterGame = () => {
     // This is called from RoleRevealScreen to navigate to the main game view.
-    // No state change is needed as we are already IN_GAME.
+    // Dispatch ACKNOWLEDGE_ROLE to mark that the player has seen the role reveal.
+    dispatch({ type: "ACKNOWLEDGE_ROLE" });
     navigateToGame();
   };
 
@@ -791,25 +812,6 @@ export function useSessionManager() {
   const handleViewAnalysis = () => navigateToAnalysis();
   const handleBackToResults = () => navigateToGameOver();
 
-  // Session expiry handling
-  useEffect(() => {
-    if (!isConnected) return;
-    const unsubscribe = subscribe("SESSION_EXPIRED", (event: any) => {
-      console.log(
-        "Session expired, clearing session and returning to lobby list"
-      );
-      // Clear local storage
-      localStorage.removeItem("alignmentGameSession");
-      // Clear the current session state
-      dispatch({ type: "LEAVE_LOBBY" });
-      // Disconnect WebSocket
-      disconnect();
-      // Navigate to lobby list
-      navigateToLobbyList();
-    });
-    return unsubscribe;
-  }, [isConnected, subscribe, disconnect, navigateToLobbyList]);
-
   // Server-forced logout handling
   useEffect(() => {
     if (!isConnected) return;
@@ -830,13 +832,74 @@ export function useSessionManager() {
     return unsubscribe;
   }, [isConnected, subscribe, disconnect, navigateToLogin]);
 
+  // Centralized SESSION_EXPIRED handling with comprehensive reason-based routing
+  useEffect(() => {
+    if (!isConnected) return;
+    const unsubscribe = subscribe("SESSION_EXPIRED", (event: any) => {
+      const reason = event.payload?.reason;
+      const message = event.payload?.message || "Session expired";
+      
+      console.log(`[SessionManager] SESSION_EXPIRED received: reason="${reason}", message="${message}"`);
+      
+      // Clear localStorage immediately for all session expired events
+      localStorage.removeItem("alignmentGameSession");
+      
+      switch (reason) {
+        case 'session_invalid':
+          // Unrecoverable error - the session token is bad or expired
+          console.log("[SessionManager] Session invalid - returning to login");
+          dispatch({ type: "BACK_TO_LOGIN" });
+          disconnect();
+          navigateToLogin();
+          break;
+          
+        case 'lobby_not_found':
+        case 'game_not_found':
+          // The specific lobby/game is gone, but the user's identity is fine
+          console.log(`[SessionManager] ${reason} - returning to lobby list`);
+          dispatch({ type: "LEAVE_LOBBY" });
+          disconnect();
+          navigateToLobbyList();
+          break;
+          
+        case 'transition_failed':
+        case 'reconnection_failed':
+          // Failed to transition or reconnect to game state
+          console.log(`[SessionManager] ${reason} - attempting to return to lobby list`);
+          dispatch({ type: "LEAVE_LOBBY" });
+          disconnect();
+          navigateToLobbyList();
+          break;
+          
+        case 'server_error':
+        case 'join_failed':
+          // Server-side errors
+          console.log(`[SessionManager] ${reason} - returning to lobby list`);
+          dispatch({ type: "LEAVE_LOBBY" });
+          disconnect();
+          navigateToLobbyList();
+          break;
+          
+        default:
+          // Unknown reason - assume recoverable and go to lobby list
+          console.log(`[SessionManager] Unknown session expiry reason "${reason}" - returning to lobby list`);
+          dispatch({ type: "LEAVE_LOBBY" });
+          disconnect();
+          navigateToLobbyList();
+          break;
+      }
+    });
+    return unsubscribe;
+  }, [isConnected, subscribe, disconnect, navigateToLogin, navigateToLobbyList]);
+
   // Player abandoned event handling (when local player abandons)
   useEffect(() => {
     if (!isConnected) return;
     const unsubscribe = subscribe("PLAYER_ABANDONED", (event: any) => {
       // Check if the abandoned player is the local player
       // CRITICAL FIX: Check the correct event property for player ID
-      const abandonedPlayerId = event.playerId || event.payload?.player_id || event.payload?.playerId;
+      const abandonedPlayerId =
+        event.playerId || event.payload?.player_id || event.payload?.playerId;
       if (abandonedPlayerId === state.appState.playerId) {
         console.log(
           "Player abandoned game, clearing session and returning to lobby list"

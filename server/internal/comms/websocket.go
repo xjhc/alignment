@@ -16,6 +16,7 @@ import (
 	"github.com/xjhc/alignment/core"
 	"github.com/xjhc/alignment/server/internal/actors"
 	"github.com/xjhc/alignment/server/internal/events"
+	"github.com/xjhc/alignment/server/internal/helpers"
 	"github.com/xjhc/alignment/server/internal/interfaces"
 	"github.com/xjhc/alignment/server/internal/party"
 	"github.com/xjhc/alignment/server/internal/ratelimit"
@@ -270,149 +271,123 @@ func (wsm *WebSocketManager) HandleWebSocket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Extract client IP for rate limiting
-	clientIP := getClientIP(r)
+	// Validate session token first
+	if !wsm.tokenValidator.ValidateSession(gameID, playerID, sessionToken) {
+		http.Error(w, "Invalid or expired session token", http.StatusUnauthorized)
+		return
+	}
 
-	// Check session validity
-	sessionValid := wsm.tokenValidator.ValidateSession(gameID, playerID, sessionToken)
-	
-	// Get player information regardless of session validity (for SESSION_EXPIRED handling)
+	// Get player info for the actor
 	playerName, playerAvatar, err := wsm.tokenValidator.GetPlayerInfo(gameID, playerID)
-	if err != nil && sessionValid {
-		// Only error out if session is valid but we can't get player info
+	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get player info: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
-	// Always upgrade to WebSocket connection
+
+	// --- UPGRADE IMMEDIATELY ---
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
 	
-	// Get per-IP rate limiters for this client
-	chatLimiter := wsm.chatRateLimiter.GetLimiter(clientIP)
-	generalLimiter := wsm.generalRateLimiter.GetLimiter(clientIP)
-	
-	// If session is invalid, send SESSION_EXPIRED and close
-	if !sessionValid {
-		// CRITICAL FIX: Invalidate the session token on the server side to prevent reuse
-		if glm, ok := wsm.tokenValidator.(interface{ invalidatePlayerToken(string) }); ok {
-			glm.invalidatePlayerToken(playerID)
-			log.Printf("WebSocketManager: Invalidated session token for player %s due to invalid session", playerID)
+	clientIP := getClientIP(r)
+
+	// --- HANDLE THE REST ASYNCHRONOUSLY ---
+	// Use GoSafe for robust goroutine management
+	helpers.GoSafe(wsm.ctx, func(_ context.Context) {
+		// This now runs in a new goroutine, freeing up the HTTP handler
+		wsm.actorsMutex.Lock()
+		if existingActor, exists := wsm.playerActors[playerID]; exists {
+			existingActor.Stop()
+			delete(wsm.playerActors, playerID)
 		}
 
-		// Create a temporary PlayerActor to send the session expired event
-		tempActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, clientIP, conn, chatLimiter, generalLimiter)
-		tempActor.Start()
-		wsm.sendSessionExpiredAndClose(tempActor, gameID, "session_invalid", "Your session has expired. Please log in again.")
-		return
-	}
+		chatLimiter := wsm.chatRateLimiter.GetLimiter(clientIP)
+		generalLimiter := wsm.generalRateLimiter.GetLimiter(clientIP)
 
-	// Check if PlayerActor already exists (reconnection)
-	wsm.actorsMutex.Lock()
-	existingActor, exists := wsm.playerActors[playerID]
-	if exists {
-		// Stop the existing actor first
-		existingActor.Stop()
-		delete(wsm.playerActors, playerID)
-	}
+		playerActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, clientIP, conn, chatLimiter, generalLimiter)
+		playerActor.SetDependencies(wsm.lifecycleManager, wsm.eventBus, wsm.partyManager)
+		if wsm.actionSemaphore != nil {
+			playerActor.SetActionSemaphore(wsm.actionSemaphore)
+		}
 
-	// Create new PlayerActor with per-IP rate limiters
-	playerActor := actors.NewPlayerActor(wsm.ctx, playerID, playerName, playerAvatar, sessionToken, clientIP, conn, chatLimiter, generalLimiter)
-	playerActor.SetDependencies(wsm.lifecycleManager, wsm.eventBus, wsm.partyManager)
-	
-	// Set the global action semaphore for admission control
-	if wsm.actionSemaphore != nil {
-		playerActor.SetActionSemaphore(wsm.actionSemaphore)
-	}
+		wsm.playerActors[playerID] = playerActor
+		wsm.actorsMutex.Unlock()
 
-	wsm.playerActors[playerID] = playerActor
-	wsm.actorsMutex.Unlock()
+		// Update player presence to "online"
+		wsm.updatePlayerPresence(playerID, "online", nil, nil)
 
-	// Update player presence to "online"
-	wsm.updatePlayerPresence(playerID, "online", nil, nil)
+		// Start the PlayerActor
+		playerActor.Start()
 
-	// Start the PlayerActor
-	playerActor.Start()
+		// Determine if this is a reconnection to an active game or joining a lobby
+		wsm.handleConnectionRoutingLogic(gameID, playerActor)
 
-	// Determine if this is a reconnection to an active game or joining a lobby
-	// The initial state snapshot is now sent atomically by JoinLobbyWithActor or ReconnectPlayerToGame
-	wsm.handleConnectionRoutingLogic(gameID, playerActor)
-
-	log.Printf("WebSocketManager: Created PlayerActor for %s (%s) and joined lobby %s", playerID, playerName, gameID)
+		log.Printf("WebSocketManager: Created PlayerActor for %s (%s) and joined lobby %s", playerID, playerName, gameID)
+	})
 }
 
 // handleConnectionRoutingLogic determines if this is a reconnection to a game or joining a lobby
 func (wsm *WebSocketManager) handleConnectionRoutingLogic(gameID string, playerActor *actors.PlayerActor) {
+	// This function acts as a router for incoming connections.
+	// It checks if the gameID corresponds to an active game (reconnect) or a waiting lobby (join).
 	if wsm.lifecycleManager == nil {
 		log.Printf("WebSocketManager: Lifecycle manager not initialized")
 		wsm.sendSessionExpiredAndClose(playerActor, gameID, "server_error", "Server configuration error")
 		return
 	}
 
-	// First, check if this is an active game (for reconnection)
+	// Check if this connection is for an active, in-progress game.
 	gameActor, gameExists := wsm.lifecycleManager.GetGameActor(gameID)
 	if gameExists {
 		// Check if this is a spectator (player ID starts with "spectator-")
 		if isSpectator := len(playerActor.GetPlayerID()) > 10 && playerActor.GetPlayerID()[:10] == "spectator-"; isSpectator {
-			log.Printf("WebSocketManager: Spectator %s connecting to active game %s", playerActor.GetPlayerID(), gameID)
-			
-			// Transition the player actor to the spectating state
-			err := playerActor.TransitionToSpectating(gameID)
-			if err != nil {
-				log.Printf("WebSocketManager: Failed to transition spectator %s to spectating state: %v", playerActor.GetPlayerID(), err)
-				wsm.sendSessionExpiredAndClose(playerActor, gameID, "transition_failed", "Failed to transition to spectating")
-				return
-			}
-			
-			// Add the spectator to the game actor
-			gameActor.AddSpectator(playerActor)
-			
-			log.Printf("WebSocketManager: Successfully connected spectator %s to game %s", playerActor.GetPlayerID(), gameID)
-			return
+			wsm.reconnectSpectator(gameID, playerActor, gameActor)
+		} else {
+			// This is a RECONNECTION to an active game.
+			wsm.reconnectPlayer(gameID, playerActor, gameActor)
 		}
-		
-		// This is a regular player reconnection to an active game
-		log.Printf("WebSocketManager: Player %s reconnecting to active game %s", playerActor.GetPlayerID(), gameID)
-		
-		err := wsm.lifecycleManager.ReconnectPlayerToGame(gameID, playerActor)
-		if err != nil {
-			log.Printf("WebSocketManager: Failed to reconnect player %s to game %s: %v", playerActor.GetPlayerID(), gameID, err)
-			wsm.sendSessionExpiredAndClose(playerActor, gameID, "reconnection_failed", "Failed to reconnect to game")
-			return
-		}
-		
-		// Transition the player actor to the game state
-		err = playerActor.TransitionToGame(gameID)
-		if err != nil {
-			log.Printf("WebSocketManager: Failed to transition player %s to game state: %v", playerActor.GetPlayerID(), err)
-			wsm.sendSessionExpiredAndClose(playerActor, gameID, "transition_failed", "Failed to transition to game")
-			return
-		}
-		
-		// Send the current game state to the reconnecting player
-		gameStateEvent := gameActor.CreatePlayerStateUpdateEvent(playerActor.GetPlayerID())
-		playerActor.SendServerMessage(gameStateEvent)
-		
-		log.Printf("WebSocketManager: Successfully reconnected player %s to game %s", playerActor.GetPlayerID(), gameID)
 		return
 	}
 
-	// Not an active game, try to join as a lobby
-	err := wsm.joinLobbyAutomatically(gameID, playerActor)
+	// If not an active game, assume it's a LOBBY JOIN.
+	err := wsm.lifecycleManager.JoinLobbyWithActor(gameID, playerActor)
 	if err != nil {
 		log.Printf("WebSocketManager: Failed to auto-join lobby %s for player %s: %v", gameID, playerActor.GetPlayerID(), err)
-		
-		// Check if this is a "lobby not found" error vs other errors
-		if err.Error() == "lobby not found: "+gameID {
+		if strings.Contains(err.Error(), "lobby not found") {
 			wsm.sendSessionExpiredAndClose(playerActor, gameID, "lobby_not_found", "The lobby you were trying to join no longer exists. Please join a new game.")
 		} else {
 			wsm.sendSessionExpiredAndClose(playerActor, gameID, "join_failed", "Failed to join lobby")
 		}
+	}
+}
+
+func (wsm *WebSocketManager) reconnectPlayer(gameID string, playerActor *actors.PlayerActor, gameActor interfaces.GameActorInterface) {
+	err := wsm.lifecycleManager.ReconnectPlayerToGame(gameID, playerActor)
+	if err != nil {
+		log.Printf("WebSocketManager: Failed to reconnect player %s to game %s: %v", playerActor.GetPlayerID(), gameID, err)
+		wsm.sendSessionExpiredAndClose(playerActor, gameID, "reconnection_failed", "Failed to reconnect to game")
 		return
 	}
+	
+	// The GameLifecycleManager.ReconnectPlayerToGame now handles all the reconnection logic
+	// including transitioning the player actor and sending the state snapshot
+	log.Printf("WebSocketManager: Successfully reconnected player %s to game %s", playerActor.GetPlayerID(), gameID)
+}
+
+func (wsm *WebSocketManager) reconnectSpectator(gameID string, playerActor *actors.PlayerActor, gameActor interfaces.GameActorInterface) {
+	log.Printf("WebSocketManager: Spectator %s connecting to active game %s", playerActor.GetPlayerID(), gameID)
+
+	err := playerActor.TransitionToSpectating(gameID)
+	if err != nil {
+		log.Printf("WebSocketManager: Failed to transition spectator %s to spectating state: %v", playerActor.GetPlayerID(), err)
+		wsm.sendSessionExpiredAndClose(playerActor, gameID, "transition_failed", "Failed to transition to spectating")
+		return
+	}
+
+	gameActor.AddSpectator(playerActor)
+	log.Printf("WebSocketManager: Successfully connected spectator %s to game %s", playerActor.GetPlayerID(), gameID)
 }
 
 // sendSessionExpiredAndClose sends a session expired event and closes the connection
@@ -442,72 +417,6 @@ func (wsm *WebSocketManager) sendSessionExpiredAndClose(playerActor *actors.Play
 	wsm.actorsMutex.Unlock()
 }
 
-// joinLobbyAutomatically handles the automatic lobby joining in REST-then-WebSocket flow
-func (wsm *WebSocketManager) joinLobbyAutomatically(gameIDOrLobbyID string, playerActor *actors.PlayerActor) error {
-	if wsm.lifecycleManager == nil {
-		return fmt.Errorf("lifecycle manager not initialized")
-	}
-
-	// First, check if this is an active game (for reconnection)
-	gameActor, gameExists := wsm.lifecycleManager.GetGameActor(gameIDOrLobbyID)
-	if gameExists {
-		// This is a reconnection to an active game
-		log.Printf("WebSocketManager: Player %s reconnecting to active game %s", playerActor.GetPlayerID(), gameIDOrLobbyID)
-		
-		// Transition the player actor to the game
-		err := playerActor.TransitionToGame(gameIDOrLobbyID)
-		if err != nil {
-			return fmt.Errorf("failed to transition player to game %s: %w", gameIDOrLobbyID, err)
-		}
-		
-		// Re-add the player to the game session to fix state corruption
-		err = wsm.lifecycleManager.ReconnectPlayerToGame(gameIDOrLobbyID, playerActor)
-		if err != nil {
-			log.Printf("WebSocketManager: Warning - failed to reconnect player to game session: %v", err)
-			// Don't fail the reconnection if session tracking fails, but log it
-		}
-		
-		// Send a PLAYER_RECONNECTED event to notify other players
-		reconnectedEvent := core.Event{
-			ID:        "reconnect_" + playerActor.GetPlayerID() + "_" + fmt.Sprintf("%d", time.Now().UnixNano()),
-			Type:      core.EventPlayerReconnected,
-			GameID:    gameIDOrLobbyID,
-			PlayerID:  "", // Public event for all players
-			Timestamp: time.Now(),
-			Payload: map[string]interface{}{
-				"player_id":   playerActor.GetPlayerID(),
-				"player_name": playerActor.GetPlayerName(),
-			},
-		}
-		
-		// Broadcast to all players in the game
-		err = wsm.BroadcastToGame(gameIDOrLobbyID, reconnectedEvent)
-		if err != nil {
-			log.Printf("WebSocketManager: Warning - failed to broadcast reconnection event: %v", err)
-		}
-		
-		// Send a game state snapshot to the reconnecting player
-		snapshotEvent := gameActor.CreatePlayerStateUpdateEvent(playerActor.GetPlayerID())
-		playerActor.SendServerMessage(snapshotEvent)
-		
-		log.Printf("WebSocketManager: Player %s successfully reconnected to game %s", playerActor.GetPlayerID(), gameIDOrLobbyID)
-		return nil
-	}
-
-	// If not a game, try to join as a lobby
-	err := wsm.lifecycleManager.JoinLobbyWithActor(gameIDOrLobbyID, playerActor)
-	if err != nil {
-		return fmt.Errorf("lobby not found: %s", gameIDOrLobbyID)
-	}
-
-	log.Printf("WebSocketManager: Player %s automatically joined lobby %s", playerActor.GetPlayerID(), gameIDOrLobbyID)
-	
-	// For lobby joins, the AddPlayer function in the lobby will automatically send
-	// a LOBBY_STATE_UPDATE event to all players in the lobby, including the newly joined player.
-	// This ensures that the reconnecting player receives the complete current lobby state.
-	
-	return nil
-}
 
 // GetPlayerActor returns a PlayerActor by ID
 func (wsm *WebSocketManager) GetPlayerActor(playerID string) (*actors.PlayerActor, bool) {
